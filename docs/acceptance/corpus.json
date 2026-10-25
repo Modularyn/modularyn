@@ -451,20 +451,21 @@
       ],
       "type": "negative",
       "preconditions": [
-        "admin-1 has a password and a one-time-password authenticator. alias-1 is a verified alias of the single site. An administrator exists, and the deployment's one-time bootstrap secret was consumed at installation."
+        "admin-1 has a password and a one-time-password authenticator. alias-1 is a verified alias of the single site with an internationalized label, so it has a Unicode form and a punycode form; the deployment declares one proxy. An administrator exists, and the deployment's one-time bootstrap secret was consumed at installation."
       ],
       "steps": [
         "Submit admin-1's correct password, skip the second factor, and call an Admin API and an Admin page with the cookies the browser then holds.",
-        "On alias-1, request the Admin sign-in, preview and API namespaces in a browser and with a direct client.",
+        "Request the Admin sign-in, preview and API namespaces in a browser and with a direct client on alias-1 and on each of its variants: changed letter case, a trailing dot, an explicit port, and its other Unicode or punycode form.",
+        "Send the same requests to alias-1 with a forwarded-host value naming the canonical host, from a source that is not the declared proxy.",
         "Call the first-administrator setup path with no secret, with the consumed secret and with a malformed secret."
       ],
       "expectedOutcome": [
         "No Admin session or Admin-scoped cookie exists after the password step alone, and both calls are refused as unauthenticated.",
-        "alias-1 answers none of the reserved namespaces and sets no cookie; Admin cookies carry a host prefix and are issued only on the canonical origin.",
+        "Neither alias-1, any of its variants, nor the forwarded-host request answers a reserved namespace or sets a cookie; Admin cookies carry a host prefix and are issued only on the canonical origin.",
         "Each bootstrap attempt receives the same response as an absent route, and the account inventory is unchanged."
       ],
       "evidence": [
-        "Request and response traces with cookie jars for each row, and account inventories before and after, as evidence for TM-W-010, TM-W-009 and TM-W-014."
+        "Request and response traces with cookie jars for each row and host variant, and account inventories before and after, as evidence for TM-W-010, TM-W-009 and TM-W-014."
       ]
     },
     {
@@ -1276,20 +1277,20 @@
       ],
       "type": "negative",
       "preconditions": [
-        "importer-1 holds dry-run and plan-approval permissions but not package-source administration; plan-1 was built by importer-1 against the bound repository and plan-2 by importer-2. editor-3 manages content but lacks the contact-destination permission."
+        "importer-1 holds dry-run and plan-approval permissions but not package-source administration; plan-1 was built by importer-1 against the bound repository and plan-2 by importer-2. editor-3 holds every content-management permission but not the dedicated contact-destination permission; the change's recent-authentication, audit and notification clauses are qualified by AC-002 and AC-012."
       ],
       "steps": [
         "As importer-1, rebind the content-package repository through a direct call.",
         "Have a package-source administrator rebind it with recent authentication, then have importer-1 approve and apply plan-1, and apply plan-2.",
-        "As editor-3, change the contact destination through a direct call."
+        "As editor-3, change the contact destination through the minimal Admin and through a direct call."
       ],
       "expectedOutcome": [
         "importer-1's rebinding is refused; the authorized rebinding is recorded and invalidates plan-1.",
         "Applying plan-1 or plan-2 is refused with the failed binding named, and nothing is written.",
-        "editor-3's change is refused by the server permission check and the destination is unchanged."
+        "editor-3's changes are refused because no content-management permission substitutes for the dedicated contact-destination permission, and the destination is unchanged."
       ],
       "evidence": [
-        "Binding records, plan states and apply refusals with the failed binding, and destination configuration before and after, as evidence for TM-W-057, TM-W-038 and TM-G02-019."
+        "Binding records, plan states and apply refusals with the failed binding, and destination configuration before and after, as evidence for TM-W-057, TM-W-038, TM-G02-019 and the dedicated-permission clause of TM-W-033."
       ]
     },
     {
@@ -1489,11 +1490,11 @@
         "With the same session, call save, schedule and publish for article-1 directly."
       ],
       "expectedOutcome": [
-        "Preview includes asset-2 and shows article-3's reference as unavailable without its title or content.",
+        "Preview includes asset-2 and shows article-3's reference as unavailable without its title or content, because each referenced item is authorized for reviewer-1 separately.",
         "Each management call is refused; preview permission grants no content management."
       ],
       "evidence": [
-        "Preview responses, per-item authorization decisions and management-call refusals, as evidence for TM-G02-020 and TM-G02-019."
+        "Preview responses, per-item authorization decisions and management-call refusals, as evidence for TM-G02-020, TM-G02-019 and the per-item authorization of TM-W-021."
       ]
     },
     {
@@ -6003,7 +6004,7 @@
     },
     {
       "id": "AC-031-B02",
-      "title": "Show diagnostics to operators without exposing secret values",
+      "title": "Show diagnostics to operators without exposing secret values or internal state",
       "family": "AC-031",
       "profiles": [
         "website"
@@ -6018,7 +6019,8 @@
       ],
       "layers": [
         "operational-recovery",
-        "unit"
+        "unit",
+        "api-contract"
       ],
       "securityDependencies": [
         "AC-003",
@@ -6026,20 +6028,21 @@
       ],
       "type": "boundary",
       "preconditions": [
-        "Sentinel values are mounted as the database password, transport credential and Git source credential through deployment secret references. An anonymous probe and an operator holding diagnostics permission are available; probe semantics and diagnostic authorization are qualified by AC-025."
+        "Sentinel values are mounted as the database password, transport credential and Git source credential through deployment secret references. An anonymous probe and an operator holding diagnostics permission are available."
       ],
       "steps": [
         "Inspect every image layer and the image configuration for the sentinels.",
-        "Request liveness, readiness and diagnostics as the anonymous probe and as the operator, and export a diagnostic bundle as the operator.",
+        "Request liveness, readiness and diagnostics as the anonymous probe and as the operator, with the database available and unavailable, and export a diagnostic bundle as the operator.",
         "Cause a database outage and a transport failure, then search logs, traces, metrics and the bundle for sentinels, session cookies and contact bodies, and inspect metric dimensions."
       ],
       "expectedOutcome": [
         "No sentinel appears in an image layer or configuration; secrets arrive only through mounted references.",
-        "Neither the probe's responses nor the operator's diagnostics and bundle contain a configuration value.",
+        "Anonymous liveness and readiness responses are minimal and reveal no version, configuration, dependency, topology or internal state, in either database condition; anonymous diagnostics requests are refused.",
+        "The operator sees dependency detail without any configuration value, and neither the diagnostics nor the bundle contains a sentinel.",
         "No secret, cookie or contact body appears in telemetry or the bundle; metric dimensions carry no tenant or site labels, and inbound correlation values are bounded and confer no authority."
       ],
       "evidence": [
-        "Layer inspection, probe and diagnostic responses per caller, and sentinel search results per output, as evidence for TM-W-054, TM-G02-047 and TM-G02-053."
+        "Layer inspection, probe and diagnostic responses per caller and database condition, and sentinel search results per output, as evidence for TM-W-054, TM-G02-054, TM-G02-047 and TM-G02-053."
       ]
     },
     {
@@ -6181,20 +6184,21 @@
       ],
       "type": "negative",
       "preconditions": [
-        "author-1 can save a draft whose title, block text and image alt text contain markup and script-like text. The canonical origin serves public pages, error pages, media, health, Admin and preview responses, and a fixture page on an unrelated origin can frame any of them."
+        "author-1 can save a draft whose title, block text and image alt text contain markup and script-like text, and the draft places an eligible raster image. The canonical origin serves public pages, error pages, media, health, Admin and preview responses, and a fixture page on an unrelated origin can frame any of them."
       ],
       "steps": [
         "Publish the draft, then render it on the public site, in preview and in the Admin editor.",
-        "Request one response of each class, including a not-found page, a media response and a health response, and inspect its headers.",
+        "Request one response of each class, including a not-found page, the published image, preview media and a health response, and inspect its headers.",
         "Load an Admin page and a preview page inside the fixture page's frame."
       ],
       "expectedOutcome": [
         "Every content-derived value renders as encoded text in each context; no element that the renderers do not declare is emitted, and no script runs.",
         "Every response carries a content security policy that forbids inline script; Admin and preview responses also carry no-sniff and strict referrer policies.",
+        "Each media response carries the raster content type verified at upload, with sniffing disabled.",
         "The framed Admin and preview pages do not render, because their responses forbid framing."
       ],
       "evidence": [
-        "Rendered output per context with encoding inspection, browser script-execution observations, header captures per response class and framing results, as evidence for TM-W-002 and TM-W-017."
+        "Rendered output per context with encoding inspection, browser script-execution observations, header captures per response class and framing results, as evidence for TM-W-002, TM-W-017 and TM-W-026."
       ]
     },
     {

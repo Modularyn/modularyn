@@ -699,7 +699,7 @@
       "owner": "Operations",
       "requirements": ["OPS-010", "FND-038"],
       "evidence": {
-        "acceptance": ["AC-025"],
+        "acceptance": ["AC-025", "AC-031"],
         "layers": ["api-contract", "operational-recovery"]
       },
       "profiles": ["reference", "website"]
@@ -1048,9 +1048,9 @@
       "threats": ["TH-W-028", "TH-W-029"],
       "boundary": "TB-W-05",
       "owner": "Content",
-      "requirements": ["CMS-006", "CMS-009"],
+      "requirements": ["CMS-006", "CMS-009", "FND-016"],
       "evidence": {
-        "acceptance": ["AC-009", "AC-016"],
+        "acceptance": ["AC-003", "AC-009", "AC-016"],
         "layers": ["isolation", "api-contract"]
       },
       "profiles": ["reference", "website"]
@@ -1206,7 +1206,7 @@
       "owner": "Content and Engagement",
       "requirements": ["CMS-017", "OPS-007"],
       "evidence": {
-        "acceptance": ["AC-012", "AC-020"],
+        "acceptance": ["AC-003", "AC-012", "AC-020"],
         "layers": ["isolation", "api-contract"]
       },
       "profiles": ["reference", "website"]
