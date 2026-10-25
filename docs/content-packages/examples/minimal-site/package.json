@@ -1,0 +1,131 @@
+{
+  "format": "modularyn.content-package",
+  "formatVersion": 1,
+  "packageKey": "garden-site",
+  "site": {
+    "key": "garden",
+    "culture": "en-US"
+  },
+  "schemaVersions": {
+    "contentType": 1,
+    "entry": 1,
+    "block": 1
+  },
+  "renderers": [
+    {
+      "key": "standard",
+      "kind": "layout",
+      "version": 1
+    },
+    {
+      "key": "page",
+      "kind": "template",
+      "version": 1
+    },
+    {
+      "key": "post",
+      "kind": "template",
+      "version": 1
+    },
+    {
+      "key": "paragraph",
+      "kind": "block",
+      "version": 1
+    },
+    {
+      "key": "image",
+      "kind": "block",
+      "version": 1
+    },
+    {
+      "key": "content-link",
+      "kind": "block",
+      "version": 1
+    }
+  ],
+  "contentTypes": [
+    "types/page.json",
+    "types/post.json"
+  ],
+  "entries": [
+    "entries/home.md",
+    "entries/about.md",
+    "entries/first-harvest.md"
+  ],
+  "media": [
+    {
+      "key": "garden",
+      "path": "media/garden.png",
+      "sha256": "7c4f334c240a8d4f75f65d8edc4938c057d8a24d9997b21d9aaffd7fa669ac77",
+      "bytes": 108,
+      "mimeType": "image/png",
+      "alt": "Green planting beds beneath a pale blue sky.",
+      "attribution": "Original illustration contributed with this package under Apache-2.0."
+    }
+  ],
+  "taxonomies": [
+    {
+      "key": "topics",
+      "label": "Topics",
+      "terms": [
+        {
+          "key": "growing",
+          "label": "Growing",
+          "parent": null
+        },
+        {
+          "key": "harvest",
+          "label": "Harvest",
+          "parent": "growing"
+        }
+      ]
+    }
+  ],
+  "navigation": [
+    {
+      "key": "main",
+      "nodes": [
+        {
+          "key": "home",
+          "label": "Home",
+          "parent": null,
+          "entry": "home"
+        },
+        {
+          "key": "about",
+          "label": "About",
+          "parent": "home",
+          "entry": "about"
+        },
+        {
+          "key": "blog",
+          "label": "First harvest",
+          "parent": "home",
+          "entry": "first-harvest"
+        }
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "path": "/",
+      "entry": "home"
+    },
+    {
+      "path": "/about",
+      "entry": "about"
+    },
+    {
+      "path": "/blog/first-harvest",
+      "entry": "first-harvest"
+    }
+  ],
+  "redirects": [
+    {
+      "from": "/welcome",
+      "to": "/",
+      "status": 301
+    }
+  ],
+  "documentationSources": []
+}

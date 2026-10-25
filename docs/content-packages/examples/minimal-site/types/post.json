@@ -1,0 +1,20 @@
+{
+  "formatVersion": 1,
+  "key": "post",
+  "schemaVersion": 1,
+  "name": "Post",
+  "body": "blocks",
+  "fields": [
+    {
+      "key": "published-at",
+      "type": "date-time",
+      "required": true
+    },
+    {
+      "key": "topic",
+      "type": "term-ref",
+      "required": true,
+      "target": "topics"
+    }
+  ]
+}

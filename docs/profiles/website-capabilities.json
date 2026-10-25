@@ -1,0 +1,361 @@
+{
+  "version": 1,
+  "profile": "website",
+  "gate": "W",
+  "status": "defined",
+  "included": [
+    {
+      "key": "content",
+      "title": "Content types and records",
+      "coverage": [
+        {
+          "id": "CMS-001",
+          "scope": "Versioned types and validated fields used by W."
+        },
+        {
+          "id": "CMS-002",
+          "scope": "Stable records and references within the single site."
+        },
+        {
+          "id": "MOD-009",
+          "scope": "CMS foundation for the declared website subset."
+        }
+      ]
+    },
+    {
+      "key": "composition",
+      "title": "Typed blocks, layouts and templates",
+      "coverage": [
+        {
+          "id": "CMS-003",
+          "scope": "Declarative composition with installed Razor renderers."
+        },
+        {
+          "id": "UI-007",
+          "scope": "Validate renderer availability before preview and publication."
+        }
+      ]
+    },
+    {
+      "key": "publication",
+      "title": "Revisions and publication lifecycle",
+      "coverage": [
+        {
+          "id": "CMS-004",
+          "scope": "Recoverable drafts, immutable revisions and concurrency conflicts."
+        },
+        {
+          "id": "CMS-005",
+          "scope": "Immutable publication manifests, scheduling and rollback."
+        },
+        {
+          "id": "CMS-006",
+          "scope": "Protected preview of the exact selected revision."
+        },
+        {
+          "id": "FND-022",
+          "scope": "Restart-safe publication scheduling."
+        }
+      ]
+    },
+    {
+      "key": "media",
+      "title": "Media through Files",
+      "coverage": [
+        {
+          "id": "CMS-009",
+          "scope": "Media references, metadata and publication integrity."
+        },
+        {
+          "id": "MOD-014",
+          "scope": "File ownership, quarantine, versions and authorized access."
+        },
+        {
+          "id": "FND-030",
+          "scope": "Filesystem BLOB provider only."
+        }
+      ]
+    },
+    {
+      "key": "taxonomy-navigation",
+      "title": "Taxonomy and navigation",
+      "coverage": [
+        {
+          "id": "CMS-010",
+          "scope": "Single-culture terms and ordered navigation with validated links."
+        }
+      ]
+    },
+    {
+      "key": "seo",
+      "title": "SEO, sitemaps and redirects",
+      "coverage": [
+        {
+          "id": "CMS-012",
+          "scope": "Published metadata, canonical routes, sitemaps and safe redirects."
+        },
+        {
+          "id": "CMS-007",
+          "scope": "One site with verified alias domains and route ownership only."
+        },
+        {
+          "id": "MOD-010",
+          "scope": "Redirects only; other module actions require their own declared scope."
+        }
+      ]
+    },
+    {
+      "key": "blog",
+      "title": "Blog",
+      "coverage": [
+        {
+          "id": "MOD-007",
+          "scope": "Author, publish, list and read posts without engagement features."
+        }
+      ]
+    },
+    {
+      "key": "documentation",
+      "title": "Versioned Git documentation",
+      "coverage": [
+        {
+          "id": "MOD-011",
+          "scope": "Documentation versions identified by repository and pinned revision."
+        }
+      ]
+    },
+    {
+      "key": "contact",
+      "title": "Contact form with email",
+      "coverage": [
+        {
+          "id": "CMS-017",
+          "scope": "Durable contact requests routed to authorized destinations."
+        },
+        {
+          "id": "MOD-010",
+          "scope": "Contact forms only; engagement and newsletter actions remain unsupported."
+        },
+        {
+          "id": "FND-032",
+          "scope": "Email delivery state and retry handling only; no SMS claim."
+        }
+      ]
+    },
+    {
+      "key": "content-packages",
+      "title": "Git content packages",
+      "coverage": [
+        {
+          "id": "CMS-021",
+          "scope": "Version 1 packages, dry run, stable-key mapping, reviewed apply and recovery."
+        }
+      ]
+    },
+    {
+      "key": "theme",
+      "title": "Original accessible theme",
+      "coverage": [
+        {
+          "id": "UI-011",
+          "scope": "Original theme for Razor and the minimal Admin actions."
+        },
+        {
+          "id": "UI-012",
+          "scope": "WCAG 2.2 AA for included journeys."
+        },
+        {
+          "id": "UI-005",
+          "scope": "Action ledger for the minimal Admin subset."
+        }
+      ]
+    },
+    {
+      "key": "admin-account",
+      "title": "Admin sign-in and recovery",
+      "coverage": [
+        {
+          "id": "MOD-001",
+          "scope": "Admin sign-in, account recovery and session management."
+        },
+        {
+          "id": "MOD-002",
+          "scope": "Two-factor authentication or passkeys for Admin access."
+        },
+        {
+          "id": "OPS-003",
+          "scope": "Session revocation and authentication security for included actions."
+        },
+        {
+          "id": "UI-002",
+          "scope": "Minimal React/TypeScript Admin subset only."
+        }
+      ]
+    },
+    {
+      "key": "security",
+      "title": "ASVS L2 controls",
+      "coverage": [
+        {
+          "id": "OPS-001",
+          "scope": "Threat and control evidence for W surfaces at ASVS L2."
+        },
+        {
+          "id": "OPS-002",
+          "scope": "Tenant/site boundary rejection across included surfaces."
+        },
+        {
+          "id": "OPS-005",
+          "scope": "Safe public input, preview and package import."
+        }
+      ]
+    },
+    {
+      "key": "backup-restore",
+      "title": "Backup and restore",
+      "coverage": [
+        {
+          "id": "OPS-013",
+          "scope": "Coordinated PostgreSQL and filesystem backup and isolated restore."
+        },
+        {
+          "id": "CMS-022",
+          "scope": "Restore schemas, revisions and immutable manifests with referenced media."
+        }
+      ]
+    },
+    {
+      "key": "upgrade",
+      "title": "Upgrade from previous W release",
+      "coverage": [
+        {
+          "id": "OPS-020",
+          "scope": "Upgrade the preceding W release with a supported recovery path."
+        },
+        {
+          "id": "CMS-021",
+          "scope": "Preserve package identities and schema compatibility during upgrade."
+        }
+      ]
+    }
+  ],
+  "unsupported": [
+    {
+      "key": "multisite-governance",
+      "title": "Multisite governance",
+      "coverage": [
+        {
+          "id": "CMS-007",
+          "scope": "Multiple sites and cross-site sharing."
+        },
+        {
+          "id": "CMS-022",
+          "scope": "Cross-site governance and approvals."
+        }
+      ],
+      "reason": "One site per deployment bounds W; cross-site lifecycle and governance require separate evidence."
+    },
+    {
+      "key": "localization",
+      "title": "Localization beyond one culture",
+      "coverage": [
+        {
+          "id": "CMS-008",
+          "scope": "Translations and fallback."
+        },
+        {
+          "id": "UI-013",
+          "scope": "Multiple-culture presentation."
+        },
+        {
+          "id": "MOD-021",
+          "scope": "Language administration."
+        }
+      ],
+      "reason": "W fixes one culture; translation and localized route coordination are not qualified."
+    },
+    {
+      "key": "search",
+      "title": "Search",
+      "coverage": [
+        {
+          "id": "CMS-011",
+          "scope": "Indexing and authorized queries."
+        }
+      ],
+      "reason": "Index freshness, query authorization and rebuild recovery are outside the early website scope."
+    },
+    {
+      "key": "engagement",
+      "title": "Comments and engagement",
+      "coverage": [
+        {
+          "id": "CMS-014",
+          "scope": "Comments and moderation."
+        },
+        {
+          "id": "CMS-015",
+          "scope": "Reactions, ratings and marks."
+        },
+        {
+          "id": "CMS-018",
+          "scope": "Polls and page feedback."
+        },
+        {
+          "id": "CMS-019",
+          "scope": "FAQ workflows."
+        },
+        {
+          "id": "MOD-010",
+          "scope": "Engagement module actions."
+        }
+      ],
+      "reason": "Interactive engagement needs additional abuse, moderation and lifecycle evidence beyond a contact form."
+    },
+    {
+      "key": "newsletters",
+      "title": "Newsletters",
+      "coverage": [
+        {
+          "id": "CMS-016",
+          "scope": "Subscription consent and preference lifecycle."
+        },
+        {
+          "id": "MOD-010",
+          "scope": "Newsletter delivery actions."
+        }
+      ],
+      "reason": "Bulk delivery, unsubscribe and consent handling need separate qualification."
+    },
+    {
+      "key": "headless-graphql",
+      "title": "Headless GraphQL",
+      "coverage": [
+        {
+          "id": "CMS-013",
+          "scope": "GraphQL delivery and query controls."
+        }
+      ],
+      "reason": "GraphQL schema, query-cost and field-authorization behavior form a separate profile."
+    },
+    {
+      "key": "payments-commerce",
+      "title": "Payments and commerce",
+      "coverage": [
+        {
+          "id": "MOD-025",
+          "scope": "Payment processing and reconciliation."
+        },
+        {
+          "id": "MOD-027",
+          "scope": "Commercial subscription and entitlement lifecycle."
+        },
+        {
+          "id": "AC-011",
+          "scope": "Payment failure and reconciliation scenarios."
+        }
+      ],
+      "reason": "Checkout, refunds, provider reconciliation and commerce workflows are outside W."
+    }
+  ]
+}

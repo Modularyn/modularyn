@@ -36,6 +36,8 @@ public sealed class RepositoryConventionTests
     [InlineData("https://github.com/Modularyn/modularyn")]
     [InlineData("${RUNNER_TEMP}/modularyn-gitleaks")]
     [InlineData("../tests/Modularyn.Repository.Tests")]
+    [InlineData("package.json#/media/0/alt")]
+    [InlineData("schema.json#/root")]
     public void Portable_references_are_accepted(string text)
     {
         Assert.False(Conventions.HasMachinePath(text));
