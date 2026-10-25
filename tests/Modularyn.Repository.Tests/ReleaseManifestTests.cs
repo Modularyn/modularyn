@@ -53,7 +53,7 @@ public sealed class ReleaseManifestTests
     [InlineData("empty-entries", "capability requires a nonempty entry list")]
     [InlineData("missing-entries", "capability requires a nonempty entry list")]
     [InlineData("entries-not-array", "capability requires a nonempty entry list")]
-    [InlineData("empty-entry-profiles", "schema lower bound")]
+    [InlineData("empty-entry-profiles", "/entries/1/profiles: schema minItems lower bound")]
     [InlineData("duplicate-entry-profile", "schema duplicate array item")]
     [InlineData("entry-edition", "schema prohibits value")]
     [InlineData("capability-state", "schema prohibits value")]
@@ -307,7 +307,7 @@ public sealed class ReleaseManifestTests
     public void SemVer_is_exact(string version, bool valid)
     {
         var schema = ContentPackageContract.Parse(RepositoryFiles.Current[ReleaseManifestContract.SchemaPath]);
-        var exception = Record.Exception(() => SchemaSubset.Validate(JsonSerializer.SerializeToElement(version), schema.GetProperty("$defs").GetProperty("semver"), schema));
+        var exception = Record.Exception(() => SchemaSubset.Validate(JsonSerializer.SerializeToElement(version), schema.GetProperty("$defs").GetProperty("semver"), schema, "semver#"));
         if (valid) Assert.Null(exception);
         else Assert.IsType<ContractViolation>(exception);
     }

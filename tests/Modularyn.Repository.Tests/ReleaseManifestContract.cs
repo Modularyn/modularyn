@@ -22,7 +22,7 @@ internal static class ReleaseManifestContract
             var schema = Parse(schemaText);
             SchemaSubset.CheckDocument(schema, "urn:modularyn:release-manifest:1");
             CheckStateRequirements(manifest, claimDate);
-            SchemaSubset.Validate(manifest, schema, schema);
+            SchemaSubset.Validate(manifest, schema, schema, "manifest#");
             CheckIdentity(manifest);
             CheckReferences(manifest, files);
             return [];
