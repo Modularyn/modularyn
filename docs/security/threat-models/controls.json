@@ -186,11 +186,11 @@
     },
     {
       "id": "TM-G02-015",
-      "title": "Throttle sign-in and return uniform failures",
-      "threats": ["TH-G02-018", "TH-W-012"],
+      "title": "Throttle credential and code verification, resist lockout abuse and return uniform failures",
+      "threats": ["TH-G02-018", "TH-G02-076", "TH-W-012", "TH-W-090", "TH-W-091"],
       "boundary": "TB-G02-04",
       "owner": "Identity",
-      "requirements": ["OPS-003", "FND-017"],
+      "requirements": ["OPS-003", "FND-017", "MOD-022"],
       "evidence": {
         "acceptance": ["AC-002"],
         "layers": ["unit", "api-contract"]
@@ -200,7 +200,7 @@
     {
       "id": "TM-G02-016",
       "title": "Issue sessions that resist fixation and replay",
-      "threats": ["TH-G02-019"],
+      "threats": ["TH-G02-078", "TH-G02-019"],
       "boundary": "TB-G02-04",
       "owner": "Identity",
       "requirements": ["OPS-003", "FND-017"],
@@ -705,6 +705,84 @@
       "profiles": ["reference", "website"]
     },
     {
+      "id": "TM-G02-055",
+      "title": "Store password verifiers with a salted adaptive hash and upgrade them at sign-in",
+      "threats": ["TH-G02-072", "TH-W-088"],
+      "boundary": "TB-G02-04",
+      "owner": "Identity",
+      "requirements": ["MOD-017", "OPS-003"],
+      "evidence": {
+        "acceptance": ["AC-002", "AC-031"],
+        "layers": ["unit", "real-provider-integration"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-056",
+      "title": "Encrypt one-time-password seeds under keys from the authorized store",
+      "threats": ["TH-G02-073", "TH-W-088"],
+      "boundary": "TB-G02-04",
+      "owner": "Identity",
+      "requirements": ["MOD-017", "MOD-002", "OPS-004"],
+      "evidence": {
+        "acceptance": ["AC-002", "AC-031"],
+        "layers": ["unit", "operational-recovery"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-057",
+      "title": "Store recovery codes only as verifiers and consume each one once",
+      "threats": ["TH-G02-074", "TH-W-088"],
+      "boundary": "TB-G02-04",
+      "owner": "Accounts",
+      "requirements": ["MOD-001", "MOD-002", "OPS-003"],
+      "evidence": {
+        "acceptance": ["AC-002"],
+        "layers": ["unit", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-058",
+      "title": "Protect passkey credential records for integrity",
+      "threats": ["TH-G02-075", "TH-W-089"],
+      "boundary": "TB-G02-04",
+      "owner": "Identity",
+      "requirements": ["MOD-017", "MOD-002", "OPS-004"],
+      "evidence": {
+        "acceptance": ["AC-002", "AC-031"],
+        "layers": ["unit", "real-provider-integration"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-059",
+      "title": "Allow credentialed cross-origin requests only from configured origins",
+      "threats": ["TH-G02-077", "TH-W-092"],
+      "boundary": "TB-G02-02",
+      "owner": "API",
+      "requirements": ["FND-018", "FND-026"],
+      "evidence": {
+        "acceptance": ["AC-003", "AC-008"],
+        "layers": ["api-contract", "ui"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-060",
+      "title": "Redirect to HTTPS and emit HSTS from the application",
+      "threats": ["TH-G02-078"],
+      "boundary": "TB-G02-02",
+      "owner": "API",
+      "requirements": ["FND-018", "OPS-003"],
+      "evidence": {
+        "acceptance": ["AC-031"],
+        "layers": ["api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
       "id": "TM-W-001",
       "title": "Deliver only the active immutable publication manifest",
       "threats": ["TH-W-001", "TH-W-006", "TH-W-035"],
@@ -837,7 +915,7 @@
     {
       "id": "TM-W-011",
       "title": "Make recovery single-use, expiring, rate-limited and factor-preserving",
-      "threats": ["TH-W-014", "TH-W-015", "TH-W-082"],
+      "threats": ["TH-W-014", "TH-W-015", "TH-W-091", "TH-W-082"],
       "boundary": "TB-W-03",
       "owner": "Accounts",
       "requirements": ["MOD-001", "MOD-002", "OPS-003"],
@@ -1265,26 +1343,26 @@
     },
     {
       "id": "TM-W-044",
-      "title": "Restrict intake network access to approved Git hosts and bounded transfers",
-      "threats": ["TH-W-061"],
+      "title": "Restrict Git fetches to allowlisted hosts with bounded transfers",
+      "threats": ["TH-W-095", "TH-W-097", "TH-W-061"],
       "boundary": "TB-W-10",
-      "owner": "Documentation",
-      "requirements": ["MOD-011", "OPS-005"],
+      "owner": "Security",
+      "requirements": ["OPS-005", "MOD-011", "CMS-021"],
       "evidence": {
-        "acceptance": ["AC-019", "AC-031"],
+        "acceptance": ["AC-019", "AC-028", "AC-031"],
         "layers": ["real-provider-integration"]
       },
       "profiles": ["website"]
     },
     {
       "id": "TM-W-045",
-      "title": "Keep documentation source credentials in deployment secrets",
-      "threats": ["TH-W-063"],
+      "title": "Keep Git source credentials in deployment secrets with read-only scope",
+      "threats": ["TH-W-096", "TH-W-063"],
       "boundary": "TB-W-10",
-      "owner": "Documentation",
-      "requirements": ["MOD-011", "OPS-004"],
+      "owner": "Security",
+      "requirements": ["OPS-004", "MOD-011", "CMS-021"],
       "evidence": {
-        "acceptance": ["AC-031"],
+        "acceptance": ["AC-028", "AC-031"],
         "layers": ["unit", "operational-recovery"]
       },
       "profiles": ["website"]
@@ -1292,7 +1370,7 @@
     {
       "id": "TM-W-046",
       "title": "Encrypt backups and store key material separately under a recovery role",
-      "threats": ["TH-W-065"],
+      "threats": ["TH-W-088", "TH-W-065"],
       "boundary": "TB-W-11",
       "owner": "Operations",
       "requirements": ["OPS-013", "OPS-004"],
@@ -1416,6 +1494,58 @@
       "evidence": {
         "acceptance": ["AC-031"],
         "layers": ["operational-recovery"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-056",
+      "title": "Configure no credentialed cross-origin access to the Admin and APIs",
+      "threats": ["TH-W-092"],
+      "boundary": "TB-W-04",
+      "owner": "Admin",
+      "requirements": ["UI-002", "FND-018"],
+      "evidence": {
+        "acceptance": ["AC-003", "AC-023"],
+        "layers": ["api-contract", "ui"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-057",
+      "title": "Bind package sources only with a dedicated permission and recent authentication",
+      "threats": ["TH-W-093"],
+      "boundary": "TB-W-09",
+      "owner": "Content",
+      "requirements": ["CMS-021", "OPS-007"],
+      "evidence": {
+        "acceptance": ["AC-003", "AC-012", "AC-028"],
+        "layers": ["isolation", "api-contract"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-058",
+      "title": "Acquire package snapshots at verified full commits bound into the plan",
+      "threats": ["TH-W-094"],
+      "boundary": "TB-W-09",
+      "owner": "Content",
+      "requirements": ["CMS-021"],
+      "evidence": {
+        "acceptance": ["AC-028"],
+        "layers": ["real-provider-integration", "unit"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-059",
+      "title": "Keep the few Admin accounts reachable during lockout attacks",
+      "threats": ["TH-W-090"],
+      "boundary": "TB-W-03",
+      "owner": "Accounts",
+      "requirements": ["MOD-001", "OPS-003"],
+      "evidence": {
+        "acceptance": ["AC-002"],
+        "layers": ["api-contract", "operational-recovery"]
       },
       "profiles": ["website"]
     }

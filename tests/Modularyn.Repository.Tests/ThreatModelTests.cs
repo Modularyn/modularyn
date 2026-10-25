@@ -37,11 +37,11 @@ public sealed class ThreatModelTests
     [InlineData("nonobject-evidence", "evidence must be an object")]
     [InlineData("unknown-owner", "owner must name a register owner")]
     [InlineData("owner-without-requirement", "owner must own at least one listed requirement")]
-    [InlineData("unknown-requirement", "FND-041 must name a register requirement")]
+    [InlineData("unknown-requirement", "must name a register requirement")]
     [InlineData("acceptance-as-requirement", "AC-001 must name a register requirement")]
     [InlineData("duplicate-requirement", "duplicate requirements reference")]
     [InlineData("empty-requirements", "requirements must be a nonempty array")]
-    [InlineData("unknown-acceptance", "unknown acceptance family AC-033")]
+    [InlineData("unknown-acceptance", "unknown acceptance family")]
     [InlineData("unmapped-acceptance", "is not mapped to a listed requirement")]
     [InlineData("empty-acceptance", "acceptance must be a nonempty array")]
     [InlineData("unknown-layer", "unknown test layer manual")]
@@ -49,18 +49,18 @@ public sealed class ThreatModelTests
     [InlineData("unknown-profile", "profile must be reference or website")]
     [InlineData("missing-reference-profile", "must name the reference profile")]
     [InlineData("missing-website-profile", "must name the website profile")]
-    [InlineData("unknown-threat", "threat TH-G02-999 is not defined in the prose")]
+    [InlineData("unknown-threat", "is not defined in the prose")]
     [InlineData("malformed-threat", "threat id TH-G02-1 must be TH-G02 or TH-W")]
     [InlineData("empty-threats", "threats must be a nonempty array")]
     [InlineData("cross-model-threat", "may address only website threats")]
     [InlineData("foundation-without-foundation-threat", "must address at least one foundation threat")]
-    [InlineData("unknown-boundary", "boundary TB-G02-99 is not defined in the prose")]
+    [InlineData("unknown-boundary", "is not defined in the prose")]
     [InlineData("malformed-boundary", "boundary must be TB-G02 or TB-W")]
     [InlineData("cross-model-boundary", "boundary must belong to the control's model")]
     [InlineData("boundary-without-control", "has no control in the map")]
     [InlineData("changed-threat-mapping", "controls listed in the prose differ from the map")]
-    [InlineData("removed-control", "cited control TM-G02-001 is not in the map")]
-    [InlineData("uncited-control", "TM-G02-999 is not cited in the prose")]
+    [InlineData("removed-control", "is not in the map")]
+    [InlineData("uncited-control", "is not cited in the prose")]
     [InlineData("wrong-version", "version must be 1")]
     [InlineData("string-version", "version must be 1")]
     [InlineData("invalid-date", "date must be an ISO calendar date")]
@@ -73,6 +73,8 @@ public sealed class ThreatModelTests
         var controls = map["controls"]!.AsArray();
         var first = controls[0]!;
         var website = controls.First(control => Id(control!).StartsWith("TM-W-", StringComparison.Ordinal))!;
+        // When set, the diagnostic must also name this identifier, derived so that it stays absent as the data grows.
+        string? expected = null;
         switch (mutation)
         {
             case "duplicate-control": controls.Add(first.DeepClone()); break;
@@ -89,48 +91,53 @@ public sealed class ThreatModelTests
             case "extra-field": first["status"] = "planned"; break;
             case "extra-evidence-field": first["evidence"]!["notes"] = "Additional prose"; break;
             case "nonobject-evidence": first["evidence"] = "AC-001"; break;
-            case "unknown-owner": first["owner"] = "External subsystem"; break;
+            case "unknown-owner": first["owner"] = AbsentOwner(); break;
             case "owner-without-requirement": first["owner"] = OwnerOutside(first); break;
-            case "unknown-requirement": first["requirements"]![0] = "FND-041"; break;
+            case "unknown-requirement": first["requirements"]![0] = expected = AbsentRegisterId("FND"); break;
             case "acceptance-as-requirement": first["requirements"]![0] = "AC-001"; break;
             case "duplicate-requirement": first["requirements"]!.AsArray().Add(Strings(first["requirements"]!)[0]); break;
             case "empty-requirements": first["requirements"] = new JsonArray(); break;
-            case "unknown-acceptance": first["evidence"]!["acceptance"]![0] = "AC-033"; break;
-            case "unmapped-acceptance": first["evidence"]!["acceptance"]!.AsArray().Add(FamilyOutside(first)); break;
+            case "unknown-acceptance": first["evidence"]!["acceptance"]![0] = expected = AbsentRegisterId("AC"); break;
+            case "unmapped-acceptance": first["evidence"]!["acceptance"]!.AsArray().Add(expected = FamilyOutside(first)); break;
             case "empty-acceptance": first["evidence"]!["acceptance"] = new JsonArray(); break;
             case "unknown-layer": first["evidence"]!["layers"]![0] = "manual"; break;
             case "duplicate-layer": first["evidence"]!["layers"]!.AsArray().Add(Strings(first["evidence"]!["layers"]!)[0]); break;
             case "unknown-profile": first["profiles"]![0] = "enterprise"; break;
             case "missing-reference-profile": first["profiles"] = new JsonArray("website"); break;
             case "missing-website-profile":
-                controls.First(control => Id(control!).StartsWith("TM-G02-", StringComparison.Ordinal)
-                    && Strings(control!["threats"]!).Any(threat => threat.StartsWith("TH-W-", StringComparison.Ordinal)))!["profiles"]
-                    = new JsonArray("reference");
+                var reused = controls.First(control => Id(control!).StartsWith("TM-G02-", StringComparison.Ordinal)
+                    && Strings(control!["threats"]!).Any(threat => threat.StartsWith("TH-W-", StringComparison.Ordinal)))!;
+                reused["profiles"] = new JsonArray("reference");
+                expected = Id(reused);
                 break;
-            case "unknown-threat": first["threats"]!.AsArray().Add("TH-G02-999"); break;
+            case "unknown-threat": first["threats"]!.AsArray().Add(expected = AbsentModelId("TH-G02", 3)); break;
             case "malformed-threat": first["threats"]![0] = "TH-G02-1"; break;
             case "empty-threats": first["threats"] = new JsonArray(); break;
             case "cross-model-threat": website["threats"]!.AsArray().Add(Strings(first["threats"]!)[0]); break;
             case "foundation-without-foundation-threat": first["threats"] = new JsonArray(Strings(website["threats"]!)[0]); break;
-            case "unknown-boundary": first["boundary"] = "TB-G02-99"; break;
+            case "unknown-boundary": first["boundary"] = expected = AbsentModelId("TB-G02", 2); break;
             case "malformed-boundary": first["boundary"] = "TB-G02-1"; break;
             case "cross-model-boundary": website["boundary"] = (string?)first["boundary"]; break;
             case "boundary-without-control":
-                var boundary = (string?)controls.Last(control => Id(control!).StartsWith("TM-G02-", StringComparison.Ordinal))!["boundary"];
-                foreach (var control in controls.Where(control => (string?)control!["boundary"] == boundary))
+                expected = (string?)controls.Last(control => Id(control!).StartsWith("TM-G02-", StringComparison.Ordinal))!["boundary"];
+                foreach (var control in controls.Where(control => (string?)control!["boundary"] == expected))
                 {
                     control!["boundary"] = (string?)first["boundary"];
                 }
                 break;
             case "changed-threat-mapping":
                 var addressed = Strings(first["threats"]!);
-                first["threats"]!.AsArray().Add(controls.Skip(1).SelectMany(control => Strings(control!["threats"]!))
-                    .First(threat => threat.StartsWith("TH-G02-", StringComparison.Ordinal) && !addressed.Contains(threat)));
+                expected = controls.Skip(1).SelectMany(control => Strings(control!["threats"]!))
+                    .First(threat => threat.StartsWith("TH-G02-", StringComparison.Ordinal) && !addressed.Contains(threat));
+                first["threats"]!.AsArray().Add(expected);
                 break;
-            case "removed-control": controls.RemoveAt(0); break;
+            case "removed-control":
+                expected = Id(first);
+                controls.RemoveAt(0);
+                break;
             case "uncited-control":
                 var copy = first.DeepClone();
-                copy["id"] = "TM-G02-999";
+                copy["id"] = expected = AbsentModelId("TM-G02", 3);
                 controls.Insert(controls.IndexOf(website), copy);
                 break;
             case "wrong-version": map["version"] = 2; break;
@@ -142,7 +149,7 @@ public sealed class ThreatModelTests
             default: throw new ArgumentOutOfRangeException(nameof(mutation), mutation, "Unknown mutation case.");
         }
 
-        Assert.Contains(Validate(map.ToJsonString(), Documents()), error => error.Contains(diagnostic, StringComparison.Ordinal));
+        AssertDiagnostic(Validate(map.ToJsonString(), Documents()), diagnostic, expected);
     }
 
     [Theory]
@@ -155,20 +162,20 @@ public sealed class ThreatModelTests
     [InlineData("threat-without-control", "must list at least one control")]
     [InlineData("malformed-control-reference", "comma-separated list of control identifiers")]
     [InlineData("blank-description", "description must be nonblank")]
-    [InlineData("duplicate-threat", "threat TH-G02-001 is defined more than once")]
-    [InlineData("misplaced-threat", "threat TH-W-999 belongs to another model")]
-    [InlineData("threat-outside-boundary", "threat TH-G02-998 must appear under a boundary heading")]
-    [InlineData("unmapped-threat", "TH-G02-999: threat has no control in the map")]
-    [InlineData("duplicate-boundary", "boundary TB-G02-01 is defined more than once")]
-    [InlineData("added-boundary", "boundary TB-G02-99 has no control in the map")]
-    [InlineData("added-boundary", "boundary TB-G02-99 has no threat")]
-    [InlineData("undefined-cited-threat", "cited threat TH-G02-999 is not defined")]
-    [InlineData("undefined-cited-control", "cited control TM-W-999 is not in the map")]
-    [InlineData("undefined-cited-boundary", "cited boundary TB-W-99 is not defined")]
+    [InlineData("duplicate-threat", "is defined more than once")]
+    [InlineData("misplaced-threat", "belongs to another model")]
+    [InlineData("threat-outside-boundary", "must appear under a boundary heading")]
+    [InlineData("unmapped-threat", "threat has no control in the map")]
+    [InlineData("duplicate-boundary", "is defined more than once")]
+    [InlineData("added-boundary", "has no control in the map")]
+    [InlineData("added-boundary", "has no threat")]
+    [InlineData("undefined-cited-threat", "is not defined in a threat model")]
+    [InlineData("undefined-cited-control", "is not in the map")]
+    [InlineData("undefined-cited-boundary", "is not defined")]
     [InlineData("malformed-citation", "malformed identifier TM-G02-01")]
-    [InlineData("undescribed-control", "TM-G02-001: control has no row in its model's control table")]
-    [InlineData("duplicate-control-row", "control TM-G02-001 is described more than once")]
-    [InlineData("misplaced-control-row", "control TM-W-001 belongs to another model")]
+    [InlineData("undescribed-control", "control has no row in its model's control table")]
+    [InlineData("duplicate-control-row", "is described more than once")]
+    [InlineData("misplaced-control-row", "belongs to another model")]
     [InlineData("prose-owner", "owner in the prose control table differs from the map")]
     [InlineData("unknown-classification", "classification must be Public, Internal, Confidential, Restricted or Secret")]
     [InlineData("unknown-integrity", "integrity must be Critical or Standard")]
@@ -177,7 +184,10 @@ public sealed class ThreatModelTests
     {
         var documents = Documents();
         const string G02 = ThreatModelContract.G02Path;
+        const string Readme = ThreatModelContract.ReadmePath;
         var foundation = documents[G02];
+        // When set, the diagnostic must also name this identifier, derived so that it stays absent as the data grows.
+        string? expected = null;
         switch (mutation)
         {
             case "missing-document": documents.Remove(ThreatModelContract.WebsitePath); break;
@@ -198,46 +208,68 @@ public sealed class ThreatModelTests
                 documents[G02] = ChangeRow(foundation, "| TH-G02-", cells => [cells[0], cells[1], cells[2], cells[3] + " and TM-G02-002"]);
                 break;
             case "blank-description": documents[G02] = ChangeRow(foundation, "| TH-G02-", cells => [cells[0], cells[1], "", cells[3]]); break;
-            case "duplicate-threat": documents[G02] = DuplicateRow(foundation, "| TH-G02-"); break;
-            case "misplaced-threat": documents[G02] = ChangeRow(foundation, "| TH-G02-", cells => ["TH-W-999", cells[1], cells[2], cells[3]]); break;
+            case "duplicate-threat":
+                expected = FirstRowId(foundation, "| TH-G02-");
+                documents[G02] = DuplicateRow(foundation, "| TH-G02-");
+                break;
+            case "misplaced-threat":
+                var foreign = AbsentModelId("TH-W", 3);
+                expected = foreign;
+                documents[G02] = ChangeRow(foundation, "| TH-G02-", cells => [foreign, cells[1], cells[2], cells[3]]);
+                break;
             case "threat-outside-boundary":
+                expected = AbsentModelId("TH-G02", 3);
                 documents[G02] = foundation.Replace("## Threats\n",
-                    "## Threats\n\n| TH-G02-998 | Tampering | An unplaced threat. | TM-G02-001 |\n", StringComparison.Ordinal);
+                    "## Threats\n\n| " + expected + " | Tampering | An unplaced threat. | TM-G02-001 |\n", StringComparison.Ordinal);
                 break;
             case "unmapped-threat":
-                documents[G02] = InsertAfter(foundation, "| TH-G02-", "| TH-G02-999 | Abuse case | An added abuse case. | TM-G02-001 |");
+                expected = AbsentModelId("TH-G02", 3);
+                documents[G02] = InsertAfter(foundation, "| TH-G02-", "| " + expected + " | Abuse case | An added abuse case. | TM-G02-001 |");
                 break;
-            case "duplicate-boundary": documents[G02] = DuplicateRow(foundation, "| TB-G02-"); break;
+            case "duplicate-boundary":
+                expected = FirstRowId(foundation, "| TB-G02-");
+                documents[G02] = DuplicateRow(foundation, "| TB-G02-");
+                break;
             case "added-boundary":
-                documents[G02] = InsertAfter(foundation, "| TB-G02-", "| TB-G02-99 | Added boundary | One side | Other side |");
+                expected = AbsentModelId("TB-G02", 2);
+                documents[G02] = InsertAfter(foundation, "| TB-G02-", "| " + expected + " | Added boundary | One side | Other side |");
                 break;
-            case "undefined-cited-threat": documents[ThreatModelContract.ReadmePath] += "\nTH-G02-999\n"; break;
-            case "undefined-cited-control": documents[ThreatModelContract.ReadmePath] += "\nTM-W-999\n"; break;
-            case "undefined-cited-boundary": documents[ThreatModelContract.ReadmePath] += "\nTB-W-99\n"; break;
-            case "malformed-citation": documents[ThreatModelContract.ReadmePath] += "\nTM-G02-01\n"; break;
-            case "undescribed-control": documents[G02] = RemoveRow(foundation, "| TM-G02-001 |"); break;
-            case "duplicate-control-row": documents[G02] = DuplicateRow(foundation, "| TM-G02-"); break;
-            case "misplaced-control-row": documents[G02] = ChangeRow(foundation, "| TM-G02-", cells => ["TM-W-001", cells[1], cells[2]]); break;
+            case "undefined-cited-threat": documents[Readme] += "\n" + (expected = AbsentModelId("TH-G02", 3)) + "\n"; break;
+            case "undefined-cited-control": documents[Readme] += "\n" + (expected = AbsentModelId("TM-W", 3)) + "\n"; break;
+            case "undefined-cited-boundary": documents[Readme] += "\n" + (expected = AbsentModelId("TB-W", 2)) + "\n"; break;
+            case "malformed-citation": documents[Readme] += "\nTM-G02-01\n"; break;
+            case "undescribed-control":
+                expected = FirstRowId(foundation, "| TM-G02-");
+                documents[G02] = RemoveRow(foundation, "| " + expected + " |");
+                break;
+            case "duplicate-control-row":
+                expected = FirstRowId(foundation, "| TM-G02-");
+                documents[G02] = DuplicateRow(foundation, "| TM-G02-");
+                break;
+            case "misplaced-control-row":
+                var described = FirstRowId(documents[ThreatModelContract.WebsitePath], "| TM-W-");
+                expected = described;
+                documents[G02] = ChangeRow(foundation, "| TM-G02-", cells => [described, cells[1], cells[2]]);
+                break;
             case "prose-owner": documents[G02] = ChangeRow(foundation, "| TM-G02-", cells => [cells[0], "Security", cells[2]]); break;
             case "unknown-classification": documents[G02] = ChangeAsset(foundation, cells => [cells[0], "Top secret", cells[2], cells[3]]); break;
             case "unknown-integrity": documents[G02] = ChangeAsset(foundation, cells => [cells[0], cells[1], "Severe", cells[3]]); break;
             // Assemble the marker so this source file does not itself contain one.
-            case "draft-marker": documents[ThreatModelContract.ReadmePath] += "\n" + "TO" + "DO" + "\n"; break;
+            case "draft-marker": documents[Readme] += "\n" + "TO" + "DO" + "\n"; break;
             default: throw new ArgumentOutOfRangeException(nameof(mutation), mutation, "Unknown mutation case.");
         }
 
-        Assert.Contains(Validate(RepositoryFiles.Current[ThreatModelContract.MapPath], documents),
-            error => error.Contains(diagnostic, StringComparison.Ordinal));
+        AssertDiagnostic(Validate(RepositoryFiles.Current[ThreatModelContract.MapPath], documents), diagnostic, expected);
     }
 
     [Theory]
-    [InlineData("{")]
-    [InlineData("null")]
-    [InlineData("[]")]
-    [InlineData("{\"controls\":{}}")]
-    public void Invalid_control_maps_are_rejected(string text)
+    [InlineData("{", "Control map must contain valid JSON")]
+    [InlineData("null", "Control map must be an object")]
+    [InlineData("[]", "Control map must be an object")]
+    [InlineData("{\"controls\":{}}", "Control map controls must be a nonempty array")]
+    public void Invalid_control_maps_are_rejected(string text, string diagnostic)
     {
-        Assert.NotEmpty(Validate(text, Documents()));
+        AssertDiagnostic(Validate(text, Documents()), diagnostic, null);
     }
 
     [Fact]
@@ -245,8 +277,12 @@ public sealed class ThreatModelTests
     {
         var text = RepositoryFiles.Current[ThreatModelContract.MapPath]
             .Replace("\"owner\": \"Framework composition\"", "\"owner\": \"Framework composition\", \"owner\": \"Framework composition\"", StringComparison.Ordinal);
-        Assert.Contains(Validate(text, Documents()), error => error.Contains("duplicate JSON property", StringComparison.Ordinal));
+        AssertDiagnostic(Validate(text, Documents()), "duplicate JSON property", null);
     }
+
+    private static void AssertDiagnostic(List<string> errors, string diagnostic, string? expected) =>
+        Assert.Contains(errors, error => error.Contains(diagnostic, StringComparison.Ordinal)
+            && (expected is null || error.Contains(expected, StringComparison.Ordinal)));
 
     private static List<string> Validate(string map, IReadOnlyDictionary<string, string> documents) =>
         ThreatModelContract.Validate(map, RepositoryFiles.Current[RegisterPath], documents);
@@ -269,6 +305,39 @@ public sealed class ThreatModelTests
         return RegisterEntries().Where(entry => listed.Contains((string?)entry!["id"] ?? "")).Select(entry => entry!).ToArray();
     }
 
+    // One past the register's highest number in a family, so the identifier cannot exist yet.
+    private static string AbsentRegisterId(string family)
+    {
+        var highest = RegisterEntries().Select(entry => (string?)entry!["id"] ?? "")
+            .Where(id => id.StartsWith(family + "-", StringComparison.Ordinal))
+            .Max(id => int.Parse(id[(family.Length + 1)..], NumberStyles.None, CultureInfo.InvariantCulture));
+        return family + "-" + (highest + 1).ToString("D3", CultureInfo.InvariantCulture);
+    }
+
+    // One past the highest identifier with this prefix in the models and the map.
+    private static string AbsentModelId(string prefix, int digits)
+    {
+        var pattern = new Regex(Regex.Escape(prefix) + @"-(\d+)\b", RegexOptions.CultureInvariant);
+        var highest = Documents().Values.Append(RepositoryFiles.Current[ThreatModelContract.MapPath])
+            .SelectMany(text => pattern.Matches(text).Cast<Match>())
+            .Select(match => int.Parse(match.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture))
+            .DefaultIfEmpty(0)
+            .Max();
+        return prefix + "-" + (highest + 1).ToString("D" + digits.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
+    }
+
+    private static string AbsentOwner()
+    {
+        var owners = RegisterEntries().Select(entry => (string?)entry!["owner"] ?? "").ToHashSet(StringComparer.Ordinal);
+        var owner = "Unlisted subsystem";
+        while (owners.Contains(owner))
+        {
+            owner += " variant";
+        }
+
+        return owner;
+    }
+
     private static string OwnerOutside(JsonNode control)
     {
         var owned = RequirementsOf(control).Select(entry => (string?)entry["owner"]).ToHashSet();
@@ -278,8 +347,12 @@ public sealed class ThreatModelTests
     private static string FamilyOutside(JsonNode control)
     {
         var mapped = RequirementsOf(control).SelectMany(entry => Strings(entry["acceptance"]!)).ToHashSet(StringComparer.Ordinal);
-        return Enumerable.Range(1, 32).Select(number => $"AC-{number:D3}").First(family => !mapped.Contains(family));
+        return RegisterEntries().Where(entry => (string?)entry!["kind"] == "acceptance-family")
+            .Select(entry => (string?)entry!["id"] ?? "").First(family => !mapped.Contains(family));
     }
+
+    private static string FirstRowId(string text, string prefix) =>
+        ThreatModelContract.Cells(text.Split('\n').First(line => line.StartsWith(prefix, StringComparison.Ordinal)))[0];
 
     private static string ChangeRow(string text, string prefix, Func<string[], string[]> change, bool last = false)
     {
@@ -355,7 +428,7 @@ internal static class ThreatModelContract
     private static readonly Regex Citation = new(@"\bT[BHM]-[A-Z0-9]+-\d+\b", RegexOptions.CultureInvariant);
     // Markers are assembled from parts so this source file does not itself contain one.
     private static readonly Regex DraftMarker = new(
-        @"\b(?:" + "TO" + "DO|TB" + "D|FIX" + "ME)\\b|(?i:place" + "holder|lorem ipsum)", RegexOptions.CultureInvariant);
+        @"\b(?:" + "TO" + "DO|TB" + "D|FIX" + "ME)\\b|(?i:place" + "holder|lor" + "em ipsum)", RegexOptions.CultureInvariant);
 
     public static List<string> Validate(string mapText, string registerText, IReadOnlyDictionary<string, string> documents)
     {

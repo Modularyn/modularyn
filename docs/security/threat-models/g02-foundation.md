@@ -12,10 +12,10 @@ The model assumes:
 
 1. **Deployment authority is trusted.** People who install packages and set deployment configuration act with application privileges, as ARC-014 and FND-005 describe for in-process code. The controls here catch unverified or inconsistent composition; they cannot stop a malicious deployer.
 2. **Host and providers.** One host runs the application and its workers. PostgreSQL through EF Core holds module data and the outbox, inbox and job state; the filesystem BLOB provider holds Files content. The operator hardens and patches the operating system, container runtime, database server and storage, and restricts administrative access to them.
-3. **Transport.** TLS terminates at the host or at a reverse proxy that the deployment declares. Traffic between that proxy and the host stays on a network segment the operator controls.
+3. **Transport.** TLS terminates at the host or at a reverse proxy that the deployment declares. Traffic between that proxy and the host stays on a network segment the operator controls. The application itself, not the proxy, redirects plain-HTTP requests to HTTPS and emits Strict-Transport-Security, judging the original scheme only from a declared proxy's forwarded headers (TM-G02-060, TM-G02-006).
 4. **Code trust.** Modules are trusted .NET code reviewed through the solution lifecycle. The slice runs no tenant-authored code, scripts or templates.
 5. **Tenancy.** The shared-database profile applies, with tenant-scoped data, permissions, files, caches and background execution. Other placement profiles need their own models.
-6. **Identity.** The slice exercises local account sign-in with server-side cookie sessions for its account actions, service identities for workers, and the session and claim-freshness contract of FND-017. External login, passkeys, recovery and the authorization server arrive at G-03 or later.
+6. **Identity.** The slice exercises local account sign-in with server-side cookie sessions for its account actions, service identities for workers, and the session and claim-freshness contract of FND-017. External login, passkeys, recovery and the authorization server arrive at G-03 or later. The stored form of every credential the profiles use, including one-time-password seeds, recovery codes and passkey records, is modeled here (TM-G02-055 to TM-G02-058) so that later journeys inherit it; that evidence arrives with the journeys that create those credentials.
 7. **Single node.** There is no distributed cache, broker or second node. Lease and stale-owner behavior is exercised through restarts and lease expiry on one host.
 8. **Time.** The host clock is synchronized, and the runtime reads time through an injectable clock.
 
@@ -58,12 +58,15 @@ flowchart LR
 | Migration history and schema version of each database | Internal | Critical | Gate readiness and recovery |
 | Tenant directory, tenant domains and memberships | Restricted | Critical | The basis of tenant resolution |
 | Account records and profile fields | Restricted | Standard | Personal data inventoried under OPS-006 |
-| Password verifiers and other credential secrets | Secret | Critical | Never returned, logged or exported |
+| Password verifiers | Secret | Critical | Salted adaptive hashes, never returned, logged or exported |
+| One-time-password seeds | Secret | Critical | Encrypted under keys from the authorized store |
+| Recovery-code verifiers | Secret | Critical | Verifiers only; each code is consumed once |
+| Passkey credential records | Restricted | Critical | Public keys whose substitution would grant access |
 | Session identifiers, cookies and service tokens | Secret | Critical | Bearer authority until revoked or expired |
 | Permission definitions, grants, role memberships and assignment ceilings | Restricted | Critical | A change alters authority |
 | Settings and feature values without secrets | Confidential | Critical | Some values change security behavior |
 | Secret settings, connection strings and provider credentials | Secret | Critical | Resolved from references only |
-| Data-protection and signing key material | Secret | Critical | Protects cookies, tokens and encrypted values |
+| Data-protection, signing and credential-encryption key material | Secret | Critical | Protects cookies, tokens, seeds and encrypted values |
 | Tenant business records in the slice's modules | Confidential | Standard | The data that cross-tenant tests try to reach |
 | Outbox, inbox and job records with their payloads | Confidential | Critical | Carry committed intent and tenant context |
 | Cache entries | Confidential | Standard | Inherit the classification of their sources |
@@ -87,9 +90,10 @@ flowchart LR
 | Impersonate a subject or act under delegation | A delegation grant with scope, purpose and expiry | TM-G02-018, TM-G02-051 |
 | Revoke sessions | The account owner, or identity administration for other accounts | TM-G02-017 |
 | Change settings, features or secret settings | Configuration authority for the setting's scope | TM-G02-024, TM-G02-047, TM-G02-049 |
+| Configure cross-origin callers for the Admin or APIs | Deployment authority, recorded with the release | TM-G02-059 |
 | Retry, quarantine or replay failed events and jobs | Operator permission for the owning module, recorded as a replay | TM-G02-037 |
 | Issue or revoke file share grants | Sharing permission on the file | TM-G02-044 |
-| Rotate data-protection keys and provider secrets | Security operations authority | TM-G02-050 |
+| Rotate data-protection keys, credential-encryption keys and provider secrets | Security operations authority | TM-G02-050, TM-G02-056 |
 | Read audit records or detailed diagnostics | Audit read or diagnostics permission, separate from audit administration | TM-G02-052, TM-G02-054 |
 
 ## External inputs
@@ -97,10 +101,12 @@ flowchart LR
 | Input | Source | Boundary | Controls |
 |---|---|---|---|
 | Host, forwarded and proxy headers | Clients and proxies | TB-G02-02 | TM-G02-006 |
+| Origin headers and preflight requests | Browsers | TB-G02-02 | TM-G02-059 |
+| Plain-HTTP requests | Clients and intermediaries | TB-G02-02 | TM-G02-060 |
 | Cookies, antiforgery values and bearer credentials | Browsers and API clients | TB-G02-04 | TM-G02-007, TM-G02-016 |
 | Route values, query parameters and JSON or form bodies | Clients | TB-G02-02 | TM-G02-008, TM-G02-009 |
 | Paging, sorting and filter parameters | Clients | TB-G02-07 | TM-G02-009, TM-G02-029 |
-| Sign-in credentials | Interactive users | TB-G02-04 | TM-G02-015 |
+| Sign-in credentials, one-time codes and recovery codes | Interactive users | TB-G02-04 | TM-G02-015 |
 | Tenant candidates in host names, routes, headers and claims | Clients and the identity provider | TB-G02-06 | TM-G02-025 |
 | Event messages and job arguments at execution time | The outbox dispatcher and job store | TB-G02-09 | TM-G02-027, TM-G02-036, TM-G02-041 |
 | Uploaded bytes, file names, declared types and range requests | Clients | TB-G02-10 | TM-G02-042, TM-G02-043, TM-G02-045 |
@@ -133,6 +139,8 @@ flowchart LR
 | TH-G02-010 | Denial of service | Oversized bodies, deeply nested documents, slow requests or unbounded paging and sorting exhaust the single host. | TM-G02-009 |
 | TH-G02-011 | Information disclosure | Error responses reveal stack traces, queries, configuration, internal topology or the existence of resources the caller cannot read. | TM-G02-010 |
 | TH-G02-012 | Tampering | Client-supplied filter or sort input is translated into an executable query, or a value is concatenated into direct SQL. | TM-G02-009, TM-G02-029 |
+| TH-G02-077 | Information disclosure | A cross-origin policy that allows credentials for wildcard, reflected or unlisted origins lets another site read responses with a signed-in user's cookies, including antiforgery tokens, and so also send writes the server accepts. | TM-G02-059 |
+| TH-G02-078 | Information disclosure | A request or redirect over plain HTTP, or a first visit before the browser knows to require HTTPS, exposes cookies and content to interception or a downgrade. | TM-G02-060, TM-G02-016 |
 
 ### TB-G02-03 — Endpoint contracts and clients
 
@@ -148,11 +156,16 @@ flowchart LR
 
 | Threat | Category | Description | Controls |
 |---|---|---|---|
-| TH-G02-018 | Spoofing | Automated password guessing or credential stuffing targets sign-in, and response differences reveal which accounts exist. | TM-G02-015 |
+| TH-G02-018 | Spoofing | Automated guessing of passwords, one-time codes or recovery codes, or credential stuffing, targets sign-in, and response differences reveal which accounts exist. | TM-G02-015 |
 | TH-G02-019 | Spoofing | A session identifier is fixed before sign-in, or a stolen session cookie is replayed. | TM-G02-016 |
 | TH-G02-020 | Elevation of privilege | Claims or permissions held by an issued session remain effective after a role change, permission removal or revocation. | TM-G02-017 |
 | TH-G02-021 | Repudiation | Impersonation or delegation records only the effective subject, so the real actor cannot be identified. | TM-G02-018 |
 | TH-G02-022 | Elevation of privilege | Background work reuses a captured user credential or an administrator identity to do what its own service identity may not. | TM-G02-018, TM-G02-041 |
+| TH-G02-072 | Information disclosure | Password verifiers stored with a fast, unsalted or outdated hash let anyone who obtains the account store recover passwords offline. | TM-G02-055 |
+| TH-G02-073 | Information disclosure | One-time-password seeds stored in a readable form let anyone who reads the database generate valid second-factor codes. | TM-G02-056 |
+| TH-G02-074 | Spoofing | Recovery codes stored in a recoverable form, or accepted more than once, let a database reader or someone who once saw a code recover the account. | TM-G02-057 |
+| TH-G02-075 | Tampering | An altered or substituted passkey credential record lets an attacker's authenticator sign in as the account. | TM-G02-058 |
+| TH-G02-076 | Denial of service | A lockout policy triggered by failed attempts lets anyone who knows an account name lock its owner out. | TM-G02-015 |
 
 ### TB-G02-05 — Authorization
 
@@ -268,7 +281,7 @@ Owners, boundaries, requirements, evidence and profiles for each control are in 
 | TM-G02-012 | API | Generate contract documents reproducibly, compare them with the previous release, and block a breaking or meaning-changing change unless it carries a new version and a consumer migration plan. |
 | TM-G02-013 | API | Generated and dynamic clients use explicit credential providers bound to configured endpoint origins, never forward ambient credentials to discovered or redirected endpoints, and redact tokens from their diagnostics. |
 | TM-G02-014 | Capabilities | Bootstrap configuration returns only values marked client-visible for the requesting principal and tenant, and its cache varies by every dimension that affects the result. |
-| TM-G02-015 | Identity | Limit sign-in attempts per account and per source through operation limits that apply at every entry point, delay or lock out according to policy, and return the same response for unknown accounts and wrong credentials. |
+| TM-G02-015 | Identity | Limit attempts to verify passwords, one-time codes and recovery codes per account and per source through operation limits that apply at every entry point. Prefer increasing per-account delays and per-source blocking to indefinite lockout, so that failed attempts by others cannot lock an owner out, and return the same response for unknown accounts and wrong credentials. |
 | TM-G02-016 | Identity | Issue a new session identifier at authentication, set Secure, HttpOnly, host-only and SameSite cookie attributes, keep a server-side session record, and apply idle and absolute expiry. |
 | TM-G02-017 | Identity | Declare a freshness bound for claims, permissions and sessions; recheck security-sensitive operations against the current permission and session version; and end revoked sessions within that bound. |
 | TM-G02-018 | Identity | Record actor, effective subject and identity kind in the execution context; give each delegation a scope, purpose, expiry and revocation; and run background work under its own scoped service identity rather than an administrator's. |
@@ -308,6 +321,12 @@ Owners, boundaries, requirements, evidence and profiles for each control are in 
 | TM-G02-052 | Audit | Separate audit writing from audit reading and administration, deny ordinary administrators any change to records, and make no tamper-evidence claim until a qualified mechanism exists. |
 | TM-G02-053 | Operations | Emit structured telemetry from allowlisted fields; redact secrets, tokens, request bodies and personal data; keep tenant labels out of metric dimensions; and treat inbound correlation values as bounded, untrusted text that never conveys authority. |
 | TM-G02-054 | Operations | Separate liveness from readiness, return minimal responses to anonymous probes, and require operator authorization for dependency, version and topology detail. |
+| TM-G02-055 | Identity | Store passwords only as verifiers from a salted, adaptive hash whose algorithm and cost parameters are recorded with each verifier. On each successful sign-in, rehash a verifier whose algorithm or parameters fall below the current policy, and never log, return or export verifiers. |
+| TM-G02-056 | Identity | Encrypt one-time-password seeds with an established authenticated cipher under versioned keys that are resolved from the authorized store and held apart from the database. Decrypt a seed only to verify a code, and keep seeds decryptable across key rotation and restore. |
+| TM-G02-057 | Accounts | Store recovery codes only as salted verifiers, show the codes to the account owner once when they are generated, mark a code consumed in the same transaction that accepts it, and invalidate the remaining codes when a new set is generated. |
+| TM-G02-058 | Identity | Change passkey credential records only through enrollment and revocation. Bind each record to its account, credential identifier and relying-party identifier with an integrity tag keyed from the authorized store, verify the tag before trusting the record at sign-in, and audit every change. |
+| TM-G02-059 | API | Serve the Admin and APIs same-origin by default, with no cross-origin policy. Where a deployment configures cross-origin callers, allow credentials only for exactly listed origins, never answer with a wildcard or with the request's origin echoed back, vary responses by origin, and reject preflight requests from unlisted origins. |
+| TM-G02-060 | API | Redirect plain-HTTP requests for configured hosts to HTTPS before any other processing, serve no content or cookies over plain HTTP, and emit Strict-Transport-Security with a declared lifetime on every HTTPS response. The application emits both itself, judging the original scheme only from a declared proxy's forwarded headers; subdomain coverage and preloading are deployment choices recorded with the release. |
 
 ## Residual risks and out of scope
 
@@ -321,6 +340,9 @@ These risks remain when every control above works as specified. Each needs expli
 - **Scanner limits.** Content detection and scanning recognize known patterns; novel malicious content can pass (TH-G02-049). Quarantine and inline-display restrictions reduce exposure without guaranteeing safety.
 - **Audit integrity.** Ordinary database rows provide no tamper evidence (TH-G02-060). Database administrators can alter audit and business data; no tamper-evident claim is made.
 - **Data at rest.** Unless the release enables content encryption under FND-031 and records its key handling, the slice relies on host and database access controls for data at rest, and a host or database compromise exposes Confidential and Restricted data.
+- **Weak passwords.** Adaptive hashing (TM-G02-055) raises the cost of guessing a stolen verifier but cannot protect a password that is easy to guess (TH-G02-072).
+- **Key separation.** Encrypted one-time-password seeds and integrity-tagged passkey records stay protected only while the keys of TM-G02-056 and TM-G02-058 are held apart from the database; a compromise that reaches both exposes them (TH-G02-073, TH-G02-075).
+- **Throttling and availability.** Delays and source blocking (TM-G02-015) keep an attacker from locking accounts indefinitely, but a sustained attack still slows a targeted user's sign-in (TH-G02-076).
 - **Already delivered data.** Revocation stops new access through the gateway (TM-G02-044) but cannot recall files or responses that were already delivered.
 
 ### Out of scope

@@ -6,7 +6,7 @@ Model identifier: `website-profile`. Revision date: 2026-10-25. Profile: `websit
 
 The [website profile](../../profiles/website.md) serves a product site with versioned documentation, a personal site with a blog, or a small business site. Its tuple is .NET 10 and C# 14 in a modular monolith, PostgreSQL through EF Core, a Razor public site with a minimal React and TypeScript Admin subset, one tenant with one site and one culture, alias domains and redirects, a single-host container deployment, filesystem BLOB storage through Files, and a deployment-configured email transport for contact requests.
 
-This model covers the included capabilities of the [capability map](../../profiles/website-capabilities.json) through these surfaces: the public Razor site; the minimal Admin and its sign-in with two-factor authentication or passkeys, recovery and session revocation; preview, publication, scheduling and rollback; media upload and quarantine; the contact form and its email; content-package dry run and apply; documentation intake from pinned Git sources; alias domains and host validation; backup and restore; upgrade; and the container host and its deployment configuration. The profile's security capability calls for ASVS Level 2 controls on the public, Admin, API, preview, import and contact surfaces (OPS-001, OPS-002, OPS-005). This model identifies the controls those surfaces need; the applicability assessment itself is evidence planned under AC-031.
+This model covers the included capabilities of the [capability map](../../profiles/website-capabilities.json) through these surfaces: the public Razor site; the minimal Admin and its sign-in with two-factor authentication or passkeys, recovery and session revocation; preview, publication, scheduling and rollback; media upload and quarantine; the contact form and its email; content-package acquisition from Git, dry run and apply; documentation intake from pinned Git sources; alias domains and host validation; backup and restore; upgrade; and the container host and its deployment configuration. The profile's security capability calls for ASVS Level 2 controls on the public, Admin, API, preview, import and contact surfaces (OPS-001, OPS-002, OPS-005). This model identifies the controls those surfaces need; the applicability assessment itself is evidence planned under AC-031.
 
 W qualifies an early subset of the complete CMS contracts. Its register entries remain at their own gates; requirements cited here, such as CMS-005, CMS-021, MOD-001 or MOD-011, are cited for the W subset that the capability map describes, not for the whole contract.
 
@@ -15,12 +15,12 @@ The model assumes:
 1. **Foundation controls apply.** The [G-02 foundation model](g02-foundation.md) applies on W's tuple. Its controls that name the `website` profile are reused here and cited where W adds exposure; they are not repeated.
 2. **One tenant and one site.** The deployment has exactly one tenant, one site and one culture. Tenant and site boundaries still apply, and forged identifiers must fail as they would with many tenants.
 3. **Canonical origin.** The deployment configures one canonical public origin. The minimal Admin, preview and APIs are served under reserved namespaces on that origin. Alias domains belong to the same site and carry public routes only.
-4. **Transport.** TLS terminates at the container or at a reverse proxy that the deployment declares, and certificates for the canonical and alias domains are provisioned by the deployment.
+4. **Transport.** TLS terminates at the container or at a reverse proxy that the deployment declares, and certificates for the canonical and alias domains are provisioned by the deployment. The application emits the HTTPS redirect and Strict-Transport-Security for the canonical origin and each verified alias host (TM-G02-060).
 5. **Installed code only.** The Razor renderer, its layouts, templates and blocks, and the original theme are installed, reviewed code. Neither authors nor packages can supply scripts, styles or executable templates.
 6. **Admin session.** The minimal Admin is a browser application served by the deployment that calls the server through a cookie session, following the backend-for-frontend recommendation of OPS-003.
 7. **Every Admin user is privileged.** The Admin has few users, and each one can change public content. All of them are protected as privileged accounts.
 8. **Untrusted packages and sources.** Content packages and documentation sources are untrusted input even when they come from the site owner's own repository.
-9. **Content-package rules.** The format's forbidden-content rules are being revised separately. This model relies on them only through what they accomplish, and it is revised if their effect changes.
+9. **Content-package rules.** The format's forbidden-content rules, including its secret-scanning rule, are published in the [content-package contract](../../content-packages/README.md#integrity-and-forbidden-content). This model relies on them as published there and is revised whenever they change.
 10. **Scanning and email.** The deployment provides a malware-scanning integration for Files and an email transport. Their accuracy and delivery guarantees belong to those providers; the product owns how it reacts to their results.
 11. **Backups.** Backups are written to storage outside the container under a documented procedure run by a recovery role.
 
@@ -52,7 +52,7 @@ flowchart LR
 | TB-W-06 | Publication, scheduling and rollback | Publish, schedule, withdraw and rollback requests, and scheduler triggers | The active immutable publication manifest |
 | TB-W-07 | Media upload and quarantine | Uploaded bytes, names and declared types | Validated media versions eligible for publication |
 | TB-W-08 | Contact form and email | Anonymous contact submissions | Durable contact requests delivered to configured destinations |
-| TB-W-09 | Content-package dry run and apply | Package snapshots from Git | Reviewed plans and the content, schemas, media and mappings that apply writes |
+| TB-W-09 | Content-package acquisition, dry run and apply | Package repositories in Git and the snapshots read from them | Reviewed plans and the content, schemas, media and mappings that apply writes |
 | TB-W-10 | Documentation intake | Git hosts and repository content at pinned revisions | Documentation entries with recorded provenance |
 | TB-W-11 | Backup and restore | Backup sets and the storage that holds them | The restored deployment's database, Files and keys |
 | TB-W-12 | Upgrade | Release artifacts: container images, migration bundles and configuration schema | The upgraded running deployment |
@@ -71,8 +71,8 @@ flowchart LR
 | Published media versions | Public | Critical | Referenced by hash from manifests |
 | Quarantined and restricted media | Confidential | Standard | Untrusted or limited audience |
 | Admin account records and email addresses | Restricted | Standard | Personal data |
-| Password verifiers, one-time-code secrets and recovery codes | Secret | Critical | Grant Admin access |
-| Passkey credential records | Restricted | Critical | Public keys, but a substituted record grants access |
+| Password verifiers, one-time-password seeds and recovery-code verifiers | Secret | Critical | Stored as TM-G02-055, TM-G02-056 and TM-G02-057 require |
+| Passkey credential records | Restricted | Critical | Integrity-protected by TM-G02-058; a substituted record would grant access |
 | Admin session cookies and data-protection keys | Secret | Critical | Bearer authority for Admin actions |
 | Admin permission assignments | Restricted | Critical | Determine who can publish, import and recover |
 | Contact submissions | Restricted | Standard | Personal data supplied by visitors |
@@ -80,8 +80,8 @@ flowchart LR
 | Email transport credentials | Secret | Critical | Permit sending as the site |
 | Content-package snapshots, dry-run plans and reports | Confidential | Standard | Untrusted input and its analysis |
 | Import mappings and operation records | Internal | Critical | Tie package keys to site objects |
-| Documentation source bindings and provenance records | Internal | Critical | Decide which repositories feed the site |
-| Credentials for private documentation sources | Secret | Critical | Read access to source repositories |
+| Documentation and package source bindings and provenance records | Internal | Critical | Decide which repositories feed the site |
+| Credentials for private documentation and package sources | Secret | Critical | Read access to source repositories |
 | Backup sets | Secret | Critical | Contain credential verifiers and personal data |
 | Backup encryption keys | Secret | Critical | Decrypt every backup |
 | Release artifacts, digests and software bills of materials | Internal | Critical | Determine what code runs |
@@ -104,6 +104,7 @@ flowchart LR
 | Upload or remove media | Media management permission, with no override of a scan result | TM-W-026, TM-G02-042 |
 | Read contact submissions | Contact read permission | TM-W-032 |
 | Change contact destinations | A dedicated permission with recent authentication | TM-W-033 |
+| Bind or change the content-package repository | Package-source administration with recent authentication | TM-W-057, TM-W-013 |
 | Run a content-package dry run | Import permission on the explicit target site | TM-W-038 |
 | Approve and apply an import plan | Import approval with recent authentication | TM-W-038, TM-W-013 |
 | Bind a documentation source or take a new pinned revision | Documentation administration | TM-W-043 |
@@ -121,11 +122,13 @@ flowchart LR
 | Ownership-verification results for alias domains | DNS | TB-W-02 | TM-W-007 |
 | Sign-in, second-factor, passkey and recovery inputs | Admin users and attackers | TB-W-03 | TM-W-010, TM-W-011, TM-G02-015 |
 | Admin request bodies: fields, Markdown, blocks, routes, redirects and navigation | Admin users | TB-W-04 | TM-W-002, TM-W-004, TM-W-005, TM-G02-008 |
+| Origin headers and preflight requests to the Admin and APIs | Browsers | TB-W-04 | TM-W-056, TM-G02-059 |
 | Preview requests and revision identifiers | Admin users | TB-W-05 | TM-W-021 |
 | Uploaded media bytes, names and declared types | Admin users | TB-W-07 | TM-W-026, TM-G02-042 |
 | Contact form fields and antispam responses | Visitors | TB-W-08 | TM-W-029, TM-W-030 |
 | Delivery responses from the email transport | The email transport | TB-W-08 | TM-W-031 |
-| Content-package snapshots | Git repositories | TB-W-09 | TM-W-035, TM-W-036, TM-W-037 |
+| Content-package repository bindings | Admin users | TB-W-09 | TM-W-057 |
+| Content-package snapshots | Git repositories | TB-W-09 | TM-W-035, TM-W-036, TM-W-037, TM-W-044, TM-W-058 |
 | Documentation repository content at pinned commits | Git hosts | TB-W-10 | TM-W-043, TM-W-044 |
 | Backup sets presented for restore | Backup storage | TB-W-11 | TM-W-047 |
 | Container images, migration bundles and configuration schema | The release pipeline | TB-W-12 | TM-W-050 |
@@ -167,6 +170,10 @@ flowchart LR
 | TH-W-018 | Elevation of privilege | The first-administrator setup stays reachable, or is claimed by whoever reaches a new deployment first. | TM-W-014 |
 | TH-W-019 | Information disclosure | Access or refresh tokens kept in browser storage are readable by script running in the Admin origin. | TM-W-015 |
 | TH-W-020 | Repudiation | Sign-in, recovery, factor and session changes leave no attributable record. | TM-W-013, TM-G02-051 |
+| TH-W-088 | Information disclosure | A copy of the database, a backup or an export yields Admin password verifiers, one-time-password seeds or recovery codes that can be attacked offline or used directly. | TM-G02-055, TM-G02-056, TM-G02-057, TM-W-046 |
+| TH-W-089 | Tampering | An altered or substituted passkey credential record lets an attacker's authenticator sign in to an Admin account. | TM-G02-058 |
+| TH-W-090 | Denial of service | Because the deployment has few Admin accounts, an attacker who triggers lockout on each of them can keep every editor out of the Admin. | TM-W-059, TM-G02-015 |
+| TH-W-091 | Spoofing | One-time codes and recovery codes are short enough to guess when their verification is not rate-limited. | TM-G02-015, TM-W-011 |
 
 ### TB-W-04 — Admin actions and APIs
 
@@ -178,6 +185,7 @@ flowchart LR
 | TH-W-024 | Elevation of privilege | A stale or unattended session performs a high-impact operation, such as rollback, import apply, restore, or an alias or contact-destination change. | TM-W-013 |
 | TH-W-025 | Elevation of privilege | A forged tenant or site identifier in an Admin request is accepted because single-site code paths skip scope checks. | TM-W-018, TM-G02-025 |
 | TH-W-026 | Tampering | Two editors, or a stale browser tab, overwrite each other's revision. | TM-W-019, TM-G02-030 |
+| TH-W-092 | Information disclosure | A cross-origin policy on the Admin or APIs that allows credentials for alias hosts or other origins lets another site use an editor's session to read drafts or perform actions. | TM-W-056, TM-G02-059 |
 
 ### TB-W-05 — Preview
 
@@ -221,7 +229,7 @@ flowchart LR
 | TH-W-047 | Elevation of privilege | A user with ordinary Admin rights changes a destination to collect future submissions. | TM-W-033 |
 | TH-W-048 | Information disclosure | Transport credentials leak, or submissions reach the transport without a verified encrypted connection. | TM-W-034 |
 
-### TB-W-09 — Content-package dry run and apply
+### TB-W-09 — Content-package acquisition, dry run and apply
 
 | Threat | Category | Description | Controls |
 |---|---|---|---|
@@ -235,6 +243,11 @@ flowchart LR
 | TH-W-056 | Tampering | An interrupted apply leaves partial writes, or a retry duplicates revisions or staged media. | TM-W-042 |
 | TH-W-057 | Repudiation | An apply cannot be traced to its approver, plan, digest and per-item outcomes. | TM-W-042, TM-G02-051 |
 | TH-W-058 | Elevation of privilege | A user without import permission on the target site starts a dry run or apply through a direct call. | TM-W-038, TM-G02-019 |
+| TH-W-093 | Elevation of privilege | A user without package-source administration binds or rebinds the repository that supplies content packages, so later dry runs read from a source the site never approved. | TM-W-057 |
+| TH-W-094 | Tampering | Snapshot acquisition follows a branch or tag, so the snapshot reviewed in a dry run differs from the one a later step reads, or rewritten history changes content under an unchanged name. | TM-W-058 |
+| TH-W-095 | Elevation of privilege | A package repository location, redirect, submodule or large-file pointer makes the server connect to internal or unlisted hosts. | TM-W-044 |
+| TH-W-096 | Information disclosure | Credentials for a private package repository appear in repository locations, plans, reports, logs or errors. | TM-W-045 |
+| TH-W-097 | Denial of service | A very large repository, a deep history or a slow host exhausts disk, memory or time while a snapshot is acquired. | TM-W-044 |
 
 ### TB-W-10 — Documentation intake
 
@@ -297,7 +310,7 @@ Owners, boundaries, requirements, evidence and profiles for each control are in 
 | Control | Owner | Required behavior |
 |---|---|---|
 | TM-W-001 | Content | Resolve every public request against the single active publication manifest. Draft, scheduled, withdrawn and restricted revisions have no public route, and sitemaps and listings come from that manifest. |
-| TM-W-002 | Content | The Razor renderer encodes all content-derived text for its output context, emits only the elements its renderers declare, and never evaluates content as code or a template. Responses carry a content security policy that forbids inline script. |
+| TM-W-002 | Content | The Razor renderer encodes all content-derived text for its output context, emits only the elements its renderers declare, and never evaluates content as code or a template. Every response on the canonical origin, including error pages, media and health responses, carries a content security policy that forbids inline script. |
 | TM-W-003 | Content | Shared caches hold only anonymous responses of the active manifest, keyed by its version. Authenticated, preview and Admin responses are private and uncacheable, and activation invalidates superseded entries. |
 | TM-W-004 | Content | Reserve the application namespaces ahead of content routing. Validation rejects routes and redirects that claim them, and routing resolves reserved namespaces first. |
 | TM-W-005 | Content | Redirect targets are same-site paths, resolved and checked for loops and chain length at validation, and return addresses accept only relative paths. |
@@ -306,9 +319,9 @@ Owners, boundaries, requirements, evidence and profiles for each control are in 
 | TM-W-008 | Content | Build absolute links, canonical URLs, sitemap entries and account-recovery links from the configured canonical origin, and reject requests for unknown hosts. |
 | TM-W-009 | Identity | Answer the Admin, preview and API namespaces only on the canonical origin, refuse them on alias hosts, and issue Admin cookies as host-only cookies with a host prefix. |
 | TM-W-010 | Accounts | Require every Admin account to sign in with a password plus a second factor, or with a passkey. Never issue an Admin session after a password alone, and offer passkeys as the phishing-resistant choice. |
-| TM-W-011 | Accounts | Recovery tokens and codes are single-use, expiring, rate-limited and stored as verifiers. Recovery never removes two-factor protection through one channel, and a successful recovery revokes all sessions and notifies the account. |
+| TM-W-011 | Accounts | Each recovery token works once, expires quickly and is subject to rate limits, and recovery codes are stored and consumed as TM-G02-057 requires. Recovery never removes two-factor protection through one channel, and a successful recovery revokes all sessions and notifies the account. |
 | TM-W-012 | Accounts | Keep Admin sessions as server-side records. Sign-out, a password change, factor removal and an administrator's revocation end the affected sessions at their next request. |
-| TM-W-013 | Accounts | Require recent authentication for factor enrollment and removal, and for rollback, import apply, restore, and alias or contact-destination changes. Notify the account of factor changes and audit each of these events. |
+| TM-W-013 | Accounts | Require recent authentication for factor enrollment and removal, and for rollback, import apply, restore, package-source binding, and alias or contact-destination changes. Notify the account of factor changes and audit each of these events. |
 | TM-W-014 | Accounts | Create the first administrator only with a one-time secret issued to the deployment. The bootstrap path is unreachable without that secret and closes permanently once an administrator exists. |
 | TM-W-015 | Identity | The minimal Admin authenticates through the server's cookie session, and no access or refresh token is kept in browser-readable storage. |
 | TM-W-016 | Admin | Record every minimal Admin action in the action ledger with its server permission, prove denial of each by direct API call, and leave actions outside W absent on the server rather than hidden. |
@@ -321,7 +334,7 @@ Owners, boundaries, requirements, evidence and profiles for each control are in 
 | TM-W-023 | Content | Authoring, publishing, scheduling, withdrawal and rollback are separate permissions, checked on the server for every path, including scheduled activation. |
 | TM-W-024 | Content | Each schedule has a stable identity, records its time zone and resolved UTC instant, activates at most once, and reports missed windows according to its misfire policy. |
 | TM-W-025 | Content | Before rollback activates a manifest, recheck that its schemas, renderers and media versions are present, compatible and neither revoked nor quarantined. |
-| TM-W-026 | Files | Accept only the raster image types the profile declares, verified by content signature; check dimensions and size before decoding; and process images within memory and time bounds. |
+| TM-W-026 | Files | Accept only the raster image types the profile declares, verified by content signature; check dimensions and size before decoding; process images within memory and time bounds; and serve media with its verified type and sniffing disabled. |
 | TM-W-027 | Files | Remove embedded location, device and comment metadata from public renditions, and keep the original version private. |
 | TM-W-028 | Files | Revisions and manifests reference immutable file versions with their hashes, publication and delivery verify the hash, and replacing media creates a new version that needs its own review. |
 | TM-W-029 | Content and Engagement | Send contact mail only to configured named destinations, from the configured site sender, with fixed templates. Visitor values appear only as encoded body content or as a validated reply-to address. |
@@ -330,8 +343,8 @@ Owners, boundaries, requirements, evidence and profiles for each control are in 
 | TM-W-032 | Privacy | Classify submissions as personal data, restrict reading to a dedicated permission, keep their content out of logs and telemetry, and delete them when the configured retention period ends. |
 | TM-W-033 | Content and Engagement | A change to a contact destination requires a dedicated permission and recent authentication, is audited, and notifies the previous destination. |
 | TM-W-034 | Communications | Load transport credentials from deployment secrets and require an encrypted, certificate-verified connection to the transport; a failed verification is a delivery failure. |
-| TM-W-035 | Content | Apply the format's forbidden-content rules to all package and documentation text before planning. Any violation blocks the plan. |
-| TM-W-036 | Security | Treat a finding under the format's secret-detection rule as a blocker for the whole plan, and redact matched values from reports and audit records. |
+| TM-W-035 | Content | Apply the format's forbidden-content rules, as published in the content-package contract, to all package and documentation text before planning. Any violation blocks the plan. |
+| TM-W-036 | Security | Run the deployment's configured secret scanner over all package text, code included, as the content-package contract requires. Any finding blocks the whole plan, and matched values are redacted from reports and audit records. |
 | TM-W-037 | Content | Capture an immutable snapshot by resolving paths inside the package root without following links, reject what the format's file rules reject, and enforce size and depth bounds before decoding. |
 | TM-W-038 | Content | Bind each dry-run plan to the package digest, target site, actor, dependency versions, destination concurrency tokens and an expiry. Require import permission for a dry run and approval of the exact plan for apply, and recheck every binding at apply. |
 | TM-W-039 | Content | Persist mappings by tenant, site, package, kind and stable key; never infer identity from slugs, titles or file names; and adopt an existing object only through an authorized, explicit mapping that names its exact identity and version. |
@@ -339,8 +352,8 @@ Owners, boundaries, requirements, evidence and profiles for each control are in 
 | TM-W-041 | Content | A dry run reads only the snapshot and destination state. It writes no content, schema, media or mapping, fetches nothing and sends nothing, and tests assert this. |
 | TM-W-042 | Content | Write authoritative items in one transaction under an operation identity bound to plan, target and digest; reconcile the operation record and staged media before any retry; and keep a redacted audit report naming the approver, plan, digest and per-item outcomes. |
 | TM-W-043 | Documentation | Resolve repository keys only through authorized intake configuration, fetch by full commit identifier, verify the fetched commit, and record that verification as provenance that is distinct from authorship. |
-| TM-W-044 | Documentation | Connect only to configured Git hosts, refuse redirects to other hosts, skip submodules and external content pointers, and bound transfer size and time. |
-| TM-W-045 | Documentation | Keep source credentials in deployment secrets with read-only scope, and never place them in repository locations, manifests, logs or errors. |
+| TM-W-044 | Security | Fetch documentation and package sources only from allowlisted Git hosts: refuse redirects to unlisted hosts, never fetch submodules, fetch large-file objects only from allowlisted hosts, and bound transfer size, object count and time. |
+| TM-W-045 | Security | Keep credentials for private documentation and package sources in deployment secrets with read-only scope, and never place them in repository locations, manifests, plans, reports, logs or errors. |
 | TM-W-046 | Operations | Encrypt backup sets at rest, keep their key material in a separate store, and limit both to a recovery role outside the minimal Admin. |
 | TM-W-047 | Operations | Back up the database and Files as one coordinated set with a manifest of file hashes. Restore first into an isolated deployment, verify integrity, references and sign-in there, and rehearse this for each release. |
 | TM-W-048 | Operations | After a restore, hold scheduled publications and queued mail, reconcile them against delivery records, and release only what an operator confirms. |
@@ -351,6 +364,10 @@ Owners, boundaries, requirements, evidence and profiles for each control are in 
 | TM-W-053 | Operations | Run as a non-root user with a read-only application filesystem, writable volumes only for Files, keys and temporary data, and no added capabilities. |
 | TM-W-054 | Operations | Mount secrets, the data-protection key ring and Files from declared deployment volumes or stores, build images without secrets, and never display configuration values in diagnostics. |
 | TM-W-055 | Operations | Allow outbound connections only to the database, the email transport and approved Git hosts, and deny all other egress from the container. |
+| TM-W-056 | Admin | The website profile serves the Admin and APIs to same-origin callers only. It configures no cross-origin callers, treats alias hosts as untrusted origins, and fails its release checks if any Admin or API response grants cross-origin access. |
+| TM-W-057 | Content | Binding or changing the repository that supplies content packages requires a dedicated package-source permission, separate from import, and recent authentication. The binding names the repository location, its allowlisted host and any credential reference; each change is audited and invalidates dry-run plans built from the previous binding. |
+| TM-W-058 | Content | Acquire a snapshot only from the bound repository at a full commit identifier, never a branch or tag; verify that the fetched commit matches it; record the repository and commit with the package digest; and bind both into the dry-run plan, so that apply rejects any other snapshot. |
+| TM-W-059 | Accounts | Throttle by source before account, cap per-account delays rather than locking accounts indefinitely, keep passkey sign-in available while password attempts are delayed, alert operators when an account's failures cross a threshold, and give the recovery role a documented, audited unlock procedure. |
 
 ## Residual risks and out of scope
 
@@ -358,9 +375,11 @@ Owners, boundaries, requirements, evidence and profiles for each control are in 
 
 These risks remain when every control above works as specified. Each needs explicit acceptance at the W qualification review.
 
-- **Shared origin.** The minimal Admin shares the canonical origin with the public site. Script injected into a public or preview page would act with an editor's session (TH-W-002, TH-W-030). TM-W-002 and TM-W-017 reduce this; serving the Admin from a separate origin would remove it and requires a profile decision.
+- **Shared origin.** The minimal Admin shares the canonical origin with the public site, so script injected into any response on that origin would act with an editor's session (TH-W-002, TH-W-030). The risk stays bounded only while three conditions hold: every response on the origin, including error pages, media and health responses, carries the content security policy of TM-W-002 and TM-W-017; media is limited to verified raster types served with sniffing disabled (TM-W-026, TM-G02-044); and Admin cookies carry a host prefix and are issued only on the canonical origin (TM-W-009). Serving the Admin from a separate origin would remove the risk and requires a profile decision.
 - **One-time codes can be relayed.** The profile accepts two-factor authentication or passkeys. A real-time phishing relay can still capture a one-time code (TH-W-013); only passkeys resist it.
 - **Detection is heuristic.** The format's forbidden-content and secret-detection rules, and the media scanner, recognize known patterns. A novel secret format or malicious file can pass them (TH-W-037, TH-W-050). Author review and quarantine reduce this risk without eliminating it.
+- **Lockout pressure.** Source throttling and capped delays (TM-W-059, TM-G02-015) keep the few Admin accounts reachable, but a sustained attack still slows editors' password sign-in; passkeys and the recovery role's unlock procedure are the fallback (TH-W-090).
+- **Weak passwords.** Adaptive hashing (TM-G02-055) raises the cost of guessing a stolen verifier but cannot protect an Admin password that is easy to guess (TH-W-088).
 - **Single-host capacity.** Rate limits and render bounds (TM-W-006) protect against modest floods only. A volumetric attack beyond the host's capacity needs upstream protection outside the product (TH-W-007).
 - **Alias revalidation window.** Between revalidations, a lapsed alias can still be served (TH-W-009, TH-W-081). The interval is a recorded configuration choice.
 - **Anonymous contact.** Antispam and rate limits cannot stop a determined human sender (TH-W-044). Provider acceptance is not confirmed delivery.
