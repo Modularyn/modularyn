@@ -305,6 +305,2046 @@
       ]
     },
     {
+      "id": "AC-002-B01",
+      "title": "Throttle password guessing at the source threshold without locking out the owner",
+      "family": "AC-002",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W minimal Admin sign-in with a password plus a second factor or a passkey, account recovery, session revocation, stored credential forms, guessing and lockout resistance, and first-administrator bootstrap on the canonical origin. Registration, external login, passwordless links and shared-account tenant membership are outside W."
+      },
+      "requirements": [
+        "OPS-003",
+        "MOD-001",
+        "MOD-002"
+      ],
+      "layers": [
+        "api-contract",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-012"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "admin-1 has a password, a one-time-password authenticator and a passkey. Sources src-1, src-2 and src-3 are distinct. The release's declared per-source threshold N, per-account delay schedule and cap, and operator alert threshold for password verification are recorded before running."
+      ],
+      "steps": [
+        "Starting from fresh fixture state, submit N minus one wrong passwords for admin-1 from src-1, then the correct password and one-time code.",
+        "Starting from fresh fixture state again, submit N wrong passwords from src-1, alternating between the minimal Admin sign-in page and direct calls to the sign-in API, then the correct password and code from src-1 and from src-2.",
+        "From src-2 and src-3 in turn, continue wrong passwords for admin-1 until the per-account delay reaches its cap and the alert threshold is crossed, then sign in with admin-1's passkey from src-3.",
+        "Have the recovery role run the documented, audited unlock procedure, then sign in from src-3 with the correct password and code."
+      ],
+      "expectedOutcome": [
+        "After N minus one failures sign-in still succeeds. After the Nth failure src-1 is blocked by source, so its correct attempt is refused, while src-2 is not blocked; attempts through the minimal Admin and the direct sign-in API count together.",
+        "The per-account delay follows the declared schedule and stops at its cap; no number of failures produces indefinite lockout, and passkey sign-in stays available while password attempts are delayed.",
+        "Crossing the alert threshold notifies operators once; the unlock is audited and returns password verification to its normal delay."
+      ],
+      "evidence": [
+        "Per-attempt source, account, counter, applied delay and outcome; alert, notification and unlock audit records; and the declared threshold values, as evidence for TM-G02-015 and TM-W-059."
+      ]
+    },
+    {
+      "id": "AC-002-B02",
+      "title": "Expire sessions and recent authentication at their declared edges",
+      "family": "AC-002",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W minimal Admin sign-in with a password plus a second factor or a passkey, account recovery, session revocation, stored credential forms, guessing and lockout resistance, and first-administrator bootstrap on the canonical origin. Registration, external login, passwordless links and shared-account tenant membership are outside W."
+      },
+      "requirements": [
+        "OPS-003",
+        "FND-017",
+        "MOD-002"
+      ],
+      "layers": [
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-012"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "The fixture deployment reads time through the injectable clock. The declared session idle timeout I, absolute lifetime A and recent-authentication window T are recorded before running.",
+        "Each row uses a fresh fixture account that holds rollback permission, a passkey and a one-time-password authenticator."
+      ],
+      "steps": [
+        "Leave one session idle for I minus one second and another for I plus one second, then issue an Admin read with each.",
+        "Keep a third session active with requests spaced below I until A minus one second and A plus one second after sign-in.",
+        "At T minus one second and T plus one second after the last authentication, request enrollment of a second passkey, removal of the one-time-password authenticator and a rollback."
+      ],
+      "expectedOutcome": [
+        "Each request inside a limit succeeds; each request past it is refused, and the server-side session record shows the ended state and its reason.",
+        "Inside T, enrollment, removal and rollback proceed with their notification and audit records; past T, each requires reauthentication before any change."
+      ],
+      "evidence": [
+        "Clock offsets, session records, per-edge request outcomes, reauthentication prompts and notification and audit records, as evidence for TM-G02-016 and TM-W-013."
+      ]
+    },
+    {
+      "id": "AC-002-B03",
+      "title": "Upgrade password verifiers at the hash-policy edge",
+      "family": "AC-002",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W minimal Admin sign-in with a password plus a second factor or a passkey, account recovery, session revocation, stored credential forms, guessing and lockout resistance, and first-administrator bootstrap on the canonical origin. Registration, external login, passwordless links and shared-account tenant membership are outside W."
+      },
+      "requirements": [
+        "MOD-017",
+        "OPS-003",
+        "OPS-004"
+      ],
+      "layers": [
+        "unit",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-031"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "The release's current password-hash algorithm and cost parameters are recorded. account-1 holds a verifier at that policy, account-2 one at the current algorithm with a cost one step below policy, and account-3 one from a superseded algorithm; each also has a one-time-password authenticator."
+      ],
+      "steps": [
+        "Submit one wrong password for each account, then read the stored verifiers and their recorded parameters from PostgreSQL.",
+        "Sign each account in with the correct password and code, then read the verifiers again.",
+        "Search Admin responses, logs and telemetry for any verifier."
+      ],
+      "expectedOutcome": [
+        "Wrong passwords change no verifier.",
+        "account-1's verifier is unchanged; account-2's and account-3's verifiers are replaced by current-policy verifiers after their successful sign-in, with the new algorithm and parameters recorded.",
+        "No verifier appears in any searched output."
+      ],
+      "evidence": [
+        "Verifier algorithm and parameter records before and after, with verifier values reduced to digests, and the search results, as evidence for TM-G02-055."
+      ]
+    },
+    {
+      "id": "AC-002-N01",
+      "title": "Refuse password-only, alias-host, host-variant and closed bootstrap paths",
+      "family": "AC-002",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W minimal Admin sign-in with a password plus a second factor or a passkey, account recovery, session revocation, stored credential forms, guessing and lockout resistance, and first-administrator bootstrap on the canonical origin. Registration, external login, passwordless links and shared-account tenant membership are outside W."
+      },
+      "requirements": [
+        "MOD-001",
+        "MOD-002",
+        "OPS-003"
+      ],
+      "layers": [
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-004",
+        "AC-031"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "admin-1 has a password and a one-time-password authenticator. alias-1 is a verified alias of the single site with an internationalized label, so it has a Unicode form and a punycode form; the deployment declares one proxy. An administrator exists, and the deployment's one-time bootstrap secret was consumed at installation."
+      ],
+      "steps": [
+        "Submit admin-1's correct password, skip the second factor, and call an Admin API and an Admin page with the cookies the browser then holds.",
+        "Request the Admin sign-in, preview and API namespaces in a browser and with a direct client on alias-1 and on each of its variants: changed letter case, a trailing dot, an explicit port, and its other Unicode or punycode form.",
+        "Send the same requests to alias-1 with a forwarded-host value naming the canonical host, from a source that is not the declared proxy.",
+        "With a direct client, request the same namespaces on the canonical host with changed letter case, with a trailing dot and with an explicit port.",
+        "Call the first-administrator setup path with no secret, with the consumed secret and with a malformed secret."
+      ],
+      "expectedOutcome": [
+        "No Admin session or Admin-scoped cookie exists after the password step alone, and both calls are refused as unauthenticated.",
+        "Neither alias-1, any of its variants, nor the forwarded-host request answers a reserved namespace or sets a cookie; Admin cookies carry a host prefix and are issued only on the canonical origin.",
+        "Each canonical-host variant is either refused or redirected to the exact canonical origin, and no response to a variant sets a cookie.",
+        "Each bootstrap attempt receives the same response as an absent route, and the account inventory is unchanged."
+      ],
+      "evidence": [
+        "Request and response traces with cookie jars for each row and host variant, and account inventories before and after, as evidence for TM-W-010, TM-W-009 and TM-W-014."
+      ]
+    },
+    {
+      "id": "AC-002-N02",
+      "title": "Refuse fixed, replayed and revoked session identifiers",
+      "family": "AC-002",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W minimal Admin sign-in with a password plus a second factor or a passkey, account recovery, session revocation, stored credential forms, guessing and lockout resistance, and first-administrator bootstrap on the canonical origin. Registration, external login, passwordless links and shared-account tenant membership are outside W."
+      },
+      "requirements": [
+        "OPS-003",
+        "FND-017",
+        "MOD-001"
+      ],
+      "layers": [
+        "api-contract",
+        "isolation"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-012"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "admin-1 has a password, a one-time-password authenticator and a passkey, with session S1 in browser A and S2 in browser B. Browser C holds a session identifier set before sign-in. A separate client keeps a copy of every session cookie."
+      ],
+      "steps": [
+        "Sign admin-1 in through browser C as session S3 and compare its identifier with the one set before sign-in.",
+        "For each ending event in turn, starting new sessions as needed: sign-out of S1, a password change made from S3, removal of the one-time-password authenticator made from S3, and another administrator's revocation of all admin-1 sessions, present the copied cookie of every session the event should end for an Admin read and a publish call carrying a valid antiforgery token."
+      ],
+      "expectedOutcome": [
+        "Browser C receives a new identifier at authentication; the value set before sign-in never becomes authenticated.",
+        "Every session an event ends is refused at its next request, for the read as well as the publish call, returns no Admin data and changes nothing; sessions an event does not end continue."
+      ],
+      "evidence": [
+        "Server-side session records with versions and end reasons, cookie values recorded only as digests, and per-event request traces, as evidence for TM-G02-016 and TM-W-012."
+      ]
+    },
+    {
+      "id": "AC-002-N03",
+      "title": "Throttle one-time-code and recovery-code guessing past their declared limits",
+      "family": "AC-002",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W minimal Admin sign-in with a password plus a second factor or a passkey, account recovery, session revocation, stored credential forms, guessing and lockout resistance, and first-administrator bootstrap on the canonical origin. Registration, external login, passwordless links and shared-account tenant membership are outside W."
+      },
+      "requirements": [
+        "OPS-003",
+        "MOD-001",
+        "MOD-002"
+      ],
+      "layers": [
+        "unit",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-012"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "admin-1 has a one-time-password authenticator and unused recovery codes, and each run starts from a pending sign-in that has passed the password step; unknown-1 is not an account. Sources src-1, src-2 and src-3 are distinct.",
+        "For one-time-code and for recovery-code verification, the release's declared per-source limit, per-account limit, the block or delay each applies at its limit, and the uniform-response latency tolerance E are recorded before running."
+      ],
+      "steps": [
+        "From fresh fixture state, submit wrong one-time codes for admin-1 from src-1, alternating between the minimal Admin sign-in page and direct calls to the sign-in API, up to the per-source limit, then one more wrong code and the current correct code from src-1, timing every response.",
+        "Continue wrong one-time codes from further sources, each below its per-source limit, until the per-account limit is reached; then, from a source still below its limit, submit the current correct code once before the applied delay elapses and once after it.",
+        "Repeat both steps with recovery codes in place of one-time codes, from fresh fixture state.",
+        "From src-3, alternate wrong passwords for admin-1 and for unknown-1 an equal number of times, staying below the per-source limit."
+      ],
+      "expectedOutcome": [
+        "Attempts through the minimal Admin and through the direct sign-in API count against the same limits, so neither path bypasses them.",
+        "At each per-source limit, src-1's next attempt is blocked, and the correct code it then submits is refused without being verified.",
+        "At each per-account limit, further attempts from any source are delayed by at least the declared delay. The correct code submitted before the delay elapses is refused, and a refused recovery code is not consumed; the one submitted after the delay succeeds, so the owner is not locked out indefinitely.",
+        "Every attempt past a limit is either refused without verification or answered no sooner than the declared delay after the preceding attempt, so no run verifies more codes per window than the declared limits allow.",
+        "Unknown-account and wrong-password responses match in status and body, and their median latencies differ by no more than E."
+      ],
+      "evidence": [
+        "Per-attempt kind, source, counter, verification flag, applied delay and response time, with the declared limits, delays and tolerance, as evidence for TM-G02-015 and TM-W-059."
+      ]
+    },
+    {
+      "id": "AC-002-N04",
+      "title": "Reject credential records changed outside enrollment",
+      "family": "AC-002",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W minimal Admin sign-in with a password plus a second factor or a passkey, account recovery, session revocation, stored credential forms, guessing and lockout resistance, and first-administrator bootstrap on the canonical origin. Registration, external login, passwordless links and shared-account tenant membership are outside W."
+      },
+      "requirements": [
+        "MOD-002",
+        "MOD-017",
+        "OPS-004"
+      ],
+      "layers": [
+        "unit",
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "admin-1 and editor-1 each have an enrolled passkey, and admin-1 also has a one-time-password seed with a known sentinel value. A database fixture can edit account rows directly, and the account tables can be exported without access to the authorized key store."
+      ],
+      "steps": [
+        "In PostgreSQL, replace the public key in admin-1's passkey record with editor-1's, then attempt to sign in as admin-1 with editor-1's authenticator.",
+        "Restore the record, rebind editor-1's passkey record to admin-1's account identifier, and attempt the same sign-in.",
+        "Export the account tables without the key store and examine every seed column.",
+        "Search a database dump, logs, telemetry, a backup set after the recovery role decrypts it, and every export the release produces for the sentinel seed in plaintext and in its base32 and hexadecimal encodings."
+      ],
+      "expectedOutcome": [
+        "Each altered record fails integrity verification before it is trusted; no session is issued, and the failure is audited.",
+        "The export holds only ciphertext seeds tagged with key versions; no seed is readable from the database alone.",
+        "The sentinel seed appears in none of the searched outputs in any of those forms."
+      ],
+      "evidence": [
+        "Descriptions of each altered row, sign-in refusals, integrity-verification and audit records, the seed-column inspection with values reduced to digests, and the sentinel search results, as evidence for TM-G02-058 and TM-G02-056."
+      ]
+    },
+    {
+      "id": "AC-002-N05",
+      "title": "Throttle recovery initiation and refuse reused or expired recovery proofs",
+      "family": "AC-002",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W minimal Admin sign-in with a password plus a second factor or a passkey, account recovery, session revocation, stored credential forms, guessing and lockout resistance, and first-administrator bootstrap on the canonical origin. Registration, external login, passwordless links and shared-account tenant membership are outside W."
+      },
+      "requirements": [
+        "OPS-003",
+        "MOD-001",
+        "MOD-002"
+      ],
+      "layers": [
+        "unit",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-012"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "admin-1 has a one-time-password authenticator and unused recovery codes, with one consumed code; unknown-1 is not an account. Sources src-1, src-2 and src-3 are distinct, and the outbound message log of the bounded delivery environment is captured.",
+        "The release's declared per-source and per-account limits and delays for recovery initiation, and the recovery-token lifetime, are recorded before running."
+      ],
+      "steps": [
+        "From fresh fixture state, initiate recovery for admin-1 from src-1 up to its per-source limit and once more, timing every response.",
+        "Continue initiation for admin-1 from src-2 and src-3, each below its per-source limit, up to the per-account limit and once more; then initiate once for unknown-1 from src-3.",
+        "Present the consumed recovery code, use one issued recovery token twice, and present another token after its declared lifetime.",
+        "Submit one unused recovery code in two concurrent attempts from separate clients.",
+        "With a fresh token, attempt to complete recovery while removing admin-1's second factor in the same flow, then complete it with the token and a current one-time code."
+      ],
+      "expectedOutcome": [
+        "At each limit the next initiation is throttled: no token is issued and no message is sent, and every initiation past a limit is answered no sooner than its declared delay.",
+        "Per-source throttling may answer with a throttling status, but per-account throttling returns the same status and body as an accepted initiation, and initiation for unknown-1 matches an accepted one and sends nothing, so no response reveals whether an account exists.",
+        "The consumed code, the second use of the token and the expired token are refused.",
+        "Exactly one concurrent attempt succeeds and the code is consumed once; the other is refused.",
+        "Recovery through the token alone cannot remove the second factor; when recovery completes with the remaining factor, all admin-1 sessions end and the account is notified."
+      ],
+      "evidence": [
+        "Per-initiation source, account, counter, applied delay and response time; token issuance and outbound message records; token and code states; and session records and notifications, as evidence for TM-W-011 and TM-G02-057."
+      ]
+    },
+    {
+      "id": "AC-002-N06",
+      "title": "Require recent authentication for each high-impact Admin operation",
+      "family": "AC-002",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W minimal Admin sign-in with a password plus a second factor or a passkey, account recovery, session revocation, stored credential forms, guessing and lockout resistance, and first-administrator bootstrap on the canonical origin. Registration, external login, passwordless links and shared-account tenant membership are outside W."
+      },
+      "requirements": [
+        "FND-017",
+        "OPS-003",
+        "MOD-002"
+      ],
+      "layers": [
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-012"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "admin-2 signs in with a password and one-time code and holds the dedicated contact-destination and package-source permissions, import approval and alias administration. Fixture state has a bound repository with a valid dry-run plan, a configured contact destination and verified alias-1.",
+        "The injectable clock controls the deployment, and the declared recent-authentication window T is recorded before running. Each row starts from fresh fixture state and a fresh session."
+      ],
+      "steps": [
+        "At T minus one second after the last authentication, change the contact destination, rebind the content-package repository, approve and apply the plan, and add alias-2, one operation per row.",
+        "At T plus one second after the last authentication, attempt each of the same four operations through the minimal Admin and by direct call, with the permission still held.",
+        "In each T-plus-one-second row, reauthenticate in the same session with the one-time code and repeat the operation.",
+        "With admin-2's session, request a restore through the minimal Admin and by direct call."
+      ],
+      "expectedOutcome": [
+        "Inside the window, each operation succeeds.",
+        "At T plus one second, each operation is refused with a reauthentication-required response before any change, through both paths.",
+        "After each refusal the destination, repository binding, plan and content, and alias set are unchanged, and no notification is sent.",
+        "Each refusal is recorded with actor, operation and the recent-authentication result.",
+        "After reauthentication, each operation succeeds once, with its audit record and the notifications it requires.",
+        "No Admin or API path performs a restore. W assigns restore to the recovery role outside the minimal Admin, whose separate access AC-031 qualifies; on W, TM-W-013's restore clause therefore applies to no Admin session."
+      ],
+      "evidence": [
+        "Clock offsets, per-row and per-path outcomes, state inventories before and after, refusal and success audit records, and notifications, as evidence for TM-W-013."
+      ]
+    },
+    {
+      "id": "AC-002-P01",
+      "title": "Sign in to the Admin only after a second factor or a passkey",
+      "family": "AC-002",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W minimal Admin sign-in with a password plus a second factor or a passkey, account recovery, session revocation, stored credential forms, guessing and lockout resistance, and first-administrator bootstrap on the canonical origin. Registration, external login, passwordless links and shared-account tenant membership are outside W."
+      },
+      "requirements": [
+        "MOD-001",
+        "MOD-002",
+        "OPS-003",
+        "UI-002"
+      ],
+      "layers": [
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-012"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "admin-1 has a password and an enrolled one-time-password authenticator; editor-1 has an enrolled passkey. Both accounts are active on the single site. The canonical origin and the declared idle and absolute session lifetimes are recorded."
+      ],
+      "steps": [
+        "Through the minimal Admin in a browser, sign in as admin-1 with the password and then the current one-time code.",
+        "In a fresh browser profile, sign in as editor-1 with the passkey.",
+        "After each sign-in, inspect the issued cookies, the server-side session record and every script-readable browser storage area."
+      ],
+      "expectedOutcome": [
+        "Each journey issues one Admin session only after the second factor or passkey assertion completes, with an identifier that differs from any identifier present before authentication.",
+        "Session cookies are Secure, HttpOnly, SameSite and host-only with a host prefix, set by the canonical origin; no access or refresh token is in script-readable storage.",
+        "Each session has a server-side record with the declared idle and absolute expiry."
+      ],
+      "evidence": [
+        "Browser traces of both journeys, cookie identifiers before and after authentication recorded as digests with their attributes, storage inspection results and session records, as evidence for TM-W-010, TM-G02-016, TM-W-009 and TM-W-015."
+      ]
+    },
+    {
+      "id": "AC-002-P02",
+      "title": "Enroll a passkey and regenerate recovery codes under recent authentication",
+      "family": "AC-002",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W minimal Admin sign-in with a password plus a second factor or a passkey, account recovery, session revocation, stored credential forms, guessing and lockout resistance, and first-administrator bootstrap on the canonical origin. Registration, external login, passwordless links and shared-account tenant membership are outside W."
+      },
+      "requirements": [
+        "MOD-002",
+        "MOD-017",
+        "OPS-003",
+        "OPS-004"
+      ],
+      "layers": [
+        "unit",
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-012"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "admin-1 signed in with password and one-time code within the declared recent-authentication window and holds an earlier recovery-code set. A second authenticator fixture can create a passkey. The current password-hash policy and seed-encryption key version are recorded."
+      ],
+      "steps": [
+        "Enroll the new passkey, then regenerate admin-1's recovery codes and record that the new codes are shown once.",
+        "Read admin-1's password verifier, one-time-password seed, recovery-code records and passkey records directly from PostgreSQL.",
+        "Sign in once with the new passkey and once with the password and a new recovery code in place of the one-time code, attempt a sign-in with a code from the earlier set, and reload the recovery-code view."
+      ],
+      "expectedOutcome": [
+        "Enrollment and regeneration succeed, notify admin-1 and are audited.",
+        "The store holds a salted adaptive password verifier with its algorithm and cost, an encrypted seed tagged with its key version, recovery-code verifiers only, and passkey records bound to account, credential and relying-party identifiers with a verifying integrity tag.",
+        "Both sign-ins succeed and the new code is consumed once; the earlier-set code is refused, and the view does not show codes again."
+      ],
+      "evidence": [
+        "Account-store inspection with secret values reduced to form, length and digest, key-version and hash-parameter records, notifications and audit records, as evidence for TM-W-013, TM-G02-055, TM-G02-056, TM-G02-057 and TM-G02-058."
+      ]
+    },
+    {
+      "id": "AC-002-R01",
+      "title": "Recover an Admin account after a suspected session compromise",
+      "family": "AC-002",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W minimal Admin sign-in with a password plus a second factor or a passkey, account recovery, session revocation, stored credential forms, guessing and lockout resistance, and first-administrator bootstrap on the canonical origin. Registration, external login, passwordless links and shared-account tenant membership are outside W."
+      },
+      "requirements": [
+        "MOD-001",
+        "MOD-002",
+        "OPS-003"
+      ],
+      "layers": [
+        "api-contract",
+        "ui",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-012"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "Session Sx for editor-1 was established by an attacker fixture with a phished password and one-time code, and its last authentication is older than the recent-authentication window. editor-1 also holds an enrolled passkey and unused recovery codes."
+      ],
+      "steps": [
+        "Through Sx, attempt to enroll a new passkey and to remove editor-1's passkey.",
+        "As editor-1, start recovery with a recovery code and complete it with the enrolled passkey, then set a new password and regenerate the recovery codes.",
+        "Present Sx and the consumed recovery code again, then sign in as editor-1 with the new password and a one-time code."
+      ],
+      "expectedOutcome": [
+        "Both factor changes through Sx require reauthentication and change nothing.",
+        "Recovery keeps a second factor enrolled throughout, ends every editor-1 session including Sx, notifies the account and invalidates the earlier recovery codes.",
+        "Sx and the consumed code are refused; the new sign-in succeeds."
+      ],
+      "evidence": [
+        "Session and factor timelines, reauthentication prompts, notifications, audit records and replay refusals, as evidence for TM-W-013, TM-W-011, TM-W-012 and TM-G02-057."
+      ]
+    },
+    {
+      "id": "AC-002-R02",
+      "title": "Restore and rotate keys without reviving sessions or superseded factors",
+      "family": "AC-002",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W minimal Admin sign-in with a password plus a second factor or a passkey, account recovery, session revocation, stored credential forms, guessing and lockout resistance, and first-administrator bootstrap on the canonical origin. Registration, external login, passwordless links and shared-account tenant membership are outside W."
+      },
+      "requirements": [
+        "MOD-001",
+        "MOD-002",
+        "OPS-003",
+        "OPS-004"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "A coordinated backup was taken while admin-1 and editor-1 had active sessions. After it, editor-1 was disabled, admin-1 replaced a passkey and editor-3's rollback permission was removed. The seed-encryption key has a current version and a retained previous version in the authorized store."
+      ],
+      "steps": [
+        "Restore the backup into an isolated recovery deployment and present both sessions' cookies from the backup point.",
+        "As the recovery role, review the presented account, factor and permission changes made after the backup point; reapply editor-1's disablement and the removal of editor-3's rollback permission, remove admin-1's superseded passkey and have admin-1 enroll the replacement again.",
+        "Sign in as admin-1 with password and one-time code and with the replacement passkey; attempt editor-1's sign-in and a sign-in with the superseded passkey; and have editor-3 sign in and attempt a rollback.",
+        "Rotate the seed-encryption key, sign in with a one-time code, then restore the rotated state again and repeat."
+      ],
+      "expectedOutcome": [
+        "Every restored session is refused and fresh sign-in is required; the review lists all three post-backup changes, including the permission removal.",
+        "After reapplication, editor-1, the superseded passkey and editor-3's rollback are refused, and admin-1's current factors work.",
+        "Seeds decrypt only through the authorized key store, across rotation and the second restore."
+      ],
+      "evidence": [
+        "Restore identities, session refusals, the post-backup change review, reapplication audit records, key versions and sign-in outcomes, as evidence for TM-W-049 and TM-G02-056."
+      ]
+    },
+    {
+      "id": "AC-002-R03",
+      "title": "Recover an interrupted first-administrator setup",
+      "family": "AC-002",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W minimal Admin sign-in with a password plus a second factor or a passkey, account recovery, session revocation, stored credential forms, guessing and lockout resistance, and first-administrator bootstrap on the canonical origin. Registration, external login, passwordless links and shared-account tenant membership are outside W."
+      },
+      "requirements": [
+        "MOD-001",
+        "OPS-003",
+        "OPS-004"
+      ],
+      "layers": [
+        "api-contract",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "A clean W deployment has no administrator and holds a one-time bootstrap secret issued to it. Setup can be interrupted after the secret is presented and before the account commits."
+      ],
+      "steps": [
+        "Interrupt setup at that point, restart the container, and inspect the account store and the secret's recorded state.",
+        "Complete setup with the secret, enrolling a second factor, then present the same secret from a second client and call the setup path again."
+      ],
+      "expectedOutcome": [
+        "The interruption leaves no partial administrator; the secret is either still usable once or consumed together with a committed account, never both.",
+        "After completion the setup path is unreachable and the secret is refused; the new administrator receives an Admin session only after a second factor or passkey."
+      ],
+      "evidence": [
+        "Fault-point traces, account and secret states before and after restart, refused reuse traces and audit records, as evidence for TM-W-014 and TM-W-010."
+      ]
+    },
+    {
+      "id": "AC-002-R04",
+      "title": "Remove an attacker-enrolled passkey through the owner's recovery",
+      "family": "AC-002",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W minimal Admin sign-in with a password plus a second factor or a passkey, account recovery, session revocation, stored credential forms, guessing and lockout resistance, and first-administrator bootstrap on the canonical origin. Registration, external login, passwordless links and shared-account tenant membership are outside W."
+      },
+      "requirements": [
+        "MOD-001",
+        "MOD-002",
+        "OPS-003"
+      ],
+      "layers": [
+        "api-contract",
+        "ui",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-012"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "An attacker fixture holds session Sy for editor-2, established with a phished password and one-time code and still inside the recent-authentication window. editor-2 holds an enrolled one-time-password authenticator and unused recovery codes, and editor-2's messages in the bounded delivery environment are captured."
+      ],
+      "steps": [
+        "Through Sy, change editor-2's password and enroll an attacker passkey, then sign in with that passkey as session Sz from a second attacker client.",
+        "As editor-2, start recovery with a recovery code and complete it with the one-time-password authenticator.",
+        "During recovery, review the enrolled factors, remove the attacker passkey, set a new password and regenerate the recovery codes.",
+        "Present Sy and Sz again, and attempt a sign-in with the removed passkey."
+      ],
+      "expectedOutcome": [
+        "Both changes inside the window succeed, are audited and notify editor-2 immediately; editor-2's own sessions end with the password change.",
+        "Completed recovery ends Sy, Sz and every other editor-2 session and notifies the account; the passkey removal is audited, and the removed record no longer verifies.",
+        "Sy, Sz and the removed passkey are refused afterward, while editor-2's one-time-password authenticator, new password and new recovery codes work."
+      ],
+      "evidence": [
+        "Factor enrollment and removal timeline, notifications with their delivery times, session records with end reasons, audit records, and refused replay and sign-in traces, as evidence for TM-W-013, TM-W-011, TM-W-012 and TM-G02-058."
+      ]
+    },
+    {
+      "id": "AC-003-B01",
+      "title": "Measure permission revocation at the declared freshness bound",
+      "family": "AC-003",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 server-authoritative permissions, resource grants, settings, features, delegation and claim and session freshness through direct API, advertised client, integration and background entry points on shared-database tenancy. Canonical Admin UI qualification is G-03 work; sign-in fixtures come from AC-002."
+      },
+      "requirements": [
+        "FND-017",
+        "FND-016",
+        "ARC-016"
+      ],
+      "layers": [
+        "isolation",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-004"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "In tenant-A, user-1 holds item.read and item.export with warm authorization cache entries. The release's declared freshness bound B for cached authorization and its classification of item.export as security-sensitive are recorded before running."
+      ],
+      "steps": [
+        "Revoke item.read and record the instant the change is authoritative.",
+        "Read item-1 through the direct API and the advertised .NET and TypeScript clients at B minus one second and B plus one second after that instant.",
+        "Start an export, revoke item.export while it runs, and request its result; repeat with user-1's session revoked instead."
+      ],
+      "expectedOutcome": [
+        "Reads may succeed before B and are refused at B plus one second on every entry point; no cached decision outlives B.",
+        "The security-sensitive export rechecks the current permission and session version, stops at the first check after either revocation, and leaves no downloadable partial result."
+      ],
+      "evidence": [
+        "Authoritative change instants, per-request decision times, cache-entry generations and export dispositions, as evidence for TM-G02-017 and TM-G02-033."
+      ]
+    },
+    {
+      "id": "AC-003-B02",
+      "title": "Bound delegated authority at its scope and expiry edges",
+      "family": "AC-003",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 server-authoritative permissions, resource grants, settings, features, delegation and claim and session freshness through direct API, advertised client, integration and background entry points on shared-database tenancy. Canonical Admin UI qualification is G-03 work; sign-in fixtures come from AC-002."
+      },
+      "requirements": [
+        "ARC-006",
+        "FND-017"
+      ],
+      "layers": [
+        "unit",
+        "isolation"
+      ],
+      "securityDependencies": [
+        "AC-002"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "support-1 holds a delegation to act for user-1 in tenant-A with scope item.read, a recorded purpose and expiry E. The item job declares service identity svc-items with item.reindex only."
+      ],
+      "steps": [
+        "Under the delegation, read item-1 at E minus one second and E plus one second, and attempt item.update before E.",
+        "Issue a second delegation, revoke it before its expiry, and repeat the read.",
+        "Call the current-user API during a delegated call, and run the item job while recording its execution context."
+      ],
+      "expectedOutcome": [
+        "Reads before E succeed and record actor support-1, effective subject user-1 and the identity kind; reads after E or after revocation are refused, and item.update is refused as outside the delegated scope.",
+        "The current-user API distinguishes actor from subject; the job runs as svc-items with item.reindex only, never under an administrator or a captured user credential."
+      ],
+      "evidence": [
+        "Delegation records, per-request contexts and decisions, and the job's execution context, as evidence for TM-G02-018."
+      ]
+    },
+    {
+      "id": "AC-003-B03",
+      "title": "Revoke restricted media and preview access at the authoritative instant",
+      "family": "AC-003",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W server authorization for each minimal Admin action and its direct API call, including preview, publication, media, contact-destination, package-source, import and recovery operations, after permission and session changes; the Admin and APIs are same-origin with no cross-origin access. Sign-in fixtures come from AC-002."
+      },
+      "requirements": [
+        "ARC-016",
+        "FND-016",
+        "FND-017"
+      ],
+      "layers": [
+        "isolation",
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "reviewer-1 holds a current-authorization grant on restricted asset-2 and preview permission for the site, with warm authorization cache entries. A gateway link for asset-2 was issued before revocation, a large asset-2 download is in progress, and the declared freshness bound B is recorded.",
+        "The Files gateway's delivery behavior is qualified by AC-009 on the same tuple."
+      ],
+      "steps": [
+        "Revoke reviewer-1's asset-2 grant and preview permission, and record the instant each change is authoritative.",
+        "Request asset-2 through the Files gateway and preview article-1 revision-2 immediately before and immediately after that instant, and again at B plus one second.",
+        "Use the earlier gateway link, issue a new range request for the in-progress download, and list media with counts as reviewer-1."
+      ],
+      "expectedOutcome": [
+        "The last requests before the authoritative instant succeed; the first gateway and preview authorizations after it are refused without waiting for B, as the current-authorization profile requires.",
+        "The earlier link and the new range request are refused; the download already in progress is recorded as data delivered before revocation.",
+        "The media list and its count omit asset-2."
+      ],
+      "evidence": [
+        "Authoritative change instants, per-request decisions and timestamps, link and range outcomes, and list and count outputs, as evidence for TM-G02-020, TM-G02-033 and TM-G02-021."
+      ]
+    },
+    {
+      "id": "AC-003-B04",
+      "title": "Grant Admin permissions at the assignment-ceiling edge",
+      "family": "AC-003",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W server authorization for each minimal Admin action and its direct API call, including preview, publication, media, contact-destination, package-source, import and recovery operations, after permission and session changes; the Admin and APIs are same-origin with no cross-origin access. Sign-in fixtures come from AC-002."
+      },
+      "requirements": [
+        "MOD-026",
+        "FND-015",
+        "FND-019"
+      ],
+      "layers": [
+        "unit",
+        "real-provider-integration",
+        "isolation"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-012"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "site-admin-1's assignment ceiling contains publish and schedule but not rollback or package-source administration; editor-4 holds authoring only. The site setting that shows the rollback action and every W feature entitlement can be turned on, with warm bootstrap and authorization caches. The Admin session idle timeout is a deployment option not declared site-configurable."
+      ],
+      "steps": [
+        "As site-admin-1, grant editor-4 publish and schedule, then rollback, then package-source administration.",
+        "While another administrator reduces site-admin-1's ceiling to publish only, have site-admin-1 grant schedule to editor-5.",
+        "Turn on the rollback display setting and every entitlement, read them back through the Admin bootstrap, then call rollback directly as editor-4.",
+        "As site-admin-1, set the Admin session idle timeout at site scope through the settings API."
+      ],
+      "expectedOutcome": [
+        "Grants inside the ceiling succeed; the rollback and package-source grants are refused.",
+        "The concurrent pair serializes: editor-5's schedule grant either commits before the reduction or is refused.",
+        "Each setting and entitlement change invalidates the affected cached entries, so the next bootstrap read shows the new value. Settings and entitlements change presentation only; editor-4's rollback is refused without the permission.",
+        "The site-scope change is refused, and the effective deployment option is unchanged."
+      ],
+      "evidence": [
+        "Grant results, transaction ordering, resulting assignments, cache-entry generations and bootstrap reads, the rollback decision and the settings write result, as evidence for TM-G02-022, TM-G02-024, TM-G02-049 and TM-G02-033."
+      ]
+    },
+    {
+      "id": "AC-003-N01",
+      "title": "Deny another owner's resource and hidden rows in lists, counts and exports",
+      "family": "AC-003",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 server-authoritative permissions, resource grants, settings, features, delegation and claim and session freshness through direct API, advertised client, integration and background entry points on shared-database tenancy. Canonical Admin UI qualification is G-03 work; sign-in fixtures come from AC-002."
+      },
+      "requirements": [
+        "FND-016",
+        "FND-018",
+        "ARC-016"
+      ],
+      "layers": [
+        "isolation",
+        "api-contract",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-004"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "In tenant-A, user-1 owns item-1 and item-2; user-2 owns item-3 and holds a resource grant on item-4. Identifiers of all four items are known to the test."
+      ],
+      "steps": [
+        "As user-2, read, update and delete item-1 by identifier through the direct API and both advertised clients.",
+        "As user-2, list items with a filter that matches all four, request the total count and run an export.",
+        "As user-2, update item-3 with a body that also sets owner, tenant, version and audit fields outside the operation's input contract."
+      ],
+      "expectedOutcome": [
+        "Each item-1 operation is refused after safe resolution with the contract used for nonexistent identifiers, revealing no existence detail and changing nothing.",
+        "The list, total and export contain only item-3 and item-4; hidden rows affect neither content nor totals.",
+        "Fields outside the input contract are rejected as the contract declares; owner, tenant and audit fields stay server-derived."
+      ],
+      "evidence": [
+        "Per-call decisions, list, count and export outputs compared with the authoritative visible set, and stored item-3 state, as evidence for TM-G02-020, TM-G02-021 and TM-G02-008."
+      ]
+    },
+    {
+      "id": "AC-003-N02",
+      "title": "Refuse cross-site writes, unlisted origins, ended sessions and over-ceiling grants",
+      "family": "AC-003",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 server-authoritative permissions, resource grants, settings, features, delegation and claim and session freshness through direct API, advertised client, integration and background entry points on shared-database tenancy. Canonical Admin UI qualification is G-03 work; sign-in fixtures come from AC-002."
+      },
+      "requirements": [
+        "FND-018",
+        "FND-015",
+        "MOD-026"
+      ],
+      "layers": [
+        "api-contract",
+        "ui",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-002"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "user-1 has a cookie session in tenant-A, and a copy of a signed-out session cookie is kept. The deployment configures exactly one cross-origin caller, origin-1. admin-a's assignment ceiling excludes item.delete and includes item.export."
+      ],
+      "steps": [
+        "Send a cookie-authenticated state change without an antiforgery token, and a safe-method request that names a state-changing operation.",
+        "Present the signed-out cookie with a valid antiforgery token for a read and an update.",
+        "Send credentialed preflight and actual requests from origin-1, from an unlisted origin and with a null origin.",
+        "As admin-a, grant item.delete to user-1; then grant item.export to user-1 concurrently with another administrator removing item.export from admin-a's ceiling."
+      ],
+      "expectedOutcome": [
+        "The unprotected state change is refused and the safe-method request changes nothing; the signed-out session is refused for both calls.",
+        "Only origin-1 receives credentialed access, with its exact origin and an origin-varying response; the other origins receive no grant, and their preflights are rejected.",
+        "The item.delete grant is refused. The concurrent pair serializes: the item.export grant either commits under the earlier ceiling or is refused, and no grant commits under a ceiling that excluded it."
+      ],
+      "evidence": [
+        "Request and response traces with headers, session records, grant transaction ordering and resulting grants, as evidence for TM-G02-007, TM-G02-016, TM-G02-059 and TM-G02-022."
+      ]
+    },
+    {
+      "id": "AC-003-N03",
+      "title": "Refuse tenant overrides of deployment options and authority from features",
+      "family": "AC-003",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 server-authoritative permissions, resource grants, settings, features, delegation and claim and session freshness through direct API, advertised client, integration and background entry points on shared-database tenancy. Canonical Admin UI qualification is G-03 work; sign-in fixtures come from AC-002."
+      },
+      "requirements": [
+        "FND-019",
+        "MOD-028",
+        "MOD-013"
+      ],
+      "layers": [
+        "unit",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-004"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "The deployment's session idle timeout is not declared tenant-configurable. Feature export-enabled is on for tenant-A, user-1 lacks item.export, and module M is excluded from the composition."
+      ],
+      "steps": [
+        "As tenant-A's administrator, set the session idle timeout at tenant scope through the settings API.",
+        "As user-1, call the export endpoint; then attempt to grant user-1 a permission that module M defines.",
+        "Call module M's routes directly.",
+        "Start a fixture build of the release that registers one endpoint with neither a policy nor an explicit anonymous declaration."
+      ],
+      "expectedOutcome": [
+        "The tenant-scope change is refused and the effective deployment option is unchanged.",
+        "The export is refused because the entitlement grants no authority; module M's permission cannot be granted, and its routes are absent rather than hidden.",
+        "The fixture build fails startup before the host becomes ready, and its diagnostic names the undeclared endpoint."
+      ],
+      "evidence": [
+        "Settings write results and effective values, export and grant decisions, route responses, and the fixture build's startup diagnostic, as evidence for TM-G02-049, TM-G02-024 and TM-G02-011."
+      ]
+    },
+    {
+      "id": "AC-003-N04",
+      "title": "Deny direct calls immediately after Admin permissions are removed",
+      "family": "AC-003",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W server authorization for each minimal Admin action and its direct API call, including preview, publication, media, contact-destination, package-source, import and recovery operations, after permission and session changes; the Admin and APIs are same-origin with no cross-origin access. Sign-in fixtures come from AC-002."
+      },
+      "requirements": [
+        "FND-015",
+        "FND-017",
+        "UI-005",
+        "OPS-003"
+      ],
+      "layers": [
+        "isolation",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-012"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "editor-2 holds preview, dry-run, plan-approval, media-management and rollback permissions and the minimal Admin's recovery actions, interrupted-import reconciliation and held-effect release. editor-2 has an open Admin page and a second session whose cookie copy is kept.",
+        "The declared freshness bound B and each operation's security-sensitive classification are recorded."
+      ],
+      "steps": [
+        "Remove all of editor-2's Admin permissions and record when the change is authoritative.",
+        "Without reloading the page, call preview, dry run, plan approval, media upload, rollback, import reconciliation and held-effect release directly with editor-2's session and a valid antiforgery token.",
+        "Sign out editor-2's second session and replay its cookie for the same calls."
+      ],
+      "expectedOutcome": [
+        "Plan approval, rollback, reconciliation and held-effect release are refused at once against the current permission version; preview, dry run and media upload are refused no later than B.",
+        "The replayed signed-out session is refused for every call.",
+        "No refused call changes content, plans, media, manifests or held effects, and the page's cached menu affects no server decision."
+      ],
+      "evidence": [
+        "Authoritative change instant, per-call decisions with checked permission versions, session records, and unchanged content, plan, media, manifest and held-effect inventories, as evidence for TM-G02-017, TM-G02-019, TM-G02-016 and TM-W-016."
+      ]
+    },
+    {
+      "id": "AC-003-N05",
+      "title": "Refuse cross-origin, alias-origin and cross-site Admin requests",
+      "family": "AC-003",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W server authorization for each minimal Admin action and its direct API call, including preview, publication, media, contact-destination, package-source, import and recovery operations, after permission and session changes; the Admin and APIs are same-origin with no cross-origin access. Sign-in fixtures come from AC-002."
+      },
+      "requirements": [
+        "FND-018",
+        "UI-002",
+        "OPS-003"
+      ],
+      "layers": [
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-031"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "The deployment has its canonical origin and verified alias-1. An editor session with publish permission is active in the test browser, and fixture pages on alias-1 and on an unrelated origin issue credentialed requests."
+      ],
+      "steps": [
+        "From alias-1, the unrelated origin and a null origin, send credentialed preflight and actual requests to an Admin read endpoint and the publish endpoint.",
+        "From the unrelated origin, submit a form to the publish endpoint with the editor's cookie and no antiforgery token.",
+        "From the canonical origin, send safe-method requests that name the publish and rollback operations, with the editor's cookie.",
+        "Run the release check that inspects every Admin and API response for cross-origin grants, against the release and against a fixture build that adds one grant."
+      ],
+      "expectedOutcome": [
+        "No response grants cross-origin access, echoes an origin or allows credentials; preflights are rejected, and alias-1 is treated as an untrusted origin.",
+        "The form submission is refused and nothing is published.",
+        "The safe-method requests change nothing: no publication, rollback or other state change occurs.",
+        "The release check reports zero cross-origin grants for the release and fails the fixture build."
+      ],
+      "evidence": [
+        "Request and response headers per origin, publication state, and release-check reports for both builds, as evidence for TM-G02-059, TM-W-056 and TM-G02-007."
+      ]
+    },
+    {
+      "id": "AC-003-N06",
+      "title": "Refuse package-source, plan and contact-destination changes without their permissions",
+      "family": "AC-003",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W server authorization for each minimal Admin action and its direct API call, including preview, publication, media, contact-destination, package-source, import and recovery operations, after permission and session changes; the Admin and APIs are same-origin with no cross-origin access. Sign-in fixtures come from AC-002."
+      },
+      "requirements": [
+        "FND-015",
+        "FND-016",
+        "OPS-005"
+      ],
+      "layers": [
+        "isolation",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-012"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "importer-1 holds dry-run and plan-approval permissions but not the dedicated package-source permission; plan-1 was built by importer-1 against the bound repository, plan-2 by importer-2, and plan-3 by importer-1 has passed its declared expiry. editor-3 holds every content-management permission but not the dedicated contact-destination permission. The recent-authentication, audit and notification clauses of both changes are qualified by AC-002 and AC-012."
+      ],
+      "steps": [
+        "As importer-1, approve and apply plan-3.",
+        "As importer-1, rebind the content-package repository through the minimal Admin and through a direct call.",
+        "As a holder of the package-source permission with recent authentication, bind a repository on an unlisted host, then rebind to an allowlisted repository; then have importer-1 approve and apply plan-1, and apply plan-2.",
+        "As editor-3, change the contact destination through the minimal Admin and through a direct call."
+      ],
+      "expectedOutcome": [
+        "Applying plan-3 is refused with its expiry named, and nothing is written.",
+        "importer-1's rebindings are refused because no import permission substitutes for the dedicated package-source permission.",
+        "The binding to the unlisted host is refused at binding time and the existing binding is unchanged; the allowlisted rebinding is recorded and invalidates plan-1.",
+        "Applying plan-1 or plan-2 is refused with the failed binding named, and nothing is written.",
+        "editor-3's changes are refused because no content-management permission substitutes for the dedicated contact-destination permission, and the destination is unchanged."
+      ],
+      "evidence": [
+        "Binding records, plan states and apply refusals with the failed binding, and destination configuration before and after, as evidence for TM-W-038, TM-G02-019 and the dedicated-permission clauses of TM-W-057 and TM-W-033."
+      ]
+    },
+    {
+      "id": "AC-003-N07",
+      "title": "Keep out-of-W actions absent and protected fields server-derived",
+      "family": "AC-003",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W server authorization for each minimal Admin action and its direct API call, including preview, publication, media, contact-destination, package-source, import and recovery operations, after permission and session changes; the Admin and APIs are same-origin with no cross-origin access. Sign-in fixtures come from AC-002."
+      },
+      "requirements": [
+        "FND-015",
+        "FND-018",
+        "UI-005"
+      ],
+      "layers": [
+        "api-contract",
+        "isolation"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-004"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "The running deployment's endpoint inventory and the minimal Admin action ledger are captured. Fixture requests target routes that the complete CMS and platform define for comments, search, GraphQL, impersonation and delegation, and a revision save that also sets site, author, publication-state and manifest fields."
+      ],
+      "steps": [
+        "Call each out-of-W route directly with an administrator session.",
+        "Submit the revision save with the extra fields.",
+        "Compare the running inventory with the ledger and the declared permissions.",
+        "Start a fixture build of the W release that registers one endpoint with neither a policy nor an explicit anonymous declaration."
+      ],
+      "expectedOutcome": [
+        "Out-of-W routes, including impersonation and delegation, answer as unknown routes, appear in no inventory and reveal no handler.",
+        "Fields outside the save contract are rejected as the contract declares; site, author and state remain server-derived, and no manifest changes.",
+        "Every inventory endpoint matches a ledger action or a declared public surface, each with a policy or an explicit anonymous declaration.",
+        "The fixture build fails startup before the host becomes ready, and its diagnostic names the undeclared endpoint."
+      ],
+      "evidence": [
+        "Route responses, the stored revision, and the inventory, ledger and permission comparison, and the fixture build's startup diagnostic, as evidence for TM-W-016, TM-G02-024, TM-G02-008, TM-G02-011 and TM-G02-018."
+      ]
+    },
+    {
+      "id": "AC-003-N08",
+      "title": "Deny every minimal Admin ledger action to non-holders by direct call",
+      "family": "AC-003",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W server authorization for each minimal Admin action and its direct API call, including preview, publication, media, contact-destination, package-source, import and recovery operations, after permission and session changes; the Admin and APIs are same-origin with no cross-origin access. Sign-in fixtures come from AC-002."
+      },
+      "requirements": [
+        "UI-005",
+        "FND-015",
+        "UI-002"
+      ],
+      "layers": [
+        "isolation",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-012"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "The minimal Admin action ledger lists each W action with its server permission and its direct API call. For each action, a fixture account holds every ledger permission except that action's; another account holds an Admin session with no Admin permission; and an anonymous client holds no session. Each account authenticated within the recent-authentication window."
+      ],
+      "steps": [
+        "For every ledger action, call its direct API as the account holding every permission except that action's, with a valid antiforgery token.",
+        "Repeat each call as the account holding no Admin permission and as the anonymous client.",
+        "Compare the set of actions exercised with the ledger."
+      ],
+      "expectedOutcome": [
+        "Every call is refused with the stable denial code before any change, whatever other permissions the caller holds; the anonymous calls are refused as unauthenticated.",
+        "No content, plan, media, manifest, destination, binding, alias, permission or session state changes, and each refusal is recorded.",
+        "The exercised set equals the ledger, with denial rows for all three callers on every action; a ledger action without its rows fails the case."
+      ],
+      "evidence": [
+        "The ledger with per-action, per-caller decisions and state inventories before and after, as evidence for TM-W-016 and TM-G02-019."
+      ]
+    },
+    {
+      "id": "AC-003-P01",
+      "title": "Apply a grant equivalently at every declared entry point",
+      "family": "AC-003",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 server-authoritative permissions, resource grants, settings, features, delegation and claim and session freshness through direct API, advertised client, integration and background entry points on shared-database tenancy. Canonical Admin UI qualification is G-03 work; sign-in fixtures come from AC-002."
+      },
+      "requirements": [
+        "FND-015",
+        "FND-016",
+        "MOD-026"
+      ],
+      "layers": [
+        "unit",
+        "api-contract",
+        "isolation"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-004"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "In tenant-A, user-1 lacks item.update. The fixture module exposes item update through a direct API endpoint, the advertised .NET and TypeScript clients and a declared integration endpoint. The endpoint inventory, permission definitions and startup invocation-path report are captured."
+      ],
+      "steps": [
+        "Call each entry point as user-1 to update item-1.",
+        "Grant item.update to user-1 through permission administration and repeat each call.",
+        "Compare the endpoint inventory with the declared permissions, and review the startup report for protected paths that rely on interception alone."
+      ],
+      "expectedOutcome": [
+        "Before the grant, every entry point denies with the same stable code; after it, each permits the update.",
+        "Every inventory endpoint declares a policy or explicit anonymous access, and the startup report lists no protected path that depends on interception alone."
+      ],
+      "evidence": [
+        "Per-entry-point decisions before and after the grant, the inventory and permission comparison and the startup report, as evidence for TM-G02-019, TM-G02-011 and TM-G02-023."
+      ]
+    },
+    {
+      "id": "AC-003-P02",
+      "title": "Resolve settings and features by declared precedence and invalidate on change",
+      "family": "AC-003",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 server-authoritative permissions, resource grants, settings, features, delegation and claim and session freshness through direct API, advertised client, integration and background entry points on shared-database tenancy. Canonical Admin UI qualification is G-03 work; sign-in fixtures come from AC-002."
+      },
+      "requirements": [
+        "FND-019",
+        "MOD-028",
+        "MOD-013"
+      ],
+      "layers": [
+        "unit",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-004"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "Setting page-size has deployment, application and tenant values for tenant-A and only deployment and application values for tenant-B. Feature export-enabled is on for both tenants, and user-1 in tenant-A holds item.export."
+      ],
+      "steps": [
+        "Read effective page-size and export-enabled for both tenants with warm caches.",
+        "Change tenant-A's page-size and turn export-enabled off for tenant-A, then read both values for both tenants and request an export as user-1."
+      ],
+      "expectedOutcome": [
+        "Effective values follow the documented precedence for each tenant.",
+        "After each change, the affected tenant's cached values are invalidated and tenant-B's are unchanged; the export is refused once the entitlement is off, although the permission remains."
+      ],
+      "evidence": [
+        "Effective values with their resolving scope, cache-entry generations and the export decision, as evidence for TM-G02-049, TM-G02-033 and TM-G02-024."
+      ]
+    },
+    {
+      "id": "AC-003-P03",
+      "title": "Permit each minimal Admin action only through its declared permission",
+      "family": "AC-003",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W server authorization for each minimal Admin action and its direct API call, including preview, publication, media, contact-destination, package-source, import and recovery operations, after permission and session changes; the Admin and APIs are same-origin with no cross-origin access. Sign-in fixtures come from AC-002."
+      },
+      "requirements": [
+        "UI-005",
+        "UI-002",
+        "FND-015"
+      ],
+      "layers": [
+        "isolation",
+        "ui",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "The minimal Admin action ledger lists each W action with its server permission, and one fixture account per permission holds exactly that permission. author-1 holds authoring only and publisher-1 publishing only. The startup invocation-path report is captured."
+      ],
+      "steps": [
+        "For each ledger action, perform it through the minimal Admin and through its direct API call as the account holding exactly its permission.",
+        "Have author-1 save article-1 revision-2 and publisher-1 publish exactly that revision; schedule, withdraw and roll back with the accounts holding those separate permissions.",
+        "Let a scheduled activation run and record its execution identity and checked permission."
+      ],
+      "expectedOutcome": [
+        "Each action succeeds through both paths for its permission holder, and the server records the permission it checked; the startup report shows no protected path that relies on interception alone.",
+        "Authoring, publishing, scheduling, withdrawal and rollback each require their own permission.",
+        "Because W offers no delegation or impersonation, each action's execution context records the signed-in account as both actor and effective subject, with its identity kind.",
+        "Scheduled activation runs under its declared service identity and checks the scheduling authority at activation time."
+      ],
+      "evidence": [
+        "The ledger-to-permission table, per-action outcomes for both paths with checked permissions, the startup report and the activation context, as evidence for TM-W-016, TM-G02-019, TM-G02-023, TM-W-023 and TM-G02-018."
+      ]
+    },
+    {
+      "id": "AC-003-P04",
+      "title": "Preview a revision without granting content management or unauthorized items",
+      "family": "AC-003",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W server authorization for each minimal Admin action and its direct API call, including preview, publication, media, contact-destination, package-source, import and recovery operations, after permission and session changes; the Admin and APIs are same-origin with no cross-origin access. Sign-in fixtures come from AC-002."
+      },
+      "requirements": [
+        "ARC-016",
+        "FND-016",
+        "FND-015"
+      ],
+      "layers": [
+        "isolation",
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-004"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "reviewer-1 holds preview permission only. Draft revision-2 of article-1 references restricted asset-2 and draft article-3; reviewer-1 holds a read grant on asset-2 but none on article-3.",
+        "Binding preview to the exact selected revision, and its exclusion from caches and discovery, are qualified by AC-016 on the same tuple."
+      ],
+      "steps": [
+        "As reviewer-1, open preview of article-1 revision-2 through the minimal Admin and through its direct preview call.",
+        "With the same session, call save, schedule and publish for article-1 directly."
+      ],
+      "expectedOutcome": [
+        "Preview includes asset-2 and shows article-3's reference as unavailable without its title or content, because each referenced item is authorized for reviewer-1 separately.",
+        "Each management call is refused; preview permission grants no content management."
+      ],
+      "evidence": [
+        "Preview responses, per-item authorization decisions and management-call refusals, as evidence for TM-G02-020, TM-G02-019 and the per-item authorization of TM-W-021."
+      ]
+    },
+    {
+      "id": "AC-003-R01",
+      "title": "Reconcile in-flight work that races a permission revocation",
+      "family": "AC-003",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 server-authoritative permissions, resource grants, settings, features, delegation and claim and session freshness through direct API, advertised client, integration and background entry points on shared-database tenancy. Canonical Admin UI qualification is G-03 work; sign-in fixtures come from AC-002."
+      },
+      "requirements": [
+        "FND-017",
+        "FND-015",
+        "ARC-006"
+      ],
+      "layers": [
+        "isolation",
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-004"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "user-1 in tenant-A holds item.bulk-update and starts a bulk update over 100 items that commits in batches of 10; a job enqueued by user-1 will process the remainder under svc-items. The operation can pause after its fourth committed batch."
+      ],
+      "steps": [
+        "Pause after the fourth batch, revoke item.bulk-update, and resume.",
+        "Restart the host before the job runs, then let the job execute."
+      ],
+      "expectedOutcome": [
+        "The resumed operation rechecks authority before its next batch and stops with a recorded denied disposition; the four committed batches keep their recorded authority and no further batch commits.",
+        "After restart, the job revalidates user-1's current authority, refuses the remainder rather than replaying captured authority, and runs as svc-items.",
+        "The operation ends in a reported partially applied and denied state with no orphaned lock or in-progress marker."
+      ],
+      "evidence": [
+        "Batch commit records with checked permission versions, the restart trace, the job's context and decision, and the final operation record, as evidence for TM-G02-017, TM-G02-018 and TM-G02-019."
+      ]
+    },
+    {
+      "id": "AC-003-R02",
+      "title": "Recover authorization decisions across a cache outage and restart",
+      "family": "AC-003",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 server-authoritative permissions, resource grants, settings, features, delegation and claim and session freshness through direct API, advertised client, integration and background entry points on shared-database tenancy. Canonical Admin UI qualification is G-03 work; sign-in fixtures come from AC-002."
+      },
+      "requirements": [
+        "FND-017",
+        "FND-016",
+        "FND-019"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "isolation",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-004"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "Authorization and bootstrap cache entries for user-1 in tenant-A are warm, the declared freshness bound B is recorded, and the cache can be made unavailable."
+      ],
+      "steps": [
+        "Make the cache unavailable, commit a revocation of item.read, and read item-1 during the outage.",
+        "Restore availability without restarting and read item-1 at B plus one second after the revocation.",
+        "Restart the host and repeat the read and a bootstrap request."
+      ],
+      "expectedOutcome": [
+        "During the outage, decisions follow the current grants and the read is refused.",
+        "After availability returns, no entry created before the revocation authorizes a read once B has passed.",
+        "After restart, decisions and bootstrap content reflect the current grants and session version."
+      ],
+      "evidence": [
+        "Outage and recovery timeline, cache-entry generations, per-request decisions and bootstrap responses, as evidence for TM-G02-033 and TM-G02-017."
+      ]
+    },
+    {
+      "id": "AC-003-R03",
+      "title": "Recover an import apply that races an approval revocation",
+      "family": "AC-003",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W server authorization for each minimal Admin action and its direct API call, including preview, publication, media, contact-destination, package-source, import and recovery operations, after permission and session changes; the Admin and APIs are same-origin with no cross-origin access. Sign-in fixtures come from AC-002."
+      },
+      "requirements": [
+        "FND-016",
+        "FND-017",
+        "FND-015"
+      ],
+      "layers": [
+        "isolation",
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "importer-1 approved plan-3, and its apply can pause after staging media and before the database transaction. importer-2 holds dry-run and plan-approval permissions."
+      ],
+      "steps": [
+        "Pause the apply, revoke importer-1's approval permission, then let the apply continue.",
+        "Restart the host and, as importer-2, reconcile the operation by its identity, then dry run, approve and apply the same package."
+      ],
+      "expectedOutcome": [
+        "The continued apply rechecks every plan binding, including permission, and fails without authoritative writes; staged media stays quarantined and invisible.",
+        "Reconciliation records the failed operation; plan-3 cannot be reused, and importer-2's new plan applies once.",
+        "No duplicate revisions, mappings or media versions exist."
+      ],
+      "evidence": [
+        "Operation records, binding-recheck results, staged and committed media inventories, and revision and mapping counts, as evidence for TM-W-038 and TM-G02-017."
+      ]
+    },
+    {
+      "id": "AC-003-R04",
+      "title": "Contain a compromised editor's pending actions after revocation",
+      "family": "AC-003",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W server authorization for each minimal Admin action and its direct API call, including preview, publication, media, contact-destination, package-source, import and recovery operations, after permission and session changes; the Admin and APIs are same-origin with no cross-origin access. Sign-in fixtures come from AC-002."
+      },
+      "requirements": [
+        "FND-017",
+        "FND-015",
+        "OPS-003",
+        "ARC-006"
+      ],
+      "layers": [
+        "isolation",
+        "api-contract",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-012"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "A session of editor-5 that is treated as compromised scheduled article-4 for a future instant and built dry-run plan-4. editor-5 holds authoring, scheduling and import permissions."
+      ],
+      "steps": [
+        "As admin-1, revoke all editor-5 sessions and remove the scheduling and import permissions.",
+        "Let the scheduled instant pass, and attempt plan-4's approval with any editor-5 session.",
+        "After review, restore editor-5's authoring permission only, and have editor-5 sign in again."
+      ],
+      "expectedOutcome": [
+        "Every editor-5 session ends at its next request.",
+        "Scheduled activation checks the scheduling authority at its instant and records a denied outcome instead of publishing; plan-4 cannot be approved.",
+        "editor-5 can author but not schedule or import, and article-4 stays unpublished until an authorized user schedules it."
+      ],
+      "evidence": [
+        "Session records, the activation decision and outcome, plan-4's state and editor-5's resulting permissions, as evidence for TM-W-012, TM-W-023 and TM-W-038."
+      ]
+    },
+    {
+      "id": "AC-004-B01",
+      "title": "Isolate context at worker reuse and asynchronous continuation edges",
+      "family": "AC-004",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 shared-database tenancy with adversarial cross-tenant identifiers through queries, references, imports, Files, cache, jobs and events, host and tenant-administrator scope, and execution context that cannot leak between units of work. Database-per-tenant and hybrid placement are outside the reference tuple."
+      },
+      "requirements": [
+        "FND-013",
+        "ARC-005",
+        "FND-014"
+      ],
+      "layers": [
+        "isolation",
+        "unit"
+      ],
+      "securityDependencies": [
+        "AC-003"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "One worker and one pooled database context serve consecutive units of work for tenant-A, then tenant-B, then a host-scope maintenance unit. A tenant-A request awaits a continuation that resumes while a tenant-B request runs on the same thread pool."
+      ],
+      "steps": [
+        "Run the three units consecutively on the same worker, recording ambient tenant, actor and transaction state at entry.",
+        "Resume tenant-A's continuation during tenant-B's request.",
+        "Fail a tenant-A unit mid-transaction, then run a tenant-B unit on the same worker."
+      ],
+      "expectedOutcome": [
+        "Each unit starts with no tenant, actor or transaction from its predecessor, and the host-scope unit inherits neither tenant.",
+        "The continuation keeps tenant-A's context while tenant-B's request keeps its own.",
+        "After the failure, no tenant-A state, transaction or cache entry is visible to tenant-B's unit."
+      ],
+      "evidence": [
+        "Context snapshots at the entry and exit of each unit, continuation traces and post-failure inspection, as evidence for TM-G02-026."
+      ]
+    },
+    {
+      "id": "AC-004-B02",
+      "title": "Separate cache entries and unique keys that differ in one dimension",
+      "family": "AC-004",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 shared-database tenancy with adversarial cross-tenant identifiers through queries, references, imports, Files, cache, jobs and events, host and tenant-administrator scope, and execution context that cannot leak between units of work. Database-per-tenant and hybrid placement are outside the reference tuple."
+      },
+      "requirements": [
+        "FND-014",
+        "OPS-002",
+        "FND-019"
+      ],
+      "layers": [
+        "isolation",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-003"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "Fixture cache entries can be built in pairs that differ only in tenant, only in principal, only in module or only in schema version. Business key code-1 exists in neither tenant, and bootstrap configuration includes a value that is client-visible only to tenant-A administrators."
+      ],
+      "steps": [
+        "Build each pair of entries, then request each entry from the other context of its pair.",
+        "Create code-1 in tenant-A, again in tenant-A, and once in tenant-B.",
+        "Request bootstrap configuration as tenant-A's administrator, as user-a and as user-b, each after warming the others' entries."
+      ],
+      "expectedOutcome": [
+        "No request receives the other context's entry.",
+        "The second tenant-A creation conflicts without revealing tenant-B's keys, and the tenant-B creation succeeds.",
+        "Each bootstrap response contains only values approved for that principal and tenant."
+      ],
+      "evidence": [
+        "Cache keys and hit or miss records per request, uniqueness results and bootstrap payloads, as evidence for TM-G02-033, TM-G02-029 and TM-G02-014."
+      ]
+    },
+    {
+      "id": "AC-004-B03",
+      "title": "Accept only canonical tenant and site identifiers and hosts at the format edge",
+      "family": "AC-004",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W one tenant and one site: forged tenant and site identifiers in content, Files, imports, routes, cache, jobs and events, and on Admin, preview and public paths, fail as cross-tenant identifiers do. Decoy rows, files and cache entries stand in for absent tenants; multisite governance is outside W."
+      },
+      "requirements": [
+        "FND-013",
+        "FND-018",
+        "OPS-002"
+      ],
+      "layers": [
+        "unit",
+        "isolation",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-003"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "The deployment has tenant-1, site-1, the canonical origin and verified alias-1. Variants of site-1's identifier differ only in letter case, surrounding whitespace, percent-encoding or an appended separator; variants of alias-1's host differ only in letter case or a trailing dot."
+      ],
+      "steps": [
+        "As editor-1, submit content, preview and route requests carrying site-1's canonical identifier and each identifier variant.",
+        "Request a public route with each host variant of alias-1."
+      ],
+      "expectedOutcome": [
+        "Only the canonical identifier resolves to site-1; each variant is rejected as invalid input and never normalized into a scope.",
+        "Host variants that are equivalent under DNS rules resolve consistently to alias-1 for public routes, and none resolves to another host binding or to the canonical origin."
+      ],
+      "evidence": [
+        "Per-variant decisions and effective contexts, and per-host resolution traces, as evidence for TM-W-018, TM-G02-025 and TM-G02-006."
+      ]
+    },
+    {
+      "id": "AC-004-N01",
+      "title": "Reject forged tenant candidates at ingress",
+      "family": "AC-004",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 shared-database tenancy with adversarial cross-tenant identifiers through queries, references, imports, Files, cache, jobs and events, host and tenant-administrator scope, and execution context that cannot leak between units of work. Database-per-tenant and hybrid placement are outside the reference tuple."
+      },
+      "requirements": [
+        "FND-013",
+        "FND-018",
+        "ARC-005"
+      ],
+      "layers": [
+        "isolation",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-003"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "user-a is a member of tenant-A only. The deployment declares one proxy and the configured domains of tenant-A and tenant-B, and an unknown well-formed tenant identifier is prepared."
+      ],
+      "steps": [
+        "As user-a on tenant-A's domain, call an item endpoint with tenant-B, and separately the unknown identifier, in a route value, a request header and a body field.",
+        "Send requests whose forwarded host and scheme name tenant-B's domain, once directly from a client and once through the declared proxy.",
+        "Send a request with an unconfigured host name, and a sign-in request whose return address names another origin.",
+        "On tenant-A's domain, call an operation whose response contains an absolute link and complete a sign-in redirect, with Host and forwarded values naming tenant-B's domain or an unconfigured host sent from a source that is not the declared proxy."
+      ],
+      "expectedOutcome": [
+        "No forged candidate becomes the effective tenant; each is refused before data access with the same contract for existing and unknown tenants.",
+        "Forwarded values from a non-proxy source are ignored; through the declared proxy, tenant-B's domain still requires membership, which user-a lacks.",
+        "The unconfigured host is refused, and the return address is refused or replaced by a relative path.",
+        "Every absolute link and redirect uses the configured public origin of the effective tenant, never a Host or forwarded value."
+      ],
+      "evidence": [
+        "Per-row candidate, effective context and decision, request and response headers, and generated links, as evidence for TM-G02-025 and TM-G02-006."
+      ]
+    },
+    {
+      "id": "AC-004-N02",
+      "title": "Refuse cross-tenant identifiers in data, references, imports and Files",
+      "family": "AC-004",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 shared-database tenancy with adversarial cross-tenant identifiers through queries, references, imports, Files, cache, jobs and events, host and tenant-administrator scope, and execution context that cannot leak between units of work. Database-per-tenant and hybrid placement are outside the reference tuple."
+      },
+      "requirements": [
+        "OPS-002",
+        "FND-016",
+        "ARC-016",
+        "FND-014"
+      ],
+      "layers": [
+        "isolation",
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-003"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "user-a holds full item and file permissions in tenant-A. Identifiers of tenant-B's item-b1, file-b1 and a download grant on file-b1 are known to the test, and the fixture module declares a batch import and a direct-SQL report query."
+      ],
+      "steps": [
+        "As user-a, read, update and delete item-b1 by identifier; create a tenant-A item whose reference names item-b1; and filter, sort, count and export using item-b1's key.",
+        "Run the direct-SQL report query and a bulk update in tenant-A's context and inspect the executed predicates.",
+        "Import a tenant-A batch whose rows name item-b1 and name tenant-B as owner and target.",
+        "Download file-b1 by identifier, with tenant-B's grant, and through a storage location derived from its identity."
+      ],
+      "expectedOutcome": [
+        "Every item-b1 operation and reference is refused exactly as for a nonexistent identifier; lists, counts and exports contain only tenant-A rows.",
+        "The direct-SQL query and bulk update carry the tenant predicate and touch no tenant-B row.",
+        "The import rejects the foreign identifiers and writes nothing for tenant-B.",
+        "None of the three requests serves file-b1; the gateway checks tenant, version and purpose."
+      ],
+      "evidence": [
+        "Per-request decisions, executed SQL with parameters, tenant-B row and file inventories before and after, and gateway decisions, as evidence for TM-G02-020, TM-G02-021, TM-G02-029 and TM-G02-044."
+      ]
+    },
+    {
+      "id": "AC-004-N03",
+      "title": "Deny host scope to tenant administrators and payload-only authority to workers",
+      "family": "AC-004",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 shared-database tenancy with adversarial cross-tenant identifiers through queries, references, imports, Files, cache, jobs and events, host and tenant-administrator scope, and execution context that cannot leak between units of work. Database-per-tenant and hybrid placement are outside the reference tuple."
+      },
+      "requirements": [
+        "OPS-002",
+        "FND-016",
+        "ARC-005",
+        "ARC-006"
+      ],
+      "layers": [
+        "isolation",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-012"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "ta-admin administers tenant-A without host authority; host-1 holds host authority under the elevated policy. A consumer and a worker process item events and jobs."
+      ],
+      "steps": [
+        "As ta-admin, call a cross-tenant host operation directly, then with a host-scope marker and tenant-B's identifier added.",
+        "From tenant-A's context, produce an event whose payload names tenant-B as its target and enqueue a job whose arguments name tenant-B's item-b1, then let both run.",
+        "As host-1, run the host operation."
+      ],
+      "expectedOutcome": [
+        "ta-admin's attempts are refused, and host scope is never applied implicitly.",
+        "The consumer and worker revalidate the carried tenant and actor, refuse to act for tenant-B on a payload identifier alone, and record a rejected or quarantined disposition.",
+        "host-1's operation succeeds under the elevated policy and is audited with its actor and the affected tenants."
+      ],
+      "evidence": [
+        "Decisions with the policies evaluated, event and job dispositions with reasons, and the host operation's audit record, as evidence for TM-G02-028, TM-G02-027 and TM-G02-041."
+      ]
+    },
+    {
+      "id": "AC-004-N04",
+      "title": "Reject forged tenant and site identifiers in Admin, content and route requests",
+      "family": "AC-004",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W one tenant and one site: forged tenant and site identifiers in content, Files, imports, routes, cache, jobs and events, and on Admin, preview and public paths, fail as cross-tenant identifiers do. Decoy rows, files and cache entries stand in for absent tenants; multisite governance is outside W."
+      },
+      "requirements": [
+        "FND-013",
+        "OPS-002",
+        "FND-016",
+        "UI-002"
+      ],
+      "layers": [
+        "isolation",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-003"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "The forged-identifier matrix is F1, an unknown well-formed tenant identifier; F2, the site identifier of a separately deployed W fixture; and F3, the host-scope marker.",
+        "Decoy rows for article-z carrying tenant-Z and site-Z are written directly to PostgreSQL to stand in for another tenant's data. editor-1 holds all content permissions for site-1."
+      ],
+      "steps": [
+        "As editor-1, send content save, revision read, preview, route, redirect, navigation and taxonomy requests carrying each of F1, F2 and F3 in a route value, a header and a body field.",
+        "Request article-z by identifier through Admin reads and preview, and look for it in public routes, lists, counts and sitemaps."
+      ],
+      "expectedOutcome": [
+        "Each forged identifier is refused before data access with the denial contract used for cross-tenant identifiers on the reference profile; nothing is created or changed under any scope.",
+        "article-z appears in no read, preview, list, count, route or sitemap."
+      ],
+      "evidence": [
+        "Per-row decisions with effective contexts, inventories before and after, and list, count and sitemap outputs, as evidence for TM-W-018, TM-G02-025, TM-G02-020, TM-G02-021 and TM-G02-029."
+      ]
+    },
+    {
+      "id": "AC-004-N05",
+      "title": "Reject forged scope in Files, imports, cache, jobs and events",
+      "family": "AC-004",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W one tenant and one site: forged tenant and site identifiers in content, Files, imports, routes, cache, jobs and events, and on Admin, preview and public paths, fail as cross-tenant identifiers do. Decoy rows, files and cache entries stand in for absent tenants; multisite governance is outside W."
+      },
+      "requirements": [
+        "OPS-002",
+        "ARC-005",
+        "ARC-016",
+        "FND-014"
+      ],
+      "layers": [
+        "isolation",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-031"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "Package pkg-f declares target tenant F1 and site F2, and package pkg-m maps a stable key to the decoy object article-z. Decoy file versions and cache entries carry tenant-Z and site-Z, and a job and an event are produced with site-Z in their payloads. importer-1 holds import permissions for site-1."
+      ],
+      "steps": [
+        "As importer-1, dry run pkg-f and pkg-m, and attempt to apply each.",
+        "Request the decoy file versions by identifier and through a gateway grant that names site-Z.",
+        "Read public pages and Admin lists whose cache keys match decoy entries in every dimension except tenant and site.",
+        "Let the worker and consumer process the job and event that name site-Z."
+      ],
+      "expectedOutcome": [
+        "Both packages are blocked at dry run: pkg-f targets no permitted site, and pkg-m cannot adopt or overwrite an object outside tenant-1 and site-1.",
+        "No decoy file version or cache entry is served.",
+        "The job and event are refused at revalidation and quarantined with a recorded reason, producing no effect."
+      ],
+      "evidence": [
+        "Dry-run diagnostics, gateway decisions, cache hit and miss records, and job and event dispositions, as evidence for TM-W-039, TM-G02-044, TM-G02-033, TM-G02-027 and TM-G02-041."
+      ]
+    },
+    {
+      "id": "AC-004-N06",
+      "title": "Refuse host scope, untrusted host values and bootstrap leakage on the single site",
+      "family": "AC-004",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W one tenant and one site: forged tenant and site identifiers in content, Files, imports, routes, cache, jobs and events, and on Admin, preview and public paths, fail as cross-tenant identifiers do. Decoy rows, files and cache entries stand in for absent tenants; multisite governance is outside W."
+      },
+      "requirements": [
+        "FND-016",
+        "FND-018",
+        "FND-019",
+        "OPS-002"
+      ],
+      "layers": [
+        "isolation",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-031"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "site-admin-1 administers site-1 without host authority. The deployment declares its proxy, canonical origin and alias-1."
+      ],
+      "steps": [
+        "As site-admin-1, call host-scope operations directly and with the host-scope marker added.",
+        "Send public and Admin requests with an unconfigured Host header, and with forwarded host values from a source that is not the declared proxy.",
+        "Request bootstrap configuration as site-admin-1 and as editor-1 with forged site identifiers added."
+      ],
+      "expectedOutcome": [
+        "Host-scope operations are refused, and host scope is never applied implicitly.",
+        "Unconfigured hosts are refused, and forwarded values from the non-proxy source are ignored.",
+        "Bootstrap responses contain only site-1 values approved for each principal, and the forged identifiers change nothing."
+      ],
+      "evidence": [
+        "Decisions with the policies evaluated, request and response headers, and bootstrap payloads, as evidence for TM-G02-028, TM-G02-006 and TM-G02-014."
+      ]
+    },
+    {
+      "id": "AC-004-P01",
+      "title": "Resolve and keep each tenant's context through ingress, workers and caches",
+      "family": "AC-004",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 shared-database tenancy with adversarial cross-tenant identifiers through queries, references, imports, Files, cache, jobs and events, host and tenant-administrator scope, and execution context that cannot leak between units of work. Database-per-tenant and hybrid placement are outside the reference tuple."
+      },
+      "requirements": [
+        "FND-013",
+        "ARC-005",
+        "FND-014"
+      ],
+      "layers": [
+        "isolation",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-003"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "tenant-A and tenant-B each have a configured domain, a member (user-a and user-b), an item with business key code-1 and a file. One worker processes both tenants' events and jobs alternately."
+      ],
+      "steps": [
+        "As user-a on tenant-A's domain and user-b on tenant-B's domain, create, read and list items, including code-1 in each tenant.",
+        "Enqueue alternating events and jobs for both tenants and record each unit of work's execution context.",
+        "Warm list and bootstrap caches for both tenants and read them back."
+      ],
+      "expectedOutcome": [
+        "Each operation runs in the tenant established after membership and domain checks, and both code-1 items coexist.",
+        "Every unit of work starts in a fresh scope and records only its own tenant and actor.",
+        "Each cached list and bootstrap response is returned only to its own tenant and principal."
+      ],
+      "evidence": [
+        "Effective contexts per request and unit of work, stored rows with tenant columns, and cache keys with hit records, as evidence for TM-G02-025, TM-G02-029, TM-G02-026, TM-G02-033 and TM-G02-014."
+      ]
+    },
+    {
+      "id": "AC-004-P02",
+      "title": "Carry the single tenant and site explicitly through every W path",
+      "family": "AC-004",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W one tenant and one site: forged tenant and site identifiers in content, Files, imports, routes, cache, jobs and events, and on Admin, preview and public paths, fail as cross-tenant identifiers do. Decoy rows, files and cache entries stand in for absent tenants; multisite governance is outside W."
+      },
+      "requirements": [
+        "FND-013",
+        "OPS-002",
+        "ARC-005"
+      ],
+      "layers": [
+        "isolation",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-003"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "The deployment has tenant-1 and site-1 with one culture and verified alias-1. editor-1 can author, preview, import, upload, schedule and publish, and a contact submission is pending delivery."
+      ],
+      "steps": [
+        "As editor-1, author article-1 with asset-1, preview it, import a package, schedule and publish, then read the page on the canonical origin and on alias-1.",
+        "Run the scheduled publication, contact delivery and cache rebuild, recording the execution context of every request, job and event."
+      ],
+      "expectedOutcome": [
+        "Every Admin, preview, import, job and event path records tenant-1 and site-1 as resolved and checked, never as unchecked defaults.",
+        "Each job and event carries validated tenant, site and actor references and runs in a fresh scope.",
+        "alias-1 resolves to site-1 for public routes only."
+      ],
+      "evidence": [
+        "Execution-context records for each path, job and event payload references, and alias resolution traces, as evidence for TM-W-018, TM-G02-025, TM-G02-041, TM-G02-026 and TM-G02-027."
+      ]
+    },
+    {
+      "id": "AC-004-R01",
+      "title": "Recover queued events and jobs without crossing tenants",
+      "family": "AC-004",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 shared-database tenancy with adversarial cross-tenant identifiers through queries, references, imports, Files, cache, jobs and events, host and tenant-administrator scope, and execution context that cannot leak between units of work. Database-per-tenant and hybrid placement are outside the reference tuple."
+      },
+      "requirements": [
+        "ARC-005",
+        "FND-013",
+        "FND-014"
+      ],
+      "layers": [
+        "isolation",
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "Committed outbox events and queued jobs exist for both tenants. After a tenant-B job was enqueued under user-b's authority, user-b's tenant-B membership was removed."
+      ],
+      "steps": [
+        "Stop the host during dispatch and during job execution, restart it and drain all work.",
+        "Inspect each executed unit's reconstructed context and outcome."
+      ],
+      "expectedOutcome": [
+        "Each event and job runs in a fresh scope reconstructed from its captured, validated tenant and actor references, and none runs under the other tenant.",
+        "The job whose actor lost membership is refused at revalidation and reaches a recorded denied disposition without unbounded retry."
+      ],
+      "evidence": [
+        "Fault points, reconstructed contexts, dispositions and retry counts, as evidence for TM-G02-027, TM-G02-041 and TM-G02-026."
+      ]
+    },
+    {
+      "id": "AC-004-R02",
+      "title": "Restore records and Files without cross-tenant exposure",
+      "family": "AC-004",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 shared-database tenancy with adversarial cross-tenant identifiers through queries, references, imports, Files, cache, jobs and events, host and tenant-administrator scope, and execution context that cannot leak between units of work. Database-per-tenant and hybrid placement are outside the reference tuple."
+      },
+      "requirements": [
+        "OPS-002",
+        "FND-014",
+        "ARC-016"
+      ],
+      "layers": [
+        "isolation",
+        "operational-recovery",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-003"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "A coordinated backup holds both tenants' records, files, download grants and settings, and an isolated recovery deployment of the same release is available."
+      ],
+      "steps": [
+        "Restore the backup into the recovery deployment and rebuild caches.",
+        "From tenant-A, repeat identifier, list, export and download requests against tenant-B's restored items and files.",
+        "Inspect rebuilt cache keys and the restored tenant columns and uniqueness constraints."
+      ],
+      "expectedOutcome": [
+        "Restored rows, files and constraints keep tenant ownership, and every cross-tenant request is refused as before the backup.",
+        "Rebuilt cache entries carry tenant keys, and no entry from before the restore is served."
+      ],
+      "evidence": [
+        "Restore identity, request decisions, the cache-key inventory and the schema constraint listing, as evidence for TM-G02-029, TM-G02-044 and TM-G02-033."
+      ]
+    },
+    {
+      "id": "AC-004-R03",
+      "title": "Restore into an isolated deployment with scope checks intact",
+      "family": "AC-004",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W one tenant and one site: forged tenant and site identifiers in content, Files, imports, routes, cache, jobs and events, and on Admin, preview and public paths, fail as cross-tenant identifiers do. Decoy rows, files and cache entries stand in for absent tenants; multisite governance is outside W."
+      },
+      "requirements": [
+        "OPS-002",
+        "FND-014",
+        "FND-013"
+      ],
+      "layers": [
+        "isolation",
+        "operational-recovery",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-031"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "A coordinated backup of the deployment includes the article-z decoy rows and pending jobs and events. Isolated recovery deployment rd-1 uses its own database, Files root and key ring."
+      ],
+      "steps": [
+        "Restore into rd-1 with queued jobs and events held, and rebuild caches.",
+        "Repeat the forged-identifier requests for content, Files, routes and cache in rd-1.",
+        "Release the held jobs and events and record their reconstructed contexts."
+      ],
+      "expectedOutcome": [
+        "Every forged identifier is refused in rd-1 as before the backup, and article-z remains unreachable.",
+        "Rebuilt cache entries carry tenant, site and manifest version, and no entry from before the restore is served.",
+        "Released jobs and events reconstruct validated contexts in fresh scopes and reach only rd-1's database and Files root."
+      ],
+      "evidence": [
+        "Restore identity, per-request decisions, the cache-key inventory and reconstructed job and event contexts, as evidence for TM-W-018, TM-G02-029, TM-G02-033, TM-G02-027 and TM-G02-026."
+      ]
+    },
+    {
       "id": "AC-005-B01",
       "title": "Observe ambient and independent transaction boundaries",
       "family": "AC-005",
@@ -1867,6 +3907,245 @@
       ],
       "evidence": [
         "Import recovery reports, staged/committed inventories and restored manifest-to-media integrity results."
+      ]
+    },
+    {
+      "id": "AC-012-B01",
+      "title": "Delete contact submissions at the retention edge while keeping audit references",
+      "family": "AC-012",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W audit of the included privileged operations naming actor, effective subject, tenant, site, resource, action, outcome, time and correlation, without secrets or personal content; audit reading is separate from administration, collection failures are distinct from absent events, and no tamper-evidence claim is made without a qualified mechanism."
+      },
+      "requirements": [
+        "OPS-008",
+        "OPS-006",
+        "FND-037"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "The configured contact retention period R and the audit retention policy are recorded. contact-1 is one day younger than R and contact-2 one day older, and audit records exist for both submissions' delivery and access."
+      ],
+      "steps": [
+        "Run the retention job, then read both submissions with contact read permission.",
+        "Read the audit records that refer to both submissions and the retention job's own record."
+      ],
+      "expectedOutcome": [
+        "contact-1 remains readable and contact-2 is deleted.",
+        "Audit records persist under their own retention with references only and no submission content, and the retention job records its deletion outcome instead of appearing as a period without events."
+      ],
+      "evidence": [
+        "Submission ages and states before and after, retention job records and the referencing audit records, as evidence for TM-W-032."
+      ]
+    },
+    {
+      "id": "AC-012-N01",
+      "title": "Keep secrets and personal content out of audit, logs and import reports",
+      "family": "AC-012",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W audit of the included privileged operations naming actor, effective subject, tenant, site, resource, action, outcome, time and correlation, without secrets or personal content; audit reading is separate from administration, collection failures are distinct from absent events, and no tamper-evidence claim is made without a qualified mechanism."
+      },
+      "requirements": [
+        "OPS-006",
+        "OPS-007",
+        "FND-037",
+        "FND-038"
+      ],
+      "layers": [
+        "unit",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-031"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "Unique sentinel values serve as an Admin password, a one-time code, a recovery code, a session cookie, a contact message body and reply address, and a credential-like assignment in a package text field. A clean package pkg-c and the sentinel-bearing package pkg-s are available, and the secret-finding block on pkg-s is qualified by AC-031."
+      ],
+      "steps": [
+        "Sign in, complete a recovery, submit a contact request, change the contact destination, dry run pkg-s, and dry run, approve and apply pkg-c.",
+        "Search audit records, logs, traces, dry-run reports and the apply audit report for every sentinel."
+      ],
+      "expectedOutcome": [
+        "No secret sentinel appears anywhere searched, and contact content appears only in the contact store behind its read permission.",
+        "pkg-s's dry-run audit record names the finding's location with the matched value redacted.",
+        "pkg-c's apply report names the approver, plan, digest and per-item outcomes without content values."
+      ],
+      "evidence": [
+        "Sentinel search results per store, the pkg-s audit record and the pkg-c apply report, as evidence for TM-W-032 and TM-W-042."
+      ]
+    },
+    {
+      "id": "AC-012-N02",
+      "title": "Deny audit changes and audit or contact reads without their dedicated permissions",
+      "family": "AC-012",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W audit of the included privileged operations naming actor, effective subject, tenant, site, resource, action, outcome, time and correlation, without secrets or personal content; audit reading is separate from administration, collection failures are distinct from absent events, and no tamper-evidence claim is made without a qualified mechanism."
+      },
+      "requirements": [
+        "OPS-007",
+        "FND-037",
+        "MOD-005"
+      ],
+      "layers": [
+        "isolation",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-003"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "site-admin-1 holds every W content and permission-administration permission but not audit read, audit administration or contact read, and a contact submission exists; auditor-1 holds audit read only. The release's capability report and any declared audit integrity mechanism are recorded."
+      ],
+      "steps": [
+        "As site-admin-1, read, edit, delete and purge audit records through direct calls.",
+        "As site-admin-1, list contact submissions and read one by identifier through the minimal Admin and by direct call.",
+        "As auditor-1, read records, then attempt to edit and delete them and to change audit retention.",
+        "If the release declares a qualified integrity mechanism, alter one record directly in PostgreSQL and run its verification procedure; otherwise inspect the capability report's audit-integrity statement."
+      ],
+      "expectedOutcome": [
+        "site-admin-1 can neither read nor change records; auditor-1 reads but cannot change records or retention, and each refusal is itself audited.",
+        "site-admin-1's contact reads are refused through both paths and reveal no submission content or count.",
+        "With a declared mechanism, verification reports the altered record; without one, the report makes no tamper-evidence or immutability claim."
+      ],
+      "evidence": [
+        "Per-call decisions, record inventories before and after, refusal audit records, and the verification report or capability statement, as evidence for TM-G02-052 and TM-W-032."
+      ]
+    },
+    {
+      "id": "AC-012-P01",
+      "title": "Record attributable audit entries for each included privileged operation",
+      "family": "AC-012",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W audit of the included privileged operations naming actor, effective subject, tenant, site, resource, action, outcome, time and correlation, without secrets or personal content; audit reading is separate from administration, collection failures are distinct from absent events, and no tamper-evidence claim is made without a qualified mechanism."
+      },
+      "requirements": [
+        "FND-037",
+        "OPS-007",
+        "MOD-004"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-003"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "The privileged-operation table of the website threat model is the fixture list, from sign-in and factor changes through permission assignment, publication, rollback, media, contact destination, package source, import, alias and documentation-source operations. Each operation has one authorized actor and one actor that lacks the permission."
+      ],
+      "steps": [
+        "Perform each operation once as its authorized actor and attempt it once as the unauthorized actor.",
+        "Read the resulting records through the audit-read permission and directly from PostgreSQL."
+      ],
+      "expectedOutcome": [
+        "Each success and each refusal has exactly one record naming actor, effective subject, tenant, site, resource, action, outcome, time and correlation, committed in the same transaction as any change.",
+        "Factor, contact-destination and package-source records also show the recent-authentication result and the notification sent, and the destination record notes the previous destination's notification."
+      ],
+      "evidence": [
+        "The operation-to-record table with both outcomes per operation and the database extract, as evidence for TM-G02-051, TM-W-013, TM-W-033 and TM-W-057."
+      ]
+    },
+    {
+      "id": "AC-012-R01",
+      "title": "Refuse or defer privileged changes while audit persistence fails",
+      "family": "AC-012",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W audit of the included privileged operations naming actor, effective subject, tenant, site, resource, action, outcome, time and correlation, without secrets or personal content; audit reading is separate from administration, collection failures are distinct from absent events, and no tamper-evidence claim is made without a qualified mechanism."
+      },
+      "requirements": [
+        "OPS-007",
+        "FND-037",
+        "MOD-004",
+        "FND-038"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "Audit writes can be made to fail at the database for the audit store only. admin-1 is ready to assign a permission, roll back a manifest and change the contact destination."
+      ],
+      "steps": [
+        "Fail audit writes, then attempt each operation.",
+        "Query the audit view and operational telemetry for the failure window.",
+        "Clear the fault, retry each operation, and process any deferred change."
+      ],
+      "expectedOutcome": [
+        "Each operation is refused or deferred with a visible reason; no permission, manifest or destination changes without its record.",
+        "The audit view reports a collection failure for the window, distinct from a period without events, and telemetry counts the failed writes.",
+        "After the fault clears, each change commits with its record exactly once, and no deferred change applies twice."
+      ],
+      "evidence": [
+        "Fault timeline, operation outcomes, state and record inventories, the collection-failure report and telemetry counters, as evidence for TM-G02-051."
+      ]
+    },
+    {
+      "id": "AC-012-R02",
+      "title": "Account for audit history across a restore",
+      "family": "AC-012",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W audit of the included privileged operations naming actor, effective subject, tenant, site, resource, action, outcome, time and correlation, without secrets or personal content; audit reading is separate from administration, collection failures are distinct from absent events, and no tamper-evidence claim is made without a qualified mechanism."
+      },
+      "requirements": [
+        "FND-039",
+        "OPS-007",
+        "FND-037"
+      ],
+      "layers": [
+        "operational-recovery",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-031"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "A coordinated backup was taken before admin-1 changed the contact destination and rebound the package source. Production audit records hold both changes, and an isolated recovery deployment is available."
+      ],
+      "steps": [
+        "Restore the backup into the recovery deployment and read its audit records for the interval after the backup point.",
+        "Reapply the destination change and the package-source binding there with recent authentication."
+      ],
+      "expectedOutcome": [
+        "The restore is recorded as a privileged event with the backup identity, operator and backup point, and the interval after the backup point is reported as absent from the restored audit set rather than as a period without events.",
+        "Each reapplied change is audited again with its recent-authentication result, and the destination change notifies the previous destination."
+      ],
+      "evidence": [
+        "Restore record, audit-gap report, reapplication records and notifications, as evidence for TM-G02-051, TM-W-033 and TM-W-057."
       ]
     },
     {
@@ -3791,6 +6070,625 @@
       ],
       "evidence": [
         "Restart and recovery timeline, operation/manifest comparison, repeated workload samples and timed restore integrity results."
+      ]
+    },
+    {
+      "id": "AC-031-B01",
+      "title": "Rotate secrets and keys at their declared lifecycle edges",
+      "family": "AC-031",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
+      },
+      "requirements": [
+        "OPS-004",
+        "FND-006"
+      ],
+      "layers": [
+        "operational-recovery",
+        "unit"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-012"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "The email transport credential, the data-protection key ring and the one-time-password seed key each have a current version and a documented rotation procedure. An Admin session and an encrypted seed predate rotation, and the declared retention of the previous data-protection key is recorded."
+      ],
+      "steps": [
+        "Rotate the transport credential and send contact mail immediately before and after the previous credential is revoked.",
+        "Point the transport at an endpoint that presents an unverifiable certificate and send contact mail.",
+        "Rotate the key ring and present the earlier session cookie before and after the previous key's declared end.",
+        "Rotate the seed key and verify a one-time code for an account whose seed was encrypted under the previous key."
+      ],
+      "expectedOutcome": [
+        "Delivery succeeds under each valid credential and is a recorded delivery failure under the revoked one; the unverifiable certificate is a delivery failure with no unencrypted fallback.",
+        "The earlier cookie is accepted until the previous key's declared end and refused after it.",
+        "The earlier seed still verifies through the authorized key store after rotation."
+      ],
+      "evidence": [
+        "Rotation records with key and credential versions, delivery states, cookie decisions per edge and code verification results, as evidence for TM-W-034, TM-G02-050 and TM-G02-056."
+      ]
+    },
+    {
+      "id": "AC-031-B02",
+      "title": "Show diagnostics to operators without exposing secret values or internal state",
+      "family": "AC-031",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
+      },
+      "requirements": [
+        "OPS-004",
+        "FND-038",
+        "OPS-006"
+      ],
+      "layers": [
+        "operational-recovery",
+        "unit",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-012"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "Sentinel values are mounted as the database password, transport credential and Git source credential through deployment secret references. An anonymous probe and an operator holding diagnostics permission are available."
+      ],
+      "steps": [
+        "Inspect every image layer and the image configuration for the sentinels.",
+        "Request liveness, readiness and diagnostics as the anonymous probe and as the operator, with the database available and unavailable, and export a diagnostic bundle as the operator.",
+        "Cause a database outage and a transport failure, then search logs, traces, metrics and the bundle for sentinels, session cookies and contact bodies, and inspect metric dimensions.",
+        "Send requests carrying an oversized correlation value, one with control and markup characters, and one copied from another user's trace.",
+        "Enumerate every setting the release declares with its secret marking; read each secret-marked setting through the minimal Admin and the API, and attempt to update one with a partial value."
+      ],
+      "expectedOutcome": [
+        "No sentinel appears in an image layer or configuration; secrets arrive only through mounted references.",
+        "Anonymous liveness and readiness responses are minimal and reveal no version, configuration, dependency, topology or internal state, in either database condition; anonymous diagnostics requests are refused.",
+        "The operator sees dependency detail without any configuration value, and neither the diagnostics nor the bundle contains a sentinel.",
+        "No secret, cookie or contact body appears in telemetry or the bundle; metric dimensions carry no tenant or site labels.",
+        "Each hostile correlation value is replaced or truncated to the declared bound, is recorded only as text, joins no unrelated trace and confers no authority.",
+        "Every secret-marked setting reads back masked and accepts only full replacement; if the release marks none, the enumeration records that W keeps transport, database and Git credentials as deployment secrets rather than settings."
+      ],
+      "evidence": [
+        "Layer inspection, probe and diagnostic responses per caller and database condition, sentinel search results per output, correlation handling per request and the settings enumeration, as evidence for TM-W-054, TM-G02-054, TM-G02-047 and TM-G02-053."
+      ]
+    },
+    {
+      "id": "AC-031-B03",
+      "title": "Rate-limit public requests and bound rendering cost at the declared edges",
+      "family": "AC-031",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
+      },
+      "requirements": [
+        "OPS-018",
+        "OPS-016"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [],
+      "type": "boundary",
+      "preconditions": [
+        "The release's declared per-source public request limit L per window, render-time and output-size bounds and small-site workload are recorded before running. Sources src-1 and src-2 are distinct. The active manifest holds a navigation tree and sitemap at the workload's declared maximum size, a fixture page at the output-size bound and a draft one block beyond it."
+      ],
+      "steps": [
+        "From src-1, send L public page requests within one window and then one more, while src-2 sends requests within its own limit throughout.",
+        "After src-1's window resets, request the sitemap and the page with the largest navigation tree repeatedly, recording render time, output size and whether either is regenerated.",
+        "Request the fixture page at the output-size bound, then attempt to publish and request the draft beyond it."
+      ],
+      "expectedOutcome": [
+        "The first L requests from src-1 are served and request L plus one is refused with a throttling status; src-2's requests are served throughout.",
+        "Sitemap and navigation responses come from the output precomputed for the active manifest, and repeated requests do not regenerate them.",
+        "The page at the bound renders within the declared render-time bound; the page beyond it is refused, at publication or at render, with a stable error rather than rendered past the bound."
+      ],
+      "evidence": [
+        "Per-request source, counter and status; render time and output size per response; and sitemap and navigation generation records, as evidence for TM-W-006."
+      ]
+    },
+    {
+      "id": "AC-031-N01",
+      "title": "Refuse unverified release artifacts, writable code and undeclared egress",
+      "family": "AC-031",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
+      },
+      "requirements": [
+        "FND-001",
+        "ARC-013",
+        "OPS-021"
+      ],
+      "layers": [
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-012"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "The release record names the image and migration-bundle digests with their provenance and software bills of materials. A rebuilt image carries the release tag with a different digest, and a migration bundle lacks provenance. The running deployment allows egress only to the database, the email transport and allowlisted Git hosts."
+      ],
+      "steps": [
+        "Attempt deployment of the rebuilt image by tag and of the unattested bundle.",
+        "Inside the running container, inspect the process user and capabilities, and attempt writes to the application code paths.",
+        "From the application process, attempt outbound connections to an unlisted external host and to an internal network service."
+      ],
+      "expectedOutcome": [
+        "Both deployments are refused before any migration, and the running release is unchanged.",
+        "The process runs as a non-root user with no added capabilities; code-path writes fail, and only the Files, key and temporary volumes are writable.",
+        "Undeclared egress is denied and logged, and normal operation does not depend on it."
+      ],
+      "evidence": [
+        "Deployment refusals with digest comparisons, process and filesystem inspection, and egress attempt results, as evidence for TM-W-050, TM-W-053 and TM-W-055."
+      ]
+    },
+    {
+      "id": "AC-031-N02",
+      "title": "Block hostile package and documentation input before planning",
+      "family": "AC-031",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
+      },
+      "requirements": [
+        "OPS-005",
+        "OPS-004"
+      ],
+      "layers": [
+        "unit",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-012"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "Each fixture package carries one violation: markup in a title, a template delimiter in block text, an unsafe URI scheme in a link field, a credential-like assignment in a Markdown body, a symbolic link, a path that traverses outside the package root, an executable mode, an undeclared file, or nesting beyond the declared bound.",
+        "Package and documentation sources each reference a submodule, a redirect to an unlisted host and a large-file pointer on an unlisted host. The private source credential is a deployment secret reference.",
+        "A documentation source's pinned revision contains markup, a template delimiter and an unsafe URI scheme in its documentation text."
+      ],
+      "steps": [
+        "Dry run each package, and run documentation intake for each source.",
+        "Search plans, reports, logs, errors and audit records for the source credential and the credential-like value."
+      ],
+      "expectedOutcome": [
+        "Each package is blocked before planning with a diagnostic naming its rule and location, and nothing is written or fetched.",
+        "Intake blocks that documentation revision before planning, naming each rule and location, and publishes nothing from it.",
+        "Acquisition and intake refuse the submodule, the redirect and the unlisted large-file host within the declared transfer, object-count and time bounds.",
+        "Neither the credential nor the credential-like value appears in any output, and the secret finding is reported with its value redacted."
+      ],
+      "evidence": [
+        "Per-fixture diagnostics, fetch logs with bounds and destinations, write inventories and search results, as evidence for TM-W-035, TM-W-037, TM-W-036, TM-W-044 and TM-W-045."
+      ]
+    },
+    {
+      "id": "AC-031-N03",
+      "title": "Contain active content on the shared canonical origin",
+      "family": "AC-031",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
+      },
+      "requirements": [
+        "OPS-005",
+        "OPS-001"
+      ],
+      "layers": [
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-003"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "author-1 can save a draft whose title, block text and image alt text contain markup, script-like text and template delimiters, and the draft places an eligible raster image. The canonical origin serves public pages, error pages, media, health, Admin and preview responses, and a fixture page on an unrelated origin can frame any of them."
+      ],
+      "steps": [
+        "Publish the draft, then render it on the public site, in preview and in the Admin editor.",
+        "Request one response of each class, including a not-found page, the published image, preview media and a health response, and inspect its headers.",
+        "Load an Admin page and a preview page inside the fixture page's frame."
+      ],
+      "expectedOutcome": [
+        "Every content-derived value renders as encoded text in each context, template delimiters appear literally and are never evaluated, no element that the renderers do not declare is emitted, and no script runs.",
+        "Every response carries a content security policy that forbids inline script; Admin and preview responses also carry no-sniff and strict referrer policies.",
+        "Each media response carries the raster content type verified at upload, with sniffing disabled.",
+        "The framed Admin and preview pages do not render, because their responses forbid framing."
+      ],
+      "evidence": [
+        "Rendered output per context with encoding inspection, browser script-execution observations, header captures per response class and framing results, as evidence for TM-W-002, TM-W-017 and TM-W-026."
+      ]
+    },
+    {
+      "id": "AC-031-N04",
+      "title": "Keep hostile and unscanned media in quarantine with no override",
+      "family": "AC-031",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
+      },
+      "requirements": [
+        "OPS-005",
+        "OPS-001"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-003"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "Media fixtures are a markup file named and declared as an image; a file whose name and declared type disagree with its content signature; an image whose dimensions exceed the declared bound; a highly compressed image whose decoded size exceeds the processing bound; a file that the configured scanner reports as malicious; and a valid image for which the scanner returns an error.",
+        "site-admin-1 holds every media and publication permission. The declared raster types, dimension and decoded-size bounds and scan policy are recorded before running."
+      ],
+      "steps": [
+        "Upload each fixture through the minimal Admin and through the direct media API, and record each resulting version's state.",
+        "As site-admin-1, attempt to release each quarantined version, to reference it from a draft revision and to publish that revision, through the Admin and by direct call.",
+        "Request each quarantined version's bytes by identifier through the public site, preview, the Files gateway and the Admin."
+      ],
+      "expectedOutcome": [
+        "The markup file, the mismatched file and both oversized images are rejected by content signature or by bounds checked before decoding, and no fixture is decoded past its bound.",
+        "The malicious and scanner-error versions stay quarantined; a failed scan never counts as a pass.",
+        "No release, reference or publication of a quarantined version succeeds through any path or permission, including site-admin-1's, and each refusal is recorded.",
+        "No quarantined version's bytes are served on any path."
+      ],
+      "evidence": [
+        "Per-fixture detected type, bound checks, scan verdicts and version states; release, reference and publication refusals; and per-path responses, as evidence for TM-G02-042 and TM-W-026."
+      ]
+    },
+    {
+      "id": "AC-031-N05",
+      "title": "Refuse manipulated and unverified hosts and keep generated links canonical",
+      "family": "AC-031",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
+      },
+      "requirements": [
+        "OPS-005",
+        "OPS-003"
+      ],
+      "layers": [
+        "unit",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-004"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "The deployment configures its canonical origin and verified alias-1; alias-2 is pending ownership verification and alias-3 was verified and then removed, both through AC-018's alias workflow. The deployment declares one proxy, editor-1 has an Admin account, and the bounded delivery environment captures outbound messages."
+      ],
+      "steps": [
+        "Request a public page and the sitemap with Host values naming an unconfigured host, alias-2 and alias-3.",
+        "Request a public page and the sitemap on alias-1, and inspect canonical URLs, absolute links and sitemap entries.",
+        "Request account recovery for editor-1 on the canonical origin with forwarded-host values naming an unconfigured host and alias-1, once from a source that is not the declared proxy and once through the declared proxy, and inspect each captured message."
+      ],
+      "expectedOutcome": [
+        "Requests naming the unconfigured host, pending alias-2 or removed alias-3 are refused without rendering site content.",
+        "On alias-1, every canonical URL, absolute link and sitemap entry uses the configured canonical origin.",
+        "Each recovery request is either refused or produces a message whose link uses the configured canonical origin; no message carries a link on any other host."
+      ],
+      "evidence": [
+        "Per-host responses, generated links and sitemap content, and captured recovery messages with each link reduced to its origin, as evidence for TM-W-008."
+      ]
+    },
+    {
+      "id": "AC-031-N06",
+      "title": "Refuse contact submissions that fail antispam or limits without queuing mail",
+      "family": "AC-031",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
+      },
+      "requirements": [
+        "OPS-018",
+        "OPS-005"
+      ],
+      "layers": [
+        "api-contract",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-003"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "The contact form has a configured named destination. The declared antispam policy, per-source and per-destination submission limits and windows, field and request size bounds, and outbound delivery cap are recorded before running. Sources src-1 to src-4 are distinct, and the bounded delivery environment captures outbound messages."
+      ],
+      "steps": [
+        "From src-1, submit one request failing each check that the declared antispam policy lists, and one that replays an antispam response already accepted for another submission.",
+        "From src-2, submit valid requests up to the per-source limit and once more; from src-3, continue toward the same destination until the per-destination limit is reached and once more.",
+        "Submit a request whose fields exceed the declared size bounds; after the windows elapse, submit from many sources the largest burst of valid requests that the submission limits allow.",
+        "After the windows elapse again, submit one valid request from src-4."
+      ],
+      "expectedOutcome": [
+        "Each antispam failure, including the replayed response, is refused with a stable code; nothing is stored as an accepted request and no mail is queued.",
+        "At each submission limit the next request is refused, and no request past a limit is accepted or queued.",
+        "The oversized request is refused before processing. The burst is accepted and queued, and outbound mail never exceeds the delivery cap per window.",
+        "src-4's request is accepted and delivered once."
+      ],
+      "evidence": [
+        "Per-request source, antispam results, limit counters and dispositions; accepted-request and outbound queue inventories; and the delivery rate per window, as evidence for TM-W-030."
+      ]
+    },
+    {
+      "id": "AC-031-P01",
+      "title": "Map ASVS Level 2 requirements for W surfaces to controls and evidence",
+      "family": "AC-031",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
+      },
+      "requirements": [
+        "OPS-001",
+        "OPS-005",
+        "OPS-003",
+        "REL-005"
+      ],
+      "layers": [
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-003",
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "The exact W release and tuple are deployed. The website and foundation threat models and the control map at the release's revision are the control inventory, and the ASVS version applied is recorded."
+      ],
+      "steps": [
+        "Assess each ASVS Level 2 requirement for the public, Admin, API, preview, import and contact surfaces, mapping it to threat-model controls and to the acceptance cases of the family that plans each control, or recording why it does not apply.",
+        "Request public pages, error pages, media, health, Admin and preview responses over HTTPS and once over plain HTTP, and inspect their headers.",
+        "Over plain HTTP, request a public page, the Admin sign-in page and a health response, then send one plain-HTTP request with a forwarded-scheme value of HTTPS from a source that is not the declared proxy and one through the declared proxy."
+      ],
+      "expectedOutcome": [
+        "Every applicable requirement has a mapped control with case evidence from a family that plans it, or a recorded gap, and none is marked met from a planning document alone.",
+        "Every response carries a content security policy forbidding inline script; Admin and preview responses also forbid framing and carry no-sniff and strict referrer policies.",
+        "Plain HTTP is redirected to HTTPS before other processing, and HTTPS responses carry Strict-Transport-Security with the declared lifetime.",
+        "Plain-HTTP responses set no cookie and serve no content. The forged forwarded scheme from the non-proxy source is ignored and that request is redirected as well, while the declared proxy's forwarded scheme is honored.",
+        "The assessment presents itself as a verification target, not a certification."
+      ],
+      "evidence": [
+        "The applicability assessment with its mapping and gaps, and header captures per response class, as evidence for TM-W-002, TM-W-017 and TM-G02-060."
+      ]
+    },
+    {
+      "id": "AC-031-P02",
+      "title": "Deploy a clean release verified against its provenance and the dependency register",
+      "family": "AC-031",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
+      },
+      "requirements": [
+        "PRD-002",
+        "FND-001",
+        "OPS-020",
+        "OPS-004"
+      ],
+      "layers": [
+        "operational-recovery",
+        "unit"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-012"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "The release record lists the image and migration-bundle digests, provenance, software bills of materials and the deployment lock manifest. The dependency register at the release commit records each dependency's exact version, license, clearance and advisory review, and a clean environment holds the deployment's one-time bootstrap secret."
+      ],
+      "steps": [
+        "Verify provenance and the bills of materials against the release record, then deploy the image and migration bundle by digest into the clean environment.",
+        "Compare every component in the bills of materials and lock manifest with the register's entries, versions, licenses, clearances and advisory review.",
+        "Scan the repository at the release commit and every release artifact for secrets.",
+        "Create the first administrator with the bootstrap secret, then call the setup path again."
+      ],
+      "expectedOutcome": [
+        "Deployment proceeds only with matching digests and provenance, and the running image digest equals the release record.",
+        "Every shipped component is in the register at its exact version and is cleared, or is flagged with a recorded redistribution review; no unlisted component ships.",
+        "The secret scans report no finding.",
+        "The setup path closes once the administrator exists."
+      ],
+      "evidence": [
+        "Provenance and digest verification, the component-to-register comparison, secret scan reports and bootstrap traces, as evidence for TM-W-050, TM-G02-047 and TM-W-014."
+      ]
+    },
+    {
+      "id": "AC-031-R01",
+      "title": "Restore encrypted backups only with separately held keys",
+      "family": "AC-031",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
+      },
+      "requirements": [
+        "OPS-004",
+        "FND-039",
+        "OPS-006"
+      ],
+      "layers": [
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-012"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "Encrypted coordinated backup set b-1 and its key material are in separate stores limited to the recovery role, and the data-protection key ring and seed key are backed up apart from data exports. editor-1 holds every minimal Admin permission but not the recovery role."
+      ],
+      "steps": [
+        "As editor-1, attempt to read b-1 and its key store; as the recovery role, restore b-1 with its keys into an isolated deployment.",
+        "Attempt the restore once without the key store and once with b-1 altered after encryption.",
+        "On the restored deployment, inspect the account store and sign in with a one-time code and with a passkey."
+      ],
+      "expectedOutcome": [
+        "Only the recovery role reaches b-1 and its keys.",
+        "Without the keys the set cannot be decrypted, and the altered set fails integrity verification before any data is applied.",
+        "The restored account store holds only salted adaptive verifiers, encrypted seeds and integrity-tagged passkey records, and both sign-ins verify through the restored key ring and seed key."
+      ],
+      "evidence": [
+        "Access decisions, restore attempt outcomes, account-store inspection with values reduced to digests, and sign-in results, as evidence for TM-W-046, TM-G02-050, TM-G02-055, TM-G02-056 and TM-G02-058."
+      ]
+    },
+    {
+      "id": "AC-031-R02",
+      "title": "Rotate exposed deployment secrets and confirm the old values are refused",
+      "family": "AC-031",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
+      },
+      "requirements": [
+        "OPS-004",
+        "FND-006",
+        "ARC-013"
+      ],
+      "layers": [
+        "operational-recovery",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-012"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "An incident fixture declares the transport credential, the Git source credential and the database password exposed while contact mail is queued."
+      ],
+      "steps": [
+        "Rotate each secret through its documented procedure, revoke the exposed values at their providers, and restart the container with the new mounted secrets.",
+        "From a separate client, attempt delivery, Git acquisition and a database connection with each exposed value.",
+        "Acquire a private package snapshot and a documentation revision with the new credential, and attempt a write to the source with it.",
+        "Search the repository, image, logs, plans and reports for the old and new values."
+      ],
+      "expectedOutcome": [
+        "Each exposed value is refused by its provider, and the deployment resumes with the new values and delivers the queued mail once.",
+        "The new Git credential reads but cannot write.",
+        "Neither old nor new values appear in any searched artifact."
+      ],
+      "evidence": [
+        "Rotation and revocation records, refused attempts, delivery and acquisition results, and search reports, as evidence for TM-W-054, TM-W-045 and TM-G02-047."
+      ]
+    },
+    {
+      "id": "AC-031-R03",
+      "title": "Hold uploads in quarantine through a scanner outage and release only clean scans",
+      "family": "AC-031",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
+      },
+      "requirements": [
+        "OPS-005",
+        "OPS-001"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "The scanner integration can be made unavailable. Three valid image fixtures and one fixture that the configured scanner reports as malicious are prepared, with a draft revision ready to reference them."
+      ],
+      "steps": [
+        "Make the scanner unavailable, upload all four fixtures, and attempt to reference each from the draft and to publish it.",
+        "Restart the application while the scanner is still unavailable.",
+        "Restore the scanner, let the pending scans complete, then reference each version again and publish."
+      ],
+      "expectedOutcome": [
+        "During the outage, each upload is held in quarantine with a pending-scan state; none is readable or referenceable, and publication is refused.",
+        "The pending scans survive the restart; none is skipped or treated as passed.",
+        "After restoration the three clean versions become eligible once each and the malicious one stays quarantined; no version was readable at any point before its scan passed."
+      ],
+      "evidence": [
+        "Version-state timelines across the outage and restart, scan job records, reference and publication attempts, and read attempts, as evidence for TM-G02-042."
+      ]
+    },
+    {
+      "id": "AC-031-R04",
+      "title": "Keep the key ring, secrets and Files across container replacement",
+      "family": "AC-031",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
+      },
+      "requirements": [
+        "OPS-004",
+        "FND-039"
+      ],
+      "layers": [
+        "operational-recovery",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-002"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "The deployment mounts the data-protection key ring, Files and its secrets from declared volumes and stores. An Admin session is active, Files holds published and quarantined versions with recorded hashes, and contact mail is queued."
+      ],
+      "steps": [
+        "Inspect where the running process resolves the key ring, the Files root and each secret, and compare each location with the deployment's declarations.",
+        "Stop and remove the container, then create a new one from the same image digest with the same declarations.",
+        "Present the earlier Admin session cookie, read every Files version and compare its hash, and let the queued mail deliver.",
+        "Start a fixture deployment whose configuration omits the key-ring volume."
+      ],
+      "expectedOutcome": [
+        "The key ring, Files root and secrets resolve only to the declared volumes and stores, never to the image layer or a temporary volume.",
+        "After replacement the earlier session is accepted, every Files version reads back with its recorded hash and state, and the queued mail delivers once with the mounted credential.",
+        "The fixture without the key-ring volume stays unready and reports the missing declaration instead of generating keys on container storage."
+      ],
+      "evidence": [
+        "Resolved locations per item, session decisions, Files hash comparisons, delivery results and the fixture's readiness report, as evidence for TM-W-054 and TM-G02-050."
       ]
     }
   ]

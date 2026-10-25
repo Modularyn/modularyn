@@ -173,10 +173,10 @@ public sealed class AcceptanceCorpusTests
     }
 
     [Fact]
-    public void Every_initial_family_profile_requires_each_case_type()
+    public void Every_assigned_family_profile_requires_each_case_type()
     {
         foreach (var profile in AcceptanceCorpusContract.Profiles)
-        foreach (var family in profile == "reference" ? AcceptanceCorpusContract.ReferenceFamilies : AcceptanceCorpusContract.WebsiteFamilies)
+        foreach (var family in AcceptanceCorpusContract.FamiliesFor(profile))
         foreach (var type in new[] { "positive", "negative", "boundary", "recovery" })
         {
             var corpus = ReadCorpus();
@@ -188,21 +188,167 @@ public sealed class AcceptanceCorpusTests
         }
     }
 
+    [Fact]
+    public void Security_scope_is_exactly_the_assigned_family_profile_pairs()
+    {
+        Assert.Equal(new[] { "AC-003", "AC-004" }, AcceptanceCorpusContract.SecurityFamiliesFor("reference"));
+        Assert.Equal(AcceptanceCorpusContract.SecurityFamilies, AcceptanceCorpusContract.SecurityFamiliesFor("website"));
+        foreach (var profile in AcceptanceCorpusContract.Profiles)
+            Assert.Empty(AcceptanceCorpusContract.NonSecurityFamiliesFor(profile).Intersect(AcceptanceCorpusContract.SecurityFamilies));
+    }
+
+    [Theory]
+    [InlineData("AC-002")]
+    [InlineData("AC-012")]
+    [InlineData("AC-031")]
+    public void Security_scope_rejects_unassigned_reference_pairs(string family)
+    {
+        var corpus = ReadCorpus();
+        var item = Case(corpus, family, "website");
+        item["profiles"] = new JsonArray("reference");
+        item["scope"] = new JsonObject { ["reference"] = "Reference profile slice." };
+        AssertDiagnostic(Validate(corpus), $"{(string?)item["id"]}: {family}/reference is outside the security corpus scope");
+    }
+
+    [Theory]
+    [InlineData("AC-003")]
+    [InlineData("AC-004")]
+    public void A_relabeled_case_without_control_evidence_is_rejected(string family)
+    {
+        var corpus = ReadCorpus();
+        var first = First(corpus);
+        // Change metadata only; the relabeled case cites no control, so it cannot stand as a security case.
+        first["family"] = family;
+        first["id"] = family + "-B99";
+        first["requirements"] = new JsonArray(RequirementFor(family));
+        var errors = Validate(corpus);
+        AssertDiagnostic(errors, $"{family}-B99: a security case must demonstrate a control mapped to {family}");
+        Assert.DoesNotContain(errors, error => error.Contains("outside the security corpus scope", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("AC-010", "reference")]
+    [InlineData("AC-010", "website")]
+    [InlineData("AC-022", "website")]
+    public void Initial_scope_still_rejects_other_families(string family, string profile)
+    {
+        var corpus = ReadCorpus();
+        var first = First(corpus);
+        first["family"] = family;
+        first["id"] = family + "-B99";
+        first["requirements"] = new JsonArray(RequirementFor(family));
+        first["profiles"] = new JsonArray(profile);
+        first["scope"] = new JsonObject { [profile] = "Out-of-scope family slice." };
+        AssertDiagnostic(Validate(corpus), $"{family}-B99: {family}/{profile} is outside the initial corpus scope");
+    }
+
+    [Theory]
+    [InlineData("undefined-control", "AC-003-B01: cites undefined control TM-W-999")]
+    [InlineData("malformed-control", "AC-003-B01: cites undefined control TM-W-1")]
+    [InlineData("profile-mismatch", "AC-003-B01: control TM-W-012 does not name profile reference")]
+    [InlineData("unplanned-control", "AC-003-B01: control TM-G02-044 is not planned under AC-003 in the control map")]
+    [InlineData("unplanned-control-outside-evidence", "AC-003-B01: control TM-G02-042 is not planned under AC-003 in the control map")]
+    [InlineData("no-mapped-control", "AC-003-B01: a security case must demonstrate a control mapped to AC-003")]
+    [InlineData("citation-outside-evidence", "AC-003-B01: a security case must demonstrate a control mapped to AC-003")]
+    [InlineData("undemonstrated-website-control", "AC-002/website: control TM-W-059 is not demonstrated by a case")]
+    [InlineData("undemonstrated-foundation-control", "AC-004/reference: control TM-G02-044 is not demonstrated by a case")]
+    [InlineData("undemonstrated-assurance-control", "AC-031/website: control TM-W-030 is not demonstrated by a case")]
+    [InlineData("undemonstrated-health-control", "AC-031/website: control TM-G02-054 is not demonstrated by a case")]
+    [InlineData("undemonstrated-destination-control", "AC-003/website: control TM-W-033 is not demonstrated by a case")]
+    [InlineData("self-dependency", "AC-003-B01: a case cannot name its own family as a security dependency")]
+    [InlineData("missing-control-map", "control map must contain readable control identities")]
+    [InlineData("unreadable-control-map", "control map must contain readable control identities")]
+    public void Security_control_tracing_has_its_specific_diagnostic(string mutation, string diagnostic)
+    {
+        var corpus = ReadCorpus();
+        var files = RepositoryFiles.Current.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+        var item = Case(corpus, "AC-003", "reference");
+        Assert.Equal("AC-003-B01", (string?)item["id"]);
+        switch (mutation)
+        {
+            case "undefined-control": item["evidence"]![0] = (string?)item["evidence"]![0] + " Also TM-W-999."; break;
+            case "malformed-control": item["steps"]![0] = (string?)item["steps"]![0] + " Also TM-W-1."; break;
+            case "profile-mismatch": item["evidence"]![0] = (string?)item["evidence"]![0] + " Also TM-W-012."; break;
+            case "unplanned-control": item["evidence"]![0] = (string?)item["evidence"]![0] + " Also TM-G02-044."; break;
+            case "unplanned-control-outside-evidence":
+                item["preconditions"]!.AsArray().Add("Files quarantine follows TM-G02-042.");
+                break;
+            case "no-mapped-control":
+                item["steps"] = new JsonArray("Repeat the read.");
+                item["evidence"] = new JsonArray("Request and response traces.");
+                break;
+            case "citation-outside-evidence":
+                item["steps"] = new JsonArray("Repeat the read.");
+                item["evidence"] = new JsonArray("Request and response traces.");
+                item["preconditions"]!.AsArray().Add("The fixture applies TM-G02-017.");
+                break;
+            case "undemonstrated-website-control": ReplaceCitation(corpus, "AC-002", "TM-W-059", "TM-W-015"); break;
+            case "undemonstrated-foundation-control": ReplaceCitation(corpus, "AC-004", "TM-G02-044", "TM-G02-020"); break;
+            case "undemonstrated-assurance-control": ReplaceCitation(corpus, "AC-031", "TM-W-030", "TM-W-002"); break;
+            case "undemonstrated-health-control": ReplaceCitation(corpus, "AC-031", "TM-G02-054", "TM-G02-053"); break;
+            case "undemonstrated-destination-control": ReplaceCitation(corpus, "AC-003", "TM-W-033", "TM-G02-019"); break;
+            case "self-dependency": item["securityDependencies"]!.AsArray().Add("AC-003"); break;
+            case "missing-control-map": files.Remove(AcceptanceCorpusContract.ControlsPath); break;
+            case "unreadable-control-map": files[AcceptanceCorpusContract.ControlsPath] = "{\"controls\": 1}"; break;
+            default: throw new ArgumentOutOfRangeException(nameof(mutation), mutation, "Unknown mutation case.");
+        }
+        AssertDiagnostic(AcceptanceCorpusContract.Validate(corpus.ToJsonString(), files), diagnostic);
+    }
+
+    [Fact]
+    public void A_non_security_case_cannot_cite_a_control_planned_under_another_family()
+    {
+        var corpus = ReadCorpus();
+        var first = First(corpus);
+        Assert.Equal("AC-001", (string?)first["family"]);
+        first["evidence"]![0] = (string?)first["evidence"]![0] + " Also TM-G02-044.";
+        AssertDiagnostic(Validate(corpus), "AC-001-B01: control TM-G02-044 is not planned under AC-001 in the control map");
+        first["evidence"]![0] = "Resolved-selection reports, as evidence for TM-G02-001.";
+        Assert.DoesNotContain(Validate(corpus), error => error.Contains("AC-001-B01", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Reference_coverage_requires_foundation_controls_only()
+    {
+        // Website-model controls that also name reference implement CMS contracts qualified at G-04, outside the G-02 slice.
+        var map = JsonNode.Parse(RepositoryFiles.Current[AcceptanceCorpusContract.ControlsPath])!["controls"]!.AsArray();
+        var excluded = map.Where(control => ((string?)control!["id"])!.StartsWith("TM-W-", StringComparison.Ordinal)
+                && Strings(control!["profiles"]!).Contains("reference", StringComparer.Ordinal)
+                && Strings(control!["evidence"]!["acceptance"]!).Intersect(AcceptanceCorpusContract.ReferenceSecurityFamilies).Any())
+            .Select(control => (string?)control!["id"]).ToArray();
+        Assert.NotEmpty(excluded);
+        var reference = ReadCorpus()["cases"]!.AsArray().Where(item => Strings(item!["profiles"]!).Contains("reference", StringComparer.Ordinal)
+            && AcceptanceCorpusContract.ReferenceSecurityFamilies.Contains((string?)item!["family"], StringComparer.Ordinal));
+        Assert.DoesNotContain(reference, item => excluded.Any(id => item!.ToJsonString().Contains(id!, StringComparison.Ordinal)));
+        Assert.Empty(AcceptanceCorpusContract.Validate(RepositoryFiles.Current[AcceptanceCorpusContract.CorpusPath], RepositoryFiles.Current));
+    }
+
     [Theory]
     [InlineData("AC-002")]
     [InlineData("AC-003")]
     [InlineData("AC-004")]
     [InlineData("AC-012")]
     [InlineData("AC-031")]
-    public void Initial_scope_rejects_security_family_assignment(string family)
+    public void Security_family_documents_and_links_are_required(string family)
     {
-        var corpus = ReadCorpus();
-        var first = First(corpus);
-        // Change metadata solely to exercise ownership rejection; no security scenario is authored.
-        first["family"] = family;
-        first["id"] = family + "-B99";
-        first["requirements"] = new JsonArray(RequirementFor(family));
-        AssertDiagnostic(Validate(corpus), "security-family cases are reserved for the Builder");
+        var path = AcceptanceCorpusContract.Folder + family + ".md";
+        var files = RepositoryFiles.Current.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+        files.Remove(path);
+        AssertDiagnostic(AcceptanceCorpusContract.Validate(files[AcceptanceCorpusContract.CorpusPath], files),
+            path + ": required family document is missing");
+
+        files = RepositoryFiles.Current.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+        var outcome = Case(ReadCorpus(), family, "website")["expectedOutcome"]![0]!.GetValue<string>();
+        Assert.Contains(outcome, files[path]);
+        files[path] = files[path].Replace(outcome, "A different observed outcome is required.", StringComparison.Ordinal);
+        AssertDiagnostic(AcceptanceCorpusContract.Validate(files[AcceptanceCorpusContract.CorpusPath], files),
+            path + ": Markdown differs from the complete corpus rendering");
+
+        files = RepositoryFiles.Current.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+        files[AcceptanceCorpusContract.ReadmePath] = files[AcceptanceCorpusContract.ReadmePath]
+            .Replace($"[{family}]({family}.md)", family, StringComparison.Ordinal);
+        AssertDiagnostic(AcceptanceCorpusContract.Validate(files[AcceptanceCorpusContract.CorpusPath], files),
+            "missing family link " + family);
     }
 
     [Fact]
@@ -306,12 +452,31 @@ public sealed class AcceptanceCorpusTests
 
     private static JsonNode ReadCorpus() => JsonNode.Parse(RepositoryFiles.Current[AcceptanceCorpusContract.CorpusPath])!;
     private static JsonNode First(JsonNode corpus) => corpus["cases"]![0]!;
+    private static JsonNode Case(JsonNode corpus, string family, string profile) => corpus["cases"]!.AsArray().First(item =>
+        (string?)item!["family"] == family && Strings(item!["profiles"]!).Contains(profile, StringComparer.Ordinal))!;
     private static JsonArray RegisterEntries() => JsonNode.Parse(RepositoryFiles.Current[RegisterPath])!["entries"]!.AsArray();
     private static string[] Strings(JsonNode node) => node.AsArray().Select(value => value!.GetValue<string>()).ToArray();
     private static string RequirementFor(string family) => RegisterEntries().First(entry =>
         (string?)entry!["kind"] == "requirement" && Strings(entry!["acceptance"]!).Contains(family, StringComparer.Ordinal))!["id"]!.GetValue<string>();
     private static string RequirementOutside(string family) => RegisterEntries().First(entry =>
         (string?)entry!["kind"] == "requirement" && !Strings(entry!["acceptance"]!).Contains(family, StringComparer.Ordinal))!["id"]!.GetValue<string>();
+    private static void ReplaceCitation(JsonNode corpus, string family, string citation, string replacement)
+    {
+        var changed = 0;
+        foreach (var item in corpus["cases"]!.AsArray().Where(item => (string?)item!["family"] == family))
+        foreach (var field in new[] { "preconditions", "steps", "expectedOutcome", "evidence" })
+        {
+            var values = item![field]!.AsArray();
+            for (var index = 0; index < values.Count; index++)
+            {
+                var text = values[index]!.GetValue<string>();
+                if (!text.Contains(citation, StringComparison.Ordinal)) continue;
+                values[index] = text.Replace(citation, replacement, StringComparison.Ordinal);
+                changed++;
+            }
+        }
+        Assert.True(changed > 0, $"{family} cases must cite {citation} before the mutation.");
+    }
     private static List<string> Validate(JsonNode corpus) => AcceptanceCorpusContract.Validate(corpus.ToJsonString(), RepositoryFiles.Current);
     private static void AssertDiagnostic(IEnumerable<string> errors, string diagnostic) =>
         Assert.Contains(errors, error => error.Contains(diagnostic, StringComparison.Ordinal));

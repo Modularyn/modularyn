@@ -14,6 +14,7 @@ internal static class AcceptanceCorpusContract
     private const string RegisterPath = "docs/coverage/register.json";
     private const string ProfilesPath = "docs/profiles/README.md";
     private const string LayersPath = "docs/security/threat-models/README.md";
+    internal const string ControlsPath = "docs/security/threat-models/controls.json";
 
     internal static readonly string[] SecurityFamilies = ["AC-002", "AC-003", "AC-004", "AC-012", "AC-031"];
     internal static readonly string[] ReferenceFamilies = ["AC-001", "AC-005", "AC-006", "AC-007", "AC-008", "AC-009"];
@@ -22,6 +23,11 @@ internal static class AcceptanceCorpusContract
         "AC-001", "AC-005", "AC-006", "AC-007", "AC-008", "AC-009", "AC-013", "AC-016",
         "AC-017", "AC-018", "AC-019", "AC-020", "AC-023", "AC-028", "AC-029", "AC-030"
     ];
+    // The Builder's security assignment: AC-003 and AC-004 within G-02 on reference, and all five families within W.
+    internal static readonly string[] ReferenceSecurityFamilies = ["AC-003", "AC-004"];
+    internal static readonly string[] WebsiteSecurityFamilies = ["AC-002", "AC-003", "AC-004", "AC-012", "AC-031"];
+    // G-02 qualifies reference cases against the foundation model; website-model controls that also name reference are G-04 CMS work.
+    internal const string FoundationControlPrefix = "TM-G02-";
     internal static readonly string[] Profiles = ["reference", "website"];
     internal static readonly string[] Layers =
         ["unit", "real-provider-integration", "api-contract", "isolation", "ui", "migration", "operational-recovery"];
@@ -35,6 +41,7 @@ internal static class AcceptanceCorpusContract
         "preconditions", "steps", "expectedOutcome", "evidence"
     ];
     private static readonly Regex CaseId = new(@"^AC-[0-9]{3}-[PNBR](?:0[1-9]|[1-9][0-9])$", RegexOptions.CultureInvariant);
+    private static readonly Regex ControlCitation = new(@"\bTM-[A-Z0-9]+-[0-9]+\b", RegexOptions.CultureInvariant);
     private static readonly Regex DraftMarker = new(
         @"\b(?:" + "TO" + "DO|TB" + "D|FIX" + "ME|place" + "holder)\\b|lor" + "em ipsum",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
@@ -48,10 +55,16 @@ internal static class AcceptanceCorpusContract
         ValidateReadme(files, errors);
         if (cases is null) return errors;
 
-        ValidateInitialScope(cases, errors);
+        ValidateScope(cases, errors);
+        ValidateControls(cases, files, errors);
         ValidateDocuments(cases, files, errors);
         return errors;
     }
+
+    internal static string[] NonSecurityFamiliesFor(string profile) => profile == "reference" ? ReferenceFamilies : WebsiteFamilies;
+    internal static string[] SecurityFamiliesFor(string profile) =>
+        profile == "reference" ? ReferenceSecurityFamilies : WebsiteSecurityFamilies;
+    internal static string[] FamiliesFor(string profile) => [.. NonSecurityFamiliesFor(profile), .. SecurityFamiliesFor(profile)];
 
     // Format rules are deliberately independent of the initial assignment's family/profile scope.
     public static List<string> ValidateFormat(string corpusText, string registerText)
@@ -192,24 +205,91 @@ internal static class AcceptanceCorpusContract
         }
     }
 
-    private static void ValidateInitialScope(List<Case> cases, List<string> errors)
+    private static void ValidateScope(List<Case> cases, List<string> errors)
     {
         foreach (var item in cases)
         {
-            if (SecurityFamilies.Contains(item.Family, StringComparer.Ordinal))
-                errors.Add($"{item.Id}: security-family cases are reserved for the Builder.");
+            var security = SecurityFamilies.Contains(item.Family, StringComparer.Ordinal);
             foreach (var profile in item.Profiles)
             {
-                var allowed = profile == "reference" ? ReferenceFamilies : WebsiteFamilies;
-                if (!allowed.Contains(item.Family, StringComparer.Ordinal))
+                if (security && !SecurityFamiliesFor(profile).Contains(item.Family, StringComparer.Ordinal))
+                    errors.Add($"{item.Id}: {item.Family}/{profile} is outside the security corpus scope.");
+                else if (!security && !NonSecurityFamiliesFor(profile).Contains(item.Family, StringComparer.Ordinal))
                     errors.Add($"{item.Id}: {item.Family}/{profile} is outside the initial corpus scope.");
             }
+            if (item.SecurityDependencies.Contains(item.Family, StringComparer.Ordinal))
+                errors.Add($"{item.Id}: a case cannot name its own family as a security dependency.");
         }
         foreach (var profile in Profiles)
-        foreach (var family in profile == "reference" ? ReferenceFamilies : WebsiteFamilies)
+        foreach (var family in FamiliesFor(profile))
         foreach (var type in TypeLetters.Keys)
             if (!cases.Any(item => item.Family == family && item.Type == type && item.Profiles.Contains(profile, StringComparer.Ordinal)))
                 errors.Add($"{family}/{profile}: missing {type} case.");
+    }
+
+    // Traces cases to the threat-model control map; this shows traceability, never that a control works. A case may cite
+    // only controls that the map plans under its own family; behavior planned elsewhere is a dependency on that family.
+    private static void ValidateControls(List<Case> cases, IReadOnlyDictionary<string, string> files, List<string> errors)
+    {
+        var controls = ReadControls(files.GetValueOrDefault(ControlsPath, ""), errors);
+        if (controls is null) return;
+        var demonstrated = new HashSet<(string Family, string Profile, string Control)>();
+        foreach (var item in cases)
+        {
+            string[] prose = [item.Title, .. item.Scope.Values, .. item.Preconditions, .. item.Steps, .. item.Outcomes, .. item.Evidence];
+            foreach (var id in Citations(prose))
+            {
+                if (!controls.TryGetValue(id, out var control))
+                {
+                    errors.Add($"{item.Id}: cites undefined control {id}.");
+                    continue;
+                }
+                foreach (var profile in item.Profiles)
+                    if (!control.Profiles.Contains(profile))
+                        errors.Add($"{item.Id}: control {id} does not name profile {profile}.");
+                if (!control.Families.Contains(item.Family))
+                    errors.Add($"{item.Id}: control {id} is not planned under {item.Family} in the control map.");
+            }
+            if (!SecurityFamilies.Contains(item.Family, StringComparer.Ordinal)) continue;
+            var shown = Citations([.. item.Steps, .. item.Evidence]).Where(controls.ContainsKey).ToArray();
+            if (!shown.Any(id => controls[id].Families.Contains(item.Family)))
+                errors.Add($"{item.Id}: a security case must demonstrate a control mapped to {item.Family} in its steps or evidence.");
+            foreach (var profile in item.Profiles)
+            foreach (var id in shown)
+                demonstrated.Add((item.Family, profile, id));
+        }
+        foreach (var profile in Profiles)
+        foreach (var family in SecurityFamiliesFor(profile))
+        foreach (var (id, control) in controls.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+            if (control.Families.Contains(family) && control.Profiles.Contains(profile)
+                && (profile != "reference" || id.StartsWith(FoundationControlPrefix, StringComparison.Ordinal))
+                && !demonstrated.Contains((family, profile, id)))
+                errors.Add($"{family}/{profile}: control {id} is not demonstrated by a case.");
+    }
+
+    private static IEnumerable<string> Citations(IEnumerable<string> texts) => texts
+        .SelectMany(text => ControlCitation.Matches(text).Select(match => match.Value)).Distinct(StringComparer.Ordinal);
+
+    private static Dictionary<string, Control>? ReadControls(string text, List<string> errors)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(text);
+            var controls = new Dictionary<string, Control>(StringComparer.Ordinal);
+            foreach (var entry in document.RootElement.GetProperty("controls").EnumerateArray())
+            {
+                controls.Add(entry.GetProperty("id").GetString()!, new Control(
+                    entry.GetProperty("profiles").EnumerateArray().Select(value => value.GetString()!).ToHashSet(StringComparer.Ordinal),
+                    entry.GetProperty("evidence").GetProperty("acceptance").EnumerateArray().Select(value => value.GetString()!)
+                        .ToHashSet(StringComparer.Ordinal)));
+            }
+            if (controls.Count > 0) return controls;
+        }
+        catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException or ArgumentException)
+        {
+        }
+        errors.Add($"{ControlsPath}: control map must contain readable control identities, profiles and acceptance families.");
+        return null;
     }
 
     private static void ValidateVocabulary(IReadOnlyDictionary<string, string> files, List<string> errors)
@@ -227,7 +307,7 @@ internal static class AcceptanceCorpusContract
             errors.Add($"{ReadmePath}: required corpus conventions are missing.");
             return;
         }
-        foreach (var family in WebsiteFamilies)
+        foreach (var family in Profiles.SelectMany(FamiliesFor).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))
             if (!text.Contains($"[{family}]({family}.md)", StringComparison.Ordinal))
                 errors.Add($"{ReadmePath}: missing family link {family}.");
         foreach (var family in SecurityFamilies)
@@ -347,6 +427,7 @@ internal static class AcceptanceCorpusContract
     }
 
     private sealed record Register(Dictionary<string, HashSet<string>> Requirements, HashSet<string> Families);
+    private sealed record Control(HashSet<string> Profiles, HashSet<string> Families);
     internal sealed record Case(string Id, string Title, string Family, string Type, string[] Profiles,
         Dictionary<string, string> Scope, string[] Requirements, string[] Layers, string[] SecurityDependencies,
         string[] Preconditions, string[] Steps, string[] Outcomes, string[] Evidence);
