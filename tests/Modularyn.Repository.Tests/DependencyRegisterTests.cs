@@ -68,9 +68,12 @@ public sealed class DependencyRegisterTests
     [InlineData("unregistered-allowed-action", "needs an in-use github-action entry")]
     [InlineData("action-sha-mismatch", "needs an in-use github-action entry")]
     [InlineData("unused-action-entry", "absent from the workflows")]
-    [InlineData("gitleaks-mismatch", "needs an in-use binary entry")]
+    [InlineData("tool-version-mismatch", "needs an in-use binary entry")]
     [InlineData("unregistered-tool-version", "needs an in-use binary entry")]
     [InlineData("stale-binary-entry", "must match a workflow")]
+    [InlineData("unpinned-without-note", "record in unpinned")]
+    [InlineData("needless-unpinned", "unpinned must be null")]
+    [InlineData("pinned-binary-note", "unpinned must be null")]
     [InlineData("in-use-npm", "lock-file check")]
     [InlineData("unlisted-license", "must be flagged for both distributions")]
     [InlineData("partly-flagged-license", "must be flagged for both distributions")]
@@ -98,133 +101,188 @@ public sealed class DependencyRegisterTests
     [InlineData("extra-root-field", "fields must be exactly")]
     public void A_single_register_violation_is_rejected(string mutation, string expectedDiagnostic)
     {
-        var files = RepositoryFiles.Current.ToDictionary();
+        // Every mutation derives its values from the current register and files, so a later review cannot turn it into a no-op.
+        var original = RepositoryFiles.Current;
+        var files = original.ToDictionary();
         var register = JsonNode.Parse(files[RegisterPath])!;
         var entries = register["entries"]!.AsArray();
-        var sdk = Entry(entries, "dotnet-sdk:dotnet");
-        var xunit = Entry(entries, "nuget:xunit.v3");
-        var testSdk = Entry(entries, "nuget:microsoft.net.test.sdk");
-        var checkout = Entry(entries, "github-action:actions/checkout");
-        var gitleaks = Entry(entries, "binary:gitleaks");
-        var react = Entry(entries, "npm:react");
-        var vite = Entry(entries, "npm:vite");
-        var lightningcss = Entry(entries, "npm:lightningcss");
-        var checkoutSha = Value(checkout, "version");
+        var sdk = First(entries, entry => Value(entry, "ecosystem") == "dotnet-sdk");
+        var nuget = First(entries, entry => Value(entry, "ecosystem") == "nuget" && Value(entry, "status") == "in-use");
+        var action = First(entries, entry => Value(entry, "ecosystem") == "github-action" && Value(entry, "status") == "in-use");
+        var maintenance = nuget["maintenance"]!;
+        var reviewedAt = Value(maintenance, "reviewedAt");
+        var version = Value(nuget, "version");
+        var sha = Value(action, "version");
         switch (mutation)
         {
-            case "missing-register":
-                files.Remove(RegisterPath);
-                break;
-            case "missing-field": xunit.AsObject().Remove("license"); break;
-            case "extra-field": xunit["notes"] = "Additional prose."; break;
-            case "missing-maintenance-field": xunit["maintenance"]!.AsObject().Remove("sources"); break;
-            case "extra-clearance-field": xunit["clearance"]!["approvedBy"] = "Reviewer"; break;
-            case "nonobject-maintenance": xunit["maintenance"] = "Reviewed."; break;
-            case "duplicate-id": entries.Add(xunit.DeepClone()); break;
-            case "wrong-id": xunit["id"] = "nuget:xunit"; break;
+            case "missing-register": Assert.True(files.Remove(RegisterPath)); break;
+            case "missing-field": Assert.True(nuget.AsObject().Remove("license")); break;
+            case "extra-field": Add(nuget, "notes", "Additional prose."); break;
+            case "missing-maintenance-field": Assert.True(maintenance.AsObject().Remove("sources")); break;
+            case "extra-clearance-field": Add(nuget["clearance"]!, "approvedBy", "Reviewer"); break;
+            case "nonobject-maintenance": Set(nuget, "maintenance", "Reviewed."); break;
+            case "duplicate-id": entries.Add(nuget.DeepClone()); break;
+            case "wrong-id": Set(nuget, "id", Value(nuget, "id") + "-other"); break;
             case "invalid-name":
-                xunit["name"] = "xunit v3";
-                xunit["id"] = "nuget:xunit v3";
+                Set(nuget, "name", Value(nuget, "name") + " copy");
+                Set(nuget, "id", $"nuget:{Value(nuget, "name")}".ToLowerInvariant());
                 break;
-            case "unknown-ecosystem": xunit["ecosystem"] = "pypi"; break;
-            case "unknown-status": xunit["status"] = "adopted"; break;
-            case "unknown-area": xunit["area"] = "frontend"; break;
-            case "range-version": xunit["version"] = "[4.0.2, )"; break;
-            case "floating-version": xunit["version"] = "4.0.*"; break;
-            case "wildcard-version": xunit["version"] = "*"; break;
-            case "caret-version": react["version"] = "^19.3.0"; break;
-            case "prerelease-version": xunit["version"] = "4.0.3-beta.1"; break;
-            case "short-action-sha": checkout["version"] = checkoutSha[..^1]; break;
-            case "tagged-action": checkout["version"] = "v7.0.1"; break;
-            case "numeric-version": xunit["version"] = 4; break;
-            case "inexact-latest": xunit["maintenance"]!["latestEligible"] = "4.x"; break;
+            case "unknown-ecosystem": Set(nuget, "ecosystem", "pypi"); break;
+            case "unknown-status": Set(nuget, "status", "adopted"); break;
+            case "unknown-area": Set(nuget, "area", "frontend"); break;
+            case "range-version": Set(nuget, "version", $"[{version}, )"); break;
+            case "floating-version": Set(nuget, "version", version[..version.LastIndexOf('.')] + ".*"); break;
+            case "wildcard-version": Set(nuget, "version", "*"); break;
+            case "caret-version": Set(nuget, "version", "^" + version); break;
+            case "prerelease-version": Set(nuget, "version", Bump(version) + "-beta.1"); break;
+            case "short-action-sha": Set(action, "version", sha[..^1]); break;
+            case "tagged-action": Set(action, "version", "v1.0.0"); break;
+            case "numeric-version": Set(nuget, "version", 4); break;
+            case "inexact-latest": Set(maintenance, "latestEligible", Value(maintenance, "latestEligible").Split('.')[0] + ".x"); break;
             case "sdk-mismatch":
-                var version = Value(sdk, "version");
-                files["global.json"] = files["global.json"].Replace(version, version[..^1] + (version[^1] == '9' ? '8' : '9'));
+                var globalJson = JsonNode.Parse(files["global.json"])!;
+                Set(globalJson["sdk"]!, "version", Bump(Value(globalJson["sdk"]!, "version")));
+                files["global.json"] = globalJson.ToJsonString();
                 break;
-            case "missing-sdk-entry": entries.Remove(sdk); break;
+            case "missing-sdk-entry": Assert.True(entries.Remove(sdk)); break;
             case "second-sdk-entry":
                 var second = sdk.DeepClone();
-                second["name"] = "dotnet-preview";
-                second["id"] = "dotnet-sdk:dotnet-preview";
-                entries.Insert(1, second);
+                Set(second, "name", Value(sdk, "name") + "-second");
+                Set(second, "id", $"dotnet-sdk:{Value(second, "name")}");
+                entries.Insert(entries.IndexOf(sdk) + 1, second);
                 break;
             case "package-version-mismatch":
-                files["Directory.Packages.props"] = files["Directory.Packages.props"]
-                    .Replace("Include=\"xunit.v3\" Version=\"4.0.2\"", "Include=\"xunit.v3\" Version=\"4.0.3\"");
+                var packages = XDocument.Parse(files["Directory.Packages.props"]);
+                var package = packages.Descendants("PackageVersion").First();
+                package.SetAttributeValue("Version", Bump((string?)package.Attribute("Version") ?? ""));
+                files["Directory.Packages.props"] = packages.ToString();
                 break;
             case "unregistered-package":
-                files["Directory.Packages.props"] = files["Directory.Packages.props"]
-                    .Replace("</ItemGroup>", "<PackageVersion Include=\"Unreviewed.Package\" Version=\"1.0.0\" /></ItemGroup>");
+                files["Directory.Packages.props"] = Changed(files["Directory.Packages.props"], files["Directory.Packages.props"]
+                    .Replace("</ItemGroup>", "<PackageVersion Include=\"Unreviewed.Package\" Version=\"1.0.0\" /></ItemGroup>"));
                 break;
-            case "candidate-package": xunit["status"] = "candidate"; break;
+            case "candidate-package": Set(nuget, "status", "candidate"); break;
             case "lock-mismatch":
-                files[LockPath] = MutateLock(files[LockPath], packages => packages["xunit.analyzers"]!["resolved"] = "2.1.0");
+                files[LockPath] = MutateLock(files[LockPath], locked =>
+                {
+                    var firstPackage = locked.First().Value!;
+                    Set(firstPackage, "resolved", Bump(Value(firstPackage, "resolved")));
+                });
                 break;
             case "unregistered-lock-package":
-                files[LockPath] = MutateLock(files[LockPath], packages => packages["Unreviewed.Package"] = new JsonObject
+                files[LockPath] = MutateLock(files[LockPath], locked => Add(locked, "Unreviewed.Package", new JsonObject
                 {
                     ["type"] = "Transitive",
                     ["resolved"] = "1.0.0",
                     ["contentHash"] = Convert.ToBase64String(new byte[64])
-                });
+                }));
                 break;
             case "stale-nuget-entry":
-                files[LockPath] = MutateLock(files[LockPath], packages => packages.Remove("xunit.analyzers"));
+                files[LockPath] = MutateLock(files[LockPath], locked => Assert.True(locked.Remove(locked.First().Key)));
                 break;
             case "unregistered-action":
-                files[".github/workflows/ci.yml"] = files[".github/workflows/ci.yml"].Replace(checkoutSha, new string('a', 40));
+                var workflow = files.Keys.Where(path => path.StartsWith(".github/workflows/", StringComparison.Ordinal)
+                    && path.EndsWith(".yml", StringComparison.Ordinal) && files[path].Contains(sha, StringComparison.Ordinal))
+                    .Order(StringComparer.Ordinal).First();
+                files[workflow] = Changed(files[workflow], files[workflow].Replace(sha, new string('a', 40)));
                 break;
             case "unregistered-allowed-action":
-                files[".github/workflows/actions.allow"] += "actions/cache@" + new string('c', 40) + " # v4.0.0\n";
+                files[".github/workflows/actions.allow"] += "unreviewed-owner/unreviewed-action@" + new string('c', 40) + " # v1.0.0\n";
                 break;
-            case "action-sha-mismatch": checkout["version"] = new string('b', 40); break;
+            case "action-sha-mismatch": Set(action, "version", new string(sha[0] == 'b' ? 'c' : 'b', 40)); break;
             case "unused-action-entry":
-                var unused = checkout.DeepClone();
-                unused["name"] = "actions/cache";
-                unused["id"] = "github-action:actions/cache";
-                entries.Insert(entries.IndexOf(checkout) + 1, unused);
+                var unused = action.DeepClone();
+                Set(unused, "name", "unreviewed-owner/unreviewed-action");
+                Set(unused, "id", "github-action:unreviewed-owner/unreviewed-action");
+                entries.Insert(entries.IndexOf(action) + 1, unused);
                 break;
-            case "gitleaks-mismatch":
-                files[".github/workflows/secret-scan.yml"] = files[".github/workflows/secret-scan.yml"]
-                    .Replace("GITLEAKS_VERSION: '" + Value(gitleaks, "version") + "'", "GITLEAKS_VERSION: '0.0.1'");
+            case "tool-version-mismatch":
+                var pin = ToolPin(files);
+                files[pin.Path] = Changed(files[pin.Path], new Regex($@"(?m)^(\s*{pin.Variable}\s*:\s*[""']?){Regex.Escape(pin.Version)}")
+                    .Replace(files[pin.Path], "${1}" + Bump(pin.Version), 1));
                 break;
             case "unregistered-tool-version":
-                files[".github/workflows/ci.yml"] += string.Join('\n', "", "env:", "  SCANNER_VERSION: '1.0.0'", "");
+                files[".github/workflows/ci.yml"] += string.Join('\n', "", "env:", "  UNREVIEWED_TOOL_VERSION: '1.0.0'", "");
                 break;
             case "stale-binary-entry":
-                files[".github/workflows/secret-scan.yml"] = files[".github/workflows/secret-scan.yml"]
-                    .Replace("GITLEAKS_VERSION:", "SCAN_TOOL:");
+                var renamed = ToolPin(files);
+                files[renamed.Path] = Changed(files[renamed.Path], new Regex($@"(?m)^(\s*){renamed.Variable}(\s*:)")
+                    .Replace(files[renamed.Path], "${1}RENAMED_TOOL${2}", 1));
+                break;
+            case "unpinned-without-note":
+                var tool = nuget.DeepClone();
+                Set(tool, "ecosystem", "binary");
+                Set(tool, "name", "unreviewed-tool");
+                Set(tool, "id", "binary:unreviewed-tool");
+                tool["version"] = "1.0";
+                tool["maintenance"]!["latestEligible"] = "1.0";
+                tool["unpinned"] = null;
+                entries.Add(tool);
+                break;
+            case "needless-unpinned": Set(nuget, "unpinned", "Selected at run time."); break;
+            case "pinned-binary-note":
+                var variable = ToolPin(files).Variable;
+                Set(First(entries, entry => Value(entry, "ecosystem") == "binary" && Value(entry, "status") == "in-use"
+                    && DependencyRegister.VersionVariable(Value(entry, "name")) == variable), "unpinned", "Selected at run time.");
                 break;
             case "in-use-npm":
-                react["status"] = "in-use";
+                var npm = nuget.DeepClone();
+                Set(npm, "ecosystem", "npm");
+                Set(npm, "name", "unreviewed-package");
+                Set(npm, "id", "npm:unreviewed-package");
+                npm["version"] = "1.0.0";
+                npm["maintenance"]!["latestEligible"] = "1.0.0";
+                entries.Add(npm);
                 break;
-            case "unlisted-license": xunit["license"] = "GPL-3.0-only"; break;
-            case "partly-flagged-license": lightningcss["clearance"]!["community"] = "cleared"; break;
-            case "invalid-license": xunit["license"] = "Apache-2.0 OR"; break;
-            case "unknown-clearance": xunit["clearance"]!["paid"] = "approved"; break;
-            case "empty-note": xunit["clearance"]!["note"] = ""; break;
+            case "unlisted-license":
+                Set(nuget, "license", "GPL-3.0-only");
+                nuget["clearance"]!["community"] = "cleared";
+                break;
+            case "partly-flagged-license":
+                Set(nuget, "license", "MPL-2.0");
+                nuget["clearance"]!["community"] = "flagged";
+                nuget["clearance"]!["paid"] = "cleared";
+                break;
+            case "invalid-license": Set(nuget, "license", Value(nuget, "license") + " OR"); break;
+            case "unknown-clearance": Set(nuget["clearance"]!, "paid", "approved"); break;
+            case "empty-note": Set(nuget["clearance"]!, "note", ""); break;
             case "widened-allowlist":
-                files[ReadmePath] = files[ReadmePath].Replace("| `MIT` |", "| `MPL-2.0` | Weak copyleft. |\n| `MIT` |");
+                var readme = files[ReadmePath];
+                var heading = readme.IndexOf("## License allowlist", StringComparison.Ordinal);
+                Assert.True(heading >= 0, "The README must have a license allowlist.");
+                var row = readme.IndexOf("\n| `", heading, StringComparison.Ordinal);
+                Assert.True(row > heading, "The license allowlist must have rows.");
+                files[ReadmePath] = readme.Insert(row + 1, "| `LicenseRef-unreviewed` | Not reviewed. |\n");
                 break;
             case "missing-allowlist":
-                files[ReadmePath] = files[ReadmePath].Replace("## License allowlist", "## Licenses");
+                files[ReadmePath] = Changed(files[ReadmePath], files[ReadmePath].Replace("## License allowlist", "## Licenses"));
                 break;
-            case "candidate-not-latest": vite["maintenance"]!["latestEligible"] = "8.3.5"; break;
-            case "missing-age-exception": testSdk["maintenance"]!["ageException"] = null; break;
-            case "needless-age-exception": xunit["maintenance"]!["ageException"] = "Not needed."; break;
-            case "future-published": xunit["maintenance"]!["published"] = "2026-10-26"; break;
-            case "invalid-date": xunit["maintenance"]!["published"] = "2026-02-30"; break;
-            case "early-review": xunit["maintenance"]!["reviewedAt"] = "2026-10-24"; break;
-            case "http-source": xunit["maintenance"]!["sources"]![0] = "http://api.nuget.org/v3/index.json"; break;
+            case "candidate-not-latest":
+                Set(nuget, "status", "candidate");
+                maintenance["latestEligible"] = Bump(version);
+                break;
+            case "missing-age-exception":
+                maintenance["published"] = reviewedAt;
+                maintenance["ageException"] = null;
+                break;
+            case "needless-age-exception":
+                maintenance["published"] = AddDays(reviewedAt, -14);
+                maintenance["ageException"] = "Not needed.";
+                break;
+            case "future-published": Set(maintenance, "published", AddDays(reviewedAt, 1)); break;
+            case "invalid-date": Set(maintenance, "published", "2026-02-30"); break;
+            case "early-review":
+                Set(maintenance, "reviewedAt", DependencyRegister.PolicyStart.AddDays(-1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+                break;
+            case "http-source": Set(maintenance["sources"]!.AsArray(), 0, "http://api.nuget.org/v3/index.json"); break;
             case "duplicate-source":
-                var sources = xunit["maintenance"]!["sources"]!.AsArray();
+                var sources = maintenance["sources"]!.AsArray();
                 sources.Add(sources[0]!.DeepClone());
                 break;
-            case "empty-sources": xunit["maintenance"]!["sources"] = new JsonArray(); break;
-            case "machine-path": xunit["purpose"] = "Read from " + string.Join('/', "", "home", "person", "project") + "."; break;
-            case "multiline-text": xunit["reason"] = "First line.\nSecond line."; break;
-            case "long-text": xunit["maintenance"]!["activity"] = new string('a', 601); break;
+            case "empty-sources": Set(maintenance, "sources", new JsonArray()); break;
+            case "machine-path": Set(nuget, "purpose", "Read from " + string.Join('/', "", "home", "person", "project") + "."); break;
+            case "multiline-text": Set(nuget, "reason", "First line.\nSecond line."); break;
+            case "long-text": Set(maintenance, "activity", new string('a', 601)); break;
             case "unsorted":
                 var moved = entries[1];
                 entries.RemoveAt(1);
@@ -232,8 +290,8 @@ public sealed class DependencyRegisterTests
                 break;
             case "null-entry": entries[0] = null; break;
             case "null-entries": register["entries"] = null; break;
-            case "wrong-version": register["version"] = 2; break;
-            case "extra-root-field": register["date"] = "2026-10-25"; break;
+            case "wrong-version": Set(register, "version", 2); break;
+            case "extra-root-field": Add(register, "date", reviewedAt); break;
             default: throw new ArgumentOutOfRangeException(nameof(mutation), mutation, "Unknown mutation case.");
         }
 
@@ -242,6 +300,10 @@ public sealed class DependencyRegisterTests
             files[RegisterPath] = register.ToJsonString();
         }
 
+        // Compare the register by content and every other file by text, so an unchanged mutation fails here.
+        var changed = files.Count != original.Count || files.Any(pair => !original.TryGetValue(pair.Key, out var text)
+            || (pair.Key == RegisterPath ? JsonNode.Parse(text)!.ToJsonString() != pair.Value : text != pair.Value));
+        Assert.True(changed, $"Mutation {mutation} must change the repository files.");
         Assert.Contains(DependencyRegister.Validate(files), error => error.Contains(expectedDiagnostic, StringComparison.Ordinal));
     }
 
@@ -261,7 +323,9 @@ public sealed class DependencyRegisterTests
     public void Duplicate_json_properties_are_rejected()
     {
         var files = RepositoryFiles.Current.ToDictionary();
-        files[RegisterPath] = files[RegisterPath].Replace("\"status\": \"in-use\"", "\"status\": \"in-use\", \"status\": \"in-use\"");
+        var text = files[RegisterPath];
+        files[RegisterPath] = text.Replace("\"status\": \"in-use\"", "\"status\": \"in-use\", \"status\": \"in-use\"");
+        Assert.NotEqual(text, files[RegisterPath]);
         Assert.Contains(DependencyRegister.Validate(files), error => error.Contains("duplicate field", StringComparison.Ordinal));
     }
 
@@ -296,10 +360,63 @@ public sealed class DependencyRegisterTests
         Assert.Null(DependencyRegister.Allowed(expression, DependencyRegister.ReviewedAllowlist));
     }
 
-    private static JsonNode Entry(JsonArray entries, string id) => entries.Single(entry => (string?)entry!["id"] == id)!;
+    private static JsonNode First(JsonArray entries, Func<JsonNode, bool> predicate) =>
+        entries.Select(entry => entry!).First(predicate);
 
     private static string Value(JsonNode node, string field) =>
         (string?)node[field] ?? throw new InvalidOperationException($"The register entry has no {field}.");
+
+    // Sets a field to a different value, so the mutation never silently does nothing.
+    private static void Set(JsonNode node, string field, JsonNode? value)
+    {
+        Assert.NotEqual(node[field]?.ToJsonString(), value?.ToJsonString());
+        node[field] = value;
+    }
+
+    private static void Set(JsonArray array, int index, JsonNode? value)
+    {
+        Assert.NotEqual(array[index]?.ToJsonString(), value?.ToJsonString());
+        array[index] = value;
+    }
+
+    private static void Add(JsonNode node, string field, JsonNode? value)
+    {
+        Assert.False(node.AsObject().ContainsKey(field), $"The {field} field must not exist before the mutation.");
+        node[field] = value;
+    }
+
+    private static string Changed(string before, string after)
+    {
+        Assert.NotEqual(before, after);
+        return after;
+    }
+
+    // Raises the last numeric component, which keeps an exact version exact and different.
+    private static string Bump(string version)
+    {
+        var parts = version.Split('.');
+        parts[^1] = (int.Parse(parts[^1], CultureInfo.InvariantCulture) + 1).ToString(CultureInfo.InvariantCulture);
+        return string.Join('.', parts);
+    }
+
+    private static string AddDays(string date, int days) =>
+        DateOnly.ParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture).AddDays(days).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    private static (string Path, string Variable, string Version) ToolPin(IReadOnlyDictionary<string, string> files)
+    {
+        foreach (var (path, text) in files.Where(pair => pair.Key.StartsWith(".github/workflows/", StringComparison.Ordinal)
+                     && pair.Key.EndsWith(".yml", StringComparison.Ordinal)).OrderBy(pair => pair.Key, StringComparer.Ordinal))
+        {
+            var match = text.Replace("\r\n", "\n").Split('\n').Select(line => DependencyRegister.ToolVersion.Match(line))
+                .FirstOrDefault(candidate => candidate.Success);
+            if (match is not null)
+            {
+                return (path, match.Groups["variable"].Value, match.Groups["version"].Value);
+            }
+        }
+
+        throw new InvalidOperationException("No workflow pins a tool version.");
+    }
 
     private static string MutateLock(string text, Action<JsonObject> mutate)
     {
@@ -322,13 +439,13 @@ internal static class DependencyRegister
 
     private const int MinimumAgeDays = 14;
     private const int MaximumTextLength = 600;
-    private static readonly DateOnly PolicyStart = new(2026, 10, 25);
+    public static readonly DateOnly PolicyStart = new(2026, 10, 25);
     private static readonly string[] Ecosystems = ["dotnet-sdk", "nuget", "npm", "github-action", "binary"];
     private static readonly string[] Statuses = ["in-use", "candidate"];
     private static readonly string[] Areas = ["build", "ci", "persistence", "identity", "admin", "test"];
     private static readonly string[] Clearances = ["cleared", "flagged"];
     private static readonly string[] EntryFields =
-        ["id", "name", "ecosystem", "version", "license", "status", "area", "purpose", "reason", "maintenance", "clearance"];
+        ["id", "name", "ecosystem", "version", "unpinned", "license", "status", "area", "purpose", "reason", "maintenance", "clearance"];
     private static readonly string[] MaintenanceFields =
         ["reviewedAt", "published", "latestEligible", "ageException", "maintainer", "activity", "advisories", "sources"];
     private static readonly string[] ClearanceFields = ["community", "paid", "note"];
@@ -353,10 +470,10 @@ internal static class DependencyRegister
     private static readonly Regex UsedAction = new(
         """^\s*(?:-\s+)?["']?uses["']?\s*:\s*["']?(?<action>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@(?<sha>[0-9a-f]{40})""",
         RegexOptions.CultureInvariant);
-    private static readonly Regex ToolVersion = new(
+    public static readonly Regex ToolVersion = new(
         """^\s*(?<variable>[A-Z][A-Z0-9_]*_VERSION)\s*:\s*["']?(?<version>[^"'\s#]+)""", RegexOptions.CultureInvariant);
 
-    private sealed record Dependency(string Id, string Name, string Ecosystem, string Version, string Status);
+    private sealed record Dependency(string Id, string Name, string Ecosystem, string Version, string Status, bool Unpinned);
 
     public static List<string> Validate(IReadOnlyDictionary<string, string> files)
     {
@@ -548,6 +665,16 @@ internal static class DependencyRegister
             errors.Add($"{location}: version must be exact for its ecosystem, without ranges, floats, wildcards or prerelease labels.");
         }
 
+        var unpinned = entry.TryGetProperty("unpinned", out var note) && note.ValueKind != JsonValueKind.Null;
+        if (unpinned)
+        {
+            Text(entry, "unpinned", location, errors);
+            if (ecosystem != "binary" || status != "in-use")
+            {
+                errors.Add($"{location}: unpinned must be null unless an in-use binary has no workflow version pin.");
+            }
+        }
+
         Text(entry, "purpose", location, errors);
         Text(entry, "reason", location, errors);
         var license = String(entry, "license", location, errors);
@@ -584,7 +711,7 @@ internal static class DependencyRegister
             }
         }
 
-        return new Dependency(id, name, ecosystem, version, status);
+        return new Dependency(id, name, ecosystem, version, status, unpinned);
     }
 
     private static void ValidateMaintenance(JsonElement maintenance, string location, string version, string status,
@@ -784,13 +911,21 @@ internal static class DependencyRegister
             errors.Add($"github-action:{reference.Split('@')[0].ToLowerInvariant()}: in-use github-action entry is absent from the workflows and actions.allow.");
         }
 
-        foreach (var (variable, binary) in binaries.Where(pair => !tools.Contains($"{pair.Key}={pair.Value.Version}")))
+        var variables = tools.Select(tool => tool.Split('=')[0]).ToHashSet(StringComparer.Ordinal);
+        foreach (var (variable, binary) in binaries)
         {
-            errors.Add($"{binary.Id}: in-use binary entry must match a workflow {variable} pin.");
+            if (variables.Contains(variable) && binary.Unpinned)
+            {
+                errors.Add($"{binary.Id}: unpinned must be null unless an in-use binary has no workflow version pin.");
+            }
+            else if (variables.Contains(variable) ? !tools.Contains($"{variable}={binary.Version}") : !binary.Unpinned)
+            {
+                errors.Add($"{binary.Id}: in-use binary entry must match a workflow {variable} pin or record in unpinned what selects its version.");
+            }
         }
     }
 
-    private static string VersionVariable(string name) =>
+    public static string VersionVariable(string name) =>
         Regex.Replace(name.ToUpperInvariant(), "[^A-Z0-9]", "_") + "_VERSION";
 
     private static bool IsHttps(string value) =>
