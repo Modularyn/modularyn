@@ -227,7 +227,8 @@ internal static class AcceptanceCorpusContract
                 errors.Add($"{family}/{profile}: missing {type} case.");
     }
 
-    // Traces security cases to the threat-model control map; this shows traceability, never that a control works.
+    // Traces cases to the threat-model control map; this shows traceability, never that a control works. A case may cite
+    // only controls that the map plans under its own family; behavior planned elsewhere is a dependency on that family.
     private static void ValidateControls(List<Case> cases, IReadOnlyDictionary<string, string> files, List<string> errors)
     {
         var controls = ReadControls(files.GetValueOrDefault(ControlsPath, ""), errors);
@@ -239,11 +240,15 @@ internal static class AcceptanceCorpusContract
             foreach (var id in Citations(prose))
             {
                 if (!controls.TryGetValue(id, out var control))
+                {
                     errors.Add($"{item.Id}: cites undefined control {id}.");
-                else
-                    foreach (var profile in item.Profiles)
-                        if (!control.Profiles.Contains(profile))
-                            errors.Add($"{item.Id}: control {id} does not name profile {profile}.");
+                    continue;
+                }
+                foreach (var profile in item.Profiles)
+                    if (!control.Profiles.Contains(profile))
+                        errors.Add($"{item.Id}: control {id} does not name profile {profile}.");
+                if (!control.Families.Contains(item.Family))
+                    errors.Add($"{item.Id}: control {id} is not planned under {item.Family} in the control map.");
             }
             if (!SecurityFamilies.Contains(item.Family, StringComparer.Ordinal)) continue;
             var shown = Citations([.. item.Steps, .. item.Evidence]).Where(controls.ContainsKey).ToArray();

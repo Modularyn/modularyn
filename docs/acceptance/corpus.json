@@ -508,7 +508,7 @@
     },
     {
       "id": "AC-002-N03",
-      "title": "Refuse guessed codes and recovery abuse with uniform responses",
+      "title": "Throttle one-time-code and recovery-code guessing past their declared limits",
       "family": "AC-002",
       "profiles": [
         "website"
@@ -530,20 +530,23 @@
       ],
       "type": "negative",
       "preconditions": [
-        "admin-1 has a one-time-password authenticator, unused recovery codes and one consumed code; unknown-1 is not an account. The declared per-account and per-source limits and the recovery-token lifetime are recorded."
+        "admin-1 has a one-time-password authenticator and unused recovery codes, and each run starts from a pending sign-in that has passed the password step; unknown-1 is not an account. Sources src-1, src-2 and src-3 are distinct.",
+        "For one-time-code and for recovery-code verification, the release's declared per-source limit, per-account limit, the block or delay each applies at its limit, and the uniform-response latency tolerance E are recorded before running."
       ],
       "steps": [
-        "From one source, submit a wrong password for admin-1 and for unknown-1, then a wrong one-time code and a wrong recovery code for admin-1.",
-        "Present the consumed recovery code, use one recovery token twice, and present a second token after its declared lifetime.",
-        "With a fresh token, attempt to complete recovery while removing admin-1's second factor in the same flow, then complete it with the token and a current one-time code."
+        "From fresh fixture state, submit wrong one-time codes for admin-1 from src-1 up to the per-source limit, then one more wrong code and the current correct code from src-1, timing every response.",
+        "Continue wrong one-time codes from further sources, each below its per-source limit, until the per-account limit is reached; then, from a source still below its limit, submit the current correct code once before the applied delay elapses and once after it.",
+        "Repeat both steps with recovery codes in place of one-time codes, from fresh fixture state.",
+        "From src-3, alternate wrong passwords for admin-1 and for unknown-1 an equal number of times, staying below the per-source limit."
       ],
       "expectedOutcome": [
-        "Unknown-account and wrong-password responses match in status and body; every failure counts against the declared per-account and per-source limits, and response latencies are recorded for comparison.",
-        "The consumed code, the second use of the token and the expired token are refused.",
-        "Recovery through the token alone cannot remove the second factor; when recovery completes with the remaining factor, all admin-1 sessions end and the account is notified."
+        "At each per-source limit, src-1's next attempt is blocked, and the correct code it then submits is refused without being verified.",
+        "At each per-account limit, further attempts from any source are delayed by at least the declared delay. The correct code submitted before the delay elapses is refused, and a refused recovery code is not consumed; the one submitted after the delay succeeds, so the owner is not locked out indefinitely.",
+        "Every attempt past a limit is either refused without verification or answered no sooner than the declared delay after the preceding attempt, so no run verifies more codes per window than the declared limits allow.",
+        "Unknown-account and wrong-password responses match in status and body, and their median latencies differ by no more than E."
       ],
       "evidence": [
-        "Response pairs and latency distributions, limit counters, token and code states, session records and notifications, as evidence for TM-G02-015, TM-G02-057 and TM-W-011."
+        "Per-attempt kind, source, counter, verification flag, applied delay and response time, with the declared limits, delays and tolerance, as evidence for TM-G02-015 and TM-W-059."
       ]
     },
     {
@@ -584,6 +587,49 @@
       ],
       "evidence": [
         "Descriptions of each altered row, sign-in refusals, integrity-verification and audit records, and the seed-column inspection with values reduced to digests, as evidence for TM-G02-058 and TM-G02-056."
+      ]
+    },
+    {
+      "id": "AC-002-N05",
+      "title": "Throttle recovery initiation and refuse reused or expired recovery proofs",
+      "family": "AC-002",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W minimal Admin sign-in with a password plus a second factor or a passkey, account recovery, session revocation, stored credential forms, guessing and lockout resistance, and first-administrator bootstrap on the canonical origin. Registration, external login, passwordless links and shared-account tenant membership are outside W."
+      },
+      "requirements": [
+        "OPS-003",
+        "MOD-001",
+        "MOD-002"
+      ],
+      "layers": [
+        "unit",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-012"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "admin-1 has a one-time-password authenticator and unused recovery codes, with one consumed code; unknown-1 is not an account. Sources src-1, src-2 and src-3 are distinct, and the outbound message log of the bounded delivery environment is captured.",
+        "The release's declared per-source and per-account limits and delays for recovery initiation, and the recovery-token lifetime, are recorded before running."
+      ],
+      "steps": [
+        "From fresh fixture state, initiate recovery for admin-1 from src-1 up to its per-source limit and once more, timing every response.",
+        "Continue initiation for admin-1 from src-2 and src-3, each below its per-source limit, up to the per-account limit and once more; then initiate once for unknown-1 from src-3.",
+        "Present the consumed recovery code, use one issued recovery token twice, and present another token after its declared lifetime.",
+        "With a fresh token, attempt to complete recovery while removing admin-1's second factor in the same flow, then complete it with the token and a current one-time code."
+      ],
+      "expectedOutcome": [
+        "At each limit the next initiation is throttled: no token is issued and no message is sent, and every initiation past a limit is answered no sooner than its declared delay.",
+        "Per-source throttling may answer with a throttling status, but per-account throttling returns the same status and body as an accepted initiation, and initiation for unknown-1 matches an accepted one and sends nothing, so no response reveals whether an account exists.",
+        "The consumed code, the second use of the token and the expired token are refused.",
+        "Recovery through the token alone cannot remove the second factor; when recovery completes with the remaining factor, all admin-1 sessions end and the account is notified."
+      ],
+      "evidence": [
+        "Per-initiation source, account, counter, applied delay and response time; token issuance and outbound message records; token and code states; and session records and notifications, as evidence for TM-W-011 and TM-G02-057."
       ]
     },
     {
@@ -794,6 +840,49 @@
       ]
     },
     {
+      "id": "AC-002-R04",
+      "title": "Remove an attacker-enrolled passkey through the owner's recovery",
+      "family": "AC-002",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W minimal Admin sign-in with a password plus a second factor or a passkey, account recovery, session revocation, stored credential forms, guessing and lockout resistance, and first-administrator bootstrap on the canonical origin. Registration, external login, passwordless links and shared-account tenant membership are outside W."
+      },
+      "requirements": [
+        "MOD-001",
+        "MOD-002",
+        "OPS-003"
+      ],
+      "layers": [
+        "api-contract",
+        "ui",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-012"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "An attacker fixture holds session Sy for editor-2, established with a phished password and one-time code and still inside the recent-authentication window. editor-2 holds an enrolled one-time-password authenticator and unused recovery codes, and editor-2's messages in the bounded delivery environment are captured."
+      ],
+      "steps": [
+        "Through Sy, change editor-2's password and enroll an attacker passkey, then sign in with that passkey as session Sz from a second attacker client.",
+        "As editor-2, start recovery with a recovery code and complete it with the one-time-password authenticator.",
+        "During recovery, review the enrolled factors, remove the attacker passkey, set a new password and regenerate the recovery codes.",
+        "Present Sy and Sz again, and attempt a sign-in with the removed passkey."
+      ],
+      "expectedOutcome": [
+        "Both changes inside the window succeed, are audited and notify editor-2 immediately; editor-2's own sessions end with the password change.",
+        "Completed recovery ends Sy, Sz and every other editor-2 session and notifies the account; the passkey removal is audited, and the removed record no longer verifies.",
+        "Sy, Sz and the removed passkey are refused afterward, while editor-2's one-time-password authenticator, new password and new recovery codes work."
+      ],
+      "evidence": [
+        "Factor enrollment and removal timeline, notifications with their delivery times, session records with end reasons, audit records, and refused replay and sign-in traces, as evidence for TM-W-013, TM-W-011, TM-W-012 and TM-G02-058."
+      ]
+    },
+    {
       "id": "AC-003-B01",
       "title": "Measure permission revocation at the declared freshness bound",
       "family": "AC-003",
@@ -852,8 +941,7 @@
         "isolation"
       ],
       "securityDependencies": [
-        "AC-002",
-        "AC-012"
+        "AC-002"
       ],
       "type": "boundary",
       "preconditions": [
@@ -874,7 +962,7 @@
     },
     {
       "id": "AC-003-B03",
-      "title": "Revoke restricted media and preview access at the visibility edge",
+      "title": "Revoke restricted media and preview access at the authoritative instant",
       "family": "AC-003",
       "profiles": [
         "website"
@@ -898,20 +986,21 @@
       ],
       "type": "boundary",
       "preconditions": [
-        "reviewer-1 holds a current-authorization grant on restricted asset-2 and preview permission for the site, with warm authorization cache entries. A gateway link for asset-2 was issued before revocation, a large asset-2 download is in progress, and the declared freshness bound B is recorded."
+        "reviewer-1 holds a current-authorization grant on restricted asset-2 and preview permission for the site, with warm authorization cache entries. A gateway link for asset-2 was issued before revocation, a large asset-2 download is in progress, and the declared freshness bound B is recorded.",
+        "The Files gateway's delivery behavior is qualified by AC-009 on the same tuple."
       ],
       "steps": [
-        "Revoke reviewer-1's asset-2 grant and preview permission and record when the change becomes visible to readers.",
-        "Request asset-2 through the Files gateway and preview article-1 revision-2 immediately before and immediately after visibility, and again at B plus one second.",
+        "Revoke reviewer-1's asset-2 grant and preview permission, and record the instant each change is authoritative.",
+        "Request asset-2 through the Files gateway and preview article-1 revision-2 immediately before and immediately after that instant, and again at B plus one second.",
         "Use the earlier gateway link, issue a new range request for the in-progress download, and list media with counts as reviewer-1."
       ],
       "expectedOutcome": [
-        "The last requests before visibility succeed; the first gateway and preview requests after it are refused without waiting for B, as the current-authorization profile requires.",
+        "The last requests before the authoritative instant succeed; the first gateway and preview authorizations after it are refused without waiting for B, as the current-authorization profile requires.",
         "The earlier link and the new range request are refused; the download already in progress is recorded as data delivered before revocation.",
         "The media list and its count omit asset-2."
       ],
       "evidence": [
-        "Visibility instant, per-request decisions and timestamps, link and range outcomes, and list and count outputs, as evidence for TM-G02-020, TM-G02-033, TM-G02-021 and TM-G02-044."
+        "Authoritative change instants, per-request decisions and timestamps, link and range outcomes, and list and count outputs, as evidence for TM-G02-020, TM-G02-033 and TM-G02-021."
       ]
     },
     {
@@ -1018,8 +1107,7 @@
         "real-provider-integration"
       ],
       "securityDependencies": [
-        "AC-002",
-        "AC-012"
+        "AC-002"
       ],
       "type": "negative",
       "preconditions": [
@@ -1198,10 +1286,10 @@
       "expectedOutcome": [
         "importer-1's rebinding is refused; the authorized rebinding is recorded and invalidates plan-1.",
         "Applying plan-1 or plan-2 is refused with the failed binding named, and nothing is written.",
-        "editor-3's change is refused and the destination is unchanged."
+        "editor-3's change is refused by the server permission check and the destination is unchanged."
       ],
       "evidence": [
-        "Binding records, plan states and apply refusals with the failed binding, and destination configuration before and after, as evidence for TM-W-057, TM-W-038 and TM-W-033."
+        "Binding records, plan states and apply refusals with the failed binding, and destination configuration before and after, as evidence for TM-W-057, TM-W-038 and TM-G02-019."
       ]
     },
     {
@@ -1369,7 +1457,7 @@
     },
     {
       "id": "AC-003-P04",
-      "title": "Preview an exact revision without granting content management",
+      "title": "Preview a revision without granting content management or unauthorized items",
       "family": "AC-003",
       "profiles": [
         "website"
@@ -1393,18 +1481,19 @@
       ],
       "type": "positive",
       "preconditions": [
-        "reviewer-1 holds preview permission only. Draft revision-2 of article-1 references restricted asset-2 and draft article-3; reviewer-1 holds a read grant on asset-2 but none on article-3."
+        "reviewer-1 holds preview permission only. Draft revision-2 of article-1 references restricted asset-2 and draft article-3; reviewer-1 holds a read grant on asset-2 but none on article-3.",
+        "Binding preview to the exact selected revision, and its exclusion from caches and discovery, are qualified by AC-016 on the same tuple."
       ],
       "steps": [
         "As reviewer-1, open preview of article-1 revision-2 through the minimal Admin and through its direct preview call.",
         "With the same session, call save, schedule and publish for article-1 directly."
       ],
       "expectedOutcome": [
-        "Preview renders exactly revision-2 with asset-2, shows article-3's reference as unavailable without its title or content, and is private and uncacheable.",
+        "Preview includes asset-2 and shows article-3's reference as unavailable without its title or content.",
         "Each management call is refused; preview permission grants no content management."
       ],
       "evidence": [
-        "Preview responses with revision identity and caching headers, per-item authorization decisions and management-call refusals, as evidence for TM-G02-020, TM-G02-019 and TM-W-021."
+        "Preview responses, per-item authorization decisions and management-call refusals, as evidence for TM-G02-020 and TM-G02-019."
       ]
     },
     {
@@ -1673,8 +1762,7 @@
         "api-contract"
       ],
       "securityDependencies": [
-        "AC-003",
-        "AC-031"
+        "AC-003"
       ],
       "type": "boundary",
       "preconditions": [
@@ -1682,14 +1770,14 @@
       ],
       "steps": [
         "As editor-1, submit content, preview and route requests carrying site-1's canonical identifier and each identifier variant.",
-        "Request a public route and the Admin namespace with each host variant."
+        "Request a public route with each host variant of alias-1."
       ],
       "expectedOutcome": [
         "Only the canonical identifier resolves to site-1; each variant is rejected as invalid input and never normalized into a scope.",
-        "Host variants that are equivalent under DNS rules resolve consistently to alias-1 for public routes only, and no variant reaches the Admin namespace."
+        "Host variants that are equivalent under DNS rules resolve consistently to alias-1 for public routes, and none resolves to another host binding or to the canonical origin."
       ],
       "evidence": [
-        "Per-variant decisions and effective contexts, and per-host responses, as evidence for TM-W-018, TM-G02-025, TM-G02-006 and TM-W-009."
+        "Per-variant decisions and effective contexts, and per-host resolution traces, as evidence for TM-W-018, TM-G02-025 and TM-G02-006."
       ]
     },
     {
@@ -2046,8 +2134,7 @@
         "operational-recovery"
       ],
       "securityDependencies": [
-        "AC-003",
-        "AC-012"
+        "AC-003"
       ],
       "type": "recovery",
       "preconditions": [
@@ -2086,8 +2173,7 @@
         "real-provider-integration"
       ],
       "securityDependencies": [
-        "AC-003",
-        "AC-012"
+        "AC-003"
       ],
       "type": "recovery",
       "preconditions": [
@@ -3777,7 +3863,7 @@
       ],
       "type": "negative",
       "preconditions": [
-        "Unique sentinel values serve as an Admin password, a one-time code, a recovery code, a session cookie, a contact message body and reply address, and a credential-like assignment in a package text field. A clean package pkg-c and the sentinel-bearing package pkg-s are available."
+        "Unique sentinel values serve as an Admin password, a one-time code, a recovery code, a session cookie, a contact message body and reply address, and a credential-like assignment in a package text field. A clean package pkg-c and the sentinel-bearing package pkg-s are available, and the secret-finding block on pkg-s is qualified by AC-031."
       ],
       "steps": [
         "Sign in, complete a recovery, submit a contact request, change the contact destination, dry run pkg-s, and dry run, approve and apply pkg-c.",
@@ -3785,11 +3871,11 @@
       ],
       "expectedOutcome": [
         "No secret sentinel appears anywhere searched, and contact content appears only in the contact store behind its read permission.",
-        "pkg-s is blocked, and its report and audit record name the finding's location with the matched value redacted.",
+        "pkg-s's dry-run audit record names the finding's location with the matched value redacted.",
         "pkg-c's apply report names the approver, plan, digest and per-item outcomes without content values."
       ],
       "evidence": [
-        "Sentinel search results per store, the pkg-s report and audit record, and the pkg-c apply report, as evidence for TM-W-032, TM-W-036 and TM-W-042."
+        "Sentinel search results per store, the pkg-s audit record and the pkg-c apply report, as evidence for TM-W-032 and TM-W-042."
       ]
     },
     {
@@ -5882,7 +5968,7 @@
         "website"
       ],
       "scope": {
-        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: release and dependency provenance against the dependency register, secret and key handling, container and network limits, media quarantine, host validation, antispam and security rate limits. No certification claim and no surface outside W."
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, backups, and container and network limits. No certification claim and no surface outside W."
       },
       "requirements": [
         "OPS-004",
@@ -5923,7 +6009,7 @@
         "website"
       ],
       "scope": {
-        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: release and dependency provenance against the dependency register, secret and key handling, container and network limits, media quarantine, host validation, antispam and security rate limits. No certification claim and no surface outside W."
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, backups, and container and network limits. No certification claim and no surface outside W."
       },
       "requirements": [
         "OPS-004",
@@ -5940,7 +6026,7 @@
       ],
       "type": "boundary",
       "preconditions": [
-        "Sentinel values are mounted as the database password, transport credential and Git source credential through deployment secret references. An anonymous probe and an operator holding diagnostics permission are available."
+        "Sentinel values are mounted as the database password, transport credential and Git source credential through deployment secret references. An anonymous probe and an operator holding diagnostics permission are available; probe semantics and diagnostic authorization are qualified by AC-025."
       ],
       "steps": [
         "Inspect every image layer and the image configuration for the sentinels.",
@@ -5949,11 +6035,11 @@
       ],
       "expectedOutcome": [
         "No sentinel appears in an image layer or configuration; secrets arrive only through mounted references.",
-        "Anonymous probes receive minimal liveness and readiness responses; the operator sees dependency detail without any configuration value.",
+        "Neither the probe's responses nor the operator's diagnostics and bundle contain a configuration value.",
         "No secret, cookie or contact body appears in telemetry or the bundle; metric dimensions carry no tenant or site labels, and inbound correlation values are bounded and confer no authority."
       ],
       "evidence": [
-        "Layer inspection, probe and diagnostic responses per caller, and sentinel search results per output, as evidence for TM-W-054, TM-G02-047, TM-G02-053 and TM-G02-054."
+        "Layer inspection, probe and diagnostic responses per caller, and sentinel search results per output, as evidence for TM-W-054, TM-G02-047 and TM-G02-053."
       ]
     },
     {
@@ -5964,7 +6050,7 @@
         "website"
       ],
       "scope": {
-        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: release and dependency provenance against the dependency register, secret and key handling, container and network limits, media quarantine, host validation, antispam and security rate limits. No certification claim and no surface outside W."
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, backups, and container and network limits. No certification claim and no surface outside W."
       },
       "requirements": [
         "FND-001",
@@ -6003,7 +6089,7 @@
         "website"
       ],
       "scope": {
-        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: release and dependency provenance against the dependency register, secret and key handling, container and network limits, media quarantine, host validation, antispam and security rate limits. No certification claim and no surface outside W."
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, backups, and container and network limits. No certification claim and no surface outside W."
       },
       "requirements": [
         "OPS-005",
@@ -6037,45 +6123,41 @@
     },
     {
       "id": "AC-031-N03",
-      "title": "Contain hostile media, manipulated hosts and contact abuse",
+      "title": "Contain active content on the shared canonical origin",
       "family": "AC-031",
       "profiles": [
         "website"
       ],
       "scope": {
-        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: release and dependency provenance against the dependency register, secret and key handling, container and network limits, media quarantine, host validation, antispam and security rate limits. No certification claim and no surface outside W."
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, backups, and container and network limits. No certification claim and no surface outside W."
       },
       "requirements": [
         "OPS-005",
-        "OPS-018",
-        "OPS-003"
+        "OPS-001"
       ],
       "layers": [
         "api-contract",
-        "real-provider-integration"
+        "ui"
       ],
       "securityDependencies": [
-        "AC-002",
         "AC-003"
       ],
       "type": "negative",
       "preconditions": [
-        "Media fixtures are a markup file presented as an image, an image whose dimensions exceed the declared bound, and a valid image uploaded while the scanner is unavailable. The declared antispam policy and the per-source contact and public request limits are recorded."
+        "author-1 can save a draft whose title, block text and image alt text contain markup and script-like text. The canonical origin serves public pages, error pages, media, health, Admin and preview responses, and a fixture page on an unrelated origin can frame any of them."
       ],
       "steps": [
-        "Upload each media fixture and attempt to reference it from a publishable revision.",
-        "Request a password recovery and public pages with a manipulated Host header, and inspect the recovery link, canonical URLs and sitemap entries.",
-        "Submit contact requests that fail the antispam check, then exceed the per-source limits for contact and public requests from one source while a second source stays within them.",
-        "Request a published image and an error page and inspect their response headers."
+        "Publish the draft, then render it on the public site, in preview and in the Admin editor.",
+        "Request one response of each class, including a not-found page, a media response and a health response, and inspect its headers.",
+        "Load an Admin page and a preview page inside the fixture page's frame."
       ],
       "expectedOutcome": [
-        "The disguised file and the oversized image are rejected before decoding, the upload made during the scanner outage stays quarantined, and none becomes referenceable.",
-        "Unknown hosts are refused, and the recovery link, canonical URLs and sitemap entries use only the configured canonical origin.",
-        "Antispam failures and over-limit requests are refused with stable codes and queue no mail, while the second source's requests succeed.",
-        "Both responses carry their verified content type, disabled sniffing and the content security policy that forbids inline script."
+        "Every content-derived value renders as encoded text in each context; no element that the renderers do not declare is emitted, and no script runs.",
+        "Every response carries a content security policy that forbids inline script; Admin and preview responses also carry no-sniff and strict referrer policies.",
+        "The framed Admin and preview pages do not render, because their responses forbid framing."
       ],
       "evidence": [
-        "Upload dispositions, host-manipulation responses and generated links, limit counters and outcomes per source, and response headers, as evidence for TM-G02-042, TM-W-026, TM-W-008, TM-W-030, TM-W-006 and TM-W-002."
+        "Rendered output per context with encoding inspection, browser script-execution observations, header captures per response class and framing results, as evidence for TM-W-002 and TM-W-017."
       ]
     },
     {
@@ -6086,7 +6168,7 @@
         "website"
       ],
       "scope": {
-        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: release and dependency provenance against the dependency register, secret and key handling, container and network limits, media quarantine, host validation, antispam and security rate limits. No certification claim and no surface outside W."
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, backups, and container and network limits. No certification claim and no surface outside W."
       },
       "requirements": [
         "OPS-001",
@@ -6109,11 +6191,11 @@
         "The exact W release and tuple are deployed. The website and foundation threat models and the control map at the release's revision are the control inventory, and the ASVS version applied is recorded."
       ],
       "steps": [
-        "Assess each ASVS Level 2 requirement for the public, Admin, API, preview, import and contact surfaces, mapping it to threat-model controls and the acceptance cases that exercise them or recording why it does not apply.",
+        "Assess each ASVS Level 2 requirement for the public, Admin, API, preview, import and contact surfaces, mapping it to threat-model controls and to the acceptance cases of the family that plans each control, or recording why it does not apply.",
         "Request public pages, error pages, media, health, Admin and preview responses over HTTPS and once over plain HTTP, and inspect their headers."
       ],
       "expectedOutcome": [
-        "Every applicable requirement has a mapped control with case evidence or a recorded gap, and no requirement is marked met from a planning document alone.",
+        "Every applicable requirement has a mapped control with case evidence from the family that plans it, or a recorded gap. Requirements met by controls planned under AC-009, AC-018, AC-020 or AC-030, such as media quarantine, canonical links, antispam and public rate limits, cite those families' evidence on the same tuple, and none is marked met from a planning document alone.",
         "Every response carries a content security policy forbidding inline script; Admin and preview responses also forbid framing and carry no-sniff and strict referrer policies.",
         "Plain HTTP is redirected to HTTPS before other processing, and HTTPS responses carry Strict-Transport-Security with the declared lifetime.",
         "The assessment presents itself as a verification target, not a certification."
@@ -6130,7 +6212,7 @@
         "website"
       ],
       "scope": {
-        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: release and dependency provenance against the dependency register, secret and key handling, container and network limits, media quarantine, host validation, antispam and security rate limits. No certification claim and no surface outside W."
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, backups, and container and network limits. No certification claim and no surface outside W."
       },
       "requirements": [
         "PRD-002",
@@ -6174,7 +6256,7 @@
         "website"
       ],
       "scope": {
-        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: release and dependency provenance against the dependency register, secret and key handling, container and network limits, media quarantine, host validation, antispam and security rate limits. No certification claim and no surface outside W."
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, backups, and container and network limits. No certification claim and no surface outside W."
       },
       "requirements": [
         "OPS-004",
@@ -6214,7 +6296,7 @@
         "website"
       ],
       "scope": {
-        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: release and dependency provenance against the dependency register, secret and key handling, container and network limits, media quarantine, host validation, antispam and security rate limits. No certification claim and no surface outside W."
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, backups, and container and network limits. No certification claim and no surface outside W."
       },
       "requirements": [
         "OPS-004",

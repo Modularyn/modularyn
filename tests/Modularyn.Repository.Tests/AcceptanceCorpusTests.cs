@@ -245,7 +245,9 @@ public sealed class AcceptanceCorpusTests
     [Theory]
     [InlineData("undefined-control", "AC-003-B01: cites undefined control TM-W-999")]
     [InlineData("malformed-control", "AC-003-B01: cites undefined control TM-W-1")]
-    [InlineData("profile-mismatch", "AC-003-B01: control TM-W-010 does not name profile reference")]
+    [InlineData("profile-mismatch", "AC-003-B01: control TM-W-012 does not name profile reference")]
+    [InlineData("unplanned-control", "AC-003-B01: control TM-G02-044 is not planned under AC-003 in the control map")]
+    [InlineData("unplanned-control-outside-evidence", "AC-003-B01: control TM-G02-042 is not planned under AC-003 in the control map")]
     [InlineData("no-mapped-control", "AC-003-B01: a security case must demonstrate a control mapped to AC-003")]
     [InlineData("citation-outside-evidence", "AC-003-B01: a security case must demonstrate a control mapped to AC-003")]
     [InlineData("undemonstrated-website-control", "AC-002/website: control TM-W-059 is not demonstrated by a case")]
@@ -263,7 +265,11 @@ public sealed class AcceptanceCorpusTests
         {
             case "undefined-control": item["evidence"]![0] = (string?)item["evidence"]![0] + " Also TM-W-999."; break;
             case "malformed-control": item["steps"]![0] = (string?)item["steps"]![0] + " Also TM-W-1."; break;
-            case "profile-mismatch": item["evidence"]![0] = (string?)item["evidence"]![0] + " Also TM-W-010."; break;
+            case "profile-mismatch": item["evidence"]![0] = (string?)item["evidence"]![0] + " Also TM-W-012."; break;
+            case "unplanned-control": item["evidence"]![0] = (string?)item["evidence"]![0] + " Also TM-G02-044."; break;
+            case "unplanned-control-outside-evidence":
+                item["preconditions"]!.AsArray().Add("Files quarantine follows TM-G02-042.");
+                break;
             case "no-mapped-control":
                 item["steps"] = new JsonArray("Repeat the read.");
                 item["evidence"] = new JsonArray("Request and response traces.");
@@ -281,6 +287,18 @@ public sealed class AcceptanceCorpusTests
             default: throw new ArgumentOutOfRangeException(nameof(mutation), mutation, "Unknown mutation case.");
         }
         AssertDiagnostic(AcceptanceCorpusContract.Validate(corpus.ToJsonString(), files), diagnostic);
+    }
+
+    [Fact]
+    public void A_non_security_case_cannot_cite_a_control_planned_under_another_family()
+    {
+        var corpus = ReadCorpus();
+        var first = First(corpus);
+        Assert.Equal("AC-001", (string?)first["family"]);
+        first["evidence"]![0] = (string?)first["evidence"]![0] + " Also TM-G02-044.";
+        AssertDiagnostic(Validate(corpus), "AC-001-B01: control TM-G02-044 is not planned under AC-001 in the control map");
+        first["evidence"]![0] = "Resolved-selection reports, as evidence for TM-G02-001.";
+        Assert.DoesNotContain(Validate(corpus), error => error.Contains("AC-001-B01", StringComparison.Ordinal));
     }
 
     [Fact]
