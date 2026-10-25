@@ -5968,7 +5968,7 @@
         "website"
       ],
       "scope": {
-        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, backups, and container and network limits. No certification claim and no surface outside W."
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
       },
       "requirements": [
         "OPS-004",
@@ -6009,7 +6009,7 @@
         "website"
       ],
       "scope": {
-        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, backups, and container and network limits. No certification claim and no surface outside W."
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
       },
       "requirements": [
         "OPS-004",
@@ -6043,6 +6043,43 @@
       ]
     },
     {
+      "id": "AC-031-B03",
+      "title": "Rate-limit public requests and bound rendering cost at the declared edges",
+      "family": "AC-031",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
+      },
+      "requirements": [
+        "OPS-018",
+        "OPS-016"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [],
+      "type": "boundary",
+      "preconditions": [
+        "The release's declared per-source public request limit L per window, render-time and output-size bounds and small-site workload are recorded before running. Sources src-1 and src-2 are distinct. The active manifest holds a navigation tree and sitemap at the workload's declared maximum size, a fixture page at the output-size bound and a draft one block beyond it."
+      ],
+      "steps": [
+        "From src-1, send L public page requests within one window and then one more, while src-2 sends requests within its own limit throughout.",
+        "After src-1's window resets, request the sitemap and the page with the largest navigation tree repeatedly, recording render time, output size and whether either is regenerated.",
+        "Request the fixture page at the output-size bound, then attempt to publish and request the draft beyond it."
+      ],
+      "expectedOutcome": [
+        "The first L requests from src-1 are served and request L plus one is refused with a throttling status; src-2's requests are served throughout.",
+        "Sitemap and navigation responses come from the output precomputed for the active manifest, and repeated requests do not regenerate them.",
+        "The page at the bound renders within the declared render-time bound; the page beyond it is refused, at publication or at render, with a stable error rather than rendered past the bound."
+      ],
+      "evidence": [
+        "Per-request source, counter and status; render time and output size per response; and sitemap and navigation generation records, as evidence for TM-W-006."
+      ]
+    },
+    {
       "id": "AC-031-N01",
       "title": "Refuse unverified release artifacts, writable code and undeclared egress",
       "family": "AC-031",
@@ -6050,7 +6087,7 @@
         "website"
       ],
       "scope": {
-        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, backups, and container and network limits. No certification claim and no surface outside W."
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
       },
       "requirements": [
         "FND-001",
@@ -6089,7 +6126,7 @@
         "website"
       ],
       "scope": {
-        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, backups, and container and network limits. No certification claim and no surface outside W."
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
       },
       "requirements": [
         "OPS-005",
@@ -6129,7 +6166,7 @@
         "website"
       ],
       "scope": {
-        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, backups, and container and network limits. No certification claim and no surface outside W."
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
       },
       "requirements": [
         "OPS-005",
@@ -6161,6 +6198,128 @@
       ]
     },
     {
+      "id": "AC-031-N04",
+      "title": "Keep hostile and unscanned media in quarantine with no override",
+      "family": "AC-031",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
+      },
+      "requirements": [
+        "OPS-005",
+        "OPS-001"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-003"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "Media fixtures are a markup file named and declared as an image; a file whose name and declared type disagree with its content signature; an image whose dimensions exceed the declared bound; a highly compressed image whose decoded size exceeds the processing bound; a file that the configured scanner reports as malicious; and a valid image for which the scanner returns an error.",
+        "site-admin-1 holds every media and publication permission. The declared raster types, dimension and decoded-size bounds and scan policy are recorded before running."
+      ],
+      "steps": [
+        "Upload each fixture through the minimal Admin and through the direct media API, and record each resulting version's state.",
+        "As site-admin-1, attempt to release each quarantined version, to reference it from a draft revision and to publish that revision, through the Admin and by direct call.",
+        "Request each quarantined version's bytes by identifier through the public site, preview, the Files gateway and the Admin."
+      ],
+      "expectedOutcome": [
+        "The markup file, the mismatched file and both oversized images are rejected by content signature or by bounds checked before decoding, and no fixture is decoded past its bound.",
+        "The malicious and scanner-error versions stay quarantined; a failed scan never counts as a pass.",
+        "No release, reference or publication of a quarantined version succeeds through any path or permission, including site-admin-1's, and each refusal is recorded.",
+        "No quarantined version's bytes are served on any path."
+      ],
+      "evidence": [
+        "Per-fixture detected type, bound checks, scan verdicts and version states; release, reference and publication refusals; and per-path responses, as evidence for TM-G02-042 and TM-W-026."
+      ]
+    },
+    {
+      "id": "AC-031-N05",
+      "title": "Refuse manipulated and unverified hosts and keep generated links canonical",
+      "family": "AC-031",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
+      },
+      "requirements": [
+        "OPS-005",
+        "OPS-003"
+      ],
+      "layers": [
+        "unit",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-004"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "The deployment configures its canonical origin and verified alias-1; alias-2 is pending ownership verification and alias-3 was verified and then removed, both through AC-018's alias workflow. The deployment declares one proxy, editor-1 has an Admin account, and the bounded delivery environment captures outbound messages."
+      ],
+      "steps": [
+        "Request a public page and the sitemap with Host values naming an unconfigured host, alias-2 and alias-3.",
+        "Request a public page and the sitemap on alias-1, and inspect canonical URLs, absolute links and sitemap entries.",
+        "Request account recovery for editor-1 on the canonical origin with forwarded-host values naming an unconfigured host and alias-1, once from a source that is not the declared proxy and once through the declared proxy, and inspect each captured message."
+      ],
+      "expectedOutcome": [
+        "Requests naming the unconfigured host, pending alias-2 or removed alias-3 are refused without rendering site content.",
+        "On alias-1, every canonical URL, absolute link and sitemap entry uses the configured canonical origin.",
+        "Each recovery request is either refused or produces a message whose link uses the configured canonical origin; no message carries a link on any other host."
+      ],
+      "evidence": [
+        "Per-host responses, generated links and sitemap content, and captured recovery messages with each link reduced to its origin, as evidence for TM-W-008."
+      ]
+    },
+    {
+      "id": "AC-031-N06",
+      "title": "Refuse contact submissions that fail antispam or limits without queuing mail",
+      "family": "AC-031",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
+      },
+      "requirements": [
+        "OPS-018",
+        "OPS-005"
+      ],
+      "layers": [
+        "api-contract",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-003"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "The contact form has a configured named destination. The declared antispam policy, per-source and per-destination submission limits and windows, field and request size bounds, and outbound delivery cap are recorded before running. Sources src-1 to src-4 are distinct, and the bounded delivery environment captures outbound messages."
+      ],
+      "steps": [
+        "From src-1, submit one request failing each check that the declared antispam policy lists, and one that replays an antispam response already accepted for another submission.",
+        "From src-2, submit valid requests up to the per-source limit and once more; from src-3, continue toward the same destination until the per-destination limit is reached and once more.",
+        "Submit a request whose fields exceed the declared size bounds; after the windows elapse, submit from many sources the largest burst of valid requests that the submission limits allow.",
+        "After the windows elapse again, submit one valid request from src-4."
+      ],
+      "expectedOutcome": [
+        "Each antispam failure, including the replayed response, is refused with a stable code; nothing is stored as an accepted request and no mail is queued.",
+        "At each submission limit the next request is refused, and no request past a limit is accepted or queued.",
+        "The oversized request is refused before processing. The burst is accepted and queued, and outbound mail never exceeds the delivery cap per window.",
+        "src-4's request is accepted and delivered once."
+      ],
+      "evidence": [
+        "Per-request source, antispam results, limit counters and dispositions; accepted-request and outbound queue inventories; and the delivery rate per window, as evidence for TM-W-030."
+      ]
+    },
+    {
       "id": "AC-031-P01",
       "title": "Map ASVS Level 2 requirements for W surfaces to controls and evidence",
       "family": "AC-031",
@@ -6168,7 +6327,7 @@
         "website"
       ],
       "scope": {
-        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, backups, and container and network limits. No certification claim and no surface outside W."
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
       },
       "requirements": [
         "OPS-001",
@@ -6195,7 +6354,7 @@
         "Request public pages, error pages, media, health, Admin and preview responses over HTTPS and once over plain HTTP, and inspect their headers."
       ],
       "expectedOutcome": [
-        "Every applicable requirement has a mapped control with case evidence from the family that plans it, or a recorded gap. Requirements met by controls planned under AC-009, AC-018, AC-020 or AC-030, such as media quarantine, canonical links, antispam and public rate limits, cite those families' evidence on the same tuple, and none is marked met from a planning document alone.",
+        "Every applicable requirement has a mapped control with case evidence from a family that plans it, or a recorded gap, and none is marked met from a planning document alone.",
         "Every response carries a content security policy forbidding inline script; Admin and preview responses also forbid framing and carry no-sniff and strict referrer policies.",
         "Plain HTTP is redirected to HTTPS before other processing, and HTTPS responses carry Strict-Transport-Security with the declared lifetime.",
         "The assessment presents itself as a verification target, not a certification."
@@ -6212,7 +6371,7 @@
         "website"
       ],
       "scope": {
-        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, backups, and container and network limits. No certification claim and no surface outside W."
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
       },
       "requirements": [
         "PRD-002",
@@ -6256,7 +6415,7 @@
         "website"
       ],
       "scope": {
-        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, backups, and container and network limits. No certification claim and no surface outside W."
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
       },
       "requirements": [
         "OPS-004",
@@ -6296,7 +6455,7 @@
         "website"
       ],
       "scope": {
-        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, backups, and container and network limits. No certification claim and no surface outside W."
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
       },
       "requirements": [
         "OPS-004",
@@ -6328,6 +6487,45 @@
       ],
       "evidence": [
         "Rotation and revocation records, refused attempts, delivery and acquisition results, and search reports, as evidence for TM-W-054, TM-W-045 and TM-G02-047."
+      ]
+    },
+    {
+      "id": "AC-031-R03",
+      "title": "Hold uploads in quarantine through a scanner outage and release only clean scans",
+      "family": "AC-031",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W ASVS Level 2 applicability and production posture for the public, Admin, API, preview, import and contact surfaces: content security policy and framing on the shared origin, HTTPS, release and dependency provenance against the dependency register, secret, key and telemetry handling, hostile package and source input, media scanning and quarantine, host validation and canonical links, contact antispam, public rate limits, backups, and container and network limits. No certification claim and no surface outside W."
+      },
+      "requirements": [
+        "OPS-005",
+        "OPS-001"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "The scanner integration can be made unavailable. Three valid image fixtures and one fixture that the configured scanner reports as malicious are prepared, with a draft revision ready to reference them."
+      ],
+      "steps": [
+        "Make the scanner unavailable, upload all four fixtures, and attempt to reference each from the draft and to publish it.",
+        "Restart the application while the scanner is still unavailable.",
+        "Restore the scanner, let the pending scans complete, then reference each version again and publish."
+      ],
+      "expectedOutcome": [
+        "During the outage, each upload is held in quarantine with a pending-scan state; none is readable or referenceable, and publication is refused.",
+        "The pending scans survive the restart; none is skipped or treated as passed.",
+        "After restoration the three clean versions become eligible once each and the malicious one stays quarantined; no version was readable at any point before its scan passed."
+      ],
+      "evidence": [
+        "Version-state timelines across the outage and restart, scan job records, reference and publication attempts, and read attempts, as evidence for TM-G02-042."
       ]
     }
   ]

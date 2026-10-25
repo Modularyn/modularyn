@@ -252,6 +252,7 @@ public sealed class AcceptanceCorpusTests
     [InlineData("citation-outside-evidence", "AC-003-B01: a security case must demonstrate a control mapped to AC-003")]
     [InlineData("undemonstrated-website-control", "AC-002/website: control TM-W-059 is not demonstrated by a case")]
     [InlineData("undemonstrated-foundation-control", "AC-004/reference: control TM-G02-044 is not demonstrated by a case")]
+    [InlineData("undemonstrated-assurance-control", "AC-031/website: control TM-W-030 is not demonstrated by a case")]
     [InlineData("self-dependency", "AC-003-B01: a case cannot name its own family as a security dependency")]
     [InlineData("missing-control-map", "control map must contain readable control identities")]
     [InlineData("unreadable-control-map", "control map must contain readable control identities")]
@@ -281,6 +282,7 @@ public sealed class AcceptanceCorpusTests
                 break;
             case "undemonstrated-website-control": ReplaceCitation(corpus, "AC-002", "TM-W-059", "TM-W-015"); break;
             case "undemonstrated-foundation-control": ReplaceCitation(corpus, "AC-004", "TM-G02-044", "TM-G02-020"); break;
+            case "undemonstrated-assurance-control": ReplaceCitation(corpus, "AC-031", "TM-W-030", "TM-W-002"); break;
             case "self-dependency": item["securityDependencies"]!.AsArray().Add("AC-003"); break;
             case "missing-control-map": files.Remove(AcceptanceCorpusContract.ControlsPath); break;
             case "unreadable-control-map": files[AcceptanceCorpusContract.ControlsPath] = "{\"controls\": 1}"; break;

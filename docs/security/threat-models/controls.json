@@ -541,9 +541,9 @@
       "threats": ["TH-G02-049", "TH-G02-066", "TH-W-037", "TH-W-040", "TH-W-084"],
       "boundary": "TB-G02-10",
       "owner": "Files",
-      "requirements": ["FND-031", "FND-030"],
+      "requirements": ["FND-031", "FND-030", "OPS-005"],
       "evidence": {
-        "acceptance": ["AC-009"],
+        "acceptance": ["AC-009", "AC-031"],
         "layers": ["real-provider-integration", "unit"]
       },
       "profiles": ["reference", "website"]
@@ -855,7 +855,7 @@
       "owner": "Limits",
       "requirements": ["OPS-018", "OPS-016"],
       "evidence": {
-        "acceptance": ["AC-030"],
+        "acceptance": ["AC-030", "AC-031"],
         "layers": ["real-provider-integration"]
       },
       "profiles": ["website"]
@@ -879,9 +879,9 @@
       "threats": ["TH-W-010", "TH-W-015"],
       "boundary": "TB-W-02",
       "owner": "Content",
-      "requirements": ["CMS-012", "FND-029", "FND-018"],
+      "requirements": ["CMS-012", "FND-029", "FND-018", "OPS-005"],
       "evidence": {
-        "acceptance": ["AC-018"],
+        "acceptance": ["AC-018", "AC-031"],
         "layers": ["unit", "api-contract"]
       },
       "profiles": ["reference", "website"]
@@ -1115,7 +1115,7 @@
       "owner": "Files",
       "requirements": ["CMS-009", "MOD-014", "OPS-005"],
       "evidence": {
-        "acceptance": ["AC-009"],
+        "acceptance": ["AC-009", "AC-031"],
         "layers": ["unit", "real-provider-integration"]
       },
       "profiles": ["website"]
@@ -1167,7 +1167,7 @@
       "owner": "Content and Engagement",
       "requirements": ["CMS-017", "OPS-018"],
       "evidence": {
-        "acceptance": ["AC-020", "AC-030"],
+        "acceptance": ["AC-020", "AC-030", "AC-031"],
         "layers": ["api-contract", "real-provider-integration"]
       },
       "profiles": ["reference", "website"]
