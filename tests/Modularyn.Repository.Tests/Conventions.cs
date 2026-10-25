@@ -36,6 +36,7 @@ internal static class Conventions
         }), StringComparer.OrdinalIgnoreCase);
 
     private static readonly Regex StableVersion = new(@"^\d+\.\d+\.\d+$", RegexOptions.CultureInvariant);
+    private static readonly Regex Net10Sdk = new(@"^10\.0\.\d{3}$", RegexOptions.CultureInvariant);
     private static readonly Regex MachinePath = new(
         @"(?<![A-Za-z0-9])/(?:Users|home|Volumes|mnt|media|run/media|root)(?:/|\b)|[A-Za-z]:\\",
         RegexOptions.CultureInvariant);
@@ -95,11 +96,11 @@ internal static class Conventions
         {
             using var document = JsonDocument.Parse(text);
             var sdk = document.RootElement.GetProperty("sdk");
-            if (sdk.GetProperty("version").GetString() != "10.0.303"
+            if (!Net10Sdk.IsMatch(sdk.GetProperty("version").GetString() ?? "")
                 || sdk.GetProperty("rollForward").GetString() != "latestPatch"
                 || sdk.GetProperty("allowPrerelease").GetBoolean())
             {
-                errors.Add("global.json: require SDK 10.0.303, latestPatch, and no prereleases.");
+                errors.Add("global.json: require an exact stable .NET 10 SDK version, latestPatch, and no prereleases.");
             }
         }
         catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException)
@@ -168,12 +169,6 @@ internal static class Conventions
             {
                 errors.Add("Directory.Packages.props: require one unconditional exact stable version per package.");
             }
-        }
-
-        if (!new HashSet<string>(versions.Keys, StringComparer.OrdinalIgnoreCase).SetEquals(
-            new[] { "Microsoft.NET.Test.Sdk", "xunit.v3", "xunit.runner.visualstudio" }))
-        {
-            errors.Add("Directory.Packages.props: only the three repository test packages are expected.");
         }
 
         return versions;

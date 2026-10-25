@@ -1,3 +1,5 @@
+using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using Xunit;
 
 namespace Modularyn.Repository.Tests;
@@ -119,7 +121,12 @@ public sealed class ConventionRejectionTests
                 files.Remove(lockPath);
                 break;
             case "changed-lock":
-                files[lockPath] = files[lockPath].Replace("18.10.1", "18.10.0");
+                // Change the resolved version of whichever direct package the lock lists first.
+                var lockDocument = JsonNode.Parse(files[lockPath])!;
+                var direct = lockDocument["dependencies"]!["net10.0"]!.AsObject()
+                    .First(package => (string?)package.Value!["type"] == "Direct");
+                direct.Value!["resolved"] = "0.0.1";
+                files[lockPath] = lockDocument.ToJsonString();
                 break;
             case "license-heading-only":
                 files["LICENSE"] = "Apache License\nVersion 2.0, January 2004\n";
@@ -181,7 +188,8 @@ public sealed class ConventionRejectionTests
                 files[allowList] = string.Join('\n', files[allowList].Split('\n').Skip(1));
                 break;
             case "missing-release-tag":
-                files[allowList] = files[allowList].Replace(" # v4.2.2", "");
+                // Remove the release tag comment from the first allowed action, whatever its tag is.
+                files[allowList] = new Regex(@" # v\d+\.\d+\.\d+").Replace(files[allowList], "", 1);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(mutation), mutation, "Unknown mutation case.");

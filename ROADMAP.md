@@ -5,10 +5,10 @@ This sequence is planned, not promised. There are no delivery dates. Modularyn i
 | Milestone | Planned outcome |
 | --- | --- |
 | M1 — G-01: Product and contract baseline | Establish the coverage register, contracts, names, profiles, ownership rules, threat models, dependency review, and initial acceptance cases. Make the repository foundation buildable and verifiable. |
-| M2 — G-02: Foundation and secure application slice | Prove the shared foundations through a secure application slice with identity, authorization, persistence, and the acceptance evidence needed by the first profiles. |
+| M2 — G-02: Foundation and secure application slice | Build a small, realistic multi-tenant application that exercises module composition, identity, tenant isolation, permissions, settings and features, persistence on PostgreSQL, the API and its clients, jobs and durable events, files and observability, and pass its real-provider and failure tests. |
 | M3 — Website profile | Qualify an early website profile on the same contracts as the complete CMS. Define its supported subset and versioned content-package format for moving site content. |
-| M4 — G-03: Administration and commercial lifecycle | Establish the administration experience and commercial lifecycle with auditable operations, edition boundaries, and offline rights verification. |
-| M5 — Commerce | Deliver the commerce capabilities and their integration contracts, with evidence for the purchase and fulfillment lifecycle. |
+| M4 — G-03: Administration and commercial lifecycle | Qualify the canonical React Admin with identity and accounts, tenancy and subscriptions, authorization-server management, payments, audit, localization and templates, privacy requests, operation limits and communications. |
+| M5 — Commerce | Add a Community commerce module for physical and digital goods: product catalog, cart, checkout through Payments, orders and order notifications, with tax and shipping rates from provider connectors. Inventory, warehousing, shipping labels and accounting stay out of scope. |
 | M6 — G-04: Complete CMS | Expand the website profile into the complete CMS, including content authoring, publishing, and the required management capabilities. |
 | M7 — G-05: Module catalog and advanced integration | Complete the module catalog and advanced integration paths with declared ownership, dependency rules, and compatibility evidence. |
 | M8 — G-06: Tooling and frontend breadth | Broaden development tooling and frontend support while preserving shared application contracts and documented profile boundaries. |

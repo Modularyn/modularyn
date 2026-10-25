@@ -23,7 +23,7 @@ The convention validators also receive deliberately invalid content in memory. T
 
 Change test-package versions only in `Directory.Packages.props`. Use stable exact versions. For an intentional dependency update, an authorized developer runs `dotnet restore --force-evaluate`, reviews the resulting `packages.lock.json` changes, then repeats locked restore, Release build, and tests. Commit the reviewed lock file with the package change. Normal CI never regenerates dependency locks.
 
-The SDK is pinned to 10.0.303 with `latestPatch` roll-forward and prereleases disabled. This permits servicing patches within its feature band. xUnit's VSTest adapter runs the tests through `Microsoft.NET.Test.Sdk`; the project explicitly disables the Microsoft Testing Platform application mode.
+`global.json` pins an exact stable .NET 10 SDK with `latestPatch` roll-forward and prereleases disabled, which permits servicing patches within its feature band; the convention tests require that shape rather than one specific version. xUnit's VSTest adapter runs the tests through `Microsoft.NET.Test.Sdk`; the project explicitly disables the Microsoft Testing Platform application mode.
 
 Every workflow action uses a full 40-character commit SHA. Keep each static `uses` property on its own line and use plain YAML keys without escape sequences or complex key syntax; flow mappings, folded values, aliases, and expressions for action selection are rejected. Literal quotes around `uses` and its pinned value are supported. `.github/workflows/actions.allow` contains exactly the used actions with release tags in comments. Verify the upstream commit and tag when updating either a workflow or the allow list, and change both together.
 
@@ -32,7 +32,3 @@ The secret-scan job downloads gitleaks 8.30.1 for Linux x64 and its versioned re
 ```sh
 gitleaks git --log-opts="--all --full-history" --redact --no-banner .
 ```
-
-## Foundation verification handoff
-
-The initial package versions and lock data were selected from local NuGet metadata and cached packages without network access. Package archive hashes were checked, and the lock accounts for .NET 10 package pruning. The lock was assembled without running restore and needs the Builder's locked-restore validation. An offline inspection cannot establish that upstream metadata remains unchanged. The Builder must validate locked restore, Release build, and tests, including the negative convention cases. CI must then pass on all three platforms at the exact reviewed head, and gitleaks must report no findings. Record the commit and check results before claiming the foundation passes. Preparing these files does not authorize a push, merge, release, or publication.
