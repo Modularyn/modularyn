@@ -1,0 +1,116 @@
+# Content packages — format 1
+
+Format identifier: `modularyn.content-package`. Format version: integer `1`.
+
+This is the public interchange contract for a directory in Git, independently versioned from Modularyn releases. It specifies data and import behavior; it does not announce an implemented importer or a qualified release. Gate W uses this contract on the same CMS-021 portability boundary as the complete CMS. Packages carry selected content, schemas, references, media manifests, taxonomy, navigation, routes and documentation provenance. They do not carry an entire database, account credentials or deployment configuration.
+
+## Files and encoding
+
+The root contains exactly one `package.json`. Its `contentTypes` and `entries` arrays enumerate type and entry files; `media` enumerates binary files. Taxonomies, navigation, routes, redirects and documentation sources are embedded in the manifest. Every regular file below the package root must be listed exactly once, except `package.json` itself. Directory entries are structural only. Git metadata belongs outside the package directory.
+
+Text is UTF-8 without a byte-order mark, with LF or CRLF line endings. Normalize CRLF to LF only when parsing text; hashes always use original bytes. JSON follows RFC 8259: no duplicate property names, comments, trailing commas or non-finite numbers. Object property order has no meaning; array order is preserved. Reject unknown properties at every defined object boundary. Field maps contain only fields declared by the referenced content type.
+
+Paths are relative to the package root and case-sensitive, use `/`, and contain only lowercase ASCII letters, digits, `.`, `_` and `-`. Each segment starts with a letter or digit. Reject empty segments, dot segments, trailing dots, reserved device basenames (`con`, `prn`, `aux`, `nul`, `com1` through `com9`, `lpt1` through `lpt9`, including extensions), absolute/drive/UNC paths, backslashes, percent encoding, URI schemes, symlinks, hard links and executable file modes. Resolve paths within the root without following links, and reject case-folded collisions. Never concatenate untrusted paths into a shell command. Type files end in `.json`; entries end in `.md`; media extensions agree with their declared MIME type.
+
+Format 1 limits each text file to 1 MiB, each media file to 10 MiB, all package files together to 100 MiB, and JSON nesting to 32 levels. Manifest arrays hold at most 1,000 items unless the schema specifies a smaller limit. Navigation and taxonomy depth is at most 16. Enforce bounds before allocating or decoding large input. A deployment may impose smaller limits, but must report them as unsupported capacity during dry run.
+
+## Schemas and manifest
+
+The normative JSON Schemas use draft 2020-12:
+
+- [Package manifest](../../schemas/content-package/package-manifest.schema.json), identity `urn:modularyn:content-package:1:manifest`.
+- [Content type](../../schemas/content-package/content-type.schema.json), identity `urn:modularyn:content-package:1:content-type`.
+
+The manifest schema also defines entry front matter at `#/$defs/entry` and block bodies at `#/$defs/blocks`. Use these local schema definitions; validation must not fetch remote schemas. JSON Schema validation is necessary but not sufficient: the reference, integrity, security and import rules below also apply.
+
+| Manifest field | Meaning |
+|---|---|
+| `format`, `formatVersion` | Exactly the identifier and integer version above; strings such as `"1"` are invalid versions. |
+| `packageKey` | Permanent identity of this package within a target site; changing it creates a different import namespace. |
+| `site.key`, `site.culture` | Stable source site identity and the one culture carried by this package. The deployment must explicitly bind this identity to the authorized target tenant/site. |
+| `schemaVersions` | Required serialization versions: `contentType`, `entry` and `block`, each exactly `1`. Content type domain schema versions are separate. |
+| `renderers` | Required installed renderer dependencies, each with `kind` (`layout`, `template`, `block`), stable `key` and exact positive integer `version`. No code is included. |
+| `contentTypes`, `entries` | Nonempty lists of unique file paths. Entries must reference a type included in the package. |
+| `media` | File identity, relative `path`, lowercase hexadecimal `sha256`, exact positive `bytes`, `mimeType`, descriptive `alt` and `attribution`. Supported MIME types are `image/png`, `image/jpeg` and `image/webp`. |
+| `taxonomies` | Stable taxonomy keys and labels, with terms described below. |
+| `navigation` | Named ordered navigation trees described below. |
+| `routes`, `redirects` | Explicit route ownership and redirects; a slug never implicitly allocates a route. |
+| `documentationSources` | Logical repositories, versions and exact Git revisions supplying selected documentation entries. |
+
+Every manifest field is required. Arrays may be empty except `contentTypes`, `entries`, `renderers` and `routes`. Null is allowed only for root parent references. Stable keys match `^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`, with at most 64 characters. They are immutable identifiers, compared ordinally, independent of filenames, slugs and display titles. Type, entry, media, taxonomy, navigation and documentation-source keys each have their own namespace. Term keys are scoped to their taxonomy; node keys to their navigation tree; renderer keys to their kind. Duplicates within a namespace fail validation.
+
+Culture syntax is a two- or three-letter lowercase language with an optional uppercase two-letter region, such as `en-US`. It must also identify a culture supported by the target. Every entry must match `site.culture`. W accepts one configured culture only; no translation or fallback is inferred.
+
+## Content types and entries
+
+A type file has `formatVersion: 1`, `key`, positive integer `schemaVersion`, human-readable `name`, `body` (`markdown` or `blocks`) and a `fields` array. Field keys are unique. Each field declares `key`, `type` and Boolean `required`. Only `content-ref` and `term-ref` also require `target`.
+
+| Field type | Value and validation |
+|---|---|
+| `string` | JSON string up to 4,096 characters; an empty string is permitted as a field value. |
+| `integer` | JSON integer in the inclusive range −9,007,199,254,740,991 to 9,007,199,254,740,991. |
+| `boolean` | JSON Boolean. |
+| `date-time` | A real UTC calendar timestamp, exactly `yyyy-MM-ddTHH:mm:ssZ`; leap seconds and offsets are not accepted in version 1. |
+| `content-ref` | Entry key in this package whose type equals the field's `target` type key. |
+| `media-ref` | Media key in this package. |
+| `term-ref` | Term key in the taxonomy named by the field's `target`. |
+
+Missing optional fields remain absent; they do not acquire implicit defaults. Missing required fields, null values, undeclared fields and wrong JSON types are errors. Reference fields are single-valued and resolve to the selected package revisions; they are not live queries. Cyclic content links are legal because import resolves the whole graph before writing and renderers link without recursive expansion. Taxonomy/navigation parent cycles are illegal.
+
+Each `.md` entry starts with the exact line `---json`, followed by one JSON object, followed by a line containing only `---`. All remaining text is the body. This is JSON front matter, not YAML or TOML. A delimiter inside a JSON string is escaped rather than placed on a separate line. The [home entry](examples/minimal-site/entries/home.md) illustrates the encoding.
+
+Front matter requires `key`, `type`, `schemaVersion`, `culture`, `slug`, `title`, `layout`, `template` and `fields`. `type` references a package type; `schemaVersion` must equal that type's version. `layout` and `template` reference dependencies of the matching kind in `renderers`. A slug is a display/routing hint with stable-key syntax, not identity. Duplicate slugs are allowed if explicit routes remain distinct. The entry title is nonblank. Each entry represents one selected revision; apply creates or reuses a destination draft revision, preserving the package and source hash as provenance. Packages cannot assign destination database or revision identifiers.
+
+For `markdown`, use CommonMark 0.31.2 headings, paragraphs, emphasis, lists and code spans/fences. Version 1 allows only inline links `[label](entry:key)` and images `![alt](media:key)` with nonblank, single-line labels. Nested brackets, link titles, reference-style links, autolinks and raw HTML are excluded. Reject any `<` character, control characters other than line endings/tab, `javascript:`, `data:`, `vbscript:` or executable template delimiters. Recognize link-shaped text consistently even inside code; it must still use an allowed resolvable target. Reject leftover brackets or `](` after consuming valid inline links. The renderer HTML-escapes text and code and emits only its allowed elements; it never evaluates body text as code or a template. No network resources are loaded by Markdown. Media links use Files and content links resolve through the entry's declared canonical route.
+
+For `blocks`, the body is a nonempty JSON array with these closed object shapes:
+
+| `kind` | Additional required properties |
+|---|---|
+| `paragraph` | Nonblank `text`, rendered as plain text |
+| `heading` | Integer `level` from 2 through 6 and nonblank plain `text` |
+| `image` | `media` key and nonblank `alt` |
+| `content-link` | `entry` key and nonblank plain `label` |
+
+Each used block kind must have an exact versioned dependency of kind `block` in `renderers`. Version 1 qualifies version `1` of these four block shapes. Layout and template implementations are deployment-installed dependencies; missing or incompatible implementations block import and publication. Block text is escaped, not interpreted as Markdown. Alt text applies at each use, with the media record providing the descriptive catalog value.
+
+## Taxonomy, navigation, routes and documentation
+
+A taxonomy contains `key`, `label` and nonempty `terms`. A term contains `key`, `label` and `parent`, either null or another term's key in that taxonomy. A navigation tree contains `key` and nonempty `nodes`; each node has `key`, `label`, `parent` and `entry`. Parent references stay within the same tree. Multiple root nodes are allowed. Array order determines sibling order, even when children appear before parents. Resolve all nodes before checking cycles, maximum depth and entry targets. W's version 1 package menus link only to entries in this package; external/dynamic links require a future contract.
+
+A route contains `path` and `entry`. Paths are URL paths, distinct from filesystem paths: `/` or lowercase ASCII alphanumeric/hyphen segments separated by `/`, without trailing slash, query, fragment, percent encoding or empty/dot segments. Do not normalize invalid input into a valid route. Reserve first segments `admin`, `api`, `assets`, `preview` and `health` for the application. Every entry has exactly one canonical route, and `/` must exist. Route paths and entry ownership are unique per site/culture. The canonical public origin comes from deployment configuration; package files contain neither domain credentials nor host provisioning directives.
+
+A redirect has `from`, `to` and status `301` or `308`. Its source is unique and cannot collide with a route or reserved namespace. The target is an existing route or redirect in this package. Resolve redirects transitively to a route, reject cycles, and cap chains at 16 redirects. Both ends obey the route grammar. Only same-site paths are allowed; incoming query strings are discarded and fragments are not part of routing. Domain aliases and their verification are deployment configuration outside the package.
+
+A documentation source has `key`, `repository`, `version`, `commit`, `root` and nonempty `entries`. `repository` is a stable logical repository key resolved by authorized intake configuration, not a URL or credential. `version` is a stable documentation-version key, independent of the package format version. `commit` is a full lowercase 40-hex Git object identifier, never a branch or moving tag. `root` is a safe repository-relative directory. Each entry mapping has an `entry` key and a safe `path` relative to that root. Source keys, `(repository, version)` pairs, source paths and mapped entry keys must be unique; a documentation entry belongs to one source/version. Its content is already included in the package as an ordinary entry. Multiple versions use distinct entry keys and routes. All references resolve locally; import performs no Git fetch. Repository/commit metadata records provenance, not proof of authenticity: intake verifies the pinned source separately and records that evidence. An unresolved repository binding or unsupported revision identity blocks dry run.
+
+## Integrity and forbidden content
+
+Before any mutation, validate both schemas, entry and block shapes, semantic references, unique identities, safe paths, bounded trees/chains and renderer dependencies. Recompute SHA-256 and byte sizes over each actual media file; reject mismatches and content/extension/MIME disagreement. Files must quarantine and scan media before it can be referenced by a publishable revision. Hashes establish integrity, not safety or authorship. Never trust filename extension alone. The minimal package's [media manifest](examples/minimal-site/package.json) and original PNG illustrate exact integrity metadata.
+
+Scripts, executable templates, plugin binaries, symlinks, executable modes, undeclared files, absolute filesystem paths, secrets and environment-specific configuration are forbidden. Package data cannot install code, select arbitrary providers, change account access, send mail or activate a publication. Reject script/HTML markup and executable template delimiters (`{{`, `{%`, `<%`, `@{`, `@(`) in text, including decoded JSON strings. Reject unsafe URI schemes and control characters. Field keys cannot be `password`, `secret`, `token`, `api-key`, `credential` or `connection-string`. Scan all textual content for credentials and secret assignments before accepting it; a secret scanner supplements structural validation and author review, and cannot prove arbitrary prose contains no secret. Exact configured secret-scanner findings are blockers, never silently stripped. Reports redact sensitive values.
+
+## Dry run, apply and recovery
+
+An importer implements these phases in order:
+
+1. **Capture.** Read an immutable package snapshot and compute its digest. Sort relative file paths ordinally. For each file, append a UTF-8 line `path`, a tab, its decimal byte length, a tab, its lowercase SHA-256, and LF. SHA-256 of the concatenated lines is the package digest. The set includes `package.json` and every listed file. Record the Git commit separately when available; it is not a substitute for the digest.
+2. **Validate and resolve.** Run the rules above without modifying content or configuration. Require the acting user's import permission on the explicit target tenant/site and its culture, installed renderer versions, repository bindings and supported schema versions. Resolve package references before looking at any destination objects. Unresolved references never fall back to a same-slug destination item.
+3. **Plan.** Produce a dry-run plan bound to the digest, target identity, actor, configuration/dependency versions, destination concurrency tokens and an expiry. Each item identifies its kind, stable key (or route path), source path, source hash, mapped destination identity, expected destination version, proposed action and diagnostics. The source hash is the SHA-256 of its type, entry or media file; embedded manifest items use the manifest file's hash and a JSON Pointer to the item. Actions are `create`, `update`, `unchanged`, `conflict`, `invalid` or `blocked`. Validate the proposed destination graph as well as the package graph, including retained objects, inbound references, route ownership and collection ordering. Bind concurrency tokens for every affected object and collection. A blocker prevents apply for the entire plan. Dry run may record a redacted plan and audit outcome, but cannot mutate content, schemas, media, mappings or publication state, send email or fetch dependencies.
+4. **Review mapping.** At apply, persist mappings by `(target tenant, target site, packageKey, kind, stable key)`, with term/node keys additionally scoped by their parent collection. A route/redirect uses its path as its key. A new key creates a new object only if the destination identity and path are free. Existing mappings must point to the same owned object and matching type. Never infer identity from slug, title, filename or content similarity. An unbound preexisting object is a conflict. An authorized, explicit mapping may adopt an equivalent unowned object only by exact object identity and expected version, with recorded equivalence evidence. Another tenant/site, another package's object, an incompatible type or a reused key cannot be adopted or overwritten. Replan after any proposed mapping change; persist it only in the apply transaction.
+5. **Apply.** Require explicit approval of the exact plan and recheck permission, digest, dependency versions, expiry and all concurrency tokens. Stage immutable media with quarantine, then write schemas, draft revisions, metadata and mappings in one database transaction once all checks pass. Types with the same key/version must be semantically identical; a different definition at that version is a conflict. A new type version needs a separately approved compatible migration; packages never carry migration code. Reject unsupported schema changes before writing. Publication remains a separate authorized operation using an immutable manifest; successful import alone does not make content public.
+6. **Report and recover.** Use an operation identity bound to the approved plan, target, package and digest. Record per-item `created`, `updated`, `unchanged`, `failed` or `not-applied`, diagnostics, source hashes and destination versions, plus overall `applied` or `failed`. Repeating a successful operation returns its recorded result without duplicating revisions or effects. Reuse a successful item only when its mapping and current source/target fingerprints still match. A changed target requires a new dry run and operation identity. After interruption, reconcile the operation record and staged media before retry; never assume a timeout means no commit. A failed transaction applies no authoritative items. Keep quarantined staged files invisible, and remove only unreferenced staged files during cleanup. Persist a redacted audit report even for validation failures.
+
+Omitting an object means retain, never delete. Removing entries, media, types, terms, navigation nodes or routes requires a separate reviewed lifecycle operation; an import cannot erase an unrelated object. Within an imported taxonomy or navigation tree, included siblings take their package order, followed by retained omitted siblings in their prior relative order. The plan shows this resulting order and validates parent links across the complete retained tree. An included entry, by contrast, is a complete new field/body snapshot: an absent optional field is absent in that draft, while prior revisions retain their values. A type definition is a complete versioned schema, subject to the migration rule above.
+
+A canonical route move that conflicts with a retained destination route is reported for explicit retirement before replanning; a redirect cannot silently replace that route. Importing changed content creates a new draft and preserves prior revisions. Compare parsed typed data for semantic equality, with object order ignored and array order preserved; normalize text line endings for comparison. Continue hashing original bytes for snapshot integrity.
+
+Publish validation rechecks the selected revisions, renderer versions, media state and route ownership. Activation atomically switches the immutable publication manifest. If activation fails, keep the previous manifest active and report the failure. Rollback selects a previously validated manifest and its retained compatible schemas/renderers/media; it does not reverse an arbitrary destructive database migration. Backup/restore and explicit removal remain separate operations.
+
+## Compatibility and examples
+
+The format identifier stays stable. A new integer `formatVersion` is required for any incompatible syntax, semantic change, new field kind or expansion of these closed shapes. Unknown versions and properties are errors, never best-effort imports. Editorial clarification without semantic change may retain version 1. Preserve version 1 fixtures and an explicit migration path when introducing another version. Content-type `schemaVersion`, renderer versions, documentation versions and application release versions do not substitute for the format version. An importer must advertise exactly which versions and profile subset it accepts.
+
+The [minimal-site package](examples/minimal-site/package.json) includes two types, home/about pages, a block-based blog post, taxonomy, one navigation tree, canonical routes, one redirect and a hashed original image. It uses no external repository dependency; `documentationSources` is empty. The repository rejection tests also construct a documentation-source mapping in memory and check its shape, entry resolution and version uniqueness without contacting a repository.
+
+CMS-021 acceptance additionally requires export/import round trips, explicit conflict mapping, unsupported-version and missing-dependency rejection, resumable transfer and failed-activation recovery against a real importer. An exporter emits this same closed format with stable identities, selected revisions and exact media bytes. It reports any unsupported content or external dependency instead of dropping it. A round trip compares semantic types, fields, bodies, identities, routes, relationships and media hashes; destination IDs and revision timestamps may differ. The repository tests validate this contract's supplied examples and rejection rules; they do not claim those runtime acceptance journeys have passed.

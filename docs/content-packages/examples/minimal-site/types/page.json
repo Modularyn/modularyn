@@ -1,0 +1,25 @@
+{
+  "formatVersion": 1,
+  "key": "page",
+  "schemaVersion": 1,
+  "name": "Page",
+  "body": "markdown",
+  "fields": [
+    {
+      "key": "summary",
+      "type": "string",
+      "required": true
+    },
+    {
+      "key": "related",
+      "type": "content-ref",
+      "required": false,
+      "target": "page"
+    },
+    {
+      "key": "hero",
+      "type": "media-ref",
+      "required": false
+    }
+  ]
+}
