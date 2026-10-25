@@ -1,0 +1,335 @@
+{
+  "format": "modularyn.release-manifest",
+  "formatVersion": 1,
+  "kind": "illustration",
+  "version": "0.1.0-example.1",
+  "sourceCommit": "ca962720567172bfc16200f1f07a25546f152187",
+  "channel": "preview",
+  "edition": "standard",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "qualifiedSubset": {
+    "label": "Illustrative content type validation subset",
+    "members": [
+      {
+        "capability": "CMS-001",
+        "profile": "reference"
+      }
+    ]
+  },
+  "packages": [
+    {
+      "id": "Modularyn",
+      "version": "0.1.0-example.1",
+      "edition": "community"
+    },
+    {
+      "id": "dotnet-modularyn",
+      "version": "0.1.0-example.1",
+      "edition": "community"
+    },
+    {
+      "id": "Modularyn.Framework.Composition",
+      "version": "0.1.0-example.1",
+      "edition": "community"
+    },
+    {
+      "id": "Modularyn.Cms.Content.Domain",
+      "version": "0.1.0-example.1",
+      "edition": "community"
+    },
+    {
+      "id": "Modularyn.UI.Admin.React",
+      "version": "0.1.0-example.1",
+      "edition": "community"
+    },
+    {
+      "id": "Modularyn.UI.Razor",
+      "version": "0.1.0-example.1",
+      "edition": "community"
+    },
+    {
+      "id": "Modularyn.Connectors.Persistence.EfCore",
+      "version": "0.1.0-example.1",
+      "edition": "community"
+    },
+    {
+      "id": "Modularyn.Connectors.Files.Filesystem",
+      "version": "0.1.0-example.1",
+      "edition": "community"
+    },
+    {
+      "id": "Modularyn.Connectors.Email.Smtp",
+      "version": "0.1.0-example.1",
+      "edition": "community"
+    },
+    {
+      "id": "Modularyn.Pro.Studio.Workspace",
+      "version": "0.1.0-example.1",
+      "edition": "standard"
+    }
+  ],
+  "profiles": {
+    "reference": {
+      "moduleVersions": [
+        {
+          "id": "Modularyn.Framework.Composition",
+          "version": "0.1.0-example.1"
+        },
+        {
+          "id": "Modularyn.Cms.Content.Domain",
+          "version": "0.1.0-example.1"
+        },
+        {
+          "id": "Modularyn.UI.Admin.React",
+          "version": "0.1.0-example.1"
+        },
+        {
+          "id": "Modularyn.UI.Razor",
+          "version": "0.1.0-example.1"
+        },
+        {
+          "id": "Modularyn.Connectors.Persistence.EfCore",
+          "version": "0.1.0-example.1"
+        },
+        {
+          "id": "Modularyn.Connectors.Files.Filesystem",
+          "version": "0.1.0-example.1"
+        },
+        {
+          "id": "Modularyn.Connectors.Email.Smtp",
+          "version": "0.1.0-example.1"
+        }
+      ],
+      "runtime": {
+        "name": ".NET",
+        "version": "10.0.0"
+      },
+      "database": {
+        "name": "PostgreSQL",
+        "version": "18.0"
+      },
+      "uiProfile": {
+        "name": "react-admin-razor",
+        "packages": [
+          "Modularyn.UI.Admin.React",
+          "Modularyn.UI.Razor"
+        ]
+      },
+      "tenancyMode": "shared-database",
+      "deploymentTopology": "single-host-container",
+      "providers": [
+        {
+          "role": "persistence",
+          "package": "Modularyn.Connectors.Persistence.EfCore",
+          "version": "0.1.0-example.1"
+        },
+        {
+          "role": "files",
+          "package": "Modularyn.Connectors.Files.Filesystem",
+          "version": "0.1.0-example.1"
+        },
+        {
+          "role": "email",
+          "package": "Modularyn.Connectors.Email.Smtp",
+          "version": "0.1.0-example.1"
+        }
+      ]
+    },
+    "website": {
+      "moduleVersions": [
+        {
+          "id": "Modularyn.Framework.Composition",
+          "version": "0.1.0-example.1"
+        },
+        {
+          "id": "Modularyn.Cms.Content.Domain",
+          "version": "0.1.0-example.1"
+        },
+        {
+          "id": "Modularyn.UI.Admin.React",
+          "version": "0.1.0-example.1"
+        },
+        {
+          "id": "Modularyn.UI.Razor",
+          "version": "0.1.0-example.1"
+        },
+        {
+          "id": "Modularyn.Connectors.Persistence.EfCore",
+          "version": "0.1.0-example.1"
+        },
+        {
+          "id": "Modularyn.Connectors.Files.Filesystem",
+          "version": "0.1.0-example.1"
+        },
+        {
+          "id": "Modularyn.Connectors.Email.Smtp",
+          "version": "0.1.0-example.1"
+        }
+      ],
+      "runtime": {
+        "name": ".NET",
+        "version": "10.0.0"
+      },
+      "database": {
+        "name": "PostgreSQL",
+        "version": "18.0"
+      },
+      "uiProfile": {
+        "name": "minimal-react-admin-razor",
+        "packages": [
+          "Modularyn.UI.Admin.React",
+          "Modularyn.UI.Razor"
+        ]
+      },
+      "tenancyMode": "single-tenant-single-site",
+      "deploymentTopology": "single-host-container",
+      "providers": [
+        {
+          "role": "persistence",
+          "package": "Modularyn.Connectors.Persistence.EfCore",
+          "version": "0.1.0-example.1"
+        },
+        {
+          "role": "files",
+          "package": "Modularyn.Connectors.Files.Filesystem",
+          "version": "0.1.0-example.1"
+        },
+        {
+          "role": "email",
+          "package": "Modularyn.Connectors.Email.Smtp",
+          "version": "0.1.0-example.1"
+        }
+      ]
+    }
+  },
+  "capabilities": {
+    "FND-001": {
+      "edition": "community",
+      "entries": [
+        {
+          "state": "Intended",
+          "profiles": [
+            "reference",
+            "website"
+          ],
+          "scope": "Illustrative module compatibility checks.",
+          "publicClaim": "planned"
+        }
+      ]
+    },
+    "DEV-007": {
+      "edition": "community",
+      "entries": [
+        {
+          "state": "Designed",
+          "profiles": [
+            "reference",
+            "website"
+          ],
+          "scope": "Illustrative source generation contract.",
+          "publicClaim": "none"
+        }
+      ]
+    },
+    "CMS-002": {
+      "edition": "community",
+      "entries": [
+        {
+          "state": "Implemented",
+          "profiles": [
+            "reference",
+            "website"
+          ],
+          "scope": "Illustrative content reference implementation.",
+          "publicClaim": "none"
+        }
+      ]
+    },
+    "CMS-003": {
+      "edition": "community",
+      "entries": [
+        {
+          "state": "Preview",
+          "profiles": [
+            "reference",
+            "website"
+          ],
+          "scope": "Illustrative typed page composition.",
+          "publicClaim": "none"
+        }
+      ]
+    },
+    "CMS-001": {
+      "edition": "community",
+      "entries": [
+        {
+          "state": "Qualified",
+          "profiles": [
+            "reference"
+          ],
+          "scope": "Illustrative content type validation only.",
+          "publicClaim": "supported",
+          "evidence": [
+            {
+              "profile": "reference",
+              "references": [
+                "urn:modularyn:example:evidence:content-types:reference"
+              ]
+            }
+          ]
+        },
+        {
+          "state": "Preview",
+          "profiles": [
+            "website"
+          ],
+          "scope": "Illustrative website content type validation preview.",
+          "publicClaim": "none"
+        }
+      ]
+    },
+    "CMS-005": {
+      "edition": "community",
+      "entries": [
+        {
+          "state": "Deprecated",
+          "profiles": [
+            "reference",
+            "website"
+          ],
+          "scope": "Illustrative editorial release lifecycle retained during migration.",
+          "publicClaim": "none",
+          "supportEndsOn": "2027-10-25"
+        }
+      ]
+    },
+    "CMS-011": {
+      "edition": "community",
+      "entries": [
+        {
+          "state": "Unsupported",
+          "profiles": [
+            "reference",
+            "website"
+          ],
+          "scope": "Search is outside the illustrative subset.",
+          "publicClaim": "none",
+          "reason": "The illustrative content subset does not exercise search."
+        }
+      ]
+    },
+    "LOW-001": {
+      "edition": "standard",
+      "entries": [
+        {
+          "state": "Intended",
+          "profiles": [
+            "reference"
+          ],
+          "scope": "Illustrative paid model contract.",
+          "publicClaim": "planned"
+        }
+      ]
+    }
+  }
+}

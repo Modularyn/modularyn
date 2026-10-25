@@ -1,0 +1,201 @@
+{
+  "formatVersion": 1,
+  "identifiers": {
+    "frontDoorPackage": "Modularyn",
+    "toolPackage": "dotnet-modularyn",
+    "toolCommand": "dotnet modularyn",
+    "toolAssembly": "Modularyn.Tooling.Cli",
+    "toolRootNamespace": "Modularyn.Tooling.Cli"
+  },
+  "packageIdPattern": "^(?:Modularyn|dotnet-modularyn|Modularyn\\.(?:Framework|Modules|Cms|UI|Connectors|Pro|Tooling)(?:\\.(?:UI|(?:[A-Z][a-z0-9]+)+))+)(?![\\s\\S])",
+  "libraryIdentity": "packageId = assemblyName = rootNamespace = projectName",
+  "families": [
+    {
+      "name": "Framework",
+      "prefix": "Modularyn.Framework.*",
+      "editions": [
+        "community"
+      ],
+      "repository": "modularyn",
+      "sourceDirectory": "src/Framework/"
+    },
+    {
+      "name": "Modules",
+      "prefix": "Modularyn.Modules.*",
+      "editions": [
+        "community"
+      ],
+      "repository": "modularyn",
+      "sourceDirectory": "src/Modules/"
+    },
+    {
+      "name": "Cms",
+      "prefix": "Modularyn.Cms.*",
+      "editions": [
+        "community"
+      ],
+      "repository": "modularyn",
+      "sourceDirectory": "src/Cms/"
+    },
+    {
+      "name": "UI",
+      "prefix": "Modularyn.UI.*",
+      "editions": [
+        "community"
+      ],
+      "repository": "modularyn",
+      "sourceDirectory": "src/UI/"
+    },
+    {
+      "name": "Connectors",
+      "prefix": "Modularyn.Connectors.*",
+      "editions": [
+        "community"
+      ],
+      "repository": "modularyn",
+      "sourceDirectory": "src/Connectors/"
+    },
+    {
+      "name": "Pro",
+      "prefix": "Modularyn.Pro.*",
+      "editions": [
+        "standard",
+        "pro"
+      ],
+      "repository": "modularyn-pro",
+      "sourceDirectory": "src/Pro/"
+    },
+    {
+      "name": "Tooling",
+      "prefix": "Modularyn.Tooling.*",
+      "editions": [
+        "community"
+      ],
+      "repository": "modularyn",
+      "sourceDirectory": "src/Tooling/"
+    }
+  ],
+  "products": [
+    {
+      "name": "Framework",
+      "home": "Modularyn.Framework.*"
+    },
+    {
+      "name": "Modules",
+      "home": "Modularyn.Modules.*"
+    },
+    {
+      "name": "CMS",
+      "home": "Modularyn.Cms.*"
+    },
+    {
+      "name": "Admin",
+      "home": "Modularyn.UI.Admin.*"
+    },
+    {
+      "name": "UI",
+      "home": "Modularyn.UI.*"
+    },
+    {
+      "name": "Studio",
+      "home": "Modularyn.Pro.Studio.*"
+    },
+    {
+      "name": "CLI",
+      "home": "dotnet-modularyn"
+    },
+    {
+      "name": "Generator",
+      "home": "Modularyn.Tooling.Generator.*"
+    },
+    {
+      "name": "SDK",
+      "home": "Modularyn.Framework.Sdk.*"
+    },
+    {
+      "name": "Connectors",
+      "home": "Modularyn.Connectors.*"
+    }
+  ],
+  "moduleSuffixes": [
+    {
+      "role": "domain",
+      "suffix": ".Domain"
+    },
+    {
+      "role": "application-contracts",
+      "suffix": ".Application.Contracts"
+    },
+    {
+      "role": "application-services",
+      "suffix": ".Application"
+    },
+    {
+      "role": "persistence-adapter",
+      "suffix": ".Persistence.{Provider}"
+    },
+    {
+      "role": "http-endpoints",
+      "suffix": ".HttpApi"
+    },
+    {
+      "role": "client",
+      "suffix": ".Client"
+    },
+    {
+      "role": "ui-adapter",
+      "suffix": ".UI.{Adapter}"
+    }
+  ],
+  "layout": [
+    {
+      "path": "global.json",
+      "presentAtBaseline": true
+    },
+    {
+      "path": "Directory.Build.props",
+      "presentAtBaseline": true
+    },
+    {
+      "path": "Directory.Packages.props",
+      "presentAtBaseline": true
+    },
+    {
+      "path": ".editorconfig",
+      "presentAtBaseline": true
+    },
+    {
+      "path": ".gitattributes",
+      "presentAtBaseline": true
+    },
+    {
+      "path": "Modularyn.slnx",
+      "presentAtBaseline": true
+    },
+    {
+      "path": "src/",
+      "presentAtBaseline": false
+    },
+    {
+      "path": "tests/",
+      "presentAtBaseline": true
+    },
+    {
+      "path": "tools/",
+      "presentAtBaseline": false
+    },
+    {
+      "path": "docs/",
+      "presentAtBaseline": true
+    },
+    {
+      "path": "schemas/",
+      "presentAtBaseline": true
+    },
+    {
+      "path": "brand/",
+      "presentAtBaseline": false
+    }
+  ],
+  "repositoryTestProject": "tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj"
+}
