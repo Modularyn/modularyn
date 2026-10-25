@@ -147,7 +147,12 @@ public sealed class ContentPackageTests
     [InlineData("data-uri", "forbidden URI scheme")]
     [InlineData("title-scheme", "forbidden URI scheme")]
     [InlineData("markup-after-code", "forbidden executable content")]
-    [InlineData("unmatched-backtick", "forbidden executable content")]
+    [InlineData("unmatched-backtick", "unmatched Markdown backtick")]
+    [InlineData("cross-line-span", "unmatched Markdown backtick")]
+    [InlineData("escaped-backtick", "escaped Markdown backtick")]
+    [InlineData("list-fence", "indented Markdown code fence")]
+    [InlineData("indented-closing-fence", "indented Markdown code fence")]
+    [InlineData("bare-data-uri", "forbidden URI scheme")]
     [InlineData("unclosed-fence", "unclosed Markdown code fence")]
     [InlineData("fence-info", "Markdown fence info string")]
     [InlineData("link-in-code", "unsupported Markdown link syntax")]
@@ -236,6 +241,11 @@ public sealed class ContentPackageTests
             case "title-scheme": ChangeEntry(files, "home", e => e["title"] = "javascript:run()"); break;
             case "markup-after-code": ChangeBody(files, "home", b => b + "\nUse `code` and then <b>bold</b>.\n"); break;
             case "unmatched-backtick": ChangeBody(files, "home", b => b + "\nA lone ` tick, then <b>bold</b>.\n"); break;
+            case "cross-line-span": ChangeBody(files, "home", b => b + "\na ` b\nc ` <b>x</b> ` d\n"); break;
+            case "escaped-backtick": ChangeBody(files, "home", b => b + "\nAn escaped \\` tick and ` <b>x</b> `.\n"); break;
+            case "list-fence": ChangeBody(files, "home", b => b + "\n- item\n  ```\n  code\n<b>x</b>\n```\n"); break;
+            case "indented-closing-fence": ChangeBody(files, "home", b => b + "\n```\ncode\n  ```\n<b>x</b>\n```\n"); break;
+            case "bare-data-uri": ChangeBody(files, "home", b => b + "\nSee data:,hello and data:;base64,aGk=\n"); break;
             case "unclosed-fence": ChangeBody(files, "home", b => b + "\n```\n<p>never closed</p>\n"); break;
             case "fence-info": ChangeBody(files, "home", b => b + "\n```html onload\n<p>text</p>\n```\n"); break;
             case "link-in-code": ChangeBody(files, "home", b => b + "\nWrite `[label](https://example.invalid)` here.\n"); break;
@@ -456,9 +466,10 @@ internal static class ContentPackageContract
     private static readonly Regex MarkdownLink = new(@"(?<image>!)?\[(?<label>[^\[\]\r\n]+)\]\((?<kind>entry|media):(?<key>[a-z][a-z0-9]*(?:-[a-z0-9]+)*)\)", RegexOptions.CultureInvariant);
     private static readonly HashSet<string> SecretFields = new(["password", "secret", "token", "api-key", "credential", "connection-string"], StringComparer.Ordinal);
     private static readonly string[] TemplateDelimiters = ["{{", "{%", "<%", "@{", "@("];
-    private static readonly Regex UnsafeScheme = new(@"(?<![A-Za-z0-9+.\-])(?:javascript|vbscript)\s*:|(?<![A-Za-z0-9+.\-])data\s*:\s*[A-Za-z]+/[A-Za-z0-9.+\-]+\s*[;,]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex UnsafeScheme = new(@"(?<![A-Za-z0-9+.\-])(?:javascript|vbscript)\s*:|(?<![A-Za-z0-9+.\-])data:(?:[A-Za-z]+/[A-Za-z0-9.+\-]+)?(?:;[A-Za-z0-9.+=_\-]+)*,", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static readonly Regex SecretAssignment = new(@"\b(?:password|passwd|pwd|secret|token|api[-_]?key|access[-_]?key|credential|connection[-_]?string)\s*[:=]\s*[""']?[^\s""']{12,}", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-    private static readonly Regex FenceOpen = new(@"^ {0,3}(?<fence>`{3,}|~{3,})(?<info>.*)$", RegexOptions.CultureInvariant);
+    private static readonly Regex FenceOpen = new(@"^(?<fence>`{3,}|~{3,})(?<info>.*)$", RegexOptions.CultureInvariant);
+    private static readonly Regex IndentedFence = new(@"^ {1,3}(?:`{3,}|~{3,})", RegexOptions.CultureInvariant);
     private static readonly Regex FenceInfo = new(@"^[A-Za-z0-9+._-]*$", RegexOptions.CultureInvariant);
     private static readonly Regex InlineCode = new(@"(?<!`)(?<ticks>`+)(?!`).*?(?<!`)\k<ticks>(?!`)", RegexOptions.CultureInvariant);
     private static readonly HashSet<string> ReservedRoutes = new(["admin", "api", "assets", "preview", "health"], StringComparer.Ordinal);
@@ -656,6 +667,7 @@ internal static class ContentPackageContract
         Regex? closing = null;
         foreach (var line in body.Replace("\r\n", "\n").Split('\n'))
         {
+            Require(!IndentedFence.IsMatch(line), "indented Markdown code fence");
             if (closing is not null)
             {
                 if (closing.IsMatch(line)) closing = null;
@@ -666,10 +678,13 @@ internal static class ContentPackageContract
             {
                 var fence = open.Groups["fence"].Value;
                 Require(FenceInfo.IsMatch(open.Groups["info"].Value.Trim()), "Markdown fence info string");
-                closing = new Regex("^ {0,3}" + Regex.Escape(fence[0].ToString()) + "{" + fence.Length + ",}[ \\t]*$", RegexOptions.CultureInvariant);
+                closing = new Regex("^" + Regex.Escape(fence[0].ToString()) + "{" + fence.Length + ",}[ \\t]*$", RegexOptions.CultureInvariant);
                 continue;
             }
-            prose.Append(InlineCode.Replace(line, " ")).Append('\n');
+            Require(!line.Contains("\\`", StringComparison.Ordinal), "escaped Markdown backtick");
+            var outsideSpans = InlineCode.Replace(line, " ");
+            Require(!outsideSpans.Contains('`'), "unmatched Markdown backtick");
+            prose.Append(outsideSpans).Append('\n');
         }
         Require(closing is null, "unclosed Markdown code fence");
         var text = prose.ToString();
