@@ -38,7 +38,7 @@ internal static class Conventions
     private static readonly Regex StableVersion = new(@"^\d+\.\d+\.\d+$", RegexOptions.CultureInvariant);
     private static readonly Regex Net10Sdk = new(@"^10\.0\.\d{3}$", RegexOptions.CultureInvariant);
     private static readonly Regex MachinePath = new(
-        @"(?<![A-Za-z0-9])/(?:Users|home|Volumes|mnt|media|run/media|root)(?:/|\b)|[A-Za-z]:\\",
+        @"(?<![A-Za-z0-9#])/(?:Users|home|Volumes|mnt|media|run/media|root)(?:/|\b)|[A-Za-z]:\\",
         RegexOptions.CultureInvariant);
     private static readonly Regex Action = new(
         @"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}$", RegexOptions.CultureInvariant);

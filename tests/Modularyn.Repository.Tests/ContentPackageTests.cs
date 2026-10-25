@@ -47,6 +47,19 @@ public sealed class ContentPackageTests
     }
 
     [Fact]
+    public void Markdown_code_holds_literal_markup_and_prose_may_name_tokens()
+    {
+        var files = ReadPackage();
+        ChangeEntry(files, "about", e => e["title"] = "Metadata: about the garden");
+        ChangeBody(files, "home", body => body
+            + "\nThe token expires after an hour; the password field is optional.\n"
+            + "\nUse `List<string>`, ``a `quoted` span`` and `items[0]` in code.\n"
+            + "\n```html\n<p>{{ name }}</p>\n<a href=\"javascript:void(0)\">x</a>\n```\n"
+            + "\n~~~csharp\n[Fact] public void Run() { var values = new int[2]; @{ } }\n~~~\n");
+        Assert.Empty(Validate(files));
+    }
+
+    [Fact]
     public void Block_bodies_allow_two_identical_blocks()
     {
         var files = ReadPackage();
@@ -130,7 +143,15 @@ public sealed class ContentPackageTests
     [InlineData("raw-html", "forbidden executable content")]
     [InlineData("template", "forbidden executable content")]
     [InlineData("encoded-template", "forbidden executable content")]
-    [InlineData("unsafe-uri", "forbidden executable content")]
+    [InlineData("unsafe-uri", "forbidden URI scheme")]
+    [InlineData("data-uri", "forbidden URI scheme")]
+    [InlineData("title-scheme", "forbidden URI scheme")]
+    [InlineData("markup-after-code", "forbidden executable content")]
+    [InlineData("unmatched-backtick", "forbidden executable content")]
+    [InlineData("unclosed-fence", "unclosed Markdown code fence")]
+    [InlineData("fence-info", "Markdown fence info string")]
+    [InlineData("link-in-code", "unsupported Markdown link syntax")]
+    [InlineData("secret-in-code", "forbidden secret assignment")]
     [InlineData("secret-field", "forbidden secret field")]
     [InlineData("secret-assignment", "forbidden secret assignment")]
     [InlineData("absolute-path", "unsafe package path: /garden.png")]
@@ -211,6 +232,14 @@ public sealed class ContentPackageTests
             case "template": ChangeBody(files, "home", b => b + "\n{{ name }}\n"); break;
             case "encoded-template": ChangeEntry(files, "home", e => e["title"] = "{{ title }}"); break;
             case "unsafe-uri": ChangeBody(files, "home", b => b + "\njavascript:run()\n"); break;
+            case "data-uri": ChangeBody(files, "home", b => b + "\nSee data:text/html;base64,PHA+\n"); break;
+            case "title-scheme": ChangeEntry(files, "home", e => e["title"] = "javascript:run()"); break;
+            case "markup-after-code": ChangeBody(files, "home", b => b + "\nUse `code` and then <b>bold</b>.\n"); break;
+            case "unmatched-backtick": ChangeBody(files, "home", b => b + "\nA lone ` tick, then <b>bold</b>.\n"); break;
+            case "unclosed-fence": ChangeBody(files, "home", b => b + "\n```\n<p>never closed</p>\n"); break;
+            case "fence-info": ChangeBody(files, "home", b => b + "\n```html onload\n<p>text</p>\n```\n"); break;
+            case "link-in-code": ChangeBody(files, "home", b => b + "\nWrite `[label](https://example.invalid)` here.\n"); break;
+            case "secret-in-code": ChangeBody(files, "home", b => b + "\n```\napi_key = " + new string('q', 32) + "\n```\n"); break;
             case "secret-field": ChangeJson(files, "types/page.json", t => t["fields"]![0]!["key"] = "secret"); break;
             case "secret-assignment": ChangeBody(files, "home", b => b + "\n" + "token=" + new string('q', 32)); break;
             case "absolute-path":
@@ -426,6 +455,12 @@ internal static class ContentPackageContract
     private static readonly Regex ReservedDevice = new("^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\\.|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static readonly Regex MarkdownLink = new(@"(?<image>!)?\[(?<label>[^\[\]\r\n]+)\]\((?<kind>entry|media):(?<key>[a-z][a-z0-9]*(?:-[a-z0-9]+)*)\)", RegexOptions.CultureInvariant);
     private static readonly HashSet<string> SecretFields = new(["password", "secret", "token", "api-key", "credential", "connection-string"], StringComparer.Ordinal);
+    private static readonly string[] TemplateDelimiters = ["{{", "{%", "<%", "@{", "@("];
+    private static readonly Regex UnsafeScheme = new(@"(?<![A-Za-z0-9+.\-])(?:javascript|vbscript)\s*:|(?<![A-Za-z0-9+.\-])data\s*:\s*[A-Za-z]+/[A-Za-z0-9.+\-]+\s*[;,]", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex SecretAssignment = new(@"\b(?:password|passwd|pwd|secret|token|api[-_]?key|access[-_]?key|credential|connection[-_]?string)\s*[:=]\s*[""']?[^\s""']{12,}", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex FenceOpen = new(@"^ {0,3}(?<fence>`{3,}|~{3,})(?<info>.*)$", RegexOptions.CultureInvariant);
+    private static readonly Regex FenceInfo = new(@"^[A-Za-z0-9+._-]*$", RegexOptions.CultureInvariant);
+    private static readonly Regex InlineCode = new(@"(?<!`)(?<ticks>`+)(?!`).*?(?<!`)\k<ticks>(?!`)", RegexOptions.CultureInvariant);
     private static readonly HashSet<string> ReservedRoutes = new(["admin", "api", "assets", "preview", "health"], StringComparer.Ordinal);
 
     public static List<string> Validate(IReadOnlyDictionary<string, byte[]> files, string manifestSchemaText, string typeSchemaText)
@@ -594,7 +629,7 @@ internal static class ContentPackageContract
 
     private static void ValidateMarkdown(string body, Dictionary<string, JsonElement> entries, Dictionary<string, JsonElement> media)
     {
-        SafeText(body);
+        var prose = MarkdownProse(body);
         Require(!string.IsNullOrWhiteSpace(body), "empty Markdown body");
         var remaining = MarkdownLink.Replace(body, match =>
         {
@@ -605,7 +640,42 @@ internal static class ContentPackageContract
             Require((isImage ? media : entries).ContainsKey(target), "Markdown reference target");
             return "";
         });
-        Require(!remaining.Contains('[') && !remaining.Contains(']'), "unsupported Markdown link syntax");
+        Require(!remaining.Contains("](", StringComparison.Ordinal), "unsupported Markdown link syntax");
+        var remainingProse = MarkdownLink.Replace(prose, "");
+        Require(!remainingProse.Contains('[') && !remainingProse.Contains(']'), "unsupported Markdown link syntax");
+    }
+
+    // Returns the body's text outside code spans and fences, after checking what applies everywhere:
+    // characters, machine paths and secrets. Markup, template delimiters and unsafe schemes are
+    // rejected only in the returned prose, because the renderer escapes code as literal text.
+    private static string MarkdownProse(string body)
+    {
+        SafeCharacters(body);
+        Require(!SecretAssignment.IsMatch(body), "forbidden secret assignment");
+        var prose = new StringBuilder();
+        Regex? closing = null;
+        foreach (var line in body.Replace("\r\n", "\n").Split('\n'))
+        {
+            if (closing is not null)
+            {
+                if (closing.IsMatch(line)) closing = null;
+                continue;
+            }
+            var open = FenceOpen.Match(line);
+            if (open.Success)
+            {
+                var fence = open.Groups["fence"].Value;
+                Require(FenceInfo.IsMatch(open.Groups["info"].Value.Trim()), "Markdown fence info string");
+                closing = new Regex("^ {0,3}" + Regex.Escape(fence[0].ToString()) + "{" + fence.Length + ",}[ \\t]*$", RegexOptions.CultureInvariant);
+                continue;
+            }
+            prose.Append(InlineCode.Replace(line, " ")).Append('\n');
+        }
+        Require(closing is null, "unclosed Markdown code fence");
+        var text = prose.ToString();
+        Require(!text.Contains('<') && !TemplateDelimiters.Any(d => text.Contains(d, StringComparison.Ordinal)), "forbidden executable content");
+        Require(!UnsafeScheme.IsMatch(text), "forbidden URI scheme");
+        return text;
     }
 
     private static void ValidateParents(Dictionary<string, JsonElement> nodes, string collection)
@@ -762,11 +832,14 @@ internal static class ContentPackageContract
 
     private static void SafeText(string text)
     {
-        Require(!text.Any(c => char.IsControl(c) && c is not ('\n' or '\t')) && !Conventions.HasMachinePath(text), "forbidden control or machine path");
-        Require(!text.Contains('<') && !new[] { "{{", "{%", "<%", "@{", "@(", "javascript:", "vbscript:", "data:" }
-            .Any(token => text.Contains(token, StringComparison.OrdinalIgnoreCase)), "forbidden executable content");
-        Require(!Regex.IsMatch(text, @"(?i)\b(password|secret|token|api[-_]?key|credential|connection[-_]?string)\s*[:=]\s*\S+", RegexOptions.CultureInvariant), "forbidden secret assignment");
+        SafeCharacters(text);
+        Require(!text.Contains('<') && !TemplateDelimiters.Any(d => text.Contains(d, StringComparison.Ordinal)), "forbidden executable content");
+        Require(!UnsafeScheme.IsMatch(text), "forbidden URI scheme");
+        Require(!SecretAssignment.IsMatch(text), "forbidden secret assignment");
     }
+
+    private static void SafeCharacters(string text) =>
+        Require(!text.Any(c => char.IsControl(c) && c is not ('\n' or '\t')) && !Conventions.HasMachinePath(text), "forbidden control or machine path");
 
     internal static Dictionary<string, JsonElement> Index(IEnumerable<JsonElement> values)
     {
