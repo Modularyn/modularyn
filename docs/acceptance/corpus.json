@@ -428,7 +428,7 @@
     },
     {
       "id": "AC-002-N01",
-      "title": "Refuse password-only, alias-host and closed bootstrap paths",
+      "title": "Refuse password-only, alias-host, host-variant and closed bootstrap paths",
       "family": "AC-002",
       "profiles": [
         "website"
@@ -457,11 +457,13 @@
         "Submit admin-1's correct password, skip the second factor, and call an Admin API and an Admin page with the cookies the browser then holds.",
         "Request the Admin sign-in, preview and API namespaces in a browser and with a direct client on alias-1 and on each of its variants: changed letter case, a trailing dot, an explicit port, and its other Unicode or punycode form.",
         "Send the same requests to alias-1 with a forwarded-host value naming the canonical host, from a source that is not the declared proxy.",
+        "With a direct client, request the same namespaces on the canonical host with changed letter case, with a trailing dot and with an explicit port.",
         "Call the first-administrator setup path with no secret, with the consumed secret and with a malformed secret."
       ],
       "expectedOutcome": [
         "No Admin session or Admin-scoped cookie exists after the password step alone, and both calls are refused as unauthenticated.",
         "Neither alias-1, any of its variants, nor the forwarded-host request answers a reserved namespace or sets a cookie; Admin cookies carry a host prefix and are issued only on the canonical origin.",
+        "Each canonical-host variant is either refused or redirected to the exact canonical origin, and no response to a variant sets a cookie.",
         "Each bootstrap attempt receives the same response as an absent route, and the account inventory is unchanged."
       ],
       "evidence": [
@@ -631,6 +633,50 @@
       ],
       "evidence": [
         "Per-initiation source, account, counter, applied delay and response time; token issuance and outbound message records; token and code states; and session records and notifications, as evidence for TM-W-011 and TM-G02-057."
+      ]
+    },
+    {
+      "id": "AC-002-N06",
+      "title": "Require recent authentication for each high-impact Admin operation",
+      "family": "AC-002",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W minimal Admin sign-in with a password plus a second factor or a passkey, account recovery, session revocation, stored credential forms, guessing and lockout resistance, and first-administrator bootstrap on the canonical origin. Registration, external login, passwordless links and shared-account tenant membership are outside W."
+      },
+      "requirements": [
+        "FND-017",
+        "OPS-003",
+        "MOD-002"
+      ],
+      "layers": [
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-012"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "admin-2 signs in with a password and one-time code and holds the dedicated contact-destination and package-source permissions, import approval and alias administration. Fixture state has a bound repository with a valid dry-run plan, a configured contact destination and verified alias-1.",
+        "The injectable clock controls the deployment, and the declared recent-authentication window T is recorded before running. Each row starts from fresh fixture state and a fresh session."
+      ],
+      "steps": [
+        "At T minus one second after the last authentication, change the contact destination, rebind the content-package repository, approve and apply the plan, and add alias-2, one operation per row.",
+        "At T plus one second after the last authentication, attempt each of the same four operations through the minimal Admin and by direct call, with the permission still held.",
+        "In each T-plus-one-second row, reauthenticate in the same session with the one-time code and repeat the operation."
+      ],
+      "expectedOutcome": [
+        "Inside the window, each operation succeeds.",
+        "At T plus one second, each operation is refused with a reauthentication-required response before any change, through both paths.",
+        "After each refusal the destination, repository binding, plan and content, and alias set are unchanged, and no notification is sent.",
+        "Each refusal is recorded with actor, operation and the recent-authentication result.",
+        "After reauthentication, each operation succeeds once, with its audit record and the notifications it requires."
+      ],
+      "evidence": [
+        "Clock offsets, per-row and per-path outcomes, state inventories before and after, refusal and success audit records, and notifications, as evidence for TM-W-013."
       ]
     },
     {
@@ -1277,20 +1323,20 @@
       ],
       "type": "negative",
       "preconditions": [
-        "importer-1 holds dry-run and plan-approval permissions but not package-source administration; plan-1 was built by importer-1 against the bound repository and plan-2 by importer-2. editor-3 holds every content-management permission but not the dedicated contact-destination permission; the change's recent-authentication, audit and notification clauses are qualified by AC-002 and AC-012."
+        "importer-1 holds dry-run and plan-approval permissions but not the dedicated package-source permission; plan-1 was built by importer-1 against the bound repository and plan-2 by importer-2. editor-3 holds every content-management permission but not the dedicated contact-destination permission. The recent-authentication, audit and notification clauses of both changes are qualified by AC-002 and AC-012."
       ],
       "steps": [
-        "As importer-1, rebind the content-package repository through a direct call.",
-        "Have a package-source administrator rebind it with recent authentication, then have importer-1 approve and apply plan-1, and apply plan-2.",
+        "As importer-1, rebind the content-package repository through the minimal Admin and through a direct call.",
+        "Have a holder of the package-source permission rebind it with recent authentication, then have importer-1 approve and apply plan-1, and apply plan-2.",
         "As editor-3, change the contact destination through the minimal Admin and through a direct call."
       ],
       "expectedOutcome": [
-        "importer-1's rebinding is refused; the authorized rebinding is recorded and invalidates plan-1.",
+        "importer-1's rebindings are refused because no import permission substitutes for the dedicated package-source permission; the authorized rebinding is recorded and invalidates plan-1.",
         "Applying plan-1 or plan-2 is refused with the failed binding named, and nothing is written.",
         "editor-3's changes are refused because no content-management permission substitutes for the dedicated contact-destination permission, and the destination is unchanged."
       ],
       "evidence": [
-        "Binding records, plan states and apply refusals with the failed binding, and destination configuration before and after, as evidence for TM-W-057, TM-W-038, TM-G02-019 and the dedicated-permission clause of TM-W-033."
+        "Binding records, plan states and apply refusals with the failed binding, and destination configuration before and after, as evidence for TM-W-038, TM-G02-019 and the dedicated-permission clauses of TM-W-057 and TM-W-033."
       ]
     },
     {

@@ -1204,7 +1204,7 @@
       "threats": ["TH-W-047", "TH-W-083"],
       "boundary": "TB-W-08",
       "owner": "Content and Engagement",
-      "requirements": ["CMS-017", "OPS-007"],
+      "requirements": ["CMS-017", "OPS-007", "FND-015"],
       "evidence": {
         "acceptance": ["AC-003", "AC-012", "AC-020"],
         "layers": ["isolation", "api-contract"]
@@ -1516,7 +1516,7 @@
       "threats": ["TH-W-093"],
       "boundary": "TB-W-09",
       "owner": "Content",
-      "requirements": ["CMS-021", "OPS-007"],
+      "requirements": ["CMS-021", "OPS-007", "FND-015"],
       "evidence": {
         "acceptance": ["AC-003", "AC-012", "AC-028"],
         "layers": ["isolation", "api-contract"]
