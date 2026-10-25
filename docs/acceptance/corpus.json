@@ -1,0 +1,3797 @@
+{
+  "version": 1,
+  "date": "2026-10-25",
+  "cases": [
+    {
+      "id": "AC-001-B01",
+      "title": "Check the inclusive compatibility edges",
+      "family": "AC-001",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 module graph and lifecycle on the reference modular monolith, with PostgreSQL and filesystem providers. Trust qualification is supplied by AC-031."
+      },
+      "requirements": [
+        "FND-001"
+      ],
+      "layers": [
+        "unit",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-031"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "A declares support for B versions from 2.0.0 through 2.2.0 inclusive; equivalent fixtures exist at 1.9.9 and 2.2.1."
+      ],
+      "steps": [
+        "Compose each of B 1.9.9, 2.0.0, 2.2.0 and 2.2.1 with A, keeping runtime and provider pins fixed."
+      ],
+      "expectedOutcome": [
+        "Only 2.0.0 and 2.2.0 satisfy the declared range; each rejected version identifies the same unsatisfied constraint."
+      ],
+      "evidence": [
+        "Four resolved-selection reports and the declared compatibility range."
+      ]
+    },
+    {
+      "id": "AC-001-B02",
+      "title": "Distinguish aliases from additional sites",
+      "family": "AC-001",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W module composition on one tenant, site and culture; installed Razor renderers, PostgreSQL and filesystem Files only."
+      },
+      "requirements": [
+        "FND-003",
+        "DEV-004",
+        "DEV-005"
+      ],
+      "layers": [
+        "unit",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-004",
+        "AC-031"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "One site and one culture are configured; two alias bindings have already been qualified by AC-004 and AC-031."
+      ],
+      "steps": [
+        "Compose once with no aliases and once with both qualified aliases.",
+        "Request a second independent site while retaining the same module set."
+      ],
+      "expectedOutcome": [
+        "Both alias selections still describe exactly one site and remain within W.",
+        "The second-site selection is rejected as outside W."
+      ],
+      "evidence": [
+        "Resolved site counts and capability reports for the three selections."
+      ]
+    },
+    {
+      "id": "AC-001-N01",
+      "title": "Reject missing, cyclic and incompatible dependencies",
+      "family": "AC-001",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 module graph and lifecycle on the reference modular monolith, with PostgreSQL and filesystem providers. Trust qualification is supplied by AC-031."
+      },
+      "requirements": [
+        "ARC-001",
+        "FND-001",
+        "FND-003"
+      ],
+      "layers": [
+        "unit",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-031"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "Retain the valid A-to-B-to-C graph and its provider inventory as the control fixture."
+      ],
+      "steps": [
+        "Independently remove C, add C-to-A, and replace B with a version outside A's declared range.",
+        "Attempt activation for each graph and inspect module state."
+      ],
+      "expectedOutcome": [
+        "Each graph is refused before activation; diagnostics name respectively the absent C, complete cycle, and incompatible B constraint.",
+        "No module is reported active for the rejected selection."
+      ],
+      "evidence": [
+        "Three input graphs, dependency diagnostics and before/after activation inventories."
+      ]
+    },
+    {
+      "id": "AC-001-N02",
+      "title": "Reject website composition mismatches",
+      "family": "AC-001",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W module composition on one tenant, site and culture; installed Razor renderers, PostgreSQL and filesystem Files only."
+      },
+      "requirements": [
+        "FND-001",
+        "FND-003",
+        "DEV-004",
+        "DEV-005"
+      ],
+      "layers": [
+        "unit",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-031"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "Start with a valid W composition and retain a copy for each independent mutation."
+      ],
+      "steps": [
+        "Select an incompatible persistence provider; separately remove the required page renderer.",
+        "Separately select a second site, a second culture, search, newsletters, GraphQL or commerce; attempt activation for every variant."
+      ],
+      "expectedOutcome": [
+        "Every variant fails capability validation before activation with the unsupported selection or missing dependency named.",
+        "The valid W composition remains the comparison baseline."
+      ],
+      "evidence": [
+        "Mutation matrix, capability diagnostics and activation-state observations."
+      ]
+    },
+    {
+      "id": "AC-001-P01",
+      "title": "Activate a valid dependency graph",
+      "family": "AC-001",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 module graph and lifecycle on the reference modular monolith, with PostgreSQL and filesystem providers. Trust qualification is supplied by AC-031."
+      },
+      "requirements": [
+        "ARC-001",
+        "ARC-002",
+        "FND-002"
+      ],
+      "layers": [
+        "unit",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-031"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "Module A depends on B; B depends on C; C has no dependencies. All three declare compatible runtime and provider versions."
+      ],
+      "steps": [
+        "Compose A, B and C in reverse discovery order.",
+        "Start the application and inspect initialization, readiness and shutdown order."
+      ],
+      "expectedOutcome": [
+        "Dependencies initialize before dependents, each once; all selected modules become ready.",
+        "Shutdown reverses the declared dependency order and completes the recorded lifecycle."
+      ],
+      "evidence": [
+        "Resolved graph and version inventory.",
+        "Ordered lifecycle trace and readiness observations on host and container."
+      ]
+    },
+    {
+      "id": "AC-001-P02",
+      "title": "Compose the declared website capability set",
+      "family": "AC-001",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W module composition on one tenant, site and culture; installed Razor renderers, PostgreSQL and filesystem Files only."
+      },
+      "requirements": [
+        "FND-001",
+        "DEV-004",
+        "DEV-005"
+      ],
+      "layers": [
+        "unit",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-031"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "The W capability map supplies the selected modules; the page layout, page template and used block renderer versions are installed."
+      ],
+      "steps": [
+        "Resolve the module and renderer inventory with the W tuple.",
+        "Start the single-host container and inspect its capability report."
+      ],
+      "expectedOutcome": [
+        "Every included dependency resolves and the report names the W subset and exact selected versions.",
+        "No undeclared capability is inferred from shared modules."
+      ],
+      "evidence": [
+        "Composition input, resolved module/renderer graph and runtime capability report."
+      ]
+    },
+    {
+      "id": "AC-001-R01",
+      "title": "Recover an interrupted module initialization",
+      "family": "AC-001",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 module graph and lifecycle on the reference modular monolith, with PostgreSQL and filesystem providers. Trust qualification is supplied by AC-031."
+      },
+      "requirements": [
+        "ARC-002",
+        "FND-002",
+        "FND-003"
+      ],
+      "layers": [
+        "unit",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-031"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "C initializes successfully; B has a fault injected after initialization starts but before readiness. A has not started."
+      ],
+      "steps": [
+        "Start the graph and trigger the B fault.",
+        "Inspect completed cleanup, remove the fault and restart with the identical module selection."
+      ],
+      "expectedOutcome": [
+        "The first start reports B failed and A unavailable; cleanup identifies every initialized component.",
+        "The second start reaches readiness without duplicate initialization effects or an active remnant from the failed start."
+      ],
+      "evidence": [
+        "Failed and recovered lifecycle traces, cleanup inventory and durable initialization-effect counts."
+      ]
+    },
+    {
+      "id": "AC-001-R02",
+      "title": "Retry composition after restoring a renderer",
+      "family": "AC-001",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W module composition on one tenant, site and culture; installed Razor renderers, PostgreSQL and filesystem Files only."
+      },
+      "requirements": [
+        "FND-003",
+        "DEV-005"
+      ],
+      "layers": [
+        "unit",
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-031"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "The page template dependency is absent; the site has a previously usable compatible composition."
+      ],
+      "steps": [
+        "Attempt to activate the incomplete selection.",
+        "Restore the exact declared renderer version through deployment configuration and repeat preflight and activation."
+      ],
+      "expectedOutcome": [
+        "The failed selection never becomes active.",
+        "Revalidation resolves the restored renderer and activates the complete selection once."
+      ],
+      "evidence": [
+        "Missing-renderer diagnostic, corrected dependency inventory and activation trace."
+      ]
+    },
+    {
+      "id": "AC-005-B01",
+      "title": "Observe ambient and independent transaction boundaries",
+      "family": "AC-005",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 PostgreSQL/EF Core persistence, non-security soft-delete filtering, direct SQL, transactions, concurrency and migrations. Tenant filtering depends on AC-004."
+      },
+      "requirements": [
+        "ARC-008",
+        "FND-008",
+        "FND-009"
+      ],
+      "layers": [
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "The adapter advertises joined, new and suppressed unit-of-work modes for one PostgreSQL database. The suppressed fixture uses an autocommitted direct write on an independent connection; each run uses separate outer and inner rows."
+      ],
+      "steps": [
+        "For each mode write the outer row and the inner row, complete the inner scope, then roll back the outer scope.",
+        "Inspect committed rows using another connection."
+      ],
+      "expectedOutcome": [
+        "The outer row is absent after rollback in all three runs; joined mode also leaves no inner row.",
+        "The completed new transaction and suppressed autocommitted write each retain their inner row. No result implies atomicity across databases."
+      ],
+      "evidence": [
+        "Declared mode contract, transaction identifiers, completion callbacks and resulting row sets."
+      ]
+    },
+    {
+      "id": "AC-005-B02",
+      "title": "Check state at the commit boundary",
+      "family": "AC-005",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W PostgreSQL transactions and optimistic concurrency for content and contact state, with migration recovery on the single database."
+      },
+      "requirements": [
+        "ARC-008",
+        "FND-009"
+      ],
+      "layers": [
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "A contact-1 submission writes its durable request and email intent in one transaction; the connection can be interrupted at controlled points."
+      ],
+      "steps": [
+        "Run once with interruption immediately before commit and once immediately after database commit but before the caller receives success.",
+        "Inspect the request and intent using a fresh connection."
+      ],
+      "expectedOutcome": [
+        "The precommit run retains neither authoritative item.",
+        "The postcommit run retains both; a client timeout does not change the recorded database outcome."
+      ],
+      "evidence": [
+        "Fault timing, committed transaction identity and request/outbox counts for each run."
+      ]
+    },
+    {
+      "id": "AC-005-N01",
+      "title": "Reject stale writes and roll back a failed transaction",
+      "family": "AC-005",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 PostgreSQL/EF Core persistence, non-security soft-delete filtering, direct SQL, transactions, concurrency and migrations. Tenant filtering depends on AC-004."
+      },
+      "requirements": [
+        "ARC-008",
+        "FND-009",
+        "FND-010"
+      ],
+      "layers": [
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "Two editors have item-1 at version 5; a unit of work can update item-1 and insert item-4."
+      ],
+      "steps": [
+        "Save editor A's change and then submit editor B's original version.",
+        "In a fresh unit of work change item-1, then inject an insert failure before commit."
+      ],
+      "expectedOutcome": [
+        "The stale save reports a concurrency conflict and preserves A's value.",
+        "The failed unit of work persists neither change and reports rolled back or failed, never committed."
+      ],
+      "evidence": [
+        "Versioned requests, conflict response, fault point and independent database reads after both attempts."
+      ]
+    },
+    {
+      "id": "AC-005-N02",
+      "title": "Preserve the winner of concurrent website edits",
+      "family": "AC-005",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W PostgreSQL transactions and optimistic concurrency for content and contact state, with migration recovery on the single database."
+      },
+      "requirements": [
+        "ARC-008",
+        "FND-009",
+        "FND-010"
+      ],
+      "layers": [
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "Two Admin sessions read article-1 at the same version; both are prequalified for the operation."
+      ],
+      "steps": [
+        "Save title First from one session.",
+        "Submit title Second with the stale token from the other session.",
+        "Force an outbox insert failure in a separate new save."
+      ],
+      "expectedOutcome": [
+        "The stale write returns a typed conflict and does not replace First.",
+        "The separately failed save commits neither the proposed revision nor its outbox intent."
+      ],
+      "evidence": [
+        "Requests and error responses, before/after revision hashes and database transaction outcomes."
+      ]
+    },
+    {
+      "id": "AC-005-P01",
+      "title": "Commit a unit of work and apply soft-delete filters",
+      "family": "AC-005",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 PostgreSQL/EF Core persistence, non-security soft-delete filtering, direct SQL, transactions, concurrency and migrations. Tenant filtering depends on AC-004."
+      },
+      "requirements": [
+        "FND-008",
+        "FND-009",
+        "FND-010"
+      ],
+      "layers": [
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "PostgreSQL contains active rows item-1 and item-2 plus soft-deleted item-3 in the prequalified context. A declared direct-SQL access path uses the same application filter contract."
+      ],
+      "steps": [
+        "Read through EF Core and the declared direct-SQL path.",
+        "In one unit of work update item-1 and create item-4; commit and reread through a new connection."
+      ],
+      "expectedOutcome": [
+        "Both reads return item-1 and item-2 and omit item-3.",
+        "The new connection sees both committed changes; the completion callback reports committed once."
+      ],
+      "evidence": [
+        "Provider/version inventory, query results, transaction trace and completion callback record."
+      ]
+    },
+    {
+      "id": "AC-005-P02",
+      "title": "Commit a draft and its durable event intent together",
+      "family": "AC-005",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W PostgreSQL transactions and optimistic concurrency for content and contact state, with migration recovery on the single database."
+      },
+      "requirements": [
+        "FND-009"
+      ],
+      "layers": [
+        "real-provider-integration"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "article-1 is at revision-1 in PostgreSQL; its save operation includes an outbox record in the same database transaction."
+      ],
+      "steps": [
+        "Save revision-2 and commit.",
+        "Open a new connection and read the draft, revision history and outbox."
+      ],
+      "expectedOutcome": [
+        "revision-2 and exactly one corresponding outbox intent are committed together; revision-1 remains in history."
+      ],
+      "evidence": [
+        "Transaction trace, persisted revision identities and matching outbox rows."
+      ]
+    },
+    {
+      "id": "AC-005-R01",
+      "title": "Resume an interrupted migration without reseeding duplicates",
+      "family": "AC-005",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 PostgreSQL/EF Core persistence, non-security soft-delete filtering, direct SQL, transactions, concurrency and migrations. Tenant filtering depends on AC-004."
+      },
+      "requirements": [
+        "FND-011"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "migration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "A module migration adds a nullable field and an idempotent system seed to a populated PostgreSQL database; its recovery plan is recorded."
+      ],
+      "steps": [
+        "Interrupt after a migration checkpoint and before completion is recorded.",
+        "Restart the coordinator, reconcile database and progress state, and run the migration and seed again."
+      ],
+      "expectedOutcome": [
+        "The coordinator reports the interrupted operation and follows the supported resume or forward-repair path.",
+        "Existing rows survive, the new field has the planned shape, the seed exists once and migration progress reaches complete."
+      ],
+      "evidence": [
+        "Checkpoint and migration history, repair/resume report, schema comparison and seed counts."
+      ]
+    },
+    {
+      "id": "AC-005-R02",
+      "title": "Recover a website schema migration interruption",
+      "family": "AC-005",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W PostgreSQL transactions and optimistic concurrency for content and contact state, with migration recovery on the single database."
+      },
+      "requirements": [
+        "FND-011"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "migration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "A supported migration extends the article schema while old revisions and the active publication manifest remain present; a coordinated backup exists."
+      ],
+      "steps": [
+        "Stop the migration process at its declared checkpoint.",
+        "Restart and reconcile progress, applying its supported resume or restore plan.",
+        "Read old and new revision fixtures and the active manifest."
+      ],
+      "expectedOutcome": [
+        "Recovery reaches a coherent schema version without losing historical revisions or the active manifest.",
+        "Progress and any repair action are explicit; an untested reverse migration is never treated as recovery."
+      ],
+      "evidence": [
+        "Migration and backup identities, interruption checkpoint, recovered schema/revision hashes and manifest reference checks."
+      ]
+    },
+    {
+      "id": "AC-006-B01",
+      "title": "Handle duplicate, late and reordered events explicitly",
+      "family": "AC-006",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 durable events on actual PostgreSQL, including outbox/inbox crashes, duplicate retention, ordering, retries and poison disposition."
+      },
+      "requirements": [
+        "ARC-009",
+        "ARC-010",
+        "FND-020",
+        "FND-021"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "The consumer declares a 24-hour inbox retention window and monotonic projection versions; event-4 has version 4 and event-5 version 5."
+      ],
+      "steps": [
+        "Deliver event-5 before event-4, then duplicate event-5 immediately and at 23:59:59 after its receipt.",
+        "Deliver it again at 24:00:01 after retention expiry and inspect the declared reconciliation behavior."
+      ],
+      "expectedOutcome": [
+        "The late version cannot regress the projection and retained duplicate receipts produce no additional effect.",
+        "After receipt expiry, reconciliation uses the stored projection version 5: replay leaves its value and effect count unchanged. The report distinguishes that version guard from the expired inbox guarantee."
+      ],
+      "evidence": [
+        "Envelope order/times, retained and expired receipt observations, projection versions and reconciliation result."
+      ]
+    },
+    {
+      "id": "AC-006-B02",
+      "title": "Deduplicate contact intent and ignore old publication generations",
+      "family": "AC-006",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W publication and contact outbox/inbox delivery, with duplicate and reordered effects on one site; no search propagation or arbitrary exactly-once email claim."
+      },
+      "requirements": [
+        "ARC-009",
+        "FND-021",
+        "FND-024"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "The active site progresses from manifest-1 to manifest-2; both publication events and a contact-1 event are within the declared inbox retention period."
+      ],
+      "steps": [
+        "Deliver manifest-2's event before manifest-1's, then deliver each twice.",
+        "Deliver contact-1's event three times."
+      ],
+      "expectedOutcome": [
+        "The delivery cache converges to manifest-2 without reverting to manifest-1.",
+        "contact-1 produces one durable email intent; downstream delivery status remains separate."
+      ],
+      "evidence": [
+        "Ordered event transcript, cache generation observations and contact intent/receipt counts."
+      ]
+    },
+    {
+      "id": "AC-006-N01",
+      "title": "Keep an unsupported event from changing its projection",
+      "family": "AC-006",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 durable events on actual PostgreSQL, including outbox/inbox crashes, duplicate retention, ordering, retries and poison disposition."
+      },
+      "requirements": [
+        "ARC-010",
+        "FND-020",
+        "FND-021"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "The consumer supports event schema 1; event-2 uses schema 2 and a later event-3 uses supported schema 1."
+      ],
+      "steps": [
+        "Deliver event-2 through the normal transport and let the declared retry policy finish.",
+        "Deliver event-3 and inspect both dispositions."
+      ],
+      "expectedOutcome": [
+        "event-2 has a visible unsupported-version failure and poison disposition without projection mutation.",
+        "event-3 completes; the failed event remains inspectable rather than disappearing."
+      ],
+      "evidence": [
+        "Version contract, retry history, poison record and projection comparison."
+      ]
+    },
+    {
+      "id": "AC-006-N02",
+      "title": "Surface poison publication and contact events",
+      "family": "AC-006",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W publication and contact outbox/inbox delivery, with duplicate and reordered effects on one site; no search propagation or arbitrary exactly-once email claim."
+      },
+      "requirements": [
+        "ARC-010",
+        "FND-020",
+        "FND-021"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "The cache and contact consumers each have an event with an unsupported schema version; valid events for other records remain queued."
+      ],
+      "steps": [
+        "Drain deliveries through the declared retry limit.",
+        "Inspect failed-event records and process the valid events."
+      ],
+      "expectedOutcome": [
+        "Invalid events reach visible failed or poison states without changing cache or creating email intent.",
+        "Unrelated valid events finish, and the failed committed intents remain available for explicit repair."
+      ],
+      "evidence": [
+        "Per-event retry/disposition history and cache/email-intent counts."
+      ]
+    },
+    {
+      "id": "AC-006-P01",
+      "title": "Deliver one committed integration intent",
+      "family": "AC-006",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 durable events on actual PostgreSQL, including outbox/inbox crashes, duplicate retention, ordering, retries and poison disposition."
+      },
+      "requirements": [
+        "ARC-009",
+        "FND-020",
+        "FND-021"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "Updating item-1 emits event-1; a consumer writes projection-1 and an inbox receipt atomically."
+      ],
+      "steps": [
+        "Commit the update and allow dispatch and consumption.",
+        "Compare the business transaction, outbox envelope and inbox receipt."
+      ],
+      "expectedOutcome": [
+        "The immutable event identity and supported schema version survive dispatch.",
+        "One projection effect and one completed receipt correspond to the committed intent."
+      ],
+      "evidence": [
+        "Transaction/outbox linkage, transported envelope and projection/receipt records."
+      ]
+    },
+    {
+      "id": "AC-006-P02",
+      "title": "Dispatch publication and contact intents",
+      "family": "AC-006",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W publication and contact outbox/inbox delivery, with duplicate and reordered effects on one site; no search propagation or arbitrary exactly-once email claim."
+      },
+      "requirements": [
+        "ARC-009",
+        "FND-021",
+        "FND-024"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "manifest-2 activation and contact-1 acceptance each produce a durable event; cache and email-intent consumers use recorded inbox identities."
+      ],
+      "steps": [
+        "Activate manifest-2 and accept contact-1 in separate transactions.",
+        "Dispatch both events and inspect the cache version and queued email intent."
+      ],
+      "expectedOutcome": [
+        "The cache references manifest-2 and contact-1 has one delivery intent.",
+        "Each effect traces back to its committed producer state and immutable event identity."
+      ],
+      "evidence": [
+        "Manifest/contact commit records, event envelopes and consumer receipts."
+      ]
+    },
+    {
+      "id": "AC-006-R01",
+      "title": "Reconcile every durable-delivery crash window",
+      "family": "AC-006",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 durable events on actual PostgreSQL, including outbox/inbox crashes, duplicate retention, ordering, retries and poison disposition."
+      },
+      "requirements": [
+        "ARC-009",
+        "FND-021"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "Use a fresh item, event and consumer projection for each run; PostgreSQL owns both business/outbox and consumer/inbox transactions."
+      ],
+      "steps": [
+        "Crash before producer commit; after producer commit before dispatch; after transport receipt before dispatch acknowledgement; during consumer work before commit; and after consumer commit before acknowledgement.",
+        "Restart dispatch and consumption after each fault and drain the queue."
+      ],
+      "expectedOutcome": [
+        "The precommit run has no committed intent or effect.",
+        "Every committed intent eventually has a completed disposition; repeated delivery after either acknowledgement loss cannot duplicate the committed projection effect."
+      ],
+      "evidence": [
+        "Five fault-point traces, business/outbox/inbox row sets, delivery attempts and final effect counts."
+      ]
+    },
+    {
+      "id": "AC-006-R02",
+      "title": "Recover website dispatch and consumer acknowledgement loss",
+      "family": "AC-006",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W publication and contact outbox/inbox delivery, with duplicate and reordered effects on one site; no search propagation or arbitrary exactly-once email claim."
+      },
+      "requirements": [
+        "ARC-009",
+        "FND-021",
+        "FND-024"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "Separate publication and contact fixtures have known committed state; the delivery adapter's reconciliation policy is recorded."
+      ],
+      "steps": [
+        "For each fixture interrupt before producer commit, after commit before dispatch, after transport receipt before acknowledgement, before consumer commit and after consumer commit before acknowledgement.",
+        "Restart and reconcile the original event identities before retrying."
+      ],
+      "expectedOutcome": [
+        "Precommit runs leave no intent; committed runs retain all intents until resolved.",
+        "Cache converges to the active manifest and contact intent is not duplicated; ambiguous external email delivery stays pending reconciliation."
+      ],
+      "evidence": [
+        "Ten fault-point results, outbox/inbox identities, final cache/contact state and any transport reconciliation record."
+      ]
+    },
+    {
+      "id": "AC-007-B01",
+      "title": "Resolve daylight-saving and misfire edges",
+      "family": "AC-007",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "Reference single-host scheduler qualification alongside the G-02 events/jobs contract: time, retries, cancellation, ownership and restart; no distributed topology claim."
+      },
+      "requirements": [
+        "FND-022",
+        "FND-025"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "A test schedule uses America/Chicago; the advertised fixture policy skips nonexistent times, uses the first ambiguous occurrence and runs one catch-up after a misfire."
+      ],
+      "steps": [
+        "Resolve 2026-03-08 02:30 and 2026-11-01 01:30 local time.",
+        "Stop the worker across three due occurrences, then restart after the third."
+      ],
+      "expectedOutcome": [
+        "The nonexistent occurrence is visibly skipped; the ambiguous occurrence resolves once to 2026-11-01T06:30:00Z.",
+        "Misfire history lists the missed occurrences and one catch-up execution, matching the recorded policy."
+      ],
+      "evidence": [
+        "Local/UTC resolution table, supported policy configuration and misfire/attempt history."
+      ]
+    },
+    {
+      "id": "AC-007-B02",
+      "title": "Keep publication deterministic across local-time changes",
+      "family": "AC-007",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W scheduled publication on the single host, including retries, cancellation, timezone transitions, misfires, lease loss and restart."
+      },
+      "requirements": [
+        "FND-022",
+        "FND-025"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "The publication scheduler advertises the fixture policy: skip nonexistent local times, choose the first ambiguous occurrence and perform one catch-up for missed occurrences in America/Chicago."
+      ],
+      "steps": [
+        "Resolve schedules at 2026-03-08 02:30 and 2026-11-01 01:30.",
+        "Restart the scheduler after missing three scheduled instants for one release."
+      ],
+      "expectedOutcome": [
+        "The first local time is skipped with a reason; the second resolves once to 06:30Z.",
+        "The missed release activates at most once through the one-catch-up policy; each skipped occurrence has a visible outcome."
+      ],
+      "evidence": [
+        "Timezone policy, UTC resolutions, misfire decisions and publication activation count."
+      ]
+    },
+    {
+      "id": "AC-007-N01",
+      "title": "Report exhausted retries and both cancellation modes",
+      "family": "AC-007",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "Reference single-host scheduler qualification alongside the G-02 events/jobs contract: time, retries, cancellation, ownership and restart; no distributed topology claim."
+      },
+      "requirements": [
+        "FND-022",
+        "MOD-006"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "job-2 fails deterministically with a declared three-attempt retry limit; job-3 is queued and job-4 is paused while running before its effect."
+      ],
+      "steps": [
+        "Run job-2 through all three attempts.",
+        "Cancel job-3 before dispatch; request cancellation of running job-4 and release its pause."
+      ],
+      "expectedOutcome": [
+        "job-2 ends failed after exactly three attempts with its cause recorded.",
+        "job-3 never starts; job-4 reports cooperative cancellation separately from prevention of dispatch and records whether any effect committed."
+      ],
+      "evidence": [
+        "Retry configuration, attempt timestamps, cancellation acknowledgements and final effect counts."
+      ]
+    },
+    {
+      "id": "AC-007-N02",
+      "title": "Expose publication retry failure and cancellation",
+      "family": "AC-007",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W scheduled publication on the single host, including retries, cancellation, timezone transitions, misfires, lease loss and restart."
+      },
+      "requirements": [
+        "FND-022",
+        "MOD-006"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "Three separate publication jobs are available: one with a dependency failure and a three-attempt limit, one queued, and one running before activation commit."
+      ],
+      "steps": [
+        "Exhaust the failed job's retries.",
+        "Cancel the queued job and request cooperative cancellation of the running job before releasing its commit pause."
+      ],
+      "expectedOutcome": [
+        "The failure preserves the prior active manifest and records three failed attempts.",
+        "Queued cancellation prevents execution; running cancellation reports its final disposition, with no unreported activation."
+      ],
+      "evidence": [
+        "Per-job retry/cancellation records and active-manifest histories."
+      ]
+    },
+    {
+      "id": "AC-007-P01",
+      "title": "Execute a due job once with visible state",
+      "family": "AC-007",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "Reference single-host scheduler qualification alongside the G-02 events/jobs contract: time, retries, cancellation, ownership and restart; no distributed topology claim."
+      },
+      "requirements": [
+        "FND-022",
+        "FND-025",
+        "MOD-006"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "job-1 is persisted for 2026-11-01T12:00:00Z with an idempotent counter effect and no existing attempt."
+      ],
+      "steps": [
+        "Advance the controlled clock to one second before the due time, then to the due instant.",
+        "Let the worker complete and inspect job history."
+      ],
+      "expectedOutcome": [
+        "No execution occurs early.",
+        "One queued-to-running-to-completed sequence and one counter effect appear at or after the due instant."
+      ],
+      "evidence": [
+        "Persisted schedule, clock trace, attempt history and counter value."
+      ]
+    },
+    {
+      "id": "AC-007-P02",
+      "title": "Activate an exact scheduled publication",
+      "family": "AC-007",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W scheduled publication on the single host, including retries, cancellation, timezone transitions, misfires, lease loss and restart."
+      },
+      "requirements": [
+        "FND-022",
+        "FND-025",
+        "MOD-006"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "manifest-2 is validated and scheduled for 2026-11-01T12:00:00Z; manifest-1 is currently active."
+      ],
+      "steps": [
+        "Read the site just before the scheduled instant.",
+        "Advance to the due instant, run the scheduler and read again."
+      ],
+      "expectedOutcome": [
+        "manifest-1 serves the earlier read and manifest-2 serves the later read.",
+        "One completed job binds exactly manifest-2, without resolving a newer draft."
+      ],
+      "evidence": [
+        "Schedule identity, job history, active-pointer transitions and response manifest identities."
+      ]
+    },
+    {
+      "id": "AC-007-R01",
+      "title": "Recover a job after lease loss and restart",
+      "family": "AC-007",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "Reference single-host scheduler qualification alongside the G-02 events/jobs contract: time, retries, cancellation, ownership and restart; no distributed topology claim."
+      },
+      "requirements": [
+        "FND-022",
+        "FND-023"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "job-5 pauses before committing its counter effect; one worker owns a lease and a replacement worker can run on the same host."
+      ],
+      "steps": [
+        "Expire the first lease, restart ownership processing and let the replacement acquire it.",
+        "Release the stale worker, then complete the replacement attempt."
+      ],
+      "expectedOutcome": [
+        "Only the valid attempt can commit the counter effect; stale ownership cannot commit a competing result.",
+        "History identifies lease loss and the replacement attempt; the job ends completed with one effect."
+      ],
+      "evidence": [
+        "Lease identities/times, commit concurrency results and final job/counter records."
+      ]
+    },
+    {
+      "id": "AC-007-R02",
+      "title": "Reconcile lease loss at publication commit",
+      "family": "AC-007",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W scheduled publication on the single host, including retries, cancellation, timezone transitions, misfires, lease loss and restart."
+      },
+      "requirements": [
+        "FND-022",
+        "FND-023"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "A scheduled job for manifest-2 pauses just before activation; manifest-1 is active and the lease has a controlled expiry."
+      ],
+      "steps": [
+        "Expire the lease and start a replacement worker on the same host.",
+        "Release both workers, then restart once after activation commits but before job completion acknowledgement."
+      ],
+      "expectedOutcome": [
+        "The active pointer reaches manifest-2 once through a valid concurrency-checked transition.",
+        "Retry recognizes the committed activation; history records stale ownership and reconciliation without duplicate publication."
+      ],
+      "evidence": [
+        "Lease and activation identities, commit results, restart trace and completed job history."
+      ]
+    },
+    {
+      "id": "AC-008-B01",
+      "title": "Respect compatibility and cancellation boundaries",
+      "family": "AC-008",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 advertised .NET and TypeScript client modes, public version/error contracts and cancellation. Authentication and access decisions are supplied by AC-002 and AC-003."
+      },
+      "requirements": [
+        "FND-027",
+        "FND-028"
+      ],
+      "layers": [
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-003",
+        "AC-004"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "The release declares its oldest supported API contract and current contract. A controlled update can pause before commit or after commit before response."
+      ],
+      "steps": [
+        "Read through the oldest supported and current versions, then the immediately unsupported predecessor.",
+        "Cancel one update before commit and cancel another after commit but before its response; query each operation's authoritative status."
+      ],
+      "expectedOutcome": [
+        "Supported versions preserve their declared fields; the unsupported version reports a compatibility failure.",
+        "Precommit cancellation leaves no change; postcommit cancellation does not claim rollback and reports the committed outcome through reconciliation."
+      ],
+      "evidence": [
+        "Compatibility declaration, version transcripts, cancellation timing and authoritative operation-state reads."
+      ]
+    },
+    {
+      "id": "AC-008-B02",
+      "title": "Check W client version and cancellation edges",
+      "family": "AC-008",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "Only W minimal Admin and Razor delivery API contracts: typed errors, compatibility and cancellation; no GraphQL or broader client-surface claim."
+      },
+      "requirements": [
+        "FND-027",
+        "FND-028"
+      ],
+      "layers": [
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-003",
+        "AC-004"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "The W release advertises current and oldest-supported endpoint versions; a draft save can pause either side of its database commit."
+      ],
+      "steps": [
+        "Read through both supported versions and the first unsupported predecessor.",
+        "Cancel one save before commit and another after commit before response, then inspect operation status."
+      ],
+      "expectedOutcome": [
+        "Supported clients retain the declared revision fields and unsupported versions fail explicitly.",
+        "Cancellation before commit preserves the old draft; cancellation after commit is reconciled as committed rather than silently retried as a new save."
+      ],
+      "evidence": [
+        "Version matrix, cancellation traces and draft/operation state for both fault points."
+      ]
+    },
+    {
+      "id": "AC-008-N01",
+      "title": "Return actionable typed contract failures",
+      "family": "AC-008",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 advertised .NET and TypeScript client modes, public version/error contracts and cancellation. Authentication and access decisions are supplied by AC-002 and AC-003."
+      },
+      "requirements": [
+        "FND-027",
+        "FND-028"
+      ],
+      "layers": [
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-003",
+        "AC-004"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "A title field is required; a known stale token and an unsupported API version are prepared. Dynamic discovery is exercised only if advertised."
+      ],
+      "steps": [
+        "Submit a missing title, then a stale write, then an unsupported API version from every advertised client.",
+        "For dynamic clients, separately make discovery unavailable and supply an unresolvable endpoint binding."
+      ],
+      "expectedOutcome": [
+        "Validation, concurrency and version failures retain distinct stable codes and correlation identifiers without a successful write.",
+        "Advertised dynamic clients distinguish discovery failure from endpoint-resolution failure."
+      ],
+      "evidence": [
+        "Input/error matrix, typed client exceptions or results, and unchanged record versions."
+      ]
+    },
+    {
+      "id": "AC-008-N02",
+      "title": "Show distinct validation, conflict and version errors",
+      "family": "AC-008",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "Only W minimal Admin and Razor delivery API contracts: typed errors, compatibility and cancellation; no GraphQL or broader client-surface claim."
+      },
+      "requirements": [
+        "FND-027",
+        "FND-028"
+      ],
+      "layers": [
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-003",
+        "AC-004"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "A contact field is required; article-1 has a stale saved token available; the W client's supported API version is known."
+      ],
+      "steps": [
+        "Submit contact without its required message.",
+        "Save article-1 with the stale token.",
+        "Call a W endpoint using an unsupported version."
+      ],
+      "expectedOutcome": [
+        "Each operation produces its declared typed error and correlation identifier; Admin presents the field or conflict context.",
+        "None of the failures creates a contact, revision or publication."
+      ],
+      "evidence": [
+        "Three endpoint responses, UI error observations and authoritative row counts."
+      ]
+    },
+    {
+      "id": "AC-008-P01",
+      "title": "Complete the same operation through advertised clients",
+      "family": "AC-008",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 advertised .NET and TypeScript client modes, public version/error contracts and cancellation. Authentication and access decisions are supplied by AC-002 and AC-003."
+      },
+      "requirements": [
+        "FND-026",
+        "FND-027",
+        "FND-028",
+        "DEV-012"
+      ],
+      "layers": [
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-003",
+        "AC-004"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "The release enumerates its advertised generated, static and dynamic .NET/TypeScript client modes against a pinned endpoint contract. item-1 has a title, optional note and version token."
+      ],
+      "steps": [
+        "For every advertised mode, read item-1, update its title with the current token and read it again.",
+        "Compare the endpoint inventory and serialized values across modes."
+      ],
+      "expectedOutcome": [
+        "Every advertised client preserves typed fields, optional-value meaning and the returned version.",
+        "The inventory and client contract agree on route, method and version for each exercised operation."
+      ],
+      "evidence": [
+        "Client-mode matrix, contract digest and request/response transcripts with typed assertions."
+      ]
+    },
+    {
+      "id": "AC-008-P02",
+      "title": "Carry website revision contracts through Admin and delivery",
+      "family": "AC-008",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "Only W minimal Admin and Razor delivery API contracts: typed errors, compatibility and cancellation; no GraphQL or broader client-surface claim."
+      },
+      "requirements": [
+        "FND-026",
+        "FND-027",
+        "FND-028"
+      ],
+      "layers": [
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-003",
+        "AC-004"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "W's endpoint inventory names the Admin draft-save and Razor publication-read operations. The TypeScript client and server-side delivery adapter use the same pinned contracts."
+      ],
+      "steps": [
+        "Save article-1 as revision-2 through Admin and inspect its typed response.",
+        "Read the separately published revision-1 through the delivery contract."
+      ],
+      "expectedOutcome": [
+        "Admin receives revision-2's identity and concurrency token; delivery receives the active manifest's revision-1.",
+        "Serialization preserves stable content and revision identities across the two contracts."
+      ],
+      "evidence": [
+        "W endpoint inventory, contract digest, client traces and revision-id assertions."
+      ]
+    },
+    {
+      "id": "AC-008-R01",
+      "title": "Recover a client after an interrupted response",
+      "family": "AC-008",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 advertised .NET and TypeScript client modes, public version/error contracts and cancellation. Authentication and access decisions are supplied by AC-002 and AC-003."
+      },
+      "requirements": [
+        "FND-028"
+      ],
+      "layers": [
+        "api-contract",
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-003",
+        "AC-004"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "An idempotent create operation uses operation-1 and has committed item-2; the response is interrupted. Each advertised client mode gets an independent fixture."
+      ],
+      "steps": [
+        "Reconnect, inspect operation-1 and retry using the same operation identity under the endpoint's declared contract.",
+        "Read the created item and compare versions."
+      ],
+      "expectedOutcome": [
+        "The client recovers the committed result without creating a second item.",
+        "A new correlation for the retry retains linkage to operation-1 and its single final disposition."
+      ],
+      "evidence": [
+        "Interrupted request, reconciliation/retry transcript and item/operation counts."
+      ]
+    },
+    {
+      "id": "AC-008-R02",
+      "title": "Recover the Admin after losing a save response",
+      "family": "AC-008",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "Only W minimal Admin and Razor delivery API contracts: typed errors, compatibility and cancellation; no GraphQL or broader client-surface claim."
+      },
+      "requirements": [
+        "FND-028"
+      ],
+      "layers": [
+        "api-contract",
+        "ui",
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-003",
+        "AC-004"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "Admin has article-1 open and save operation-2 is accepted; its response is interrupted after commit."
+      ],
+      "steps": [
+        "Reconnect and resolve operation-2, then reload the returned revision.",
+        "Retry only under the same operation identity if the endpoint requires retry."
+      ],
+      "expectedOutcome": [
+        "The UI displays the committed revision and clears its uncertain-save state.",
+        "The history contains one revision for operation-2 and no duplicate save effect."
+      ],
+      "evidence": [
+        "Browser state transitions, operation lookup/retry transcript and revision history."
+      ]
+    },
+    {
+      "id": "AC-009-B01",
+      "title": "Enforce declared file size and cancellation boundaries",
+      "family": "AC-009",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 filesystem Files byte/metadata integrity, immutable versions, size/cancellation boundaries, interrupted writes and restore. Eligibility and access outcomes are prerequisites from the security families."
+      },
+      "requirements": [
+        "FND-030",
+        "FND-031"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-031"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "The upload fixture configures a supported 1,024-byte maximum. Inputs contain 1,023, 1,024 and 1,025 bytes; a fourth upload can pause before finalization."
+      ],
+      "steps": [
+        "Complete each size variant and compare metadata.",
+        "Cancel the fourth upload before finalization and inspect temporary and authoritative storage."
+      ],
+      "expectedOutcome": [
+        "The first two sizes complete; 1,025 bytes reports the declared size limit without a completed version.",
+        "The canceled upload has a visible canceled disposition and no authoritative partial version."
+      ],
+      "evidence": [
+        "Configured limit, per-size outcomes, cancellation trace and storage/version inventories."
+      ]
+    },
+    {
+      "id": "AC-009-B02",
+      "title": "Check the content-package media size edge",
+      "family": "AC-009",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W upload/import through filesystem Files, versioned editorial metadata, package-byte integrity, interrupted storage and restore. Scanning/quarantine, denied access and revocation are supplied by AC-003 and AC-031."
+      },
+      "requirements": [
+        "FND-030",
+        "MOD-014",
+        "CMS-009"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-031"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "Three otherwise valid eligible image fixtures have exact sizes of 10 MiB minus one byte, 10 MiB and 10 MiB plus one byte; manifest sizes and hashes match. Deployment capacity supports the contract limit."
+      ],
+      "steps": [
+        "Dry-run each package and apply only the two supported-size plans through Files."
+      ],
+      "expectedOutcome": [
+        "The first two sizes pass the format size check and retain exact stored lengths.",
+        "The final size is rejected as over the package media limit before apply."
+      ],
+      "evidence": [
+        "Byte counts and digests, dry-run diagnostics and stored version sizes."
+      ]
+    },
+    {
+      "id": "AC-009-N01",
+      "title": "Reject an integrity mismatch without replacing stored bytes",
+      "family": "AC-009",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 filesystem Files byte/metadata integrity, immutable versions, size/cancellation boundaries, interrupted writes and restore. Eligibility and access outcomes are prerequisites from the security families."
+      },
+      "requirements": [
+        "FND-030",
+        "FND-031",
+        "MOD-014"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-031"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "asset-1 has a complete version; a new upload declares the digest of fixture A while carrying different fixture B bytes."
+      ],
+      "steps": [
+        "Attempt to complete the mismatched upload.",
+        "Inspect the operation diagnostic, authoritative version list and existing version bytes."
+      ],
+      "expectedOutcome": [
+        "Completion reports the digest mismatch and does not add a completed version.",
+        "The prior version remains readable with its original digest; staged-byte disposition is explicit."
+      ],
+      "evidence": [
+        "Expected/observed digest comparison, completion result and version/storage inventory."
+      ]
+    },
+    {
+      "id": "AC-009-N02",
+      "title": "Reject damaged package media before completion",
+      "family": "AC-009",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W upload/import through filesystem Files, versioned editorial metadata, package-byte integrity, interrupted storage and restore. Scanning/quarantine, denied access and revocation are supplied by AC-003 and AC-031."
+      },
+      "requirements": [
+        "FND-030",
+        "MOD-014",
+        "CMS-009"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-031"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "A valid package declares the minimal image's byte length and SHA-256; one copy has a changed byte and another a truncated file."
+      ],
+      "steps": [
+        "Validate and attempt import of each copy.",
+        "Inspect content mappings, Files versions and the prior active publication."
+      ],
+      "expectedOutcome": [
+        "Each copy reports its exact integrity discrepancy before authoritative apply.",
+        "No new completed media version, content mapping or publication is created."
+      ],
+      "evidence": [
+        "Two integrity diagnostics and unchanged mapping/version/manifest inventories."
+      ]
+    },
+    {
+      "id": "AC-009-P01",
+      "title": "Preserve logical file identity across immutable versions",
+      "family": "AC-009",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 filesystem Files byte/metadata integrity, immutable versions, size/cancellation boundaries, interrupted writes and restore. Eligibility and access outcomes are prerequisites from the security families."
+      },
+      "requirements": [
+        "FND-030",
+        "MOD-014"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-031"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "A filesystem-backed logical asset asset-1 accepts a 512-byte fixture and a distinct 768-byte fixture; eligibility decisions are already supplied by AC-031."
+      ],
+      "steps": [
+        "Upload the first fixture, then create a second version under asset-1.",
+        "Stream each exact version and inspect metadata."
+      ],
+      "expectedOutcome": [
+        "Both versions retain their own byte lengths and SHA-256 digests; reading the old version still returns the old bytes.",
+        "asset-1 remains the same logical identity while physical versions differ."
+      ],
+      "evidence": [
+        "Source/read-back digests, metadata records and version identity history."
+      ]
+    },
+    {
+      "id": "AC-009-P02",
+      "title": "Keep imported and uploaded media versions reproducible",
+      "family": "AC-009",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W upload/import through filesystem Files, versioned editorial metadata, package-byte integrity, interrupted storage and restore. Scanning/quarantine, denied access and revocation are supplied by AC-003 and AC-031."
+      },
+      "requirements": [
+        "FND-030",
+        "MOD-014",
+        "CMS-009"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-031"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "The minimal content-package image and its exact hash/size form one fixture. A second eligible image version and descriptive alt text are prepared under the same logical asset."
+      ],
+      "steps": [
+        "Import the first version through Files, then upload the second.",
+        "Read each version by its identity and inspect its dimensions, media type, alt text and byte digest."
+      ],
+      "expectedOutcome": [
+        "Both versions preserve their own bytes and metadata; changing the current version does not rewrite the historical one.",
+        "Editorial placement resolves the selected asset version."
+      ],
+      "evidence": [
+        "Package and Files metadata, source/read-back digests and editorial reference identities."
+      ]
+    },
+    {
+      "id": "AC-009-R01",
+      "title": "Reconcile interrupted filesystem writes and restore versions",
+      "family": "AC-009",
+      "profiles": [
+        "reference"
+      ],
+      "scope": {
+        "reference": "G-02 filesystem Files byte/metadata integrity, immutable versions, size/cancellation boundaries, interrupted writes and restore. Eligibility and access outcomes are prerequisites from the security families."
+      },
+      "requirements": [
+        "FND-030",
+        "FND-031",
+        "MOD-014"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-031"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "asset-1 has two complete versions with captured digests in a coordinated backup. A third upload can stop midstream or after bytes are staged but before metadata commit."
+      ],
+      "steps": [
+        "Interrupt at each point in independent runs, restart storage handling and reconcile the operation identity.",
+        "Restore the backed-up metadata and bytes into the recovery fixture and read both historical versions."
+      ],
+      "expectedOutcome": [
+        "No partial upload becomes a completed version; retry or cleanup accounts for staged bytes without deleting referenced versions.",
+        "Restored versions match the backup's identities, lengths and digests."
+      ],
+      "evidence": [
+        "Fault-point traces, staged-object reconciliation report, backup identity and restored read-back digests."
+      ]
+    },
+    {
+      "id": "AC-009-R02",
+      "title": "Recover imported media after a filesystem interruption",
+      "family": "AC-009",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W upload/import through filesystem Files, versioned editorial metadata, package-byte integrity, interrupted storage and restore. Scanning/quarantine, denied access and revocation are supplied by AC-003 and AC-031."
+      },
+      "requirements": [
+        "FND-030",
+        "MOD-014",
+        "CMS-009"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-031"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "A reviewed import stages new media while a prior publication retains old versions; the database/Files backup identifies all historical references."
+      ],
+      "steps": [
+        "Stop storage midwrite, then separately after staging before database commit.",
+        "Reconcile each import by its original operation identity, complete or clean its unreferenced staging, and restore the coordinated backup into the recovery fixture."
+      ],
+      "expectedOutcome": [
+        "Each interrupted import reaches a reported final disposition without a dangling completed media reference.",
+        "The restored active and historical manifests resolve to the original version hashes."
+      ],
+      "evidence": [
+        "Import recovery reports, staged/committed inventories and restored manifest-to-media integrity results."
+      ]
+    },
+    {
+      "id": "AC-013-B01",
+      "title": "Keep duplicate and ambiguous transport outcomes distinct",
+      "family": "AC-013",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W contact email only through the release-selected transport: durable intent, acceptance/queue/delivery/failure states, duplicates and outage recovery. Destination authority is supplied by AC-003."
+      },
+      "requirements": [
+        "FND-021",
+        "FND-032"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "contact-3 uses one recorded delivery identity; the transport can acknowledge acceptance without confirming delivery."
+      ],
+      "steps": [
+        "Deliver the same contact event three times.",
+        "Return transport acceptance without a delivery confirmation, then repeat its acceptance notification."
+      ],
+      "expectedOutcome": [
+        "One message intent and one reconciled dispatch identity remain.",
+        "Repeated acceptance notifications do not add messages or promote the delivery state to confirmed."
+      ],
+      "evidence": [
+        "Duplicate-event/notification transcript, intent/dispatch counts and final delivery state."
+      ]
+    },
+    {
+      "id": "AC-013-N01",
+      "title": "Retain a failed contact delivery without a false success",
+      "family": "AC-013",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W contact email only through the release-selected transport: durable intent, acceptance/queue/delivery/failure states, duplicates and outage recovery. Destination authority is supplied by AC-003."
+      },
+      "requirements": [
+        "FND-032"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "The selected transport fixture returns a permanent address-delivery failure for contact-2; destination authority has already been qualified separately."
+      ],
+      "steps": [
+        "Dispatch contact-2 and inspect its terminal disposition through the minimal Admin."
+      ],
+      "expectedOutcome": [
+        "The durable request remains accepted while email delivery is failed with an actionable reason.",
+        "The interface does not label either queueing or transport rejection as delivered."
+      ],
+      "evidence": [
+        "Transport failure result, durable request and delivery-state history, and Admin observation."
+      ]
+    },
+    {
+      "id": "AC-013-P01",
+      "title": "Track contact intent through provider confirmation",
+      "family": "AC-013",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W contact email only through the release-selected transport: durable intent, acceptance/queue/delivery/failure states, duplicates and outage recovery. Destination authority is supplied by AC-003."
+      },
+      "requirements": [
+        "FND-032"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "contact-1 has a prequalified configured destination and an eligible durable email intent. The bounded transport fixture declares whether confirmed delivery is observable."
+      ],
+      "steps": [
+        "Accept contact-1, queue and dispatch its message.",
+        "Observe transport acceptance and, only where supported, the later delivery confirmation."
+      ],
+      "expectedOutcome": [
+        "Durable request acceptance, queued dispatch and transport acceptance have distinct recorded states.",
+        "Delivered appears only with the transport's positive confirmation; otherwise delivery remains unconfirmed."
+      ],
+      "evidence": [
+        "Request/intent identity chain, timestamps, transport acknowledgement and any confirmation record."
+      ]
+    },
+    {
+      "id": "AC-013-R01",
+      "title": "Reconcile contact delivery after an outage",
+      "family": "AC-013",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W contact email only through the release-selected transport: durable intent, acceptance/queue/delivery/failure states, duplicates and outage recovery. Destination authority is supplied by AC-003."
+      },
+      "requirements": [
+        "FND-022",
+        "FND-032"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "contact-4 is queued; use separate fixtures for transport unavailable before send and connection lost after provider acceptance before local acknowledgement."
+      ],
+      "steps": [
+        "Trigger each fault and restart dispatch.",
+        "Resolve the original transport identity using its advertised reconciliation capability before any resend; resume when the outcome is known."
+      ],
+      "expectedOutcome": [
+        "The unsent fixture eventually dispatches under the original intent.",
+        "The ambiguous fixture stays visibly unresolved until reconciled; no blind retry creates an additional message, and resolved acceptance is retained."
+      ],
+      "evidence": [
+        "Outage/timeout traces, retry schedule, reconciliation response and final message counts."
+      ]
+    },
+    {
+      "id": "AC-016-B01",
+      "title": "Keep schema and preview versions pinned at an edit boundary",
+      "family": "AC-016",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W versioned content types, fields and references, typed composition, revision conflicts and exact-revision preview. Preview authorization is supplied by AC-003."
+      },
+      "requirements": [
+        "CMS-001",
+        "CMS-004",
+        "CMS-006"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "article-1 revision-1 uses schema version 1. A compatible schema version 2 adds an optional summary field while both renderers remain installed."
+      ],
+      "steps": [
+        "Save revision-2 against schema version 2 with the summary absent.",
+        "Open preview explicitly for revision-1, save revision-3, and refresh that preview.",
+        "Propose a narrowing schema change against existing values."
+      ],
+      "expectedOutcome": [
+        "Absence of the optional summary is preserved and historical revision-1 retains schema version 1.",
+        "The selected preview still renders revision-1; narrowing reports affected content for a migration decision rather than discarding values."
+      ],
+      "evidence": [
+        "Schema versions, stored field snapshots, preview revision identities and incompatibility report."
+      ]
+    },
+    {
+      "id": "AC-016-N01",
+      "title": "Reject invalid fields, references and stale authoring",
+      "family": "AC-016",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W versioned content types, fields and references, typed composition, revision conflicts and exact-revision preview. Preview authorization is supplied by AC-003."
+      },
+      "requirements": [
+        "CMS-001",
+        "CMS-002",
+        "CMS-003",
+        "CMS-004"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "article-1 has a current version; two authors opened the preceding version. The valid type and renderer fixtures are retained."
+      ],
+      "steps": [
+        "Independently submit a missing required title, an integer title, a missing content reference and an unavailable block version.",
+        "Save from author A, then submit author B's stale token."
+      ],
+      "expectedOutcome": [
+        "Each invalid draft reports its field/reference/dependency diagnostic.",
+        "The stale write produces a visible conflict; none of the rejected inputs silently replaces the current valid revision."
+      ],
+      "evidence": [
+        "Invalid-input matrix, diagnostics, conflict display and retained revision hashes."
+      ]
+    },
+    {
+      "id": "AC-016-P01",
+      "title": "Save and preview a precisely selected composed revision",
+      "family": "AC-016",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W versioned content types, fields and references, typed composition, revision conflicts and exact-revision preview. Preview authorization is supplied by AC-003."
+      },
+      "requirements": [
+        "CMS-001",
+        "CMS-002",
+        "CMS-003",
+        "CMS-004",
+        "CMS-006"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "The article type version 1 has required title and a content reference to page-1. Installed version-1 block, layout and template renderers support a heading and paragraph."
+      ],
+      "steps": [
+        "Create article-1 using the reference and two ordered typed blocks; save revision-1.",
+        "Change its paragraph and save revision-2.",
+        "Preview revision-1 and compare both revisions."
+      ],
+      "expectedOutcome": [
+        "Each revision retains its schema and renderer dependencies, field values and block order.",
+        "Preview shows revision-1 exactly and comparison identifies the paragraph change without changing production publication."
+      ],
+      "evidence": [
+        "Typed revisions and dependency identities, comparison output and preview-selected revision observations."
+      ]
+    },
+    {
+      "id": "AC-016-P02",
+      "title": "Preserve typed taxonomy references during authoring",
+      "family": "AC-016",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W versioned content types, fields and references, typed composition, revision conflicts and exact-revision preview. Preview authorization is supplied by AC-003."
+      },
+      "requirements": [
+        "CMS-002",
+        "CMS-004",
+        "CMS-010"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "Taxonomy garden has parent term crops and child term herbs. The article type declares a term reference targeting garden; both terms have stable identities."
+      ],
+      "steps": [
+        "Save article-1 revision-1 referencing herbs.",
+        "Change the display label of herbs, save article-1 as revision-2 and compare the typed references in both revisions."
+      ],
+      "expectedOutcome": [
+        "The term reference resolves within garden and its parent relationship remains crops.",
+        "The label edit does not replace the term identity; both article revisions retain the same stable reference while their own revision identities remain distinct."
+      ],
+      "evidence": [
+        "Taxonomy identities and parent graph, stored field references and article revision comparison."
+      ]
+    },
+    {
+      "id": "AC-016-R01",
+      "title": "Recover an interrupted save and restore an older revision as a draft",
+      "family": "AC-016",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W versioned content types, fields and references, typed composition, revision conflicts and exact-revision preview. Preview authorization is supplied by AC-003."
+      },
+      "requirements": [
+        "CMS-001",
+        "CMS-004"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "ui",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "article-1 has revisions 1 and 2; an autosave operation-3 can lose its response after commit."
+      ],
+      "steps": [
+        "Interrupt the response and reconnect using operation-3's status.",
+        "Restore revision-1 as a new draft, validate it against its supported schema and compare history."
+      ],
+      "expectedOutcome": [
+        "Reconciliation identifies exactly one saved revision for operation-3.",
+        "Restore creates a distinct validated draft; it does not overwrite revisions 1 or 2 or activate a publication."
+      ],
+      "evidence": [
+        "Autosave/reconnect history, operation identity, revision comparison and publication pointer before/after."
+      ]
+    },
+    {
+      "id": "AC-017-B01",
+      "title": "Resolve competing activations at one schedule instant",
+      "family": "AC-017",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W immutable publication manifests, scheduled activation, withdrawal/rollback, unique routes and cache convergence on one site/culture; search propagation is excluded."
+      },
+      "requirements": [
+        "CMS-005",
+        "ARC-009"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "Two validated releases target the same site/culture at 2026-11-01T12:00:00Z and expect the same active-manifest token."
+      ],
+      "steps": [
+        "Read before the due instant, then let both jobs attempt activation at that instant.",
+        "Read repeatedly during activation and cache convergence."
+      ],
+      "expectedOutcome": [
+        "No release activates early.",
+        "One concurrency-checked activation wins; the other has an explicit conflict. Requests never combine the two manifests, and cache convergence refers to the winning generation."
+      ],
+      "evidence": [
+        "Schedule and expected-version inputs, competing commit outcomes and response/cache generation timeline."
+      ]
+    },
+    {
+      "id": "AC-017-N01",
+      "title": "Reject competing route owners without replacing publication",
+      "family": "AC-017",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W immutable publication manifests, scheduled activation, withdrawal/rollback, unique routes and cache convergence on one site/culture; search propagation is excluded."
+      },
+      "requirements": [
+        "CMS-005",
+        "CMS-007",
+        "CMS-009"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "manifest-1 is active. A proposed release gives two different entries the canonical route /guide; another depends on an absent retained asset version."
+      ],
+      "steps": [
+        "Validate and attempt activation of each proposed release."
+      ],
+      "expectedOutcome": [
+        "Route collision and missing dependency produce distinct diagnostics naming the conflicting references.",
+        "Neither failed release replaces manifest-1 or changes its route table."
+      ],
+      "evidence": [
+        "Invalid manifests, validation reports and unchanged active pointer/routes."
+      ]
+    },
+    {
+      "id": "AC-017-P01",
+      "title": "Publish a frozen manifest and later withdraw it",
+      "family": "AC-017",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W immutable publication manifests, scheduled activation, withdrawal/rollback, unique routes and cache convergence on one site/culture; search propagation is excluded."
+      },
+      "requirements": [
+        "CMS-004",
+        "CMS-005",
+        "CMS-007",
+        "ARC-009"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "manifest-1 is active. manifest-2 binds article-1 revision-2, page-1 revision-1, exact asset versions and unique route/navigation metadata."
+      ],
+      "steps": [
+        "Activate manifest-2 and read both routes, including a request spanning activation.",
+        "Draft article-1 revision-3, then withdraw the published release and inspect authoritative delivery and convergence status."
+      ],
+      "expectedOutcome": [
+        "Each request resolves one consistent manifest and the later draft does not mutate manifest-2.",
+        "Withdrawal has an explicit recorded state and delivery follows it; immutable manifests and their revision history remain retained."
+      ],
+      "evidence": [
+        "Manifest hashes, active-pointer/withdrawal history, per-request manifest identities and propagation status."
+      ]
+    },
+    {
+      "id": "AC-017-R01",
+      "title": "Roll back after failed activation and interrupted propagation",
+      "family": "AC-017",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W immutable publication manifests, scheduled activation, withdrawal/rollback, unique routes and cache convergence on one site/culture; search propagation is excluded."
+      },
+      "requirements": [
+        "CMS-004",
+        "CMS-005",
+        "CMS-009",
+        "ARC-009"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "manifest-1 and its compatible schemas/renderers/media are retained. manifest-2 is validated; cache propagation can pause after an authoritative switch."
+      ],
+      "steps": [
+        "First inject a failure before the activation commit and inspect the pointer.",
+        "In a separate run activate manifest-2, interrupt cache propagation, restart the consumer, then explicitly roll back to validated manifest-1."
+      ],
+      "expectedOutcome": [
+        "Precommit activation failure leaves manifest-1 active.",
+        "Restart and rollback converge caches to the selected authoritative manifest with visible pending/failed/completed status; no historical manifest is edited."
+      ],
+      "evidence": [
+        "Fault traces, immutable manifest hashes, rollback transaction and cache convergence observations."
+      ]
+    },
+    {
+      "id": "AC-018-B01",
+      "title": "Keep delivery and discovery on the selected publication",
+      "family": "AC-018",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W Razor delivery for one site/culture with prequalified aliases and media decisions, installed renderers and discovery derived from the active publication. Host manipulation and protected-content boundaries remain AC-004/AC-031 work."
+      },
+      "requirements": [
+        "CMS-005",
+        "CMS-007",
+        "CMS-012"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-031"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "article-1 revision-1 is published at /guide; revision-2 changes title and slug but remains a draft. The protected preview fixture is supplied by AC-003."
+      ],
+      "steps": [
+        "Read /guide, canonical metadata and sitemap while creating the draft.",
+        "Publish revision-2 with a declared route move and inspect delivery and discovery after convergence."
+      ],
+      "expectedOutcome": [
+        "Before activation the three public outputs still describe revision-1's published route and title.",
+        "After convergence they consistently describe revision-2; a draft save alone does not update the public projection."
+      ],
+      "evidence": [
+        "Published/draft revision ids, response/SEO/sitemap snapshots and publication-generation timeline."
+      ]
+    },
+    {
+      "id": "AC-018-N01",
+      "title": "Refuse a release with an unavailable Razor renderer",
+      "family": "AC-018",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W Razor delivery for one site/culture with prequalified aliases and media decisions, installed renderers and discovery derived from the active publication. Host manipulation and protected-content boundaries remain AC-004/AC-031 work."
+      },
+      "requirements": [
+        "CMS-003",
+        "CMS-005",
+        "UI-007"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-031"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "manifest-1 renders with installed template version 1; proposed manifest-2 requires absent template version 2."
+      ],
+      "steps": [
+        "Validate the proposal and attempt activation.",
+        "Request the currently published page after the failure."
+      ],
+      "expectedOutcome": [
+        "Validation identifies the missing renderer and blocks activation.",
+        "Existing delivery still uses manifest-1 and its installed renderer, with no partial template substitution."
+      ],
+      "evidence": [
+        "Renderer dependency diagnostic, active pointer and postfailure response."
+      ]
+    },
+    {
+      "id": "AC-018-P01",
+      "title": "Render one publication through canonical and alias bindings",
+      "family": "AC-018",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W Razor delivery for one site/culture with prequalified aliases and media decisions, installed renderers and discovery derived from the active publication. Host manipulation and protected-content boundaries remain AC-004/AC-031 work."
+      },
+      "requirements": [
+        "CMS-005",
+        "CMS-007",
+        "CMS-009",
+        "CMS-012",
+        "UI-007"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-031"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "One site in en-US has a canonical binding and two already qualified alias bindings. manifest-1 selects page-1 and a versioned eligible image with alt text."
+      ],
+      "steps": [
+        "Request page-1 through each binding using the configured Razor renderer.",
+        "Inspect response content, media version, canonical metadata and sitemap entry."
+      ],
+      "expectedOutcome": [
+        "Every binding resolves the same site, culture and selected revision.",
+        "The page uses the declared media version and the configured canonical origin; metadata and sitemap reference the selected publication."
+      ],
+      "evidence": [
+        "Binding inventory, rendered responses, media digest and canonical/sitemap observations."
+      ]
+    },
+    {
+      "id": "AC-018-R01",
+      "title": "Rebuild Razor delivery cache from the active manifest",
+      "family": "AC-018",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W Razor delivery for one site/culture with prequalified aliases and media decisions, installed renderers and discovery derived from the active publication. Host manipulation and protected-content boundaries remain AC-004/AC-031 work."
+      },
+      "requirements": [
+        "CMS-005",
+        "CMS-009",
+        "UI-007"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-031"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "manifest-2 is active with retained schema, renderer and Files versions; derived delivery cache contains an older generation."
+      ],
+      "steps": [
+        "Interrupt cache rebuild, discard only derived cache state and restart rendering.",
+        "Read each published route through canonical and qualified alias bindings."
+      ],
+      "expectedOutcome": [
+        "Rebuild converges to manifest-2 from authoritative data without changing publication history.",
+        "All sampled pages and media references use one internally consistent active-manifest generation."
+      ],
+      "evidence": [
+        "Rebuild checkpoints, authoritative hashes and route/media response comparisons."
+      ]
+    },
+    {
+      "id": "AC-019-B01",
+      "title": "Apply declared navigation and redirect limits",
+      "family": "AC-019",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W blog, pinned Git documentation, taxonomy/navigation, SEO/redirects and contact journeys; one site/culture and no engagement, search or newsletters."
+      },
+      "requirements": [
+        "MOD-009",
+        "CMS-012",
+        "UI-009"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "Version-1 packages contain valid navigation trees of depth 16 and 17 and redirect chains of length 16 and 17, each ending at a real route."
+      ],
+      "steps": [
+        "Dry-run each independent variant.",
+        "Publish the valid variants and follow their final navigation target and redirect chain; also inspect the configured query-discard behavior."
+      ],
+      "expectedOutcome": [
+        "Depth/length 16 validates and resolves the declared target; 17 is rejected before apply.",
+        "Redirect resolution follows the configured same-site status/target rules and drops incoming query data as the package contract declares."
+      ],
+      "evidence": [
+        "Exact trees/chains, boundary diagnostics and redirect/navigation request transcripts."
+      ]
+    },
+    {
+      "id": "AC-019-N01",
+      "title": "Reject broken navigation, redirects and documentation sources",
+      "family": "AC-019",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W blog, pinned Git documentation, taxonomy/navigation, SEO/redirects and contact journeys; one site/culture and no engagement, search or newsletters."
+      },
+      "requirements": [
+        "MOD-009",
+        "MOD-011",
+        "CMS-012",
+        "UI-009"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "A valid W content graph and publication are available as the control fixture."
+      ],
+      "steps": [
+        "Independently remove a referenced entry, make menu A parent B and B parent A, and create redirects /old to /older and /older to /old.",
+        "Separately name an unconfigured documentation repository binding."
+      ],
+      "expectedOutcome": [
+        "Validation reports the missing reference, complete menu cycle, redirect loop and unresolved documentation source.",
+        "None of these proposals changes published navigation, routes or documentation."
+      ],
+      "evidence": [
+        "Four invalid graph/source inputs, diagnostics and unchanged publication hashes."
+      ]
+    },
+    {
+      "id": "AC-019-P01",
+      "title": "Read a blog post through taxonomy and ordered navigation",
+      "family": "AC-019",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W blog, pinned Git documentation, taxonomy/navigation, SEO/redirects and contact journeys; one site/culture and no engagement, search or newsletters."
+      },
+      "requirements": [
+        "MOD-007",
+        "MOD-009",
+        "UI-009"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "Two published posts, harvest-1 and harvest-2, share term garden. Navigation has Home then Journal, with Journal targeting the blog listing."
+      ],
+      "steps": [
+        "Open Journal, select garden and read each post.",
+        "Reorder the two navigation entries through Admin, publish the navigation change and repeat the journey."
+      ],
+      "expectedOutcome": [
+        "The listing links to both published posts and the selected term is preserved.",
+        "Published navigation follows the new sibling order and all links resolve to their intended entries."
+      ],
+      "evidence": [
+        "Term and navigation identities, ordered published navigation and browser journey observations."
+      ]
+    },
+    {
+      "id": "AC-019-P02",
+      "title": "Read two documentation versions and submit contact",
+      "family": "AC-019",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W blog, pinned Git documentation, taxonomy/navigation, SEO/redirects and contact journeys; one site/culture and no engagement, search or newsletters."
+      },
+      "requirements": [
+        "MOD-011",
+        "CMS-017"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "Two documentation versions use distinct entry keys/routes and pinned commits from a locally available configured repository binding. A contact page uses a prequalified named destination."
+      ],
+      "steps": [
+        "Import the already captured documentation snapshots, publish them and read both versions.",
+        "Follow the contact route, submit a valid request and inspect its durable receipt and delivery status."
+      ],
+      "expectedOutcome": [
+        "Each documentation route resolves its own version and pinned-source identity.",
+        "Contact creates one durable request; the visitor receipt does not claim confirmed email delivery."
+      ],
+      "evidence": [
+        "Source-version/commit mapping, rendered version pages and contact receipt/state linkage."
+      ]
+    },
+    {
+      "id": "AC-019-R01",
+      "title": "Recover an interrupted documentation and navigation import",
+      "family": "AC-019",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W blog, pinned Git documentation, taxonomy/navigation, SEO/redirects and contact journeys; one site/culture and no engagement, search or newsletters."
+      },
+      "requirements": [
+        "MOD-009",
+        "MOD-011",
+        "UI-009"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "ui",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "Version v1 documentation and ordered navigation are published. A reviewed package introduces v2 with distinct entry keys and revised navigation; its snapshots are already local."
+      ],
+      "steps": [
+        "Interrupt apply before database commit, then reconcile and resume using the original operation identity.",
+        "Validate and publish the completed result, retaining v1."
+      ],
+      "expectedOutcome": [
+        "The interruption preserves the prior published graph.",
+        "Recovery introduces v2 and its navigation once, retains v1 identities/routes and reports every mapped item's outcome."
+      ],
+      "evidence": [
+        "Import checkpoints/result, stable-key mappings and browser reads of both documentation versions."
+      ]
+    },
+    {
+      "id": "AC-020-B01",
+      "title": "Check field length and duplicate submission identity",
+      "family": "AC-020",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W contact fields, durable acceptance and duplicate suppression only; antispam, rate limits and recipient authorization are prerequisites from AC-003 and AC-031, not cases here."
+      },
+      "requirements": [
+        "CMS-017",
+        "UI-008"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "The fixture declares a supported 2,000-character message limit. Two tabs share the same submission identity and valid field values."
+      ],
+      "steps": [
+        "Submit messages of 1,999, 2,000 and 2,001 characters using separate identities.",
+        "Submit the same valid request concurrently from both tabs, then reuse that identity with changed content."
+      ],
+      "expectedOutcome": [
+        "The first two lengths pass field validation and the third fails without truncation.",
+        "Identical repeated intent resolves to one request/receipt; changed content under that identity yields an explicit conflict without replacing it."
+      ],
+      "evidence": [
+        "Length/input matrix, concurrent responses and request/body digest counts."
+      ]
+    },
+    {
+      "id": "AC-020-N01",
+      "title": "Reject contact field errors and absent routing configuration",
+      "family": "AC-020",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W contact fields, durable acceptance and duplicate suppression only; antispam, rate limits and recipient authorization are prerequisites from AC-003 and AC-031, not cases here."
+      },
+      "requirements": [
+        "CMS-017",
+        "UI-008"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "The form contract requires a nonempty message and a syntactically valid reply address. A separate fixture has no configured named destination."
+      ],
+      "steps": [
+        "Submit a missing message, then an invalid reply-address syntax.",
+        "Submit valid fields against the fixture without a destination."
+      ],
+      "expectedOutcome": [
+        "Field errors identify their fields and preserve entered values for correction.",
+        "Missing configuration returns an actionable unavailable outcome; none of the three attempts reports accepted or creates a dispatchable intent."
+      ],
+      "evidence": [
+        "Validation/configuration diagnostics, rendered error states and durable request/intent counts."
+      ]
+    },
+    {
+      "id": "AC-020-P01",
+      "title": "Accept one validated contact request durably",
+      "family": "AC-020",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W contact fields, durable acceptance and duplicate suppression only; antispam, rate limits and recipient authorization are prerequisites from AC-003 and AC-031, not cases here."
+      },
+      "requirements": [
+        "CMS-017",
+        "UI-008"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "The contact fixture has required message and reply-address fields, a prequalified named destination and passed security prerequisites. The email worker is paused."
+      ],
+      "steps": [
+        "Submit a valid message through the public form.",
+        "Inspect the returned receipt, durable request and queued intent before releasing the worker."
+      ],
+      "expectedOutcome": [
+        "Success is returned only for a durable request with one delivery intent.",
+        "The receipt says accepted without implying that email has already been delivered."
+      ],
+      "evidence": [
+        "Field values with synthetic data, receipt identity and matching request/intent rows."
+      ]
+    },
+    {
+      "id": "AC-020-R01",
+      "title": "Recover a contact submission with a lost acknowledgement",
+      "family": "AC-020",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W contact fields, durable acceptance and duplicate suppression only; antispam, rate limits and recipient authorization are prerequisites from AC-003 and AC-031, not cases here."
+      },
+      "requirements": [
+        "CMS-017",
+        "UI-008"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "api-contract",
+        "ui",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "contact-5 commits its request and outbox intent, but the HTTP response can be dropped; dispatch is paused."
+      ],
+      "steps": [
+        "Drop the response after commit, restart the application and retry with the original submission identity.",
+        "Resume dispatch and inspect the durable receipt and downstream delivery state."
+      ],
+      "expectedOutcome": [
+        "Retry recovers the same accepted request with no second intent.",
+        "Email proceeds independently through its observable states under AC-013, and acceptance is retained through restart."
+      ],
+      "evidence": [
+        "Fault timing, retry/receipt transcript and before/after request, outbox and delivery identities."
+      ]
+    },
+    {
+      "id": "AC-023-B01",
+      "title": "Inspect theme reflow, contrast and keyboard alternatives",
+      "family": "AC-023",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W minimal React/TypeScript Admin action ledger and original Razor theme, with keyboard, focus, assistive technology, contrast, responsive/error states and WCAG 2.2 AA evidence. Account and authority actions are supplied by security families."
+      },
+      "requirements": [
+        "UI-005",
+        "UI-007",
+        "UI-008",
+        "UI-011",
+        "UI-012",
+        "UI-014",
+        "OPS-019"
+      ],
+      "layers": [
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-003",
+        "AC-004",
+        "AC-031"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "The declared W pages and Admin dialogs include the longest valid titles, populated validation messages and nested navigation. The test covers each advertised viewport/browser pairing."
+      ],
+      "steps": [
+        "Inspect at 320 CSS pixels wide, 200 percent text size and 400 percent zoom using the applicable WCAG conditions.",
+        "Measure normal text, large text, controls and focus contrast; inspect target sizes and applicable exceptions.",
+        "Reorder blocks and navigation without dragging, traverse dialogs and return focus to their triggers."
+      ],
+      "expectedOutcome": [
+        "Content and actions remain usable without unintended loss or two-dimensional scrolling where reflow applies.",
+        "Text and controls meet applicable 4.5:1 or 3:1 contrast criteria; focus/target-size findings are assessed against WCAG 2.2 AA.",
+        "Keyboard alternatives preserve order and dialog focus returns predictably."
+      ],
+      "evidence": [
+        "Viewport/zoom captures, contrast measurements, criterion/exception decisions and keyboard ordering/focus results."
+      ]
+    },
+    {
+      "id": "AC-023-N01",
+      "title": "Present validation and conflict failures accessibly",
+      "family": "AC-023",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W minimal React/TypeScript Admin action ledger and original Razor theme, with keyboard, focus, assistive technology, contrast, responsive/error states and WCAG 2.2 AA evidence. Account and authority actions are supplied by security families."
+      },
+      "requirements": [
+        "UI-002",
+        "UI-005",
+        "UI-007",
+        "UI-008",
+        "UI-012",
+        "OPS-019"
+      ],
+      "layers": [
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-003",
+        "AC-004",
+        "AC-031"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "The authoring form has a required title; a contact message is required; a stale draft token and conflicting route are available."
+      ],
+      "steps": [
+        "Use only the keyboard to submit each invalid author/contact form, stale save and route collision.",
+        "Inspect error summaries, field associations, status announcements and focus, then correct each input."
+      ],
+      "expectedOutcome": [
+        "Each failed operation is explained in text and programmatically associated with the affected input or action.",
+        "Entered data is retained, focus reaches the relevant error without a trap, and corrected submissions can complete."
+      ],
+      "evidence": [
+        "Four error-state workflows, field/summary associations, focus sequence and assistive-technology observations."
+      ]
+    },
+    {
+      "id": "AC-023-P01",
+      "title": "Complete the minimal action ledger and public journeys accessibly",
+      "family": "AC-023",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W minimal React/TypeScript Admin action ledger and original Razor theme, with keyboard, focus, assistive technology, contrast, responsive/error states and WCAG 2.2 AA evidence. Account and authority actions are supplied by security families."
+      },
+      "requirements": [
+        "UI-002",
+        "UI-005",
+        "UI-007",
+        "UI-008",
+        "UI-009",
+        "UI-011",
+        "UI-012",
+        "UI-014",
+        "OPS-019"
+      ],
+      "layers": [
+        "ui"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-003",
+        "AC-004",
+        "AC-031"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "The W action ledger lists authoring, validation/conflicts, preview, schedule/publish/rollback, media, taxonomy/navigation, routes, contact delivery, import review and recovery. The original theme and each advertised browser/assistive-technology pairing are identified."
+      ],
+      "steps": [
+        "Using keyboard and screen reader, author and compare a revision, inspect validation, resolve a prepared conflict and open its exact preview.",
+        "Schedule, publish and roll back a release; upload/select versioned media and edit taxonomy/navigation and routes.",
+        "Inspect contact delivery, review and apply an import plan, and inspect a recovery operation through their declared Admin routes.",
+        "On the public site, navigate home, blog listing/post, documentation versions and the contact form; submit a valid contact request."
+      ],
+      "expectedOutcome": [
+        "Every listed action has a reachable declared route, usable accessible name/role/state and visible focus, with the expected domain outcome.",
+        "The ledger reports each action and browser/assistive-technology pairing separately; no missing action is counted as native completion."
+      ],
+      "evidence": [
+        "Action-by-action ledger with route, inputs and outcomes.",
+        "Keyboard/focus traces, screen-reader observations and a criterion-level WCAG 2.2 AA assessment including manual findings."
+      ]
+    },
+    {
+      "id": "AC-023-R01",
+      "title": "Recover an interrupted editor without losing work or focus",
+      "family": "AC-023",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W minimal React/TypeScript Admin action ledger and original Razor theme, with keyboard, focus, assistive technology, contrast, responsive/error states and WCAG 2.2 AA evidence. Account and authority actions are supplied by security families."
+      },
+      "requirements": [
+        "UI-002",
+        "UI-005",
+        "UI-008",
+        "UI-012"
+      ],
+      "layers": [
+        "ui",
+        "api-contract",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-002",
+        "AC-003",
+        "AC-004",
+        "AC-031"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "An author has an unsaved paragraph and focused Save control; one save fixture fails before commit and another commits but loses its response."
+      ],
+      "steps": [
+        "Interrupt each save and reconnect.",
+        "Resolve the recorded operation outcome, restore retained unsaved input where needed and complete the save.",
+        "Close any recovery dialog and continue editing by keyboard."
+      ],
+      "expectedOutcome": [
+        "The UI distinguishes unsaved changes from an uncertain committed operation and announces recovery status.",
+        "Recovery preserves text, avoids duplicate revisions and restores usable focus; the next edit remains possible."
+      ],
+      "evidence": [
+        "Input snapshots, operation/revision counts, announced state transitions and focus trace."
+      ]
+    },
+    {
+      "id": "AC-028-B01",
+      "title": "Distinguish a first release from an upgrade claim",
+      "family": "AC-028",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W previous-release upgrade and version-1 content-package portability, including stable mappings, dependencies, collisions, interruption and failed activation. First-release absence of a predecessor is recorded explicitly."
+      },
+      "requirements": [
+        "REL-001",
+        "REL-005",
+        "REL-006"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "migration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "One release fixture has a recorded W predecessor and another is the initial W release with no predecessor; their release histories are retained."
+      ],
+      "steps": [
+        "Request previous-release qualification evidence for both fixtures.",
+        "Inspect the evidence basis and capability report."
+      ],
+      "expectedOutcome": [
+        "The successor requires an executed upgrade from its actual previous W release.",
+        "The initial release records predecessor absence and an explicit unexercised upgrade obligation; a fresh install cannot be labeled an upgrade pass."
+      ],
+      "evidence": [
+        "Release-history basis and qualification reports for both predecessor states."
+      ]
+    },
+    {
+      "id": "AC-028-B02",
+      "title": "Bind apply to the exact reviewed snapshot and destination version",
+      "family": "AC-028",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W previous-release upgrade and version-1 content-package portability, including stable mappings, dependencies, collisions, interruption and failed activation. First-release absence of a predecessor is recorded explicitly."
+      },
+      "requirements": [
+        "CMS-021"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "migration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "A dry-run plan binds a package digest, renderer versions and destination version tokens; it includes one update and retains an omitted existing page."
+      ],
+      "steps": [
+        "Apply an unchanged reviewed plan in one fixture.",
+        "In independent fixtures change one source byte after review, change one destination version, or change a renderer version before apply."
+      ],
+      "expectedOutcome": [
+        "The unchanged plan applies once and retains the omitted page.",
+        "Every changed fixture reports a stale-plan conflict and requires a new dry run; no partial authoritative apply occurs."
+      ],
+      "evidence": [
+        "Plan bindings, source/destination fingerprints, conflict diagnostics and retained-page comparison."
+      ]
+    },
+    {
+      "id": "AC-028-N01",
+      "title": "Reject package incompatibility and identity collisions",
+      "family": "AC-028",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W previous-release upgrade and version-1 content-package portability, including stable mappings, dependencies, collisions, interruption and failed activation. First-release absence of a predecessor is recorded explicitly."
+      },
+      "requirements": [
+        "CMS-021",
+        "CMS-023"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "migration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "A valid version-1 package and destination supply the control fixtures; existing destination content has an unbound route /guide."
+      ],
+      "steps": [
+        "Independently use unsupported format version 2, an unsupported type schema version, an absent renderer and an unresolved reference.",
+        "Separately attempt to claim /guide and to redefine a type under its existing key/version with different field meaning."
+      ],
+      "expectedOutcome": [
+        "Each dry run produces a specific version, dependency, reference or collision blocker.",
+        "No blocked plan mutates schemas, drafts, mappings, media metadata or publication; collisions never silently adopt or overwrite an object."
+      ],
+      "evidence": [
+        "Six plan diagnostics and before/after authoritative inventories."
+      ]
+    },
+    {
+      "id": "AC-028-P01",
+      "title": "Upgrade the actual previous website release",
+      "family": "AC-028",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W previous-release upgrade and version-1 content-package portability, including stable mappings, dependencies, collisions, interruption and failed activation. First-release absence of a predecessor is recorded explicitly."
+      },
+      "requirements": [
+        "CMS-021",
+        "CMS-022",
+        "CMS-023",
+        "FND-011",
+        "OPS-012",
+        "JRN-007"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "migration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "The previous supported W release is deployed with two types, three revisions per page, a blog post, two documentation versions, custom compatible renderer code, media, route redirects and stable import mappings. A coordinated backup and supported upgrade plan exist."
+      ],
+      "steps": [
+        "Record both exact release identities and run preflight and the supported upgrade.",
+        "Read old and current publication fixtures, exercise the custom renderer and compare content, schema and mapping identities."
+      ],
+      "expectedOutcome": [
+        "Upgrade preserves supported custom behavior, selected and historical content, media hashes and stable package mappings.",
+        "The target release reports the completed migration path and all incompatibilities explicitly."
+      ],
+      "evidence": [
+        "Previous/target release identities, preflight/migration logs, before/after semantic snapshots and renderer journey results."
+      ]
+    },
+    {
+      "id": "AC-028-P02",
+      "title": "Round-trip a package through reviewed import",
+      "family": "AC-028",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W previous-release upgrade and version-1 content-package portability, including stable mappings, dependencies, collisions, interruption and failed activation. First-release absence of a predecessor is recorded explicitly."
+      },
+      "requirements": [
+        "CMS-021"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "migration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "A W site contains versioned types, selected revisions, media, taxonomy, navigation, redirects and two pinned documentation versions. A fresh destination has matching renderer versions and prequalified site binding."
+      ],
+      "steps": [
+        "Export the selected content as a version-1 package and capture its digest.",
+        "Dry-run on the destination, review stable-key mappings, apply, then export the imported selection again.",
+        "Repeat the completed apply using its original operation identity."
+      ],
+      "expectedOutcome": [
+        "Round-trip semantic content, fields, body order, references, routes and media hashes match; destination database ids may differ.",
+        "Repeated apply returns its recorded result without duplicate revisions or mappings, and import alone does not publish."
+      ],
+      "evidence": [
+        "Both package digests, semantic comparison, reviewed plan, per-item outcomes and mapping/revision counts."
+      ]
+    },
+    {
+      "id": "AC-028-R01",
+      "title": "Resume an import and recover from failed publication activation",
+      "family": "AC-028",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W previous-release upgrade and version-1 content-package portability, including stable mappings, dependencies, collisions, interruption and failed activation. First-release absence of a predecessor is recorded explicitly."
+      },
+      "requirements": [
+        "CMS-021",
+        "CMS-022"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "migration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "A reviewed package updates two drafts and stages one media version. manifest-1 remains active and compatible; operation-1 identifies the reviewed plan."
+      ],
+      "steps": [
+        "Interrupt once after media staging before database commit and, in a separate run, after database commit before acknowledgement.",
+        "Reconcile operation-1 before retrying and inspect per-item outcomes.",
+        "Attempt publication with a fault before activation commit, then recover using the retained validated manifest."
+      ],
+      "expectedOutcome": [
+        "Uncommitted authoritative changes roll back; a committed apply returns its original result without duplication.",
+        "Staged media is accounted for and only unreferenced staging is cleaned. Failed activation preserves manifest-1 and its usable media/revisions."
+      ],
+      "evidence": [
+        "Two checkpoint reports, mapping/revision counts, staging reconciliation, immutable manifest hashes and recovery result."
+      ]
+    },
+    {
+      "id": "AC-028-R02",
+      "title": "Recover a failed application upgrade through its supported plan",
+      "family": "AC-028",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W previous-release upgrade and version-1 content-package portability, including stable mappings, dependencies, collisions, interruption and failed activation. First-release absence of a predecessor is recorded explicitly."
+      },
+      "requirements": [
+        "CMS-021",
+        "CMS-022",
+        "CMS-023",
+        "FND-011",
+        "OPS-012",
+        "JRN-007"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "migration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "The previous W release and its coordinated backup include custom content, stable mappings and historical media; the target upgrade has a documented forward-repair or restore path."
+      ],
+      "steps": [
+        "Inject migration failure at its recorded checkpoint and retain the diagnosis.",
+        "Execute the supported recovery plan and read the restored or repaired application's published and historical content."
+      ],
+      "expectedOutcome": [
+        "Recovery reaches a coherent supported application/schema pair with retained data and custom-content behavior.",
+        "Progress names the failed migration and repair outcome; no untested destructive reversal is assumed."
+      ],
+      "evidence": [
+        "Exact release/backup identities, checkpoint and recovery records, content/mapping comparisons and restored application reads."
+      ]
+    },
+    {
+      "id": "AC-029-B01",
+      "title": "Reconcile effects that straddle the backup boundary",
+      "family": "AC-029",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W coordinated restore of PostgreSQL, schemas, revisions, immutable manifests and filesystem Files into a recovery deployment prequalified by AC-004; derived cache rebuild and publication/email reconciliation only."
+      },
+      "requirements": [
+        "OPS-013",
+        "CMS-022",
+        "FND-021",
+        "FND-022"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "The backup captures one scheduled publication and one queued contact email. After capture, publication activation and transport acceptance occur in the original deployment and their operation identities are retained."
+      ],
+      "steps": [
+        "Restore the snapshot with execution held for reconciliation.",
+        "Compare schedule/publication and email identities with their postbackup outcomes before resuming.",
+        "Inspect each work item's disposition."
+      ],
+      "expectedOutcome": [
+        "Already completed activation and accepted transport work are recognized under their original identities.",
+        "Uncertain outcomes remain explicit; resumption never blindly replays an external effect merely because the restored queue says pending."
+      ],
+      "evidence": [
+        "Backup cutoff, postbackup outcome records, per-item reconciliation decisions and resumed-effect counts."
+      ]
+    },
+    {
+      "id": "AC-029-N01",
+      "title": "Refuse an inconsistent backup set",
+      "family": "AC-029",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W coordinated restore of PostgreSQL, schemas, revisions, immutable manifests and filesystem Files into a recovery deployment prequalified by AC-004; derived cache rebuild and publication/email reconciliation only."
+      },
+      "requirements": [
+        "OPS-013",
+        "CMS-022"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "A valid backup set is copied into two faulty fixtures: one omits a historically referenced file version and one combines a newer database snapshot with older Files."
+      ],
+      "steps": [
+        "Restore and validate each fixture before declaring it ready."
+      ],
+      "expectedOutcome": [
+        "Each restore reports the exact missing or mismatched reference and remains incomplete.",
+        "It cannot silently drop historical content or advertise successful readiness from a partial set."
+      ],
+      "evidence": [
+        "Two backup inventories, failed reference/digest checks and readiness disposition."
+      ]
+    },
+    {
+      "id": "AC-029-P01",
+      "title": "Restore authoritative website state and historical references",
+      "family": "AC-029",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W coordinated restore of PostgreSQL, schemas, revisions, immutable manifests and filesystem Files into a recovery deployment prequalified by AC-004; derived cache rebuild and publication/email reconciliation only."
+      },
+      "requirements": [
+        "OPS-013",
+        "CMS-022",
+        "FND-024"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "A coordinated backup includes type versions 1 and 2, current and historical revisions/manifests, media versions and their digest inventory. The recovery deployment and external-effect controls have been qualified separately."
+      ],
+      "steps": [
+        "Restore PostgreSQL and Files from the same backup set.",
+        "Validate every manifest-to-revision-to-schema/renderer/media reference and read current and historical fixtures.",
+        "Rebuild derived delivery cache."
+      ],
+      "expectedOutcome": [
+        "All restored authoritative identities and bytes match the coordinated inventory.",
+        "Current delivery selects the restored active manifest; historical versions remain resolvable, and derived cache agrees after rebuild."
+      ],
+      "evidence": [
+        "Backup-set identity, complete reference/integrity report, current/historical reads and rebuild results."
+      ]
+    },
+    {
+      "id": "AC-029-R01",
+      "title": "Resume an interrupted restore without serving a mixed state",
+      "family": "AC-029",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W coordinated restore of PostgreSQL, schemas, revisions, immutable manifests and filesystem Files into a recovery deployment prequalified by AC-004; derived cache rebuild and publication/email reconciliation only."
+      },
+      "requirements": [
+        "OPS-013",
+        "CMS-022",
+        "FND-024"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "A complete backup and its expected digests are available. The restore can stop after database restore and midway through filesystem recovery."
+      ],
+      "steps": [
+        "Interrupt at both checkpoints in independent runs.",
+        "Restart the restore, verify recovered objects and complete missing ones before rebuilding cache and declaring readiness."
+      ],
+      "expectedOutcome": [
+        "Partial restores retain a visible incomplete state and never claim coherent delivery.",
+        "Repeated recovery verifies or restores each item without corrupting completed ones; final state matches the same backup set."
+      ],
+      "evidence": [
+        "Checkpoint/progress records, per-object recovery results, digest comparison and final readiness/read observations."
+      ]
+    },
+    {
+      "id": "AC-029-R02",
+      "title": "Rebuild derived state and resume reconciled schedules and email",
+      "family": "AC-029",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W coordinated restore of PostgreSQL, schemas, revisions, immutable manifests and filesystem Files into a recovery deployment prequalified by AC-004; derived cache rebuild and publication/email reconciliation only."
+      },
+      "requirements": [
+        "OPS-013",
+        "CMS-022",
+        "FND-021",
+        "FND-022",
+        "FND-024"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-003",
+        "AC-004",
+        "AC-012",
+        "AC-031"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "Authoritative restore is complete; cache is stale, one publication is due, one email is known unsent and one has an unresolved transport outcome."
+      ],
+      "steps": [
+        "Rebuild cache from the active manifest.",
+        "Apply the declared schedule misfire policy and dispatch only the known-unsent contact.",
+        "Resolve the uncertain transport identity before permitting its final disposition."
+      ],
+      "expectedOutcome": [
+        "Cache converges without changing authoritative history; the due publication receives one recorded outcome.",
+        "Known-unsent work progresses once and ambiguous work stays visibly held until resolved, with no uncontrolled resend."
+      ],
+      "evidence": [
+        "Cache generations, misfire decisions, email reconciliation records and effect counts after recovery."
+      ]
+    },
+    {
+      "id": "AC-030-B01",
+      "title": "Measure the declared load and queue-capacity edges",
+      "family": "AC-030",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W small-site workload qualification for authoring, publish/delivery and coordinated restore on the declared single-host container tuple; security resource-abuse assurance remains AC-031 work."
+      },
+      "requirements": [
+        "OPS-016",
+        "OPS-017",
+        "OPS-018",
+        "FND-022"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-004",
+        "AC-031"
+      ],
+      "type": "boundary",
+      "preconditions": [
+        "The supported fixture capacity is 20 concurrent readers, two authors and a 100-item publication-work queue; admission/backpressure semantics are recorded before measurement."
+      ],
+      "steps": [
+        "Run reader loads of 19, 20 and 21 against the same dataset, recording the declared-capacity boundary.",
+        "Pause dispatch and submit 99, 100 and 101 distinct due work items in separate runs."
+      ],
+      "expectedOutcome": [
+        "Results distinguish within-capacity measurements from overload; no evidence extends the release claim to unqualified load.",
+        "Queue outcomes match the declared capacity/backpressure contract, with each accepted item durable and every excess item explicitly handled."
+      ],
+      "evidence": [
+        "Load/capacity matrix, latency/backlog series, admission outcomes and durable work counts."
+      ]
+    },
+    {
+      "id": "AC-030-N01",
+      "title": "Expose resource pressure and a budget failure",
+      "family": "AC-030",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W small-site workload qualification for authoring, publish/delivery and coordinated restore on the declared single-host container tuple; security resource-abuse assurance remains AC-031 work."
+      },
+      "requirements": [
+        "OPS-016",
+        "OPS-017",
+        "OPS-018"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-004",
+        "AC-031"
+      ],
+      "type": "negative",
+      "preconditions": [
+        "The same declared workload and budgets are retained. The test can delay filesystem reads enough to exceed the delivery budget while leaving data intact."
+      ],
+      "steps": [
+        "Inject the recorded delay during the measured interval and continue authoring and publication.",
+        "Inspect latency, backlog, operation outcomes and the capability report."
+      ],
+      "expectedOutcome": [
+        "The measured budget failure is reported with its fault conditions and cannot be summarized as a passing run.",
+        "Backlog and rejected/failed operations remain visible; no successful response conceals a lost committed save or publication."
+      ],
+      "evidence": [
+        "Fault timing, raw latency/resource/backlog samples, operation reconciliation and failing budget verdict."
+      ]
+    },
+    {
+      "id": "AC-030-P01",
+      "title": "Measure a declared small-site workload",
+      "family": "AC-030",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W small-site workload qualification for authoring, publish/delivery and coordinated restore on the declared single-host container tuple; security resource-abuse assurance remains AC-031 work."
+      },
+      "requirements": [
+        "OPS-016",
+        "OPS-017",
+        "CMS-022"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-004",
+        "AC-031"
+      ],
+      "type": "positive",
+      "preconditions": [
+        "Use one site/culture, 100 pages with three revisions each, 20 blog posts, two documentation versions and 100 MiB of media. The release-approved budget sheet fixes numeric p95 authoring/delivery latency, publish-to-convergence time, error rate, peak memory and restore-time limits before the run. Hardware, runtime, container and provider versions are pinned."
+      ],
+      "steps": [
+        "Warm up for five minutes, then run 20 concurrent readers and two authors for 15 minutes, each author saving once per minute and publishing every fifth save.",
+        "Restore the coordinated dataset into the qualified recovery fixture and time integrity verification and readiness."
+      ],
+      "expectedOutcome": [
+        "Report each measured percentile, throughput, error count, resource peak, convergence delay and restore duration against its predeclared limit.",
+        "A pass requires all applicable budgets and content/integrity assertions to hold on this tuple; missing budget inputs prevent qualification."
+      ],
+      "evidence": [
+        "Exact workload/budget sheet, hardware/version inventory, raw timed samples, resource series, restore digest report and per-budget verdicts."
+      ]
+    },
+    {
+      "id": "AC-030-R01",
+      "title": "Measure recovery under the declared website workload",
+      "family": "AC-030",
+      "profiles": [
+        "website"
+      ],
+      "scope": {
+        "website": "W small-site workload qualification for authoring, publish/delivery and coordinated restore on the declared single-host container tuple; security resource-abuse assurance remains AC-031 work."
+      },
+      "requirements": [
+        "OPS-016",
+        "OPS-017",
+        "CMS-022",
+        "FND-022",
+        "FND-024"
+      ],
+      "layers": [
+        "real-provider-integration",
+        "operational-recovery"
+      ],
+      "securityDependencies": [
+        "AC-004",
+        "AC-031"
+      ],
+      "type": "recovery",
+      "preconditions": [
+        "The positive-case workload and budget sheet are fixed; a coordinated backup and a completed baseline measurement exist."
+      ],
+      "steps": [
+        "During load restart the application after a committed publication and before cache convergence.",
+        "Reconcile queued work, rebuild cache and repeat the same measured interval.",
+        "Rehearse restore from the backup and compare time to readiness and data integrity with the declared recovery budget."
+      ],
+      "expectedOutcome": [
+        "Committed work is retained and cache converges to the active publication.",
+        "Measurements expose outage and recovery duration as well as steady-state results; restore meets its declared budget and integrity checks or reports a specific qualification failure."
+      ],
+      "evidence": [
+        "Restart and recovery timeline, operation/manifest comparison, repeated workload samples and timed restore integrity results."
+      ]
+    }
+  ]
+}
