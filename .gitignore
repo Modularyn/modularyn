@@ -1,0 +1,22 @@
+# Build and test output
+**/bin/
+**/obj/
+**/TestResults/
+artifacts/
+*.trx
+*.coverage
+*.coveragexml
+
+# Editors and operating systems
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.DS_Store
+Thumbs.db
+
+# Local work coordination
+.vericairn/

@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/tests/">
+    <Project Path="tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj" />
+  </Folder>
+</Solution>
