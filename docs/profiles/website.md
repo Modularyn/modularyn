@@ -26,10 +26,10 @@ The [machine-readable map](website-capabilities.json) associates each capability
 | `publication` | Revisions, an immutable publication manifest, scheduling, protected preview and rollback |
 | `media` | Media owned and versioned through Files, with integrity, scanning/quarantine and access checks |
 | `taxonomy-navigation` | Taxonomies and navigation for the single site and culture |
-| `seo` | SEO metadata, sitemaps, alias handling and redirects; drafts stay out of public discovery |
+| `seo` | SEO metadata, sitemaps, alias handling and redirects; MOD-010 contributes only redirects here; drafts stay out of public discovery |
 | `blog` | Blog posts and their public listing and reading journeys |
 | `documentation` | Versioned documentation supplied from a Git repository |
-| `contact` | A contact form with durable submission and email delivery to an authorized configured destination |
+| `contact` | A contact form with durable submission and email delivery to an authorized configured destination; MOD-010 contributes only contact forms here |
 | `content-packages` | Versioned Git-based content packages, validation, dry-run import and reviewed apply |
 | `theme` | An original accessible theme meeting WCAG 2.2 AA, including keyboard and assistive-technology journeys |
 | `admin-account` | Sign-in for the minimal Admin with two-factor authentication or passkeys, account recovery and session revocation |
@@ -77,4 +77,4 @@ Every row requires positive, rejection, boundary and recovery cases on W's exact
 | AC-029 | Restore database, schemas, immutable manifests and Files into an isolated deployment; verify historical references, rebuild derived cache and reconcile scheduled publication/email without uncontrolled replay. |
 | AC-030, AC-031 | Measure authoring, publish/delivery and restore under a declared small-site workload; verify ASVS L2 controls, dependency provenance, secret handling and operational security for included surfaces. |
 
-G-02 foundation evidence is a prerequisite. W qualification must bind these results to the exact release commit and tuple. Repository schemas and example validation alone cannot establish a W release. Three-platform repository CI, locked restore, Release build, tests and secret scanning remain required at that same head before acceptance of this contract work.
+G-02 foundation evidence is a prerequisite. W qualification must bind these results to the exact release commit and tuple. Repository schemas and example validation alone cannot establish a W release.

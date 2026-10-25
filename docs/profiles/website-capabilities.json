@@ -97,6 +97,10 @@
         {
           "id": "CMS-007",
           "scope": "One site with verified alias domains and route ownership only."
+        },
+        {
+          "id": "MOD-010",
+          "scope": "Redirects only; other module actions require their own declared scope."
         }
       ]
     },
@@ -127,6 +131,10 @@
         {
           "id": "CMS-017",
           "scope": "Durable contact requests routed to authorized destinations."
+        },
+        {
+          "id": "MOD-010",
+          "scope": "Contact forms only; engagement and newsletter actions remain unsupported."
         },
         {
           "id": "FND-032",

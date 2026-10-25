@@ -17,7 +17,9 @@ public sealed class ContentPackageTests
     [Fact]
     public void Minimal_package_satisfies_both_schemas_and_semantic_rules()
     {
-        Assert.Empty(Validate(ReadPackage()));
+        var files = ReadPackage();
+        Assert.Equal("en-US", JsonNode.Parse(files["package.json"])!["site"]!["culture"]!.GetValue<string>());
+        Assert.Empty(Validate(files));
     }
 
     [Fact]
@@ -32,11 +34,41 @@ public sealed class ContentPackageTests
         Assert.Empty(Validate(files));
     }
 
-    [Fact]
-    public void Documentation_source_resolves_without_network_access()
+    [Theory]
+    [InlineData(".")]
+    [InlineData("guide")]
+    [InlineData("guide/reference")]
+    public void Documentation_source_resolves_without_network_access(string root)
     {
         var files = ReadPackage();
         AddDocumentation(files);
+        ChangeManifest(files, m => m["documentationSources"]![0]!["root"] = root);
+        Assert.Empty(Validate(files));
+    }
+
+    [Fact]
+    public void Block_bodies_allow_two_identical_blocks()
+    {
+        var files = ReadPackage();
+        ChangeBody(files, "first-harvest", body =>
+        {
+            var block = JsonNode.Parse(body)![0]!;
+            return new JsonArray(block.DeepClone(), block.DeepClone()).ToJsonString();
+        });
+        Assert.Empty(Validate(files));
+    }
+
+    [Theory]
+    [InlineData("en")]
+    [InlineData("eng")]
+    [InlineData("en-US")]
+    [InlineData("eng-US")]
+    public void Culture_grammar_is_checked_without_host_culture_data(string culture)
+    {
+        var files = ReadPackage();
+        ChangeManifest(files, m => m["site"]!["culture"] = culture);
+        foreach (var key in new[] { "home", "about", "first-harvest" })
+            ChangeEntry(files, key, e => e["culture"] = culture);
         Assert.Empty(Validate(files));
     }
 
@@ -54,79 +86,79 @@ public sealed class ContentPackageTests
     }
 
     [Theory]
-    [InlineData("missing-manifest", "required file")]
-    [InlineData("missing-type", "required file")]
-    [InlineData("missing-entry", "required file")]
-    [InlineData("missing-media", "required file")]
-    [InlineData("missing-field", "schema")]
-    [InlineData("byte-order-mark", "byte-order mark")]
-    [InlineData("invalid-utf8", "DecoderFallbackException")]
-    [InlineData("bare-cr", "line ending")]
-    [InlineData("front-matter", "delimiter")]
-    [InlineData("empty-body", "empty Markdown")]
-    [InlineData("extra-property", "schema")]
-    [InlineData("duplicate-json-property", "duplicate JSON")]
-    [InlineData("format-version", "schema")]
-    [InlineData("schema-version", "schema")]
-    [InlineData("type-format", "schema")]
-    [InlineData("invalid-key", "schema")]
-    [InlineData("key-newline", "schema")]
-    [InlineData("duplicate-type", "duplicate key")]
-    [InlineData("duplicate-entry", "duplicate key")]
-    [InlineData("duplicate-field", "duplicate key")]
-    [InlineData("entry-version", "type version")]
-    [InlineData("culture", "culture")]
-    [InlineData("invalid-culture", "culture")]
-    [InlineData("field-kind", "schema")]
-    [InlineData("required-field", "required field")]
+    [InlineData("missing-manifest", "required file missing: package.json")]
+    [InlineData("missing-type", "required file missing: types/page.json")]
+    [InlineData("missing-entry", "required file missing: entries/about.md")]
+    [InlineData("missing-media", "required file missing: media/garden.png")]
+    [InlineData("missing-field", "package.json#/site: schema missing required property")]
+    [InlineData("byte-order-mark", "text byte-order mark forbidden")]
+    [InlineData("invalid-utf8", "invalid package structure: DecoderFallbackException")]
+    [InlineData("bare-cr", "unsupported text line ending")]
+    [InlineData("front-matter", "entry front matter delimiter")]
+    [InlineData("empty-body", "empty Markdown body")]
+    [InlineData("extra-property", "package.json#/extra: schema prohibits value")]
+    [InlineData("duplicate-json-property", "duplicate JSON property")]
+    [InlineData("format-version", "package.json#/formatVersion: schema constant mismatch")]
+    [InlineData("schema-version", "package.json#/schemaVersions/entry: schema constant mismatch")]
+    [InlineData("type-format", "types/page.json#/formatVersion: schema constant mismatch")]
+    [InlineData("invalid-key", "entries/home.md#/key: schema string pattern")]
+    [InlineData("key-newline", "entries/home.md#/key: schema string pattern")]
+    [InlineData("duplicate-type", "duplicate key for content type")]
+    [InlineData("duplicate-entry", "duplicate key for content entry")]
+    [InlineData("duplicate-field", "duplicate key: summary")]
+    [InlineData("entry-version", "entry type version mismatch")]
+    [InlineData("culture", "entry culture must match site culture")]
+    [InlineData("invalid-culture", "package.json#/site/culture: schema string pattern")]
+    [InlineData("field-kind", "types/page.json#/fields/0: schema oneOf requires exactly one matching shape")]
+    [InlineData("required-field", "missing required field")]
     [InlineData("extra-field", "undeclared field")]
-    [InlineData("wrong-field-type", "field type")]
-    [InlineData("invalid-date", "date-time")]
-    [InlineData("content-reference", "reference")]
-    [InlineData("content-target", "reference")]
-    [InlineData("media-reference", "reference")]
-    [InlineData("term-reference", "reference")]
-    [InlineData("layout-reference", "renderer")]
-    [InlineData("template-reference", "renderer")]
-    [InlineData("block-reference", "reference")]
-    [InlineData("block-renderer", "renderer")]
-    [InlineData("block-version", "renderer")]
-    [InlineData("block-shape", "schema")]
-    [InlineData("markdown-reference", "reference")]
-    [InlineData("markdown-external", "Markdown")]
-    [InlineData("markdown-malformed", "Markdown")]
-    [InlineData("raw-html", "forbidden")]
-    [InlineData("template", "forbidden")]
-    [InlineData("encoded-template", "forbidden")]
-    [InlineData("unsafe-uri", "forbidden")]
-    [InlineData("secret-field", "forbidden")]
-    [InlineData("secret-assignment", "forbidden")]
-    [InlineData("absolute-path", "path")]
-    [InlineData("traversal", "path")]
-    [InlineData("reserved-path", "path")]
-    [InlineData("unlisted-file", "unlisted")]
-    [InlineData("duplicate-path", "duplicate path")]
-    [InlineData("media-hash", "media integrity")]
-    [InlineData("media-size", "media integrity")]
-    [InlineData("media-mime", "media MIME")]
-    [InlineData("empty-alt", "schema")]
-    [InlineData("term-parent", "parent reference")]
-    [InlineData("term-cycle", "parent cycle")]
-    [InlineData("menu-parent", "parent reference")]
-    [InlineData("menu-cycle", "parent cycle")]
-    [InlineData("menu-reference", "reference")]
-    [InlineData("menu-depth", "parent depth")]
-    [InlineData("route-reference", "reference")]
-    [InlineData("route-owner", "canonical route")]
-    [InlineData("reserved-route", "reserved route")]
-    [InlineData("root-route", "root route")]
+    [InlineData("wrong-field-type", "string field type")]
+    [InlineData("invalid-date", "invalid date-time")]
+    [InlineData("content-reference", "missing content reference target")]
+    [InlineData("content-target", "content reference type mismatch")]
+    [InlineData("media-reference", "media reference target")]
+    [InlineData("term-reference", "term reference target")]
+    [InlineData("layout-reference", "missing layout renderer dependency")]
+    [InlineData("template-reference", "missing template renderer dependency")]
+    [InlineData("block-reference", "block media reference")]
+    [InlineData("block-renderer", "missing block renderer")]
+    [InlineData("block-version", "unsupported block renderer version")]
+    [InlineData("block-shape", "entries/first-harvest.md#/body/0: schema oneOf requires exactly one matching shape")]
+    [InlineData("markdown-reference", "Markdown reference target")]
+    [InlineData("markdown-external", "unsupported Markdown link syntax")]
+    [InlineData("markdown-malformed", "unsupported Markdown link syntax")]
+    [InlineData("raw-html", "forbidden executable content")]
+    [InlineData("template", "forbidden executable content")]
+    [InlineData("encoded-template", "forbidden executable content")]
+    [InlineData("unsafe-uri", "forbidden executable content")]
+    [InlineData("secret-field", "forbidden secret field")]
+    [InlineData("secret-assignment", "forbidden secret assignment")]
+    [InlineData("absolute-path", "unsafe package path: /garden.png")]
+    [InlineData("traversal", "unsafe package path: media/../garden.png")]
+    [InlineData("reserved-path", "unsafe package path: media/con.png")]
+    [InlineData("unlisted-file", "unlisted package file")]
+    [InlineData("duplicate-path", "duplicate path across manifest lists")]
+    [InlineData("media-hash", "media SHA-256 mismatch")]
+    [InlineData("media-size", "media byte size mismatch")]
+    [InlineData("media-mime", "media MIME and extension mismatch")]
+    [InlineData("empty-alt", "package.json#/media/0/alt: schema string pattern")]
+    [InlineData("term-parent", "taxonomy topics: missing parent reference")]
+    [InlineData("term-cycle", "taxonomy topics: parent cycle")]
+    [InlineData("menu-parent", "navigation main: missing parent reference")]
+    [InlineData("menu-cycle", "navigation main: parent cycle")]
+    [InlineData("menu-reference", "navigation entry reference")]
+    [InlineData("menu-depth", "navigation main: parent depth exceeds 16")]
+    [InlineData("route-reference", "route entry reference")]
+    [InlineData("route-owner", "duplicate canonical route owner")]
+    [InlineData("reserved-route", "reserved route namespace")]
+    [InlineData("root-route", "missing root route")]
     [InlineData("redirect-cycle", "redirect cycle")]
-    [InlineData("redirect-target", "redirect target")]
-    [InlineData("redirect-collision", "route collision")]
-    [InlineData("documentation-reference", "documentation reference")]
-    [InlineData("documentation-version", "documentation version")]
-    [InlineData("documentation-path", "path")]
-    [InlineData("documentation-commit", "schema")]
+    [InlineData("redirect-target", "missing redirect target")]
+    [InlineData("redirect-collision", "redirect route collision")]
+    [InlineData("documentation-reference", "missing documentation entry reference")]
+    [InlineData("documentation-version", "duplicate documentation version")]
+    [InlineData("documentation-path", "unsafe package path: con")]
+    [InlineData("documentation-commit", "package.json#/documentationSources/0/commit: schema string pattern")]
     public void A_single_package_violation_is_rejected(string mutation, string diagnostic)
     {
         var files = ReadPackage();
@@ -156,7 +188,7 @@ public sealed class ContentPackageTests
             case "duplicate-field": ChangeJson(files, "types/page.json", t => t["fields"]![1]!["key"] = "summary"); break;
             case "entry-version": ChangeEntry(files, "home", e => e["schemaVersion"] = 2); break;
             case "culture": ChangeEntry(files, "home", e => e["culture"] = "fr-FR"); break;
-            case "invalid-culture": ChangeManifest(files, m => m["site"]!["culture"] = "zz-ZZ"); break;
+            case "invalid-culture": ChangeManifest(files, m => m["site"]!["culture"] = "en-us"); break;
             case "field-kind": ChangeJson(files, "types/page.json", t => t["fields"]![0]!["type"] = "script"); break;
             case "required-field": ChangeEntry(files, "home", e => e["fields"]!.AsObject().Remove("summary")); break;
             case "extra-field": ChangeEntry(files, "home", e => e["fields"]!["extra"] = true); break;
@@ -240,7 +272,42 @@ public sealed class ContentPackageTests
                 break;
             default: throw new ArgumentOutOfRangeException(nameof(mutation));
         }
-        Assert.Contains(Validate(files), error => error.Contains(diagnostic, StringComparison.Ordinal));
+        Assert.Equal(diagnostic, Assert.Single(Validate(files)));
+    }
+
+    [Theory]
+    [InlineData("", "package.json#/documentationSources/0/root: schema minLength lower bound")]
+    [InlineData("..", "package.json#/documentationSources/0/root: schema string pattern")]
+    [InlineData("./guide", "package.json#/documentationSources/0/root: schema string pattern")]
+    [InlineData("guide/.", "package.json#/documentationSources/0/root: schema string pattern")]
+    [InlineData("guide/..", "package.json#/documentationSources/0/root: schema string pattern")]
+    [InlineData("/guide", "package.json#/documentationSources/0/root: schema string pattern")]
+    [InlineData("guide/", "package.json#/documentationSources/0/root: schema string pattern")]
+    [InlineData("guide//reference", "package.json#/documentationSources/0/root: schema string pattern")]
+    [InlineData("guide\\reference", "package.json#/documentationSources/0/root: schema string pattern")]
+    [InlineData("Guide", "package.json#/documentationSources/0/root: schema string pattern")]
+    [InlineData(".\n", "package.json#/documentationSources/0/root: schema string pattern")]
+    [InlineData("guide.", "unsafe package path: guide.")]
+    [InlineData("guide/con.md", "unsafe package path: guide/con.md")]
+    public void Invalid_documentation_roots_are_rejected(string root, string diagnostic)
+    {
+        var files = ReadPackage();
+        AddDocumentation(files);
+        ChangeManifest(files, m => m["documentationSources"]![0]!["root"] = root);
+        Assert.Equal(diagnostic, Assert.Single(Validate(files)));
+    }
+
+    [Fact]
+    public void Documentation_entry_path_cannot_use_the_root_marker()
+    {
+        var files = ReadPackage();
+        AddDocumentation(files);
+        ChangeManifest(files, m =>
+        {
+            m["documentationSources"]![0]!["root"] = ".";
+            m["documentationSources"]![0]!["entries"]![0]!["path"] = ".";
+        });
+        Assert.Equal("package.json#/documentationSources/0/entries/0/path: schema string pattern", Assert.Single(Validate(files)));
     }
 
     [Fact]
@@ -250,12 +317,12 @@ public sealed class ContentPackageTests
     }
 
     [Theory]
-    [InlineData("unknown-id", "register id")]
-    [InlineData("missing-capability", "exact capability")]
-    [InlineData("duplicate-capability", "duplicate key")]
-    [InlineData("empty-scope", "scope")]
-    [InlineData("empty-reason", "reason")]
-    [InlineData("extra-property", "properties")]
+    [InlineData("unknown-id", "unknown register id: CMS-999")]
+    [InlineData("missing-capability", "exact capability scope required")]
+    [InlineData("duplicate-capability", "duplicate key: content")]
+    [InlineData("empty-scope", "capability scope must be nonblank")]
+    [InlineData("empty-reason", "capability reason must be nonblank")]
+    [InlineData("extra-property", "capability properties must be exact")]
     public void Invalid_capability_maps_are_rejected(string mutation, string diagnostic)
     {
         var map = JsonNode.Parse(RepositoryFiles.Current[CapabilityMap])!;
@@ -269,8 +336,7 @@ public sealed class ContentPackageTests
             case "extra-property": map["extra"] = true; break;
             default: throw new ArgumentOutOfRangeException(nameof(mutation));
         }
-        Assert.Contains(WebsiteCapabilities.Validate(map.ToJsonString(), RepositoryFiles.Current["docs/coverage/register.json"]),
-            error => error.Contains(diagnostic, StringComparison.Ordinal));
+        Assert.Equal(diagnostic, Assert.Single(WebsiteCapabilities.Validate(map.ToJsonString(), RepositoryFiles.Current["docs/coverage/register.json"])));
     }
 
     [Fact]
@@ -278,10 +344,10 @@ public sealed class ContentPackageTests
     {
         var schema = JsonNode.Parse(RepositoryFiles.Current[ManifestSchema])!;
         schema["properties"]!["format"]!["unrecognized"] = true;
-        Assert.Contains(Validate(ReadPackage(), schema.ToJsonString()), e => e.Contains("schema keyword", StringComparison.Ordinal));
+        Assert.Equal("unsupported schema keyword: unrecognized", Assert.Single(Validate(ReadPackage(), schema.ToJsonString())));
         schema = JsonNode.Parse(RepositoryFiles.Current[ManifestSchema])!;
         schema["properties"]!["format"] = new JsonObject { ["$ref"] = "urn:unavailable:format" };
-        Assert.Contains(Validate(ReadPackage(), schema.ToJsonString()), e => e.Contains("local schema reference", StringComparison.Ordinal));
+        Assert.Equal("require local schema reference", Assert.Single(Validate(ReadPackage(), schema.ToJsonString())));
     }
 
     private static List<string> Validate(Dictionary<string, byte[]> files, string? manifestSchema = null) =>
@@ -378,7 +444,7 @@ internal static class ContentPackageContract
                 Require(foldedPaths.Add(path), "duplicate path after case folding");
             }
             var manifest = Parse(Text(Read(files, "package.json")));
-            SchemaSubset.Validate(manifest, manifestSchema, manifestSchema);
+            SchemaSubset.Validate(manifest, manifestSchema, manifestSchema, "package.json#");
             var listed = new HashSet<string>(StringComparer.Ordinal) { "package.json" };
             foreach (var path in Items(manifest, "contentTypes").Concat(Items(manifest, "entries")).Select(p => p.GetString()!)
                 .Concat(Items(manifest, "media").Select(m => String(m, "path"))))
@@ -390,7 +456,7 @@ internal static class ContentPackageContract
             Require(files.Keys.All(listed.Contains), "unlisted package file");
             InspectText(manifest);
             var culture = String(manifest.GetProperty("site"), "culture");
-            Require(CultureInfo.GetCultures(CultureTypes.AllCultures).Any(c => c.Name == culture), "unsupported culture");
+            // Schemas check culture grammar; target culture support is a deployment check.
             var renderers = new HashSet<string>(StringComparer.Ordinal);
             foreach (var renderer in Items(manifest, "renderers"))
             {
@@ -404,42 +470,44 @@ internal static class ContentPackageContract
                 var path = file.GetString()!;
                 Require(path.EndsWith(".json", StringComparison.Ordinal), "type path extension");
                 var type = Parse(Text(Read(files, path)));
-                SchemaSubset.Validate(type, typeSchema, typeSchema);
+                SchemaSubset.Validate(type, typeSchema, typeSchema, path + "#");
                 InspectText(type);
                 Require(types.TryAdd(String(type, "key"), type), "duplicate key for content type");
                 var fields = Index(Items(type, "fields"));
                 Require(fields.Keys.All(key => !SecretFields.Contains(key)), "forbidden secret field");
             }
             var entries = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
-            var bodies = new Dictionary<string, string>(StringComparer.Ordinal);
+            var bodies = new Dictionary<string, (string Path, string Text)>(StringComparer.Ordinal);
             foreach (var file in Items(manifest, "entries"))
             {
                 var path = file.GetString()!;
                 Require(path.EndsWith(".md", StringComparison.Ordinal), "entry path extension");
                 var (front, body) = SplitEntry(Text(Read(files, path)));
                 var entry = Parse(front);
-                SchemaSubset.Validate(entry, manifestSchema.GetProperty("$defs").GetProperty("entry"), manifestSchema);
+                SchemaSubset.Validate(entry, manifestSchema.GetProperty("$defs").GetProperty("entry"), manifestSchema, path + "#");
                 InspectText(entry);
                 var key = String(entry, "key");
                 Require(entries.TryAdd(key, entry), "duplicate key for content entry");
-                bodies.Add(key, body);
+                bodies.Add(key, (path, body));
                 Require(String(entry, "culture") == culture, "entry culture must match site culture");
                 Require(types.ContainsKey(String(entry, "type")), "missing content type reference");
                 var type = types[String(entry, "type")];
                 Require(entry.GetProperty("schemaVersion").GetDecimal() == type.GetProperty("schemaVersion").GetDecimal(), "entry type version mismatch");
-                Require(renderers.Contains("layout:" + String(entry, "layout")) && renderers.Contains("template:" + String(entry, "template")), "missing renderer dependency");
+                Require(renderers.Contains("layout:" + String(entry, "layout")), "missing layout renderer dependency");
+                Require(renderers.Contains("template:" + String(entry, "template")), "missing template renderer dependency");
             }
             var media = Index(Items(manifest, "media"));
             foreach (var item in media.Values)
             {
                 var path = String(item, "path");
                 var bytes = Read(files, path);
-                Require(bytes.LongLength == item.GetProperty("bytes").GetDecimal()
-                    && Convert.ToHexStringLower(SHA256.HashData(bytes)) == String(item, "sha256"), "media integrity mismatch");
+                Require(bytes.LongLength == item.GetProperty("bytes").GetDecimal(), "media byte size mismatch");
+                Require(Convert.ToHexStringLower(SHA256.HashData(bytes)) == String(item, "sha256"), "media SHA-256 mismatch");
                 ValidateMedia(path, bytes, String(item, "mimeType"));
             }
             var taxonomies = Index(Items(manifest, "taxonomies"));
-            foreach (var taxonomy in taxonomies.Values) ValidateParents(Index(Items(taxonomy, "terms")));
+            foreach (var taxonomy in taxonomies.Values)
+                ValidateParents(Index(Items(taxonomy, "terms")), "taxonomy " + String(taxonomy, "key"));
             foreach (var type in types.Values)
             {
                 foreach (var field in Items(type, "fields"))
@@ -464,11 +532,11 @@ internal static class ContentPackageContract
                     }
                     ValidateField(value, definition, entries, media, taxonomies);
                 }
-                if (String(type, "body") == "markdown") ValidateMarkdown(bodies[key], entries, media);
+                if (String(type, "body") == "markdown") ValidateMarkdown(bodies[key].Text, entries, media);
                 else
                 {
-                    var blocks = Parse(bodies[key]);
-                    SchemaSubset.Validate(blocks, manifestSchema.GetProperty("$defs").GetProperty("blocks"), manifestSchema);
+                    var blocks = Parse(bodies[key].Text);
+                    SchemaSubset.Validate(blocks, manifestSchema.GetProperty("$defs").GetProperty("blocks"), manifestSchema, bodies[key].Path + "#/body");
                     InspectText(blocks);
                     foreach (var block in blocks.EnumerateArray())
                     {
@@ -482,7 +550,7 @@ internal static class ContentPackageContract
             foreach (var navigation in Index(Items(manifest, "navigation")).Values)
             {
                 var nodes = Index(Items(navigation, "nodes"));
-                ValidateParents(nodes);
+                ValidateParents(nodes, "navigation " + String(navigation, "key"));
                 Require(nodes.Values.All(node => entries.ContainsKey(String(node, "entry"))), "navigation entry reference");
             }
             ValidateRoutes(manifest, entries);
@@ -513,7 +581,8 @@ internal static class ContentPackageContract
                         DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out _), "invalid date-time");
                     break;
                 case "content-ref":
-                    Require(entries.TryGetValue(text, out var entry) && String(entry, "type") == String(definition, "target"), "content reference target");
+                    Require(entries.TryGetValue(text, out var entry), "missing content reference target");
+                    Require(String(entry, "type") == String(definition, "target"), "content reference type mismatch");
                     break;
                 case "media-ref": Require(media.ContainsKey(text), "media reference target"); break;
                 case "term-ref":
@@ -539,7 +608,7 @@ internal static class ContentPackageContract
         Require(!remaining.Contains('[') && !remaining.Contains(']'), "unsupported Markdown link syntax");
     }
 
-    private static void ValidateParents(Dictionary<string, JsonElement> nodes)
+    private static void ValidateParents(Dictionary<string, JsonElement> nodes, string collection)
     {
         foreach (var key in nodes.Keys)
         {
@@ -547,9 +616,9 @@ internal static class ContentPackageContract
             string? current = key;
             while (current is not null)
             {
-                Require(nodes.ContainsKey(current), "missing parent reference");
-                Require(seen.Add(current), "parent cycle");
-                Require(seen.Count <= 16, "parent depth exceeds 16");
+                Require(nodes.ContainsKey(current), collection + ": missing parent reference");
+                Require(seen.Add(current), collection + ": parent cycle");
+                Require(seen.Count <= 16, collection + ": parent depth exceeds 16");
                 current = nodes[current].GetProperty("parent").GetString();
             }
         }
@@ -599,7 +668,8 @@ internal static class ContentPackageContract
         foreach (var source in Index(Items(manifest, "documentationSources")).Values)
         {
             Require(versions.Add(String(source, "repository") + ":" + String(source, "version")), "duplicate documentation version");
-            SafePath(String(source, "root"));
+            var root = String(source, "root");
+            if (root != ".") SafePath(root);
             var paths = new HashSet<string>(StringComparer.Ordinal);
             foreach (var mapping in Items(source, "entries"))
             {
@@ -607,7 +677,8 @@ internal static class ContentPackageContract
                 var path = String(mapping, "path");
                 SafePath(path);
                 Require(paths.Add(path), "duplicate documentation path");
-                Require(entries.ContainsKey(entry) && mappedEntries.Add(entry), "documentation reference missing or repeated");
+                Require(entries.ContainsKey(entry), "missing documentation entry reference");
+                Require(mappedEntries.Add(entry), "duplicate documentation entry reference");
             }
         }
     }
@@ -631,7 +702,7 @@ internal static class ContentPackageContract
     private static void SafePath(string path)
     {
         Require(path.Length <= 240 && !path.Any(char.IsWhiteSpace) && PathPattern.IsMatch(path)
-            && path.Split('/').All(part => !part.EndsWith('.') && !ReservedDevice.IsMatch(part)), "unsafe package path");
+            && path.Split('/').All(part => !part.EndsWith('.') && !ReservedDevice.IsMatch(part)), "unsafe package path: " + path);
     }
 
     private static byte[] Read(IReadOnlyDictionary<string, byte[]> files, string path)
@@ -760,29 +831,31 @@ internal static class SchemaSubset
         }
     }
 
-    public static void Validate(JsonElement value, JsonElement schema, JsonElement root)
+    public static void Validate(JsonElement value, JsonElement schema, JsonElement root, string location)
     {
+        void Check(bool condition, string diagnostic) => ContentPackageContract.Require(condition, location + ": " + diagnostic);
+
         if (schema.ValueKind == JsonValueKind.True) return;
-        ContentPackageContract.Require(schema.ValueKind != JsonValueKind.False, "schema prohibits value");
+        Check(schema.ValueKind != JsonValueKind.False, "schema prohibits value");
         if (schema.TryGetProperty("$ref", out var reference))
         {
             var key = reference.GetString()![8..];
-            ContentPackageContract.Require(!key.Contains('/') && root.GetProperty("$defs").TryGetProperty(key, out _), "unresolved local schema reference");
-            Validate(value, root.GetProperty("$defs").GetProperty(key), root);
+            Check(!key.Contains('/') && root.GetProperty("$defs").TryGetProperty(key, out _), "unresolved local schema reference");
+            Validate(value, root.GetProperty("$defs").GetProperty(key), root, location);
         }
         if (schema.TryGetProperty("const", out var constant))
-            ContentPackageContract.Require(JsonElement.DeepEquals(value, constant), "schema constant mismatch");
+            Check(JsonElement.DeepEquals(value, constant), "schema constant mismatch");
         if (schema.TryGetProperty("enum", out var choices))
-            ContentPackageContract.Require(choices.EnumerateArray().Any(choice => JsonElement.DeepEquals(value, choice)), "schema enum mismatch");
+            Check(choices.EnumerateArray().Any(choice => JsonElement.DeepEquals(value, choice)), "schema enum mismatch");
         if (schema.TryGetProperty("oneOf", out var alternatives))
         {
             var matches = 0;
             foreach (var alternative in alternatives.EnumerateArray())
             {
-                try { Validate(value, alternative, root); matches++; }
+                try { Validate(value, alternative, root, location); matches++; }
                 catch (ContractViolation) { }
             }
-            ContentPackageContract.Require(matches == 1, "schema oneOf requires exactly one matching shape");
+            Check(matches == 1, "schema oneOf requires exactly one matching shape");
         }
         if (schema.TryGetProperty("type", out var type))
         {
@@ -796,49 +869,54 @@ internal static class SchemaSubset
                 "null" => value.ValueKind == JsonValueKind.Null,
                 _ => throw new ContractViolation("unsupported schema type")
             };
-            ContentPackageContract.Require(valid, "schema type mismatch");
+            Check(valid, "schema type mismatch");
         }
         if (value.ValueKind == JsonValueKind.Object)
         {
             if (schema.TryGetProperty("required", out var required))
                 foreach (var name in required.EnumerateArray())
-                    ContentPackageContract.Require(value.TryGetProperty(name.GetString()!, out _), "schema missing required property");
+                    ContentPackageContract.Require(value.TryGetProperty(name.GetString()!, out _),
+                        PropertyLocation(location, name.GetString()!) + ": schema missing required property");
             foreach (var property in value.EnumerateObject())
             {
                 if (schema.TryGetProperty("properties", out var properties) && properties.TryGetProperty(property.Name, out var child))
-                    Validate(property.Value, child, root);
-                else if (schema.TryGetProperty("additionalProperties", out var additional)) Validate(property.Value, additional, root);
+                    Validate(property.Value, child, root, PropertyLocation(location, property.Name));
+                else if (schema.TryGetProperty("additionalProperties", out var additional))
+                    Validate(property.Value, additional, root, PropertyLocation(location, property.Name));
             }
         }
         if (value.ValueKind == JsonValueKind.Array)
         {
             var items = value.EnumerateArray().ToArray();
-            Bound(items.Length, schema, "minItems", "maxItems");
+            Bound(items.Length, schema, "minItems", "maxItems", location);
             if (schema.TryGetProperty("items", out var itemSchema))
-                foreach (var item in items) Validate(item, itemSchema, root);
+                for (var i = 0; i < items.Length; i++)
+                    Validate(items[i], itemSchema, root, location + "/" + i.ToString(CultureInfo.InvariantCulture));
             if (schema.TryGetProperty("uniqueItems", out var unique) && unique.GetBoolean())
                 for (var i = 0; i < items.Length; i++)
                     for (var j = i + 1; j < items.Length; j++)
-                        ContentPackageContract.Require(!JsonElement.DeepEquals(items[i], items[j]), "schema duplicate array item");
+                        Check(!JsonElement.DeepEquals(items[i], items[j]), "schema duplicate array item");
         }
         if (value.ValueKind == JsonValueKind.String)
         {
             var text = value.GetString()!;
-            Bound(text.EnumerateRunes().Count(), schema, "minLength", "maxLength");
+            Bound(text.EnumerateRunes().Count(), schema, "minLength", "maxLength", location);
             if (schema.TryGetProperty("pattern", out var pattern))
-                ContentPackageContract.Require(Regex.IsMatch(text, pattern.GetString()!, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)), "schema string pattern");
+                Check(Regex.IsMatch(text, pattern.GetString()!, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)), "schema string pattern");
         }
         if (value.ValueKind == JsonValueKind.Number)
         {
-            ContentPackageContract.Require(value.TryGetDecimal(out var number), "schema numeric range");
-            Bound(number, schema, "minimum", "maximum");
+            Check(value.TryGetDecimal(out var number), "schema numeric range");
+            Bound(number, schema, "minimum", "maximum", location);
         }
     }
 
-    private static void Bound(decimal number, JsonElement schema, string minimum, string maximum)
+    private static string PropertyLocation(string location, string name) => location + "/" + name.Replace("~", "~0").Replace("/", "~1");
+
+    private static void Bound(decimal number, JsonElement schema, string minimum, string maximum, string location)
     {
-        if (schema.TryGetProperty(minimum, out var low)) ContentPackageContract.Require(number >= low.GetDecimal(), "schema lower bound");
-        if (schema.TryGetProperty(maximum, out var high)) ContentPackageContract.Require(number <= high.GetDecimal(), "schema upper bound");
+        if (schema.TryGetProperty(minimum, out var low)) ContentPackageContract.Require(number >= low.GetDecimal(), location + ": schema " + minimum + " lower bound");
+        if (schema.TryGetProperty(maximum, out var high)) ContentPackageContract.Require(number <= high.GetDecimal(), location + ": schema " + maximum + " upper bound");
     }
 }
 
@@ -879,7 +957,8 @@ internal static class WebsiteCapabilities
                     {
                         Properties(reference, "id", "scope");
                         var id = ContentPackageContract.String(reference, "id");
-                        ContentPackageContract.Require(ids.Contains(id) && seen.Add(id), "unknown or repeated register id");
+                        ContentPackageContract.Require(ids.Contains(id), "unknown register id: " + id);
+                        ContentPackageContract.Require(seen.Add(id), "repeated register id: " + id);
                         Nonblank(reference, "scope");
                     }
                 }
