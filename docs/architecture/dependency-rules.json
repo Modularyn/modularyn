@@ -1,0 +1,79 @@
+{
+  "formatVersion": 1,
+  "namesContract": "docs/names-and-layout.json",
+  "moduleFamilies": ["Modules", "Cms", "Pro"],
+  "nonModulePrefixes": ["Modularyn.Pro.Studio."],
+  "eventContractRole": "application-contracts",
+  "editionReferences": {
+    "community": {
+      "community": ["ProjectReference", "PackageReference"],
+      "paid": []
+    },
+    "paid": {
+      "community": ["PackageReference"],
+      "paid": ["ProjectReference", "PackageReference"]
+    }
+  },
+  "familyReferences": {
+    "Framework": ["Framework"],
+    "Modules": ["Framework", "Modules", "Cms", "UI", "Connectors"],
+    "Cms": ["Framework", "Modules", "Cms", "UI", "Connectors"],
+    "UI": ["Framework", "Modules", "Cms", "UI"],
+    "Connectors": ["Framework", "Modules", "Cms", "Connectors"],
+    "Pro": ["Framework", "Modules", "Cms", "UI", "Connectors", "Pro", "Tooling"],
+    "Tooling": ["Framework", "Modules", "Cms", "UI", "Connectors", "Tooling"],
+    "FrontDoor": ["Framework", "Modules", "Cms", "UI", "Connectors"]
+  },
+  "sameModuleReferences": {
+    "domain": [],
+    "application-contracts": [],
+    "application-services": ["domain", "application-contracts"],
+    "persistence-adapter": ["domain"],
+    "http-endpoints": ["application-contracts"],
+    "client": ["application-contracts"],
+    "ui-adapter": ["application-contracts", "client"]
+  },
+  "otherModuleReferences": {
+    "domain": [],
+    "application-contracts": ["application-contracts"],
+    "application-services": ["application-contracts"],
+    "persistence-adapter": ["application-contracts"],
+    "http-endpoints": ["application-contracts"],
+    "client": ["application-contracts"],
+    "ui-adapter": ["application-contracts"]
+  },
+  "supportFamilyReferences": {
+    "domain": ["Framework"],
+    "application-contracts": ["Framework"],
+    "application-services": ["Framework"],
+    "persistence-adapter": ["Framework", "Connectors"],
+    "http-endpoints": ["Framework"],
+    "client": ["Framework"],
+    "ui-adapter": ["Framework", "UI"]
+  },
+  "domainFrameworkSuffixes": [".Domain", ".Contracts", ".Abstractions"],
+  "contractsFrameworkSuffixes": [".Contracts", ".Abstractions"],
+  "domainForbiddenRoles": ["persistence-adapter", "http-endpoints", "client", "ui-adapter"],
+  "domainForbiddenFamilies": ["UI", "Connectors", "Tooling", "FrontDoor"],
+  "domainForbiddenSegments": ["UI", "Persistence", "HttpApi", "Client"],
+  "domainForbiddenPlatforms": ["Microsoft.AspNetCore", "Microsoft.Maui", "Microsoft.WindowsDesktop", "Microsoft.JSInterop", "Microsoft.EntityFrameworkCore", "System.Net.Http", "System.Windows.Forms"],
+  "domainForbiddenProperties": ["UseWPF", "UseWindowsForms", "UseMaui"],
+  "domainForbiddenSdks": ["Microsoft.NET.Sdk.Web", "Microsoft.NET.Sdk.Razor", "Microsoft.NET.Sdk.WindowsDesktop"],
+  "paidCommunityVersionPattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)(?![\\s\\S])",
+  "cycleScopes": ["package", "module"],
+  "diagnostics": {
+    "DEP001": "Project identity and solution membership must match the names contract.",
+    "DEP002": "References must be literal and locally discoverable.",
+    "DEP003": "Community must not reference paid modules.",
+    "DEP004": "Paid projects must consume Community through packages, never project references.",
+    "DEP005": "Paid references to Community require an exact stable version.",
+    "DEP006": "The source family does not allow the target family.",
+    "DEP007": "Domain must not reference UI, HTTP, client or persistence adapters.",
+    "DEP008": "The source role does not allow this role within its module.",
+    "DEP009": "Another module is accessible only through allowed application or event contracts.",
+    "DEP010": "The source role does not allow this support package.",
+    "DEP011": "Dependency cycles are forbidden.",
+    "DEP012": "Product projects must not reference test projects.",
+    "DEP013": "The dependency companion, guide and names contract must agree."
+  }
+}
