@@ -58,10 +58,10 @@ public sealed class ConventionRejectionTests
         switch (mutation)
         {
             case "sdk-version":
-                files["global.json"] = files["global.json"].Replace("10.0.303", "10.0.*");
+                files["global.json"] = SetSdk(files["global.json"], "version", "10.0.*");
                 break;
             case "sdk-roll-forward":
-                files["global.json"] = files["global.json"].Replace("latestPatch", "latestMajor");
+                files["global.json"] = SetSdk(files["global.json"], "rollForward", "latestPatch");
                 break;
             case "sdk-prerelease":
                 files["global.json"] = files["global.json"].Replace("false", "true");
@@ -197,5 +197,14 @@ public sealed class ConventionRejectionTests
 
         var errors = Conventions.Validate(files);
         Assert.Contains(errors, error => error.Contains(expectedDiagnostic, StringComparison.Ordinal));
+    }
+
+    // Changes one sdk property of global.json, whatever the current pin is, so the mutation never silently does nothing.
+    private static string SetSdk(string globalJson, string property, string value)
+    {
+        var root = JsonNode.Parse(globalJson)!;
+        Assert.NotEqual(value, root["sdk"]![property]!.GetValue<string>());
+        root["sdk"]![property] = value;
+        return root.ToJsonString();
     }
 }

@@ -97,10 +97,10 @@ internal static class Conventions
             using var document = JsonDocument.Parse(text);
             var sdk = document.RootElement.GetProperty("sdk");
             if (!Net10Sdk.IsMatch(sdk.GetProperty("version").GetString() ?? "")
-                || sdk.GetProperty("rollForward").GetString() != "latestPatch"
+                || sdk.GetProperty("rollForward").GetString() != "disable"
                 || sdk.GetProperty("allowPrerelease").GetBoolean())
             {
-                errors.Add("global.json: require an exact stable .NET 10 SDK version, latestPatch, and no prereleases.");
+                errors.Add("global.json: require an exact stable .NET 10 SDK version, rollForward disable, and no prereleases.");
             }
         }
         catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException)
