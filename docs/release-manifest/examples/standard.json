@@ -13,10 +13,6 @@
       {
         "capability": "CMS-001",
         "profile": "reference"
-      },
-      {
-        "capability": "CMS-001",
-        "profile": "website"
       }
     ]
   },
@@ -208,99 +204,132 @@
   },
   "capabilities": {
     "FND-001": {
-      "state": "Intended",
       "edition": "community",
-      "profiles": [
-        "reference",
-        "website"
-      ],
-      "scope": "Illustrative module compatibility checks.",
-      "publicClaim": "planned"
+      "entries": [
+        {
+          "state": "Intended",
+          "profiles": [
+            "reference",
+            "website"
+          ],
+          "scope": "Illustrative module compatibility checks.",
+          "publicClaim": "planned"
+        }
+      ]
     },
     "DEV-007": {
-      "state": "Designed",
       "edition": "community",
-      "profiles": [
-        "reference",
-        "website"
-      ],
-      "scope": "Illustrative source generation contract.",
-      "publicClaim": "none"
+      "entries": [
+        {
+          "state": "Designed",
+          "profiles": [
+            "reference",
+            "website"
+          ],
+          "scope": "Illustrative source generation contract.",
+          "publicClaim": "none"
+        }
+      ]
     },
     "CMS-002": {
-      "state": "Implemented",
       "edition": "community",
-      "profiles": [
-        "reference",
-        "website"
-      ],
-      "scope": "Illustrative content reference implementation.",
-      "publicClaim": "none"
+      "entries": [
+        {
+          "state": "Implemented",
+          "profiles": [
+            "reference",
+            "website"
+          ],
+          "scope": "Illustrative content reference implementation.",
+          "publicClaim": "none"
+        }
+      ]
     },
     "CMS-003": {
-      "state": "Preview",
       "edition": "community",
-      "profiles": [
-        "reference",
-        "website"
-      ],
-      "scope": "Illustrative typed page composition.",
-      "publicClaim": "none"
+      "entries": [
+        {
+          "state": "Preview",
+          "profiles": [
+            "reference",
+            "website"
+          ],
+          "scope": "Illustrative typed page composition.",
+          "publicClaim": "none"
+        }
+      ]
     },
     "CMS-001": {
-      "state": "Qualified",
       "edition": "community",
-      "profiles": [
-        "reference",
-        "website"
-      ],
-      "scope": "Illustrative content type validation only.",
-      "publicClaim": "supported",
-      "evidence": [
+      "entries": [
         {
-          "profile": "reference",
-          "references": [
-            "urn:modularyn:example:evidence:content-types:reference"
+          "state": "Qualified",
+          "profiles": [
+            "reference"
+          ],
+          "scope": "Illustrative content type validation only.",
+          "publicClaim": "supported",
+          "evidence": [
+            {
+              "profile": "reference",
+              "references": [
+                "urn:modularyn:example:evidence:content-types:reference"
+              ]
+            }
           ]
         },
         {
-          "profile": "website",
-          "references": [
-            "urn:modularyn:example:evidence:content-types:website"
-          ]
+          "state": "Preview",
+          "profiles": [
+            "website"
+          ],
+          "scope": "Illustrative website content type validation preview.",
+          "publicClaim": "none"
         }
       ]
     },
     "CMS-005": {
-      "state": "Deprecated",
       "edition": "community",
-      "profiles": [
-        "reference",
-        "website"
-      ],
-      "scope": "Illustrative editorial release lifecycle retained during migration.",
-      "publicClaim": "none",
-      "supportEndsOn": "2027-10-25"
+      "entries": [
+        {
+          "state": "Deprecated",
+          "profiles": [
+            "reference",
+            "website"
+          ],
+          "scope": "Illustrative editorial release lifecycle retained during migration.",
+          "publicClaim": "none",
+          "supportEndsOn": "2027-10-25"
+        }
+      ]
     },
     "CMS-011": {
-      "state": "Unsupported",
       "edition": "community",
-      "profiles": [
-        "reference",
-        "website"
-      ],
-      "scope": "Search is outside the illustrative subset.",
-      "publicClaim": "none",
-      "reason": "The illustrative content subset does not exercise search."
+      "entries": [
+        {
+          "state": "Unsupported",
+          "profiles": [
+            "reference",
+            "website"
+          ],
+          "scope": "Search is outside the illustrative subset.",
+          "publicClaim": "none",
+          "reason": "The illustrative content subset does not exercise search."
+        }
+      ]
     },
     "LOW-001": {
-      "state": "Intended",
       "edition": "standard",
-      "profiles": [
-        "reference"
-      ],
-      "scope": "Illustrative paid model contract.",
-      "publicClaim": "planned"
+      "entries": [
+        {
+          "state": "Intended",
+          "profiles": [
+            "reference"
+          ],
+          "scope": "Illustrative paid model contract.",
+          "publicClaim": "planned"
+        }
+      ]
     }
   }
 }

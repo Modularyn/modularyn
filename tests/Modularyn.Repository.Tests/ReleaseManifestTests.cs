@@ -24,7 +24,17 @@ public sealed class ReleaseManifestTests
             Assert.Contains("-example.", manifest["version"]!.GetValue<string>());
             Assert.True(new[] { "reference", "website" }.All(profile => manifest["profiles"]!.AsObject().ContainsKey(profile)));
             Assert.True(new HashSet<string>(["Intended", "Designed", "Implemented", "Preview", "Qualified", "Deprecated", "Unsupported"], StringComparer.Ordinal)
-                .SetEquals(manifest["capabilities"]!.AsObject().Select(entry => entry.Value!["state"]!.GetValue<string>())));
+                .SetEquals(manifest["capabilities"]!.AsObject().SelectMany(capability => capability.Value!["entries"]!.AsArray())
+                    .Select(entry => entry!["state"]!.GetValue<string>())));
+            var qualified = Entry(manifest, "CMS-001");
+            var preview = Entry(manifest, "CMS-001", 1);
+            Assert.Equal("Qualified", qualified["state"]!.GetValue<string>());
+            Assert.Equal("supported", qualified["publicClaim"]!.GetValue<string>());
+            Assert.Equal("reference", Assert.Single(qualified["profiles"]!.AsArray())!.GetValue<string>());
+            Assert.Equal("Preview", preview["state"]!.GetValue<string>());
+            Assert.Equal("none", preview["publicClaim"]!.GetValue<string>());
+            Assert.Equal("website", Assert.Single(preview["profiles"]!.AsArray())!.GetValue<string>());
+            Assert.NotEqual(qualified["scope"]!.GetValue<string>(), preview["scope"]!.GetValue<string>());
         }
         Assert.True(editions.SetEquals(["community", "standard", "pro"]));
     }
@@ -37,7 +47,21 @@ public sealed class ReleaseManifestTests
     [InlineData("empty-evidence", "Qualified requires evidence")]
     [InlineData("missing-profile-evidence", "evidence for every profile")]
     [InlineData("unrelated-evidence", "evidence profile is outside")]
+    [InlineData("evidence-from-another-entry", "evidence profile is outside the capability entry")]
     [InlineData("duplicate-evidence-profile", "duplicate evidence profile")]
+    [InlineData("overlapping-entry-profiles", "capability entries must name disjoint profiles")]
+    [InlineData("empty-entries", "capability requires a nonempty entry list")]
+    [InlineData("missing-entries", "capability requires a nonempty entry list")]
+    [InlineData("entries-not-array", "capability requires a nonempty entry list")]
+    [InlineData("empty-entry-profiles", "schema lower bound")]
+    [InlineData("duplicate-entry-profile", "schema duplicate array item")]
+    [InlineData("entry-edition", "schema prohibits value")]
+    [InlineData("capability-state", "schema prohibits value")]
+    [InlineData("second-entry-unknown-state", "unknown state")]
+    [InlineData("second-entry-supported-without-qualification", "supported claim requires Qualified or Deprecated")]
+    [InlineData("second-entry-qualified-without-evidence", "Qualified requires evidence")]
+    [InlineData("second-entry-unsupported-without-reason", "Unsupported requires a reason")]
+    [InlineData("second-entry-deprecated-without-end", "Deprecated requires a valid support end")]
     [InlineData("unsupported-without-reason", "Unsupported requires a reason")]
     [InlineData("blank-reason", "Unsupported requires a reason")]
     [InlineData("deprecated-without-end", "Deprecated requires a valid support end")]
@@ -64,6 +88,7 @@ public sealed class ReleaseManifestTests
     [InlineData("topology-outside-profile", "profile topology")]
     [InlineData("subset-missing-member", "qualified subset must contain exactly")]
     [InlineData("subset-extra-member", "qualified subset must contain exactly")]
+    [InlineData("subset-non-qualified-profile", "qualified subset must contain exactly the Qualified capability/profile pairs")]
     [InlineData("subset-duplicate-member", "schema duplicate array item")]
     [InlineData("subset-missing-label", "schema missing required property")]
     [InlineData("empty-profiles", "profiles must not be empty")]
@@ -80,29 +105,43 @@ public sealed class ReleaseManifestTests
     [InlineData("extra-property", "schema prohibits value")]
     public void A_single_manifest_violation_is_rejected_for_its_reason(string mutation, string diagnostic)
     {
-        var manifest = Example();
+        var manifest = Example(sharedQualification: mutation is "missing-profile-evidence" or "duplicate-evidence-profile");
         Assert.Empty(Validate(manifest));
         var capabilities = manifest["capabilities"]!.AsObject();
-        var qualified = capabilities["CMS-001"]!;
-        var deprecated = capabilities["CMS-005"]!;
-        var unsupported = capabilities["CMS-011"]!;
+        var qualified = Entry(manifest, "CMS-001");
+        var deprecated = Entry(manifest, "CMS-005");
+        var unsupported = Entry(manifest, "CMS-011");
         var reference = manifest["profiles"]!["reference"]!;
         switch (mutation)
         {
             case "unknown-state": unsupported["state"] = "Supported"; break;
-            case "planned-without-intent": capabilities["DEV-007"]!["publicClaim"] = "planned"; break;
-            case "supported-without-qualification": capabilities["CMS-002"]!["publicClaim"] = "supported"; break;
+            case "planned-without-intent": Entry(manifest, "DEV-007")["publicClaim"] = "planned"; break;
+            case "supported-without-qualification": Entry(manifest, "CMS-002")["publicClaim"] = "supported"; break;
             case "qualified-without-evidence": qualified.AsObject().Remove("evidence"); break;
             case "empty-evidence": qualified["evidence"] = new JsonArray(); break;
             case "missing-profile-evidence": qualified["evidence"]!.AsArray().RemoveAt(1); break;
             case "unrelated-evidence": qualified["evidence"]![0]!["profile"] = "unknown"; break;
+            case "evidence-from-another-entry": qualified["evidence"]![0]!["profile"] = "website"; break;
             case "duplicate-evidence-profile": qualified["evidence"]![1]!["profile"] = "reference"; break;
+            case "overlapping-entry-profiles": Entry(manifest, "CMS-001", 1)["profiles"]!.AsArray().Add("reference"); break;
+            case "empty-entries": capabilities["CMS-001"]!["entries"] = new JsonArray(); break;
+            case "missing-entries": capabilities["CMS-001"]!.AsObject().Remove("entries"); break;
+            case "entries-not-array": capabilities["CMS-001"]!["entries"] = new JsonObject(); break;
+            case "empty-entry-profiles": Entry(manifest, "CMS-001", 1)["profiles"] = new JsonArray(); break;
+            case "duplicate-entry-profile": Entry(manifest, "CMS-001", 1)["profiles"]!.AsArray().Add("website"); break;
+            case "entry-edition": qualified["edition"] = "community"; break;
+            case "capability-state": capabilities["CMS-001"]!["state"] = "Qualified"; break;
+            case "second-entry-unknown-state": Entry(manifest, "CMS-001", 1)["state"] = "Supported"; break;
+            case "second-entry-supported-without-qualification": Entry(manifest, "CMS-001", 1)["publicClaim"] = "supported"; break;
+            case "second-entry-qualified-without-evidence": Entry(manifest, "CMS-001", 1)["state"] = "Qualified"; break;
+            case "second-entry-unsupported-without-reason": Entry(manifest, "CMS-001", 1)["state"] = "Unsupported"; break;
+            case "second-entry-deprecated-without-end": Entry(manifest, "CMS-001", 1)["state"] = "Deprecated"; break;
             case "unsupported-without-reason": unsupported.AsObject().Remove("reason"); break;
             case "blank-reason": unsupported["reason"] = " "; break;
             case "deprecated-without-end": deprecated.AsObject().Remove("supportEndsOn"); break;
             case "invalid-support-date": deprecated["supportEndsOn"] = "2027-02-29"; break;
             case "unknown-register-id":
-                capabilities["CMS-999"] = unsupported.DeepClone();
+                capabilities["CMS-999"] = capabilities["CMS-011"]!.DeepClone();
                 capabilities.Remove("CMS-011");
                 break;
             case "unknown-profile-key":
@@ -112,12 +151,12 @@ public sealed class ReleaseManifestTests
             case "unknown-capability-profile": unsupported["profiles"]![0] = "unknown"; break;
             case "unknown-edition": manifest["edition"] = "enterprise"; break;
             case "unknown-package-edition": manifest["packages"]![0]!["edition"] = "enterprise"; break;
-            case "unknown-capability-edition": unsupported["edition"] = "enterprise"; break;
+            case "unknown-capability-edition": capabilities["CMS-011"]!["edition"] = "enterprise"; break;
             case "malformed-package-id": manifest["packages"]![0]!["id"] = "Modularyn.CMS.Content"; break;
             case "package-id-newline": manifest["packages"]![0]!["id"] = "Modularyn\n"; break;
             case "paid-package-in-community": manifest["packages"]![0]!["id"] = "Modularyn.Pro.Studio.Workspace"; break;
             case "paid-capability-in-community":
-                capabilities["LOW-001"] = unsupported.DeepClone();
+                capabilities["LOW-001"] = capabilities["CMS-011"]!.DeepClone();
                 capabilities.Remove("CMS-011");
                 break;
             case "cross-edition-package": manifest["packages"]![0]!["edition"] = "standard"; break;
@@ -138,9 +177,12 @@ public sealed class ReleaseManifestTests
             case "runtime-outside-profile": reference["runtime"]!["version"] = "11.0.0"; break;
             case "database-outside-profile": reference["database"]!["name"] = "AnotherDatabase"; break;
             case "topology-outside-profile": reference["deploymentTopology"] = "multi-host"; break;
-            case "subset-missing-member": manifest["qualifiedSubset"]!["members"]!.AsArray().RemoveAt(1); break;
+            case "subset-missing-member": manifest["qualifiedSubset"]!["members"]!.AsArray().RemoveAt(0); break;
             case "subset-extra-member":
                 manifest["qualifiedSubset"]!["members"]!.AsArray().Add(new JsonObject { ["capability"] = "CMS-002", ["profile"] = "reference" });
+                break;
+            case "subset-non-qualified-profile":
+                manifest["qualifiedSubset"]!["members"]!.AsArray().Add(new JsonObject { ["capability"] = "CMS-001", ["profile"] = "website" });
                 break;
             case "subset-duplicate-member":
                 manifest["qualifiedSubset"]!["members"]!.AsArray().Add(manifest["qualifiedSubset"]!["members"]![0]!.DeepClone());
@@ -190,8 +232,8 @@ public sealed class ReleaseManifestTests
     public void No_other_state_can_claim_support(string state)
     {
         var manifest = Example();
-        manifest["capabilities"]!["CMS-011"]!["state"] = state;
-        manifest["capabilities"]!["CMS-011"]!["publicClaim"] = "supported";
+        Entry(manifest, "CMS-011")["state"] = state;
+        Entry(manifest, "CMS-011")["publicClaim"] = "supported";
         Assert.Contains("supported claim requires Qualified or Deprecated", Validate(manifest));
     }
 
@@ -202,7 +244,7 @@ public sealed class ReleaseManifestTests
     public void Deprecated_support_ends_after_the_inclusive_UTC_date(string date, bool supported)
     {
         var manifest = Example();
-        manifest["capabilities"]!["CMS-005"]!["publicClaim"] = "supported";
+        Entry(manifest, "CMS-005")["publicClaim"] = "supported";
         var errors = Validate(manifest.ToJsonString(), DateOnly.ParseExact(date, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
         if (supported) Assert.Empty(errors);
         else Assert.Contains("supported claim exceeds support period", errors);
@@ -212,7 +254,7 @@ public sealed class ReleaseManifestTests
     public void Expired_deprecation_and_an_explicit_empty_qualified_subset_make_no_support_claim()
     {
         var manifest = Example();
-        var entry = manifest["capabilities"]!["CMS-001"]!;
+        var entry = Entry(manifest, "CMS-001");
         entry["state"] = "Implemented";
         entry["publicClaim"] = "none";
         entry.AsObject().Remove("evidence");
@@ -221,6 +263,34 @@ public sealed class ReleaseManifestTests
         Assert.Empty(Validate(manifest.ToJsonString(), new DateOnly(2028, 1, 1)));
         manifest["qualifiedSubset"]!["label"] = "Content subset";
         Assert.Contains("empty qualified subset requires its explicit label", Validate(manifest));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Qualified_profiles_can_share_an_entry_or_use_disjoint_entries(bool separateEntries)
+    {
+        var manifest = Example(sharedQualification: true);
+        Assert.Empty(Validate(manifest));
+        var qualified = Entry(manifest, "CMS-001");
+        qualified["publicClaim"] = "none";
+        if (separateEntries)
+        {
+            var website = qualified.DeepClone();
+            website["profiles"]!.AsArray().RemoveAt(0);
+            website["evidence"]!.AsArray().RemoveAt(0);
+            website["scope"] = "Illustrative website content type validation only.";
+            qualified["profiles"]!.AsArray().RemoveAt(1);
+            qualified["evidence"]!.AsArray().RemoveAt(1);
+            manifest["capabilities"]!["CMS-001"]!["entries"]!.AsArray().Add(website);
+        }
+        Assert.Empty(Validate(manifest));
+        // Entry order does not change profile claims or the qualified subset.
+        var entries = manifest["capabilities"]!["CMS-001"]!["entries"]!.AsArray();
+        manifest["capabilities"]!["CMS-001"]!["entries"] = new JsonArray(entries.AsEnumerable().Reverse().Select(entry => entry!.DeepClone()).ToArray());
+        Assert.Empty(Validate(manifest));
+        manifest["qualifiedSubset"]!["members"]!.AsArray().RemoveAt(1);
+        Assert.Contains("qualified subset must contain exactly the Qualified capability/profile pairs", Validate(manifest));
     }
 
     [Theory]
@@ -262,7 +332,26 @@ public sealed class ReleaseManifestTests
         Assert.Contains(Validate(Example().ToJsonString(), schema: schema.ToJsonString()), error => error.Contains("require local schema reference", StringComparison.Ordinal));
     }
 
-    private static JsonNode Example() => JsonNode.Parse(RepositoryFiles.Current[ReleaseManifestContract.ExampleDirectory + "community.json"])!;
+    private static JsonNode Entry(JsonNode manifest, string capability, int index = 0) =>
+        manifest["capabilities"]![capability]!["entries"]![index]!;
+
+    private static JsonNode Example(bool sharedQualification = false)
+    {
+        var manifest = JsonNode.Parse(RepositoryFiles.Current[ReleaseManifestContract.ExampleDirectory + "community.json"])!;
+        if (sharedQualification)
+        {
+            var qualified = Entry(manifest, "CMS-001");
+            qualified["profiles"]!.AsArray().Add("website");
+            qualified["evidence"]!.AsArray().Add(new JsonObject
+            {
+                ["profile"] = "website",
+                ["references"] = new JsonArray("urn:modularyn:example:evidence:content-types:website")
+            });
+            manifest["capabilities"]!["CMS-001"]!["entries"]!.AsArray().RemoveAt(1);
+            manifest["qualifiedSubset"]!["members"]!.AsArray().Add(new JsonObject { ["capability"] = "CMS-001", ["profile"] = "website" });
+        }
+        return manifest;
+    }
     private static List<string> Validate(JsonNode manifest) => Validate(manifest.ToJsonString());
     private static List<string> Validate(string text, DateOnly? date = null, string? schema = null) => ReleaseManifestContract.Validate(text,
         schema ?? RepositoryFiles.Current[ReleaseManifestContract.SchemaPath], RepositoryFiles.Current, date ?? ClaimDate);

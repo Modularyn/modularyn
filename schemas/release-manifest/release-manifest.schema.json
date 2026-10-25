@@ -300,8 +300,27 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "state",
         "edition",
+        "entries"
+      ],
+      "properties": {
+        "edition": {
+          "$ref": "#/$defs/edition"
+        },
+        "entries": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/capabilityEntry"
+          }
+        }
+      }
+    },
+    "capabilityEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
         "profiles",
         "scope",
         "publicClaim"
@@ -317,9 +336,6 @@
             "Deprecated",
             "Unsupported"
           ]
-        },
-        "edition": {
-          "$ref": "#/$defs/edition"
         },
         "profiles": {
           "type": "array",

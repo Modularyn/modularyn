@@ -57,22 +57,27 @@ internal static class ReleaseManifestContract
         foreach (var capability in capabilities.EnumerateObject())
         {
             var value = capability.Value;
-            var state = Text(value, "state");
-            var claim = Text(value, "publicClaim");
-            Require(States.Contains(state, StringComparer.Ordinal), "unknown state");
             Require(Editions.Contains(Text(value, "edition"), StringComparer.Ordinal), "unknown capability edition");
-            Require(claim != "planned" || state == "Intended", "planned claim requires Intended");
-            Require(claim != "supported" || state is "Qualified" or "Deprecated", "supported claim requires Qualified or Deprecated");
-            if (state == "Qualified")
-                Require(value.TryGetProperty("evidence", out var evidence) && evidence.ValueKind == JsonValueKind.Array
-                    && evidence.GetArrayLength() > 0, "Qualified requires evidence");
-            if (state == "Unsupported")
-                Require(!string.IsNullOrWhiteSpace(Text(value, "reason")), "Unsupported requires a reason");
-            if (state == "Deprecated")
+            Require(value.TryGetProperty("entries", out var entries) && entries.ValueKind == JsonValueKind.Array
+                && entries.GetArrayLength() > 0, "capability requires a nonempty entry list");
+            foreach (var entry in entries.EnumerateArray())
             {
-                Require(DateOnly.TryParseExact(Text(value, "supportEndsOn"), "yyyy-MM-dd", CultureInfo.InvariantCulture,
-                    DateTimeStyles.None, out var supportEnd), "Deprecated requires a valid support end");
-                Require(claim != "supported" || claimDate <= supportEnd, "supported claim exceeds support period");
+                var state = Text(entry, "state");
+                var claim = Text(entry, "publicClaim");
+                Require(States.Contains(state, StringComparer.Ordinal), "unknown state");
+                Require(claim != "planned" || state == "Intended", "planned claim requires Intended");
+                Require(claim != "supported" || state is "Qualified" or "Deprecated", "supported claim requires Qualified or Deprecated");
+                if (state == "Qualified")
+                    Require(entry.TryGetProperty("evidence", out var evidence) && evidence.ValueKind == JsonValueKind.Array
+                        && evidence.GetArrayLength() > 0, "Qualified requires evidence");
+                if (state == "Unsupported")
+                    Require(!string.IsNullOrWhiteSpace(Text(entry, "reason")), "Unsupported requires a reason");
+                if (state == "Deprecated")
+                {
+                    Require(DateOnly.TryParseExact(Text(entry, "supportEndsOn"), "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                        DateTimeStyles.None, out var supportEnd), "Deprecated requires a valid support end");
+                    Require(claim != "supported" || claimDate <= supportEnd, "supported claim exceeds support period");
+                }
             }
         }
     }
@@ -143,27 +148,32 @@ internal static class ReleaseManifestContract
             var owner = String(value, "edition");
             Require(owner == "community" || owner == edition, "capability edition is outside this release");
             Require((String(entry, "edition") == "paid") == (owner != "community"), "capability edition must match the register");
-            var applicable = Items(value, "profiles").Select(item => item.GetString()!).ToHashSet(StringComparer.Ordinal);
-            foreach (var profile in applicable)
+            var assignedProfiles = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var stateEntry in Items(value, "entries"))
             {
-                Require(profiles.TryGetProperty(profile, out _), "unknown capability profile");
-                if (String(value, "state") == "Qualified") qualified.Add(capability.Name + "@" + profile);
-            }
-            if (value.TryGetProperty("evidence", out var evidence))
-            {
-                var evidenced = new HashSet<string>(StringComparer.Ordinal);
-                foreach (var binding in evidence.EnumerateArray())
+                var applicable = Items(stateEntry, "profiles").Select(item => item.GetString()!).ToHashSet(StringComparer.Ordinal);
+                foreach (var profile in applicable)
                 {
-                    var profile = String(binding, "profile");
-                    Require(applicable.Contains(profile), "evidence profile is outside the capability");
-                    Require(evidenced.Add(profile), "duplicate evidence profile");
-                    foreach (var reference in Items(binding, "references"))
-                        Require(String(manifest, "kind") == "illustration"
-                            || !reference.GetString()!.StartsWith("urn:modularyn:example:", StringComparison.Ordinal),
-                            "release cannot use illustration evidence");
+                    Require(profiles.TryGetProperty(profile, out _), "unknown capability profile");
+                    Require(assignedProfiles.Add(profile), "capability entries must name disjoint profiles");
+                    if (String(stateEntry, "state") == "Qualified") qualified.Add(capability.Name + "@" + profile);
                 }
-                if (String(value, "state") == "Qualified")
-                    Require(evidenced.SetEquals(applicable), "Qualified requires evidence for every profile");
+                if (stateEntry.TryGetProperty("evidence", out var evidence))
+                {
+                    var evidenced = new HashSet<string>(StringComparer.Ordinal);
+                    foreach (var binding in evidence.EnumerateArray())
+                    {
+                        var profile = String(binding, "profile");
+                        Require(applicable.Contains(profile), "evidence profile is outside the capability entry");
+                        Require(evidenced.Add(profile), "duplicate evidence profile");
+                        foreach (var reference in Items(binding, "references"))
+                            Require(String(manifest, "kind") == "illustration"
+                                || !reference.GetString()!.StartsWith("urn:modularyn:example:", StringComparison.Ordinal),
+                                "release cannot use illustration evidence");
+                    }
+                    if (String(stateEntry, "state") == "Qualified")
+                        Require(evidenced.SetEquals(applicable), "Qualified requires evidence for every profile");
+                }
             }
         }
         var subset = manifest.GetProperty("qualifiedSubset");

@@ -8,8 +8,9 @@ profile; a passing tuple supplies no evidence for another tuple (PRD-008).
 The [draft 2020-12 schema](../../schemas/release-manifest/release-manifest.schema.json)
 has identity `urn:modularyn:release-manifest:1`. Validation has two parts:
 the schema checks shapes and local state requirements; semantic validation
-checks repository references, tuple consistency, edition placement, dates and
-the exact qualified subset. Passing the schema alone is insufficient.
+checks repository references, tuple consistency, edition placement, disjoint
+capability profiles, dates and the exact qualified subset. Passing the schema
+alone is insufficient.
 
 ## Record identity and editions
 
@@ -62,12 +63,22 @@ tuple's selections must fit the referenced profile definition. The examples
 choose the single-host container variant of `reference` and the container
 deployment of `website`; they make no host-deployment or scale claim.
 
-A capability has one `state`, its owning `edition`, a nonempty `profiles`
-list, a bounded `scope` and a `publicClaim`. All profile references resolve
-inside this manifest. Different states or scopes for different tuples use
-separate manifests; one entry never silently merges different states.
+A capability has its owning `edition` and a nonempty `entries` list. The
+edition applies to every entry. Each entry has one `state`, a nonempty list
+of unique `profiles`, a bounded `scope` and a `publicClaim`, plus the fields
+required by its state. All profile references resolve inside this manifest.
+A capability's entries must name disjoint profiles: each profile occurs in
+at most one entry for that capability. Different capabilities may use the
+same profile.
+
+One manifest can therefore record a capability as `Qualified` on `reference`
+and `Preview` on `website`, with different scopes and public claims. Profiles
+that share a state, scope and public claim may share an entry. A profile
+absent from a capability's entries has no claim for that capability.
 
 ## State and public wording rules
+
+These rules apply independently to every capability entry.
 
 | State | Permitted `publicClaim` | Additional requirement |
 |---|---|---|
@@ -90,7 +101,9 @@ is bound to that exact tuple, the enclosing release version and source
 commit. References must identify the corresponding retained results; a
 nonempty reference is not proof that those results passed. Repository tests
 check the contract, while qualification inspects the referenced results.
-Evidence entries cannot name an unrelated profile or duplicate a profile.
+Evidence entries name only profiles in their enclosing capability entry,
+with no duplicate profile bindings. Every profile in a `Qualified` entry
+has exactly one binding; evidence from another entry cannot satisfy it.
 
 `supportEndsOn` is an inclusive UTC calendar date. A consumer supplies the
 current UTC date when checking a supported claim, including when rereading
@@ -103,12 +116,13 @@ before, the final day and the first day after support ends deterministically.
 
 REL-005 requires a release to name the qualified subset it ships. The
 `qualifiedSubset.label` accompanies its public release name and comparison
-wording. `members` contains each `{capability, profile}` pair in a `Qualified`
-entry exactly once, including entries whose `publicClaim` is `none`.
-Deprecated entries are not new qualifications. No missing, extra or repeated
-pair is allowed. An empty qualified subset uses the exact label
-`No qualified capabilities`. A subset label never implies complete design,
-implementation or support coverage.
+wording. `members` contains each `{capability, profile}` pair from every
+`Qualified` entry exactly once, including entries whose `publicClaim` is
+`none`. A capability's qualification on one profile does not add its other
+profiles to the subset. Deprecated entries are not new qualifications.
+No missing, extra or repeated pair is allowed. An empty qualified subset
+uses the exact label `No qualified capabilities`. A subset label never
+implies complete design, implementation or support coverage.
 
 Version 1 rejects unknown fields, unknown states and unsupported format
 versions. Consumers must refuse an unknown version before making claims.
@@ -135,19 +149,14 @@ Their source commit identifies the repository baseline used to construct
 the examples; it does not assert a product build at that commit.
 
 The examples exercise all seven states, both existing profiles and every
-edition. Their Qualified states and symbolic
-`urn:modularyn:example:evidence:content-types:reference` and
-`urn:modularyn:example:evidence:content-types:website` references exercise
+edition. In each, `CMS-001` has a `Qualified` entry for `reference` and a
+`Preview` entry for `website`; only its `reference` pair belongs to the
+qualified subset. The Qualified entries and symbolic
+`urn:modularyn:example:evidence:content-types:reference` references exercise
 profile binding only. They record no qualification runs. A release cannot
 use these illustration references. Renderers identify illustration records
 as examples and must not use them as public product claims.
 
 Repository tests validate every example against the schema and semantic
-contract, reject individual invalid mutations with their specific reasons,
-and check the names companion against the guide and existing projects.
-The schema evaluator uses only the local draft 2020-12 keywords in this
-schema; unknown keywords and nonlocal references fail validation. It requires
-no new package dependency or network retrieval. The Builder runs locked
-restore, Release build and tests; CI repeats those checks on Linux, Windows
-and macOS at the exact head. Writing these tests does not establish those
-outcomes or qualify any application capability.
+contract and reject invalid records for their specific reasons. These tests
+check the contract and do not qualify any application capability.
