@@ -1,0 +1,1534 @@
+{
+  "version": 1,
+  "register": "docs/coverage/register.json",
+  "names": "docs/names-and-layout.json",
+  "entries": [
+    {
+      "key": "accounts",
+      "title": "Accounts",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [
+        "MOD-001",
+        "MOD-002"
+      ],
+      "reason": "Community includes both basic and advanced accounts for running applications."
+    },
+    {
+      "key": "ai-management",
+      "title": "AI management",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "MOD-003",
+        "JRN-005"
+      ],
+      "reason": "AI management belongs to the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "audit",
+      "title": "Audit",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [
+        "MOD-004",
+        "MOD-005"
+      ],
+      "reason": "Audit collection and administration remain in the complete Community foundation."
+    },
+    {
+      "key": "background-jobs",
+      "title": "Background jobs",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [
+        "MOD-006"
+      ],
+      "reason": "Community includes background jobs for ordinary application operation."
+    },
+    {
+      "key": "blogging",
+      "title": "Blogging",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [
+        "MOD-007"
+      ],
+      "reason": "Community includes publishing for independently operated sites."
+    },
+    {
+      "key": "chat",
+      "title": "Chat",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [
+        "MOD-008"
+      ],
+      "reason": "Application messaging belongs to the Community communications capabilities."
+    },
+    {
+      "key": "cms",
+      "title": "Complete CMS",
+      "edition": "community",
+      "home": "Modularyn.Cms.*",
+      "coverage": [
+        "MOD-009",
+        "MOD-010",
+        "CMS-001",
+        "CMS-002",
+        "CMS-003",
+        "CMS-004",
+        "CMS-005",
+        "CMS-006",
+        "CMS-007",
+        "CMS-008",
+        "CMS-009",
+        "CMS-010",
+        "CMS-011",
+        "CMS-012",
+        "CMS-013",
+        "CMS-014",
+        "CMS-015",
+        "CMS-016",
+        "CMS-017",
+        "CMS-018",
+        "CMS-019",
+        "CMS-020",
+        "CMS-021",
+        "CMS-022",
+        "CMS-023",
+        "CMS-024",
+        "JRN-003"
+      ],
+      "reason": "The complete CMS, including engagement and the website profile, belongs to Community."
+    },
+    {
+      "key": "documentation",
+      "title": "Documentation publishing",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [
+        "MOD-011"
+      ],
+      "reason": "Community includes documentation publishing for independently operated sites."
+    },
+    {
+      "key": "workflow",
+      "title": "Workflow",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "MOD-012",
+        "JRN-004"
+      ],
+      "reason": "Workflow belongs to the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "feature-management",
+      "title": "Feature management",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [
+        "MOD-013"
+      ],
+      "reason": "Community includes application feature management independently of the paid SaaS lifecycle."
+    },
+    {
+      "key": "files",
+      "title": "File management",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [
+        "MOD-014"
+      ],
+      "reason": "Community includes application file management and the CMS media foundation."
+    },
+    {
+      "key": "forms",
+      "title": "Forms",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [
+        "MOD-015"
+      ],
+      "reason": "Community includes forms independently of paid workflow and low-code authoring."
+    },
+    {
+      "key": "privacy",
+      "title": "Privacy requests",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [
+        "MOD-016"
+      ],
+      "reason": "Privacy requests remain part of the complete Community application foundation."
+    },
+    {
+      "key": "identity",
+      "title": "Identity",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [
+        "MOD-017",
+        "MOD-018"
+      ],
+      "reason": "Community includes both basic identity and its administration capabilities."
+    },
+    {
+      "key": "identity-migration",
+      "title": "Identity migration",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [
+        "MOD-019",
+        "MOD-020"
+      ],
+      "reason": "Identity migration and its administration remain in Community with application identity."
+    },
+    {
+      "key": "localization",
+      "title": "Localization",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [
+        "MOD-021"
+      ],
+      "reason": "Community includes localization for applications and sites."
+    },
+    {
+      "key": "operation-limits",
+      "title": "Operation limits",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [
+        "MOD-022"
+      ],
+      "reason": "Application operation limits remain in the Community foundation."
+    },
+    {
+      "key": "authorization-server",
+      "title": "Authorization server",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [
+        "MOD-023",
+        "MOD-024"
+      ],
+      "reason": "Community includes the authorization server and its administration."
+    },
+    {
+      "key": "payments",
+      "title": "Payments",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [
+        "MOD-025"
+      ],
+      "reason": "Payments belong to Community independently of the paid SaaS commercial lifecycle."
+    },
+    {
+      "key": "permissions",
+      "title": "Permission management",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [
+        "MOD-026"
+      ],
+      "reason": "Community includes application permission management."
+    },
+    {
+      "key": "saas-lifecycle",
+      "title": "SaaS commercial lifecycle",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "MOD-027",
+        "JRN-002"
+      ],
+      "reason": "The SaaS commercial lifecycle belongs to the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "settings",
+      "title": "Setting management",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [
+        "MOD-028"
+      ],
+      "reason": "Application setting management remains in Community."
+    },
+    {
+      "key": "tenancy",
+      "title": "Tenant management",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [
+        "MOD-029",
+        "JRN-006"
+      ],
+      "reason": "Community includes tenancy independently of paid subscription lifecycle management."
+    },
+    {
+      "key": "text-templates",
+      "title": "Text templates",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [
+        "MOD-030"
+      ],
+      "reason": "Community includes editable text templates for application communications."
+    },
+    {
+      "key": "sms",
+      "title": "SMS delivery",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [
+        "MOD-031"
+      ],
+      "reason": "Community includes application communications and their provider connectors."
+    },
+    {
+      "key": "virtual-files",
+      "title": "Virtual file diagnostics",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [
+        "MOD-032"
+      ],
+      "reason": "Virtual file diagnostics remain in the Community application foundation."
+    },
+    {
+      "key": "commerce",
+      "title": "Commerce",
+      "edition": "community",
+      "home": "Modularyn.Modules.*",
+      "coverage": [],
+      "reason": "The operator added Commerce to Community after payment qualification at G-03, without adding a coverage-register identifier."
+    },
+    {
+      "key": "ui-contracts",
+      "title": "UI and Admin contracts",
+      "edition": "community",
+      "home": "Modularyn.UI.*",
+      "coverage": [
+        "UI-001",
+        "UI-002",
+        "UI-003",
+        "UI-004",
+        "UI-005",
+        "UI-006",
+        "UI-007",
+        "UI-008",
+        "UI-009",
+        "UI-010",
+        "UI-011",
+        "UI-012",
+        "UI-013",
+        "UI-014"
+      ],
+      "reason": "Community includes the Admin, public rendering and shared UI contracts for applications and sites."
+    },
+    {
+      "key": "tooling-contracts",
+      "title": "Tooling and IDE integrations",
+      "edition": "community",
+      "home": "Modularyn.Tooling.*",
+      "coverage": [
+        "DEV-001",
+        "DEV-006",
+        "JRN-001"
+      ],
+      "reason": "Shared tooling and IDE integration remain Community so ordinary development does not require Studio."
+    },
+    {
+      "key": "run-profiles",
+      "title": "Shared run profiles",
+      "edition": "community",
+      "home": "Modularyn.Tooling.*",
+      "coverage": [
+        "DEV-015"
+      ],
+      "reason": "Shared run-profile contracts remain Community even though the Studio runner surface is paid."
+    },
+    {
+      "key": "local-observability",
+      "title": "Local observability",
+      "edition": "community",
+      "home": "Modularyn.Tooling.*",
+      "coverage": [
+        "DEV-016"
+      ],
+      "reason": "Shared local telemetry remains Community even though the Studio telemetry surface is paid."
+    },
+    {
+      "key": "supply-chain",
+      "title": "Tooling supply chain",
+      "edition": "community",
+      "home": "Modularyn.Tooling.*",
+      "coverage": [
+        "DEV-018"
+      ],
+      "reason": "Reproducible tooling and supply-chain records belong to the Community developer foundation."
+    },
+    {
+      "key": "tool-architecture-families",
+      "title": "Architecture templates",
+      "edition": "community",
+      "home": "Modularyn.Tooling.*",
+      "coverage": [
+        "T-001",
+        "DEV-003"
+      ],
+      "reason": "Community includes architecture templates as shared tooling for independently developed applications."
+    },
+    {
+      "key": "tool-application-starters",
+      "title": "Application starters",
+      "edition": "community",
+      "home": "Modularyn.Tooling.*",
+      "coverage": [
+        "T-002"
+      ],
+      "reason": "Community includes application starters as shared tooling for independently developed applications."
+    },
+    {
+      "key": "tool-modern-creation",
+      "title": "Modern creation",
+      "edition": "community",
+      "home": "Modularyn.Tooling.*",
+      "coverage": [
+        "T-003"
+      ],
+      "reason": "Community includes modern creation as shared tooling for independently developed applications."
+    },
+    {
+      "key": "tool-classic-creation",
+      "title": "Classic creation",
+      "edition": "community",
+      "home": "Modularyn.Tooling.*",
+      "coverage": [
+        "T-004"
+      ],
+      "reason": "Community includes classic creation as shared tooling for independently developed applications."
+    },
+    {
+      "key": "tool-profile-choices",
+      "title": "Data and authentication profiles",
+      "edition": "community",
+      "home": "Modularyn.Tooling.*",
+      "coverage": [
+        "T-005",
+        "DEV-004"
+      ],
+      "reason": "Community includes data and authentication profiles as shared tooling for independently developed applications."
+    },
+    {
+      "key": "tool-solution-composition",
+      "title": "Solution composition",
+      "edition": "community",
+      "home": "Modularyn.Tooling.*",
+      "coverage": [
+        "T-006",
+        "DEV-002"
+      ],
+      "reason": "Community includes solution composition as shared tooling for independently developed applications."
+    },
+    {
+      "key": "tool-version-alignment",
+      "title": "Version alignment",
+      "edition": "community",
+      "home": "Modularyn.Tooling.*",
+      "coverage": [
+        "T-007"
+      ],
+      "reason": "Community includes version alignment as shared tooling for independently developed applications."
+    },
+    {
+      "key": "tool-razor-pages",
+      "title": "MVC and Razor Pages",
+      "edition": "community",
+      "home": "Modularyn.UI.*",
+      "coverage": [
+        "T-008"
+      ],
+      "reason": "Community includes MVC and Razor Pages within its application UI and presentation scope."
+    },
+    {
+      "key": "tool-angular",
+      "title": "Angular UI",
+      "edition": "community",
+      "home": "Modularyn.UI.*",
+      "coverage": [
+        "T-009"
+      ],
+      "reason": "Community includes Angular UI within its application UI and presentation scope."
+    },
+    {
+      "key": "tool-blazor-wasm",
+      "title": "Blazor WebAssembly",
+      "edition": "community",
+      "home": "Modularyn.UI.*",
+      "coverage": [
+        "T-010"
+      ],
+      "reason": "Community includes Blazor WebAssembly within its application UI and presentation scope."
+    },
+    {
+      "key": "tool-blazor-server",
+      "title": "Blazor Server",
+      "edition": "community",
+      "home": "Modularyn.UI.*",
+      "coverage": [
+        "T-011"
+      ],
+      "reason": "Community includes Blazor Server within its application UI and presentation scope."
+    },
+    {
+      "key": "tool-blazor-web-app",
+      "title": "Blazor Web App",
+      "edition": "community",
+      "home": "Modularyn.UI.*",
+      "coverage": [
+        "T-012"
+      ],
+      "reason": "Community includes Blazor Web App within its application UI and presentation scope."
+    },
+    {
+      "key": "tool-maui-blazor",
+      "title": "MAUI Blazor",
+      "edition": "community",
+      "home": "Modularyn.UI.*",
+      "coverage": [
+        "T-013"
+      ],
+      "reason": "Community includes MAUI Blazor within its application UI and presentation scope."
+    },
+    {
+      "key": "tool-blazor-components",
+      "title": "Blazor components",
+      "edition": "community",
+      "home": "Modularyn.UI.*",
+      "coverage": [
+        "T-014"
+      ],
+      "reason": "Community includes Blazor components within its application UI and presentation scope."
+    },
+    {
+      "key": "tool-react",
+      "title": "React UI",
+      "edition": "community",
+      "home": "Modularyn.UI.*",
+      "coverage": [
+        "T-015"
+      ],
+      "reason": "Community includes React UI within its application UI and presentation scope."
+    },
+    {
+      "key": "tool-react-admin",
+      "title": "React Admin",
+      "edition": "community",
+      "home": "Modularyn.UI.Admin.*",
+      "coverage": [
+        "T-016"
+      ],
+      "reason": "Community includes React Admin within its application UI and presentation scope."
+    },
+    {
+      "key": "tool-native-clients",
+      "title": "Native mobile clients",
+      "edition": "community",
+      "home": "Modularyn.UI.*",
+      "coverage": [
+        "T-017"
+      ],
+      "reason": "Community includes Native mobile clients within its application UI and presentation scope."
+    },
+    {
+      "key": "tool-theme-variants",
+      "title": "Theme variants",
+      "edition": "community",
+      "home": "Modularyn.UI.*",
+      "coverage": [
+        "T-018"
+      ],
+      "reason": "Community includes Theme variants within its application UI and presentation scope."
+    },
+    {
+      "key": "tool-minimal-theme",
+      "title": "Minimal theme",
+      "edition": "community",
+      "home": "Modularyn.UI.*",
+      "coverage": [
+        "T-019"
+      ],
+      "reason": "Community includes Minimal theme within its application UI and presentation scope."
+    },
+    {
+      "key": "tool-legacy-theme-migration",
+      "title": "Legacy theme migration",
+      "edition": "community",
+      "home": "Modularyn.UI.*",
+      "coverage": [
+        "T-020"
+      ],
+      "reason": "Community includes Legacy theme migration within its application UI and presentation scope."
+    },
+    {
+      "key": "tool-theme-appearance",
+      "title": "Theme appearance",
+      "edition": "community",
+      "home": "Modularyn.UI.*",
+      "coverage": [
+        "T-021"
+      ],
+      "reason": "Community includes Theme appearance within its application UI and presentation scope."
+    },
+    {
+      "key": "tool-studio-workspace",
+      "title": "Studio workspace",
+      "edition": "paid",
+      "home": "Modularyn.Pro.Studio.*",
+      "coverage": [
+        "T-022",
+        "DEV-014"
+      ],
+      "reason": "Studio workspace is an optional Studio surface in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-studio-runner",
+      "title": "Studio runner",
+      "edition": "paid",
+      "home": "Modularyn.Pro.Studio.*",
+      "coverage": [
+        "T-023"
+      ],
+      "reason": "Studio runner is an optional Studio surface in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-studio-telemetry",
+      "title": "Studio telemetry",
+      "edition": "paid",
+      "home": "Modularyn.Pro.Studio.*",
+      "coverage": [
+        "T-024"
+      ],
+      "reason": "Studio telemetry is an optional Studio surface in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-cluster-workflows",
+      "title": "Container and cluster workflows",
+      "edition": "community",
+      "home": "Modularyn.Tooling.*",
+      "coverage": [
+        "T-025",
+        "DEV-017"
+      ],
+      "reason": "Community includes container and cluster workflows as shared tooling for independently developed applications."
+    },
+    {
+      "key": "tool-cli",
+      "title": "CLI versions",
+      "edition": "community",
+      "home": "dotnet-modularyn",
+      "coverage": [
+        "T-026"
+      ],
+      "reason": "Community includes cli versions as shared tooling for independently developed applications."
+    },
+    {
+      "key": "tool-cli-composition",
+      "title": "CLI composition",
+      "edition": "community",
+      "home": "dotnet-modularyn",
+      "coverage": [
+        "T-027",
+        "DEV-005"
+      ],
+      "reason": "Community includes cli composition as shared tooling for independently developed applications."
+    },
+    {
+      "key": "tool-cli-utilities",
+      "title": "CLI utilities",
+      "edition": "community",
+      "home": "dotnet-modularyn",
+      "coverage": [
+        "T-028"
+      ],
+      "reason": "Community includes cli utilities as shared tooling for independently developed applications."
+    },
+    {
+      "key": "tool-entity-generation",
+      "title": "Entity generation",
+      "edition": "community",
+      "home": "Modularyn.Tooling.Generator.*",
+      "coverage": [
+        "T-029",
+        "DEV-007"
+      ],
+      "reason": "Entity generation remains Community deterministic tooling independent of paid AI authoring."
+    },
+    {
+      "key": "tool-relationship-generation",
+      "title": "Relationship generation",
+      "edition": "community",
+      "home": "Modularyn.Tooling.Generator.*",
+      "coverage": [
+        "T-030",
+        "DEV-008"
+      ],
+      "reason": "Relationship generation remains Community deterministic tooling independent of paid AI authoring."
+    },
+    {
+      "key": "tool-database-intake",
+      "title": "Existing database intake",
+      "edition": "community",
+      "home": "Modularyn.Tooling.Generator.*",
+      "coverage": [
+        "T-031",
+        "DEV-009"
+      ],
+      "reason": "Existing database intake remains Community deterministic tooling independent of paid AI authoring."
+    },
+    {
+      "key": "tool-generator-customization",
+      "title": "Generator customization",
+      "edition": "community",
+      "home": "Modularyn.Tooling.Generator.*",
+      "coverage": [
+        "T-032",
+        "DEV-010",
+        "DEV-011"
+      ],
+      "reason": "Generator customization remains Community deterministic tooling independent of paid AI authoring."
+    },
+    {
+      "key": "tool-sdk",
+      "title": "Client SDKs",
+      "edition": "community",
+      "home": "Modularyn.Framework.Sdk.*",
+      "coverage": [
+        "T-033",
+        "DEV-012"
+      ],
+      "reason": "Client SDKs belongs to the shared Community client contracts."
+    },
+    {
+      "key": "tool-react-api",
+      "title": "React API clients",
+      "edition": "community",
+      "home": "Modularyn.Framework.Sdk.*",
+      "coverage": [
+        "T-034",
+        "DEV-013"
+      ],
+      "reason": "React API clients belongs to the shared Community client contracts."
+    },
+    {
+      "key": "tool-coding-assistance",
+      "title": "AI coding assistance",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "T-035",
+        "DEV-019"
+      ],
+      "reason": "AI coding assistance is governed AI authoring in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-assistance-configuration",
+      "title": "AI assistance configuration",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "T-036",
+        "DEV-020"
+      ],
+      "reason": "AI assistance configuration is governed AI authoring in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-assistance-tools",
+      "title": "AI assistance tools",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "T-037"
+      ],
+      "reason": "AI assistance tools is governed AI authoring in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-assistance-workflows",
+      "title": "AI assistance workflows",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "T-038"
+      ],
+      "reason": "AI assistance workflows is governed AI authoring in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-change-review",
+      "title": "AI change review",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "T-039",
+        "DEV-021"
+      ],
+      "reason": "AI change review is governed AI authoring in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-studio-mcp",
+      "title": "Studio MCP",
+      "edition": "paid",
+      "home": "Modularyn.Pro.Studio.*",
+      "coverage": [
+        "T-040"
+      ],
+      "reason": "Studio MCP is an optional Studio surface in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-documentation-mcp",
+      "title": "Developer documentation and MCP",
+      "edition": "community",
+      "home": "Modularyn.Tooling.*",
+      "coverage": [
+        "T-041",
+        "DEV-022"
+      ],
+      "reason": "Developer documentation and shared MCP contracts remain Community independently of paid Studio and authoring surfaces."
+    },
+    {
+      "key": "tool-low-code-mcp",
+      "title": "Low-code MCP",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "T-042"
+      ],
+      "reason": "Low-code MCP belongs to governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-application-ai",
+      "title": "Application AI management",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "T-043"
+      ],
+      "reason": "Application AI management belongs to the paid modules while shared AI foundation adapters remain Community."
+    },
+    {
+      "key": "tool-low-code-designer",
+      "title": "Low-code model designer",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "T-044"
+      ],
+      "reason": "Low-code model designer belongs to governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-low-code-runtime",
+      "title": "Low-code runtime",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "T-045"
+      ],
+      "reason": "Low-code runtime belongs to governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-low-code-views",
+      "title": "Low-code views",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "T-046"
+      ],
+      "reason": "Low-code views belongs to governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-low-code-data",
+      "title": "Low-code data movement",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "T-047"
+      ],
+      "reason": "Low-code data movement belongs to governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-low-code-page-groups",
+      "title": "Low-code page groups",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "T-048"
+      ],
+      "reason": "Low-code page groups belongs to governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-low-code-health",
+      "title": "Low-code model health",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "T-049"
+      ],
+      "reason": "Low-code model health belongs to governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-low-code-references",
+      "title": "Low-code reference entities",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "T-050"
+      ],
+      "reason": "Low-code reference entities belongs to governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-low-code-scripting",
+      "title": "Low-code scripting",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "T-051"
+      ],
+      "reason": "Low-code scripting belongs to governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-low-code-hooks",
+      "title": "Low-code CRUD hooks",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "T-052"
+      ],
+      "reason": "Low-code CRUD hooks belongs to governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-low-code-endpoints",
+      "title": "Low-code custom endpoints",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "T-053"
+      ],
+      "reason": "Low-code custom endpoints belongs to governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-low-code-mutations",
+      "title": "Low-code MCP mutations",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "T-054"
+      ],
+      "reason": "Low-code MCP mutations belongs to governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-low-code-expressions",
+      "title": "Low-code expressions",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "T-055"
+      ],
+      "reason": "Low-code expressions belongs to governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-low-code-profiles",
+      "title": "Low-code profile restrictions",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "T-056"
+      ],
+      "reason": "Low-code profile restrictions belongs to governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "tool-contract-tests",
+      "title": "Contract tests",
+      "edition": "community",
+      "home": "Modularyn.Tooling.*",
+      "coverage": [
+        "T-057",
+        "DEV-023"
+      ],
+      "reason": "Community includes contract tests as shared tooling for independently developed applications."
+    },
+    {
+      "key": "tool-frontend-tests",
+      "title": "Frontend tests",
+      "edition": "community",
+      "home": "Modularyn.Tooling.*",
+      "coverage": [
+        "T-058"
+      ],
+      "reason": "Community includes frontend tests as shared tooling for independently developed applications."
+    },
+    {
+      "key": "tool-samples",
+      "title": "Reference applications",
+      "edition": "community",
+      "home": "Modularyn.Tooling.*",
+      "coverage": [
+        "T-059",
+        "DEV-024"
+      ],
+      "reason": "Community includes reference applications as shared tooling for independently developed applications."
+    },
+    {
+      "key": "tool-sample-migration",
+      "title": "Legacy sample migration",
+      "edition": "community",
+      "home": "Modularyn.Tooling.*",
+      "coverage": [
+        "T-060"
+      ],
+      "reason": "Community includes legacy sample migration as shared tooling for independently developed applications."
+    },
+    {
+      "key": "tool-upgrades",
+      "title": "Upgrade planning",
+      "edition": "community",
+      "home": "Modularyn.Tooling.*",
+      "coverage": [
+        "T-061",
+        "DEV-025",
+        "JRN-007"
+      ],
+      "reason": "Community includes upgrade planning as shared tooling for independently developed applications."
+    },
+    {
+      "key": "tool-runtime-upgrades",
+      "title": "Runtime transitions",
+      "edition": "community",
+      "home": "Modularyn.Tooling.*",
+      "coverage": [
+        "T-062"
+      ],
+      "reason": "Community includes runtime transitions as shared tooling for independently developed applications."
+    },
+    {
+      "key": "tool-deployment-guidance",
+      "title": "Deployment guidance",
+      "edition": "community",
+      "home": "Modularyn.Tooling.*",
+      "coverage": [
+        "T-063"
+      ],
+      "reason": "Community includes deployment guidance as shared tooling for independently developed applications."
+    },
+    {
+      "key": "low-model-contract",
+      "title": "Stable model contract",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "LOW-001"
+      ],
+      "reason": "Stable model contract is part of governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "low-revisions",
+      "title": "Authoritative revisions",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "LOW-002"
+      ],
+      "reason": "Authoritative revisions is part of governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "low-drafts",
+      "title": "Draft lifecycle",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "LOW-003"
+      ],
+      "reason": "Draft lifecycle is part of governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "low-designer",
+      "title": "Designer experience",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "LOW-004"
+      ],
+      "reason": "Designer experience is part of governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "low-model-health",
+      "title": "Effective-model health",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "LOW-005"
+      ],
+      "reason": "Effective-model health is part of governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "low-migration",
+      "title": "Schema migration",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "LOW-006"
+      ],
+      "reason": "Schema migration is part of governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "low-crud-runtime",
+      "title": "CRUD and query runtime",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "LOW-007"
+      ],
+      "reason": "CRUD and query runtime is part of governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "low-views",
+      "title": "View catalog",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "LOW-008"
+      ],
+      "reason": "View catalog is part of governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "low-renderers",
+      "title": "Renderer policy",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "LOW-009"
+      ],
+      "reason": "Renderer policy is part of governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "low-code-entities",
+      "title": "Registered code entities",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "LOW-010"
+      ],
+      "reason": "Registered code entities is part of governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "low-data-movement",
+      "title": "Data import and export",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "LOW-011"
+      ],
+      "reason": "Data import and export is part of governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "low-attachments",
+      "title": "Files and attachments",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "LOW-012"
+      ],
+      "reason": "Files and attachments is part of governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "low-compiled-extensions",
+      "title": "Compiled extensions",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "LOW-013"
+      ],
+      "reason": "Compiled extensions is part of governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "low-scripted-extensions",
+      "title": "Scripted extensions",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "LOW-014"
+      ],
+      "reason": "Scripted extensions is part of governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "low-business-invariants",
+      "title": "Business invariants",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "LOW-015"
+      ],
+      "reason": "Business invariants is part of governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "low-endpoints",
+      "title": "Custom endpoints",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "LOW-016"
+      ],
+      "reason": "Custom endpoints is part of governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "low-runtime-mcp",
+      "title": "Runtime MCP",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "LOW-017"
+      ],
+      "reason": "Runtime MCP is part of governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "low-provider-rollout",
+      "title": "Provider rollout",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "LOW-018"
+      ],
+      "reason": "Provider rollout is part of governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "low-recovery",
+      "title": "Promotion and recovery",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "LOW-019"
+      ],
+      "reason": "Promotion and recovery is part of governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "low-completion",
+      "title": "Completion evidence",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "LOW-020"
+      ],
+      "reason": "Completion evidence is part of governed low-code in the paid modules shared by Standard and Pro."
+    },
+    {
+      "key": "low-calculated-fields",
+      "title": "Calculated fields and rollups",
+      "edition": "paid",
+      "home": "Modularyn.Pro.*",
+      "coverage": [
+        "LOW-021"
+      ],
+      "reason": "Calculated fields and rollups is part of governed low-code in the paid modules shared by Standard and Pro."
+    }
+  ],
+  "foundation": [
+    {
+      "key": "product-contracts",
+      "title": "Product contracts",
+      "edition": "community",
+      "home": "Modularyn.Framework.*",
+      "coverage": [
+        "PRD-001",
+        "PRD-002",
+        "PRD-003",
+        "PRD-004",
+        "PRD-005",
+        "PRD-006",
+        "PRD-007",
+        "PRD-008"
+      ],
+      "reason": "The shared product contracts preserve a complete Community foundation without paid dependencies."
+    },
+    {
+      "key": "architecture-contracts",
+      "title": "Architecture contracts",
+      "edition": "community",
+      "home": "Modularyn.Framework.*",
+      "coverage": [
+        "ARC-001",
+        "ARC-002",
+        "ARC-003",
+        "ARC-004",
+        "ARC-005",
+        "ARC-006",
+        "ARC-007",
+        "ARC-008",
+        "ARC-009",
+        "ARC-010",
+        "ARC-011",
+        "ARC-012",
+        "ARC-013",
+        "ARC-014",
+        "ARC-015",
+        "ARC-016",
+        "ARC-017",
+        "ARC-018"
+      ],
+      "reason": "The common architecture belongs to Community and governs composition of either module set."
+    },
+    {
+      "key": "foundation-contracts",
+      "title": "Foundation contracts",
+      "edition": "community",
+      "home": "Modularyn.Framework.*",
+      "coverage": [
+        "FND-001",
+        "FND-002",
+        "FND-003",
+        "FND-004",
+        "FND-005",
+        "FND-006",
+        "FND-007",
+        "FND-008",
+        "FND-009",
+        "FND-010",
+        "FND-011",
+        "FND-012",
+        "FND-013",
+        "FND-014",
+        "FND-015",
+        "FND-016",
+        "FND-017",
+        "FND-018",
+        "FND-019",
+        "FND-020",
+        "FND-021",
+        "FND-022",
+        "FND-023",
+        "FND-024",
+        "FND-025",
+        "FND-026",
+        "FND-027",
+        "FND-028",
+        "FND-029",
+        "FND-030",
+        "FND-031",
+        "FND-032",
+        "FND-033",
+        "FND-034",
+        "FND-035",
+        "FND-036",
+        "FND-037",
+        "FND-038",
+        "FND-039",
+        "FND-040"
+      ],
+      "reason": "All framework contracts, including AI adapters, belong to the Community foundation."
+    },
+    {
+      "key": "operations-contracts",
+      "title": "Operations contracts",
+      "edition": "community",
+      "home": "Modularyn.Framework.*",
+      "coverage": [
+        "OPS-001",
+        "OPS-002",
+        "OPS-003",
+        "OPS-004",
+        "OPS-005",
+        "OPS-006",
+        "OPS-007",
+        "OPS-008",
+        "OPS-009",
+        "OPS-010",
+        "OPS-011",
+        "OPS-012",
+        "OPS-013",
+        "OPS-014",
+        "OPS-015",
+        "OPS-016",
+        "OPS-017",
+        "OPS-018",
+        "OPS-019",
+        "OPS-020",
+        "OPS-021"
+      ],
+      "reason": "Common application operation and recovery contracts remain in Community."
+    },
+    {
+      "key": "release-contracts",
+      "title": "Release contracts",
+      "edition": "community",
+      "home": "Modularyn.Tooling.*",
+      "coverage": [
+        "REL-001",
+        "REL-002",
+        "REL-003",
+        "REL-004",
+        "REL-005",
+        "REL-006",
+        "REL-007",
+        "REL-008"
+      ],
+      "reason": "Shared release governance remains Community regardless of the edition being qualified."
+    },
+    {
+      "key": "acceptance-corpus",
+      "title": "Acceptance corpus",
+      "edition": "community",
+      "home": "Modularyn.Tooling.*",
+      "coverage": [
+        "AC-001",
+        "AC-002",
+        "AC-003",
+        "AC-004",
+        "AC-005",
+        "AC-006",
+        "AC-007",
+        "AC-008",
+        "AC-009",
+        "AC-010",
+        "AC-011",
+        "AC-012",
+        "AC-013",
+        "AC-014",
+        "AC-015",
+        "AC-016",
+        "AC-017",
+        "AC-018",
+        "AC-019",
+        "AC-020",
+        "AC-021",
+        "AC-022",
+        "AC-023",
+        "AC-024",
+        "AC-025",
+        "AC-026",
+        "AC-027",
+        "AC-028",
+        "AC-029",
+        "AC-030",
+        "AC-031",
+        "AC-032"
+      ],
+      "reason": "The common qualification corpus remains Community even when a scenario exercises paid modules."
+    },
+    {
+      "key": "foundation-inventory",
+      "title": "Foundation inventory",
+      "edition": "community",
+      "home": "Modularyn.Framework.*",
+      "coverage": [
+        "F-001",
+        "F-002",
+        "F-003",
+        "F-004",
+        "F-005",
+        "F-006",
+        "F-007",
+        "F-008",
+        "F-009",
+        "F-010",
+        "F-011",
+        "F-012",
+        "F-013",
+        "F-014",
+        "F-015",
+        "F-016",
+        "F-017",
+        "F-018",
+        "F-019",
+        "F-020",
+        "F-021",
+        "F-022",
+        "F-023",
+        "F-024",
+        "F-025",
+        "F-026",
+        "F-027",
+        "F-028",
+        "F-029",
+        "F-030",
+        "F-031",
+        "F-032",
+        "F-033",
+        "F-034",
+        "F-035",
+        "F-036",
+        "F-037",
+        "F-038",
+        "F-039",
+        "F-040",
+        "F-041",
+        "F-042",
+        "F-043",
+        "F-044",
+        "F-045",
+        "F-046",
+        "F-047",
+        "F-048",
+        "F-049",
+        "F-050",
+        "F-051",
+        "F-052",
+        "F-053",
+        "F-054",
+        "F-055",
+        "F-056",
+        "F-057",
+        "F-058",
+        "F-059",
+        "F-060",
+        "F-061",
+        "F-062",
+        "F-063",
+        "F-064",
+        "F-065",
+        "F-066",
+        "F-067",
+        "F-068",
+        "F-069",
+        "F-070",
+        "F-071",
+        "F-072",
+        "F-073",
+        "F-074",
+        "F-075",
+        "F-076",
+        "F-077",
+        "F-078",
+        "F-079",
+        "F-080",
+        "F-081",
+        "F-082",
+        "F-083",
+        "F-084",
+        "F-085",
+        "F-086",
+        "F-087",
+        "F-088",
+        "F-089",
+        "F-090",
+        "F-091",
+        "F-092",
+        "F-093",
+        "F-094",
+        "F-095",
+        "F-096",
+        "F-097",
+        "F-098",
+        "F-099",
+        "F-100",
+        "F-101",
+        "F-102",
+        "F-103",
+        "F-104",
+        "F-105",
+        "F-106"
+      ],
+      "reason": "All foundation inventory entries remain Community, including shared AI adapters and utilities."
+    }
+  ]
+}
