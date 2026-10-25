@@ -1,6 +1,6 @@
 # Website profile — gate W
 
-Profile key: `website`. Status: defined, awaiting qualification. Gate W is planned between G-02 and G-03; it joins the master sequence only through a recorded REL-007 decision. W uses the same schema, revision, publication, Files, authorization and portability contracts as the complete CMS of G-04, never a fork. It does not claim complete CMS support.
+Profile key: `website`. Status: defined, awaiting qualification. Gate W sits between G-02 and G-03 in the delivery sequence, adopted under REL-007 on October 25, 2026, and its qualification starts only after G-02's evidence passes. W uses the same schema, revision, publication, Files, authorization and portability contracts as the complete CMS of G-04, never a fork. It does not claim complete CMS support.
 
 This profile serves a product site with versioned documentation, a personal site with a blog, and a small business site.
 

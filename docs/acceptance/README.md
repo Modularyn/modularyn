@@ -1,6 +1,6 @@
 # Initial acceptance corpus
 
-[corpus.json](corpus.json) contains planning contracts for the acceptance work in G-02 and the proposed gate W: the non-security families and the security families that the Builder maintains. The family documents contain the same cases in a readable form. A case is an obligation to collect evidence; its presence, and a passing repository consistency check, do not show that product behavior exists or that a profile, requirement, gate or release has passed.
+[corpus.json](corpus.json) contains planning contracts for the acceptance work in G-02 and gate W: the non-security families and the security families that the Builder maintains. The family documents contain the same cases in a readable form. A case is an obligation to collect evidence; its presence, and a passing repository consistency check, do not show that product behavior exists or that a profile, requirement, gate or release has passed.
 
 The [coverage register](../coverage/register.json) supplies requirement and family identities. The [reference profile](../profiles/reference.md) and [website profile](../profiles/website.md) bound each case. The [website capability map](../profiles/website-capabilities.json) and [content-package contract](../content-packages/README.md) further bound W. Requirement references identify the exercised part of a requirement, not its entire acceptance scope. This corpus changes no register state or master-design decision; W enters the master sequence only through a recorded decision.
 
