@@ -1,0 +1,1553 @@
+{
+  "version": 1,
+  "date": "2026-10-25",
+  "controls": [
+    {
+      "id": "TM-G02-001",
+      "title": "Validate the module graph and lock manifest before activation",
+      "threats": ["TH-G02-001", "TH-G02-069"],
+      "boundary": "TB-G02-01",
+      "owner": "Framework composition",
+      "requirements": ["ARC-001", "FND-001", "FND-003"],
+      "evidence": {
+        "acceptance": ["AC-001"],
+        "layers": ["unit", "real-provider-integration"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-002",
+      "title": "Gate activation on completed migrations, valid configuration and declared capabilities",
+      "threats": ["TH-G02-002"],
+      "boundary": "TB-G02-01",
+      "owner": "Framework composition",
+      "requirements": ["ARC-002", "FND-003"],
+      "evidence": {
+        "acceptance": ["AC-001", "AC-005"],
+        "layers": ["unit", "migration"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-003",
+      "title": "Keep the host unready after lifecycle failures and drain work on shutdown",
+      "threats": ["TH-G02-003"],
+      "boundary": "TB-G02-01",
+      "owner": "Framework composition",
+      "requirements": ["FND-002", "OPS-010"],
+      "evidence": {
+        "acceptance": ["AC-001"],
+        "layers": ["real-provider-integration", "operational-recovery"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-004",
+      "title": "Enforce module ownership of persisted data",
+      "threats": ["TH-G02-004"],
+      "boundary": "TB-G02-01",
+      "owner": "Framework composition",
+      "requirements": ["ARC-003"],
+      "evidence": {
+        "acceptance": ["AC-001", "AC-005"],
+        "layers": ["unit", "real-provider-integration"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-005",
+      "title": "Govern extension properties by declared sensitivity and permissions",
+      "threats": ["TH-G02-005"],
+      "boundary": "TB-G02-01",
+      "owner": "Framework composition",
+      "requirements": ["FND-005"],
+      "evidence": {
+        "acceptance": ["AC-001"],
+        "layers": ["unit", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-006",
+      "title": "Apply explicit host, proxy and redirect trust policies",
+      "threats": ["TH-G02-006", "TH-G02-008", "TH-W-010"],
+      "boundary": "TB-G02-02",
+      "owner": "API",
+      "requirements": ["FND-018", "FND-013"],
+      "evidence": {
+        "acceptance": ["AC-004"],
+        "layers": ["api-contract", "isolation"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-007",
+      "title": "Require antiforgery protection for cookie-authenticated state changes",
+      "threats": ["TH-G02-007", "TH-W-022"],
+      "boundary": "TB-G02-02",
+      "owner": "API",
+      "requirements": ["FND-018"],
+      "evidence": {
+        "acceptance": ["AC-003"],
+        "layers": ["api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-008",
+      "title": "Bind requests to declared writable fields with server-side validation",
+      "threats": ["TH-G02-009"],
+      "boundary": "TB-G02-02",
+      "owner": "API",
+      "requirements": ["FND-018", "FND-007"],
+      "evidence": {
+        "acceptance": ["AC-003", "AC-005"],
+        "layers": ["unit", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-009",
+      "title": "Bound request size, structure, time and query shape",
+      "threats": ["TH-G02-010", "TH-G02-012", "TH-G02-070"],
+      "boundary": "TB-G02-02",
+      "owner": "API",
+      "requirements": ["FND-018", "FND-007", "OPS-018"],
+      "evidence": {
+        "acceptance": ["AC-005", "AC-030"],
+        "layers": ["api-contract", "real-provider-integration"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-010",
+      "title": "Return stable public errors without internal detail",
+      "threats": ["TH-G02-011"],
+      "boundary": "TB-G02-02",
+      "owner": "API",
+      "requirements": ["FND-018", "FND-027", "FND-010"],
+      "evidence": {
+        "acceptance": ["AC-008"],
+        "layers": ["api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-011",
+      "title": "Expose only endpoints declared in a versioned inventory with policies",
+      "threats": ["TH-G02-013", "TH-G02-014", "TH-G02-069"],
+      "boundary": "TB-G02-03",
+      "owner": "API",
+      "requirements": ["FND-026", "FND-015"],
+      "evidence": {
+        "acceptance": ["AC-003", "AC-008"],
+        "layers": ["api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-012",
+      "title": "Detect breaking and meaning-changing contract changes before release",
+      "threats": ["TH-G02-015"],
+      "boundary": "TB-G02-03",
+      "owner": "API",
+      "requirements": ["FND-027", "ARC-010"],
+      "evidence": {
+        "acceptance": ["AC-008"],
+        "layers": ["api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-013",
+      "title": "Use explicit credential providers in generated and dynamic clients",
+      "threats": ["TH-G02-016"],
+      "boundary": "TB-G02-03",
+      "owner": "API",
+      "requirements": ["FND-028", "DEV-012"],
+      "evidence": {
+        "acceptance": ["AC-008"],
+        "layers": ["unit", "api-contract"]
+      },
+      "profiles": ["reference"]
+    },
+    {
+      "id": "TM-G02-014",
+      "title": "Limit bootstrap configuration to approved client-visible values",
+      "threats": ["TH-G02-017"],
+      "boundary": "TB-G02-03",
+      "owner": "Capabilities",
+      "requirements": ["FND-019", "FND-029"],
+      "evidence": {
+        "acceptance": ["AC-004", "AC-008"],
+        "layers": ["api-contract", "isolation"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-015",
+      "title": "Throttle credential and code verification, resist lockout abuse and return uniform failures",
+      "threats": ["TH-G02-018", "TH-G02-076", "TH-W-012", "TH-W-090", "TH-W-091"],
+      "boundary": "TB-G02-04",
+      "owner": "Identity",
+      "requirements": ["OPS-003", "FND-017", "MOD-022"],
+      "evidence": {
+        "acceptance": ["AC-002"],
+        "layers": ["unit", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-016",
+      "title": "Issue sessions that resist fixation and replay",
+      "threats": ["TH-G02-078", "TH-G02-019"],
+      "boundary": "TB-G02-04",
+      "owner": "Identity",
+      "requirements": ["OPS-003", "FND-017"],
+      "evidence": {
+        "acceptance": ["AC-002", "AC-003"],
+        "layers": ["api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-017",
+      "title": "Enforce a declared freshness bound for claims, permissions and sessions",
+      "threats": ["TH-G02-020", "TH-G02-040", "TH-G02-065", "TH-W-016", "TH-W-078"],
+      "boundary": "TB-G02-04",
+      "owner": "Identity",
+      "requirements": ["FND-017", "ARC-016"],
+      "evidence": {
+        "acceptance": ["AC-003"],
+        "layers": ["isolation", "real-provider-integration"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-018",
+      "title": "Distinguish actor, effective subject and service identities",
+      "threats": ["TH-G02-021", "TH-G02-022"],
+      "boundary": "TB-G02-04",
+      "owner": "Identity",
+      "requirements": ["ARC-006", "FND-017"],
+      "evidence": {
+        "acceptance": ["AC-003"],
+        "layers": ["unit", "isolation"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-019",
+      "title": "Enforce stable permission policies at every server entry point",
+      "threats": ["TH-G02-014", "TH-G02-023", "TH-W-021", "TH-W-058"],
+      "boundary": "TB-G02-05",
+      "owner": "Authorization",
+      "requirements": ["FND-015", "ARC-016"],
+      "evidence": {
+        "acceptance": ["AC-003"],
+        "layers": ["unit", "isolation"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-020",
+      "title": "Authorize each resource after safe resolution",
+      "threats": ["TH-G02-024", "TH-G02-064"],
+      "boundary": "TB-G02-05",
+      "owner": "Authorization",
+      "requirements": ["FND-016", "ARC-016"],
+      "evidence": {
+        "acceptance": ["AC-003", "AC-004"],
+        "layers": ["isolation", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-021",
+      "title": "Apply authorization while building lists, counts and exports",
+      "threats": ["TH-G02-025", "TH-G02-065"],
+      "boundary": "TB-G02-05",
+      "owner": "Authorization",
+      "requirements": ["FND-016"],
+      "evidence": {
+        "acceptance": ["AC-003", "AC-004"],
+        "layers": ["isolation", "real-provider-integration"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-022",
+      "title": "Enforce permission assignment ceilings atomically",
+      "threats": ["TH-G02-026"],
+      "boundary": "TB-G02-05",
+      "owner": "Authorization",
+      "requirements": ["MOD-026", "FND-015"],
+      "evidence": {
+        "acceptance": ["AC-003"],
+        "layers": ["unit", "real-provider-integration"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-023",
+      "title": "Make authorization entry points explicit and report unintercepted paths",
+      "threats": ["TH-G02-027"],
+      "boundary": "TB-G02-05",
+      "owner": "Framework composition",
+      "requirements": ["FND-004", "FND-015"],
+      "evidence": {
+        "acceptance": ["AC-001", "AC-003"],
+        "layers": ["unit", "isolation"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-024",
+      "title": "Keep permissions, entitlements, settings and composition separate",
+      "threats": ["TH-G02-028"],
+      "boundary": "TB-G02-05",
+      "owner": "Capabilities",
+      "requirements": ["FND-019"],
+      "evidence": {
+        "acceptance": ["AC-003"],
+        "layers": ["unit", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-025",
+      "title": "Validate the resolved tenant against identity, domain and operation",
+      "threats": ["TH-G02-029", "TH-G02-064", "TH-G02-068", "TH-W-025"],
+      "boundary": "TB-G02-06",
+      "owner": "Tenancy",
+      "requirements": ["FND-013", "ARC-005"],
+      "evidence": {
+        "acceptance": ["AC-004"],
+        "layers": ["isolation", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-026",
+      "title": "Create a fresh execution scope for each unit of work",
+      "threats": ["TH-G02-030"],
+      "boundary": "TB-G02-06",
+      "owner": "Tenancy",
+      "requirements": ["FND-013", "ARC-005"],
+      "evidence": {
+        "acceptance": ["AC-004"],
+        "layers": ["isolation", "unit"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-027",
+      "title": "Revalidate propagated tenant and actor context at the receiver",
+      "threats": ["TH-G02-031"],
+      "boundary": "TB-G02-06",
+      "owner": "Tenancy",
+      "requirements": ["ARC-005", "FND-021"],
+      "evidence": {
+        "acceptance": ["AC-004", "AC-006"],
+        "layers": ["isolation", "real-provider-integration"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-028",
+      "title": "Require explicit, audited host authority for cross-tenant operations",
+      "threats": ["TH-G02-032", "TH-G02-068"],
+      "boundary": "TB-G02-06",
+      "owner": "Tenancy",
+      "requirements": ["OPS-002", "FND-014", "FND-016"],
+      "evidence": {
+        "acceptance": ["AC-004"],
+        "layers": ["isolation"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-029",
+      "title": "Enforce tenant and soft-delete predicates on every access path",
+      "threats": ["TH-G02-012", "TH-G02-033", "TH-G02-038", "TH-G02-064"],
+      "boundary": "TB-G02-07",
+      "owner": "Persistence",
+      "requirements": ["FND-010", "FND-014", "OPS-002"],
+      "evidence": {
+        "acceptance": ["AC-004", "AC-005"],
+        "layers": ["real-provider-integration", "isolation"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-030",
+      "title": "Require version tokens on concurrency-controlled writes",
+      "threats": ["TH-G02-034", "TH-W-026"],
+      "boundary": "TB-G02-07",
+      "owner": "Persistence",
+      "requirements": ["FND-010", "ARC-008"],
+      "evidence": {
+        "acceptance": ["AC-005"],
+        "layers": ["real-provider-integration", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-031",
+      "title": "Scope units of work to the provider transaction and defer external effects",
+      "threats": ["TH-G02-035"],
+      "boundary": "TB-G02-07",
+      "owner": "Persistence",
+      "requirements": ["FND-009", "ARC-008"],
+      "evidence": {
+        "acceptance": ["AC-005", "AC-006"],
+        "layers": ["real-provider-integration", "operational-recovery"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-032",
+      "title": "Coordinate migrations with locking, preflight and gated readiness",
+      "threats": ["TH-G02-036", "TH-G02-037", "TH-W-071"],
+      "boundary": "TB-G02-07",
+      "owner": "Persistence",
+      "requirements": ["FND-011"],
+      "evidence": {
+        "acceptance": ["AC-005"],
+        "layers": ["migration", "operational-recovery"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-033",
+      "title": "Key caches by tenant and authorization scope with bounded staleness",
+      "threats": ["TH-G02-039", "TH-G02-040", "TH-G02-065"],
+      "boundary": "TB-G02-08",
+      "owner": "Caching",
+      "requirements": ["FND-024", "FND-012", "FND-017"],
+      "evidence": {
+        "acceptance": ["AC-003", "AC-004"],
+        "layers": ["isolation", "real-provider-integration"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-034",
+      "title": "Declare cache outage behavior and prevent stampedes",
+      "threats": ["TH-G02-041"],
+      "boundary": "TB-G02-08",
+      "owner": "Caching",
+      "requirements": ["FND-024"],
+      "evidence": {
+        "acceptance": ["AC-030"],
+        "layers": ["operational-recovery"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-035",
+      "title": "Commit integration intent through the transactional outbox",
+      "threats": ["TH-G02-042", "TH-W-045"],
+      "boundary": "TB-G02-09",
+      "owner": "Events",
+      "requirements": ["FND-021", "ARC-009"],
+      "evidence": {
+        "acceptance": ["AC-006"],
+        "layers": ["real-provider-integration", "operational-recovery"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-036",
+      "title": "Deduplicate and order delivery at the consumer",
+      "threats": ["TH-G02-043", "TH-G02-067", "TH-W-045"],
+      "boundary": "TB-G02-09",
+      "owner": "Events",
+      "requirements": ["FND-021", "FND-020"],
+      "evidence": {
+        "acceptance": ["AC-006"],
+        "layers": ["real-provider-integration", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-037",
+      "title": "Bound retries, quarantine poison work and record replays",
+      "threats": ["TH-G02-044", "TH-G02-045", "TH-G02-067"],
+      "boundary": "TB-G02-09",
+      "owner": "Events",
+      "requirements": ["FND-021", "FND-022", "ARC-009"],
+      "evidence": {
+        "acceptance": ["AC-006", "AC-007"],
+        "layers": ["operational-recovery", "real-provider-integration"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-038",
+      "title": "Fence exclusive work with lease ownership",
+      "threats": ["TH-G02-046", "TH-W-033"],
+      "boundary": "TB-G02-09",
+      "owner": "Jobs",
+      "requirements": ["FND-023"],
+      "evidence": {
+        "acceptance": ["AC-007"],
+        "layers": ["real-provider-integration", "operational-recovery"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-039",
+      "title": "Keep secrets and unnecessary personal data out of event and job payloads",
+      "threats": ["TH-G02-047"],
+      "boundary": "TB-G02-09",
+      "owner": "Events",
+      "requirements": ["FND-020", "FND-022"],
+      "evidence": {
+        "acceptance": ["AC-006", "AC-007"],
+        "layers": ["unit", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-040",
+      "title": "Persist schedules in UTC with declared time-zone and misfire policies",
+      "threats": ["TH-G02-048", "TH-W-033"],
+      "boundary": "TB-G02-09",
+      "owner": "Jobs",
+      "requirements": ["FND-022", "FND-025", "MOD-006"],
+      "evidence": {
+        "acceptance": ["AC-007"],
+        "layers": ["unit", "operational-recovery"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-041",
+      "title": "Capture validated context references, never reusable credentials, in jobs",
+      "threats": ["TH-G02-022", "TH-G02-031"],
+      "boundary": "TB-G02-09",
+      "owner": "Jobs",
+      "requirements": ["MOD-006", "FND-022", "ARC-006"],
+      "evidence": {
+        "acceptance": ["AC-004", "AC-007"],
+        "layers": ["isolation", "unit"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-042",
+      "title": "Quarantine uploads until content validation and scanning pass",
+      "threats": ["TH-G02-049", "TH-G02-066", "TH-W-037", "TH-W-040", "TH-W-084"],
+      "boundary": "TB-G02-10",
+      "owner": "Files",
+      "requirements": ["FND-031", "FND-030"],
+      "evidence": {
+        "acceptance": ["AC-009"],
+        "layers": ["real-provider-integration", "unit"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-043",
+      "title": "Derive storage locations from server-issued identities",
+      "threats": ["TH-G02-050"],
+      "boundary": "TB-G02-10",
+      "owner": "Files",
+      "requirements": ["FND-030"],
+      "evidence": {
+        "acceptance": ["AC-009"],
+        "layers": ["unit", "real-provider-integration"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-044",
+      "title": "Serve files through a current-authorization gateway with safe delivery headers",
+      "threats": ["TH-G02-051", "TH-G02-052", "TH-G02-064", "TH-G02-066", "TH-W-006", "TH-W-084"],
+      "boundary": "TB-G02-10",
+      "owner": "Files",
+      "requirements": ["FND-030", "ARC-016"],
+      "evidence": {
+        "acceptance": ["AC-004", "AC-009"],
+        "layers": ["isolation", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-045",
+      "title": "Enforce streaming size limits and atomic quota reservation",
+      "threats": ["TH-G02-053", "TH-G02-070", "TH-W-038"],
+      "boundary": "TB-G02-10",
+      "owner": "Files",
+      "requirements": ["FND-030"],
+      "evidence": {
+        "acceptance": ["AC-009"],
+        "layers": ["real-provider-integration"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-046",
+      "title": "Verify content hashes at finalization and restore",
+      "threats": ["TH-G02-054"],
+      "boundary": "TB-G02-10",
+      "owner": "Files",
+      "requirements": ["FND-030", "FND-031"],
+      "evidence": {
+        "acceptance": ["AC-009"],
+        "layers": ["real-provider-integration", "operational-recovery"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-047",
+      "title": "Resolve secrets only through references to an authorized store",
+      "threats": ["TH-G02-055", "TH-G02-071", "TH-W-075"],
+      "boundary": "TB-G02-11",
+      "owner": "Configuration",
+      "requirements": ["FND-006", "OPS-004"],
+      "evidence": {
+        "acceptance": ["AC-031"],
+        "layers": ["unit", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-048",
+      "title": "Validate typed configuration before readiness and reload",
+      "threats": ["TH-G02-037", "TH-G02-056"],
+      "boundary": "TB-G02-11",
+      "owner": "Configuration",
+      "requirements": ["FND-006", "OPS-009"],
+      "evidence": {
+        "acceptance": ["AC-001"],
+        "layers": ["unit", "real-provider-integration"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-049",
+      "title": "Separate deployment options, application settings and tenant settings",
+      "threats": ["TH-G02-057"],
+      "boundary": "TB-G02-11",
+      "owner": "Configuration",
+      "requirements": ["FND-006", "FND-019", "MOD-028"],
+      "evidence": {
+        "acceptance": ["AC-003"],
+        "layers": ["unit", "isolation"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-050",
+      "title": "Scope, persist and back up the data-protection key ring deliberately",
+      "threats": ["TH-G02-058", "TH-W-077"],
+      "boundary": "TB-G02-11",
+      "owner": "Security",
+      "requirements": ["OPS-004"],
+      "evidence": {
+        "acceptance": ["AC-031"],
+        "layers": ["operational-recovery"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-051",
+      "title": "Commit audit intent atomically with privileged changes",
+      "threats": ["TH-G02-059", "TH-W-020", "TH-W-036", "TH-W-057"],
+      "boundary": "TB-G02-12",
+      "owner": "Audit",
+      "requirements": ["FND-037", "OPS-007"],
+      "evidence": {
+        "acceptance": ["AC-012"],
+        "layers": ["real-provider-integration", "operational-recovery"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-052",
+      "title": "Separate audit writing from audit administration",
+      "threats": ["TH-G02-060"],
+      "boundary": "TB-G02-12",
+      "owner": "Audit",
+      "requirements": ["OPS-007", "FND-037"],
+      "evidence": {
+        "acceptance": ["AC-012"],
+        "layers": ["isolation"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-053",
+      "title": "Redact telemetry by allowlist and treat correlation values as untrusted",
+      "threats": ["TH-G02-061", "TH-G02-063", "TH-G02-071", "TH-W-015"],
+      "boundary": "TB-G02-12",
+      "owner": "Operations",
+      "requirements": ["FND-038", "OPS-014", "FND-025"],
+      "evidence": {
+        "acceptance": ["AC-025", "AC-031"],
+        "layers": ["unit", "operational-recovery"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-054",
+      "title": "Separate liveness from readiness and protect diagnostic detail",
+      "threats": ["TH-G02-062"],
+      "boundary": "TB-G02-12",
+      "owner": "Operations",
+      "requirements": ["OPS-010", "FND-038"],
+      "evidence": {
+        "acceptance": ["AC-025"],
+        "layers": ["api-contract", "operational-recovery"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-055",
+      "title": "Store password verifiers with a salted adaptive hash and upgrade them at sign-in",
+      "threats": ["TH-G02-072", "TH-W-088"],
+      "boundary": "TB-G02-04",
+      "owner": "Identity",
+      "requirements": ["MOD-017", "OPS-003"],
+      "evidence": {
+        "acceptance": ["AC-002", "AC-031"],
+        "layers": ["unit", "real-provider-integration"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-056",
+      "title": "Encrypt one-time-password seeds under keys from the authorized store",
+      "threats": ["TH-G02-073", "TH-W-088"],
+      "boundary": "TB-G02-04",
+      "owner": "Identity",
+      "requirements": ["MOD-017", "MOD-002", "OPS-004"],
+      "evidence": {
+        "acceptance": ["AC-002", "AC-031"],
+        "layers": ["unit", "operational-recovery"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-057",
+      "title": "Store recovery codes only as verifiers and consume each one once",
+      "threats": ["TH-G02-074", "TH-W-088"],
+      "boundary": "TB-G02-04",
+      "owner": "Accounts",
+      "requirements": ["MOD-001", "MOD-002", "OPS-003"],
+      "evidence": {
+        "acceptance": ["AC-002"],
+        "layers": ["unit", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-058",
+      "title": "Protect passkey credential records for integrity",
+      "threats": ["TH-G02-075", "TH-W-089"],
+      "boundary": "TB-G02-04",
+      "owner": "Identity",
+      "requirements": ["MOD-017", "MOD-002", "OPS-004"],
+      "evidence": {
+        "acceptance": ["AC-002", "AC-031"],
+        "layers": ["unit", "real-provider-integration"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-059",
+      "title": "Allow credentialed cross-origin requests only from configured origins",
+      "threats": ["TH-G02-077", "TH-W-092"],
+      "boundary": "TB-G02-02",
+      "owner": "API",
+      "requirements": ["FND-018", "FND-026"],
+      "evidence": {
+        "acceptance": ["AC-003", "AC-008"],
+        "layers": ["api-contract", "ui"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-G02-060",
+      "title": "Redirect to HTTPS and emit HSTS from the application",
+      "threats": ["TH-G02-078"],
+      "boundary": "TB-G02-02",
+      "owner": "API",
+      "requirements": ["FND-018", "OPS-003"],
+      "evidence": {
+        "acceptance": ["AC-031"],
+        "layers": ["api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-001",
+      "title": "Deliver only the active immutable publication manifest",
+      "threats": ["TH-W-001", "TH-W-006", "TH-W-035"],
+      "boundary": "TB-W-01",
+      "owner": "Content",
+      "requirements": ["CMS-005", "UI-007", "CMS-012"],
+      "evidence": {
+        "acceptance": ["AC-017", "AC-018"],
+        "layers": ["real-provider-integration", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-002",
+      "title": "Encode content in the Razor renderer and forbid inline script",
+      "threats": ["TH-W-002", "TH-W-030", "TH-W-049"],
+      "boundary": "TB-W-01",
+      "owner": "Content",
+      "requirements": ["UI-007", "CMS-003", "OPS-005"],
+      "evidence": {
+        "acceptance": ["AC-018", "AC-031"],
+        "layers": ["unit", "ui"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-003",
+      "title": "Partition caching by publication version and audience",
+      "threats": ["TH-W-001", "TH-W-003", "TH-W-035"],
+      "boundary": "TB-W-01",
+      "owner": "Content",
+      "requirements": ["CMS-005", "CMS-006", "FND-024"],
+      "evidence": {
+        "acceptance": ["AC-017", "AC-018"],
+        "layers": ["real-provider-integration", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-004",
+      "title": "Reserve application namespaces ahead of content routing",
+      "threats": ["TH-W-004"],
+      "boundary": "TB-W-01",
+      "owner": "Content",
+      "requirements": ["CMS-007", "CMS-012"],
+      "evidence": {
+        "acceptance": ["AC-017", "AC-018"],
+        "layers": ["unit", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-005",
+      "title": "Restrict redirects and return addresses to same-site paths",
+      "threats": ["TH-W-005"],
+      "boundary": "TB-W-01",
+      "owner": "Content",
+      "requirements": ["CMS-012", "FND-018"],
+      "evidence": {
+        "acceptance": ["AC-018", "AC-019"],
+        "layers": ["unit", "api-contract"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-006",
+      "title": "Bound public rendering cost on the single host",
+      "threats": ["TH-W-007"],
+      "boundary": "TB-W-01",
+      "owner": "Limits",
+      "requirements": ["OPS-018", "OPS-016"],
+      "evidence": {
+        "acceptance": ["AC-030"],
+        "layers": ["real-provider-integration"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-007",
+      "title": "Verify alias-domain ownership before activation and revalidate it",
+      "threats": ["TH-W-008", "TH-W-009", "TH-W-081"],
+      "boundary": "TB-W-02",
+      "owner": "Content",
+      "requirements": ["CMS-007"],
+      "evidence": {
+        "acceptance": ["AC-018"],
+        "layers": ["real-provider-integration", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-008",
+      "title": "Derive absolute URLs only from the configured canonical origin",
+      "threats": ["TH-W-010", "TH-W-015"],
+      "boundary": "TB-W-02",
+      "owner": "Content",
+      "requirements": ["CMS-012", "FND-029", "FND-018"],
+      "evidence": {
+        "acceptance": ["AC-018"],
+        "layers": ["unit", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-009",
+      "title": "Serve Admin, preview and APIs only on the canonical origin",
+      "threats": ["TH-W-011", "TH-W-087"],
+      "boundary": "TB-W-02",
+      "owner": "Identity",
+      "requirements": ["OPS-003", "CMS-007"],
+      "evidence": {
+        "acceptance": ["AC-002", "AC-018"],
+        "layers": ["api-contract", "ui"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-010",
+      "title": "Require a second factor or passkey for every Admin account",
+      "threats": ["TH-W-012", "TH-W-013", "TH-W-082"],
+      "boundary": "TB-W-03",
+      "owner": "Accounts",
+      "requirements": ["MOD-002", "MOD-001", "OPS-003"],
+      "evidence": {
+        "acceptance": ["AC-002"],
+        "layers": ["api-contract", "ui"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-011",
+      "title": "Make recovery single-use, expiring, rate-limited and factor-preserving",
+      "threats": ["TH-W-014", "TH-W-015", "TH-W-091", "TH-W-082"],
+      "boundary": "TB-W-03",
+      "owner": "Accounts",
+      "requirements": ["MOD-001", "MOD-002", "OPS-003"],
+      "evidence": {
+        "acceptance": ["AC-002"],
+        "layers": ["unit", "api-contract"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-012",
+      "title": "Revoke Admin sessions server-side on sign-out and credential change",
+      "threats": ["TH-W-016", "TH-W-078"],
+      "boundary": "TB-W-03",
+      "owner": "Accounts",
+      "requirements": ["MOD-001", "OPS-003"],
+      "evidence": {
+        "acceptance": ["AC-002", "AC-003"],
+        "layers": ["api-contract", "isolation"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-013",
+      "title": "Require recent authentication for factor changes and high-impact operations",
+      "threats": ["TH-W-017", "TH-W-020", "TH-W-024", "TH-W-082"],
+      "boundary": "TB-W-03",
+      "owner": "Accounts",
+      "requirements": ["MOD-002", "OPS-003", "OPS-007"],
+      "evidence": {
+        "acceptance": ["AC-002", "AC-012"],
+        "layers": ["api-contract", "ui"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-014",
+      "title": "Bootstrap the first administrator with a one-time deployment secret",
+      "threats": ["TH-W-018"],
+      "boundary": "TB-W-03",
+      "owner": "Accounts",
+      "requirements": ["MOD-001", "OPS-009"],
+      "evidence": {
+        "acceptance": ["AC-002", "AC-031"],
+        "layers": ["api-contract", "operational-recovery"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-015",
+      "title": "Keep Admin authentication in server cookie sessions, not browser storage",
+      "threats": ["TH-W-019"],
+      "boundary": "TB-W-03",
+      "owner": "Identity",
+      "requirements": ["OPS-003", "UI-002"],
+      "evidence": {
+        "acceptance": ["AC-002"],
+        "layers": ["api-contract", "ui"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-016",
+      "title": "Prove server denial for every minimal Admin action",
+      "threats": ["TH-W-021"],
+      "boundary": "TB-W-04",
+      "owner": "Admin",
+      "requirements": ["UI-005", "UI-002", "FND-015"],
+      "evidence": {
+        "acceptance": ["AC-003", "AC-023"],
+        "layers": ["isolation", "ui"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-017",
+      "title": "Forbid framing and restrict content on Admin and preview responses",
+      "threats": ["TH-W-023", "TH-W-030"],
+      "boundary": "TB-W-04",
+      "owner": "Security",
+      "requirements": ["OPS-005", "UI-002"],
+      "evidence": {
+        "acceptance": ["AC-023", "AC-031"],
+        "layers": ["api-contract", "ui"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-018",
+      "title": "Validate tenant and site scope even with one configured site",
+      "threats": ["TH-W-025"],
+      "boundary": "TB-W-04",
+      "owner": "Tenancy",
+      "requirements": ["OPS-002", "FND-013"],
+      "evidence": {
+        "acceptance": ["AC-004"],
+        "layers": ["isolation"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-019",
+      "title": "Bind edits, approval and publication to exact revision versions",
+      "threats": ["TH-W-026", "TH-W-029"],
+      "boundary": "TB-W-04",
+      "owner": "Content",
+      "requirements": ["CMS-004", "CMS-005"],
+      "evidence": {
+        "acceptance": ["AC-016"],
+        "layers": ["real-provider-integration", "ui"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-020",
+      "title": "Exclude preview from caches, indexing and discovery",
+      "threats": ["TH-W-027"],
+      "boundary": "TB-W-05",
+      "owner": "Content",
+      "requirements": ["CMS-006"],
+      "evidence": {
+        "acceptance": ["AC-016", "AC-018"],
+        "layers": ["api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-021",
+      "title": "Bind preview to an exact revision and authorize each referenced item",
+      "threats": ["TH-W-028", "TH-W-029"],
+      "boundary": "TB-W-05",
+      "owner": "Content",
+      "requirements": ["CMS-006", "CMS-009"],
+      "evidence": {
+        "acceptance": ["AC-009", "AC-016"],
+        "layers": ["isolation", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-022",
+      "title": "Activate manifests by a concurrency-checked atomic pointer switch",
+      "threats": ["TH-W-031"],
+      "boundary": "TB-W-06",
+      "owner": "Content",
+      "requirements": ["CMS-005"],
+      "evidence": {
+        "acceptance": ["AC-017"],
+        "layers": ["real-provider-integration", "operational-recovery"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-023",
+      "title": "Separate authoring, publishing, scheduling and rollback permissions",
+      "threats": ["TH-W-032", "TH-W-078"],
+      "boundary": "TB-W-06",
+      "owner": "Content",
+      "requirements": ["CMS-005", "FND-015"],
+      "evidence": {
+        "acceptance": ["AC-003", "AC-017"],
+        "layers": ["isolation"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-024",
+      "title": "Make scheduled activation idempotent per schedule",
+      "threats": ["TH-W-033"],
+      "boundary": "TB-W-06",
+      "owner": "Content",
+      "requirements": ["CMS-005", "FND-022"],
+      "evidence": {
+        "acceptance": ["AC-007", "AC-017"],
+        "layers": ["real-provider-integration", "operational-recovery"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-025",
+      "title": "Revalidate manifest dependencies before rollback activation",
+      "threats": ["TH-W-034"],
+      "boundary": "TB-W-06",
+      "owner": "Content",
+      "requirements": ["CMS-005", "CMS-001", "UI-007", "CMS-009"],
+      "evidence": {
+        "acceptance": ["AC-017"],
+        "layers": ["real-provider-integration"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-026",
+      "title": "Accept only declared raster types verified by content and bounded before decoding",
+      "threats": ["TH-W-037", "TH-W-038", "TH-W-084"],
+      "boundary": "TB-W-07",
+      "owner": "Files",
+      "requirements": ["CMS-009", "MOD-014", "OPS-005"],
+      "evidence": {
+        "acceptance": ["AC-009"],
+        "layers": ["unit", "real-provider-integration"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-027",
+      "title": "Remove embedded metadata from public renditions",
+      "threats": ["TH-W-039"],
+      "boundary": "TB-W-07",
+      "owner": "Files",
+      "requirements": ["CMS-009", "OPS-006"],
+      "evidence": {
+        "acceptance": ["AC-009"],
+        "layers": ["unit"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-028",
+      "title": "Reference immutable media versions by hash",
+      "threats": ["TH-W-041"],
+      "boundary": "TB-W-07",
+      "owner": "Files",
+      "requirements": ["CMS-009", "FND-030"],
+      "evidence": {
+        "acceptance": ["AC-009", "AC-017"],
+        "layers": ["real-provider-integration"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-029",
+      "title": "Route contact mail only to configured destinations with fixed headers",
+      "threats": ["TH-W-042", "TH-W-043", "TH-W-080"],
+      "boundary": "TB-W-08",
+      "owner": "Content and Engagement",
+      "requirements": ["CMS-017", "FND-032"],
+      "evidence": {
+        "acceptance": ["AC-013", "AC-020"],
+        "layers": ["unit", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-030",
+      "title": "Apply antispam checks, rate limits and size bounds to submissions",
+      "threats": ["TH-W-044", "TH-W-080"],
+      "boundary": "TB-W-08",
+      "owner": "Content and Engagement",
+      "requirements": ["CMS-017", "OPS-018"],
+      "evidence": {
+        "acceptance": ["AC-020", "AC-030"],
+        "layers": ["api-contract", "real-provider-integration"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-031",
+      "title": "Accept contact requests durably and deliver them idempotently",
+      "threats": ["TH-W-045"],
+      "boundary": "TB-W-08",
+      "owner": "Communications",
+      "requirements": ["FND-032", "CMS-017"],
+      "evidence": {
+        "acceptance": ["AC-013", "AC-020"],
+        "layers": ["real-provider-integration", "operational-recovery"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-032",
+      "title": "Restrict, redact and expire contact submissions as personal data",
+      "threats": ["TH-W-046"],
+      "boundary": "TB-W-08",
+      "owner": "Privacy",
+      "requirements": ["OPS-006", "OPS-008", "CMS-017"],
+      "evidence": {
+        "acceptance": ["AC-012", "AC-020"],
+        "layers": ["isolation", "unit"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-033",
+      "title": "Protect contact-destination changes with a dedicated permission and step-up",
+      "threats": ["TH-W-047", "TH-W-083"],
+      "boundary": "TB-W-08",
+      "owner": "Content and Engagement",
+      "requirements": ["CMS-017", "OPS-007"],
+      "evidence": {
+        "acceptance": ["AC-012", "AC-020"],
+        "layers": ["isolation", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-034",
+      "title": "Load transport credentials from deployment secrets and verify transport encryption",
+      "threats": ["TH-W-048"],
+      "boundary": "TB-W-08",
+      "owner": "Communications",
+      "requirements": ["FND-032", "OPS-004"],
+      "evidence": {
+        "acceptance": ["AC-013", "AC-031"],
+        "layers": ["real-provider-integration", "operational-recovery"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-035",
+      "title": "Enforce the format's forbidden-content rules before planning",
+      "threats": ["TH-W-002", "TH-W-049", "TH-W-062", "TH-W-079"],
+      "boundary": "TB-W-09",
+      "owner": "Content",
+      "requirements": ["CMS-021", "OPS-005"],
+      "evidence": {
+        "acceptance": ["AC-028", "AC-031"],
+        "layers": ["unit", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-036",
+      "title": "Block import on secret-detection findings and redact reports",
+      "threats": ["TH-W-050", "TH-W-079"],
+      "boundary": "TB-W-09",
+      "owner": "Security",
+      "requirements": ["OPS-005", "OPS-004", "CMS-021"],
+      "evidence": {
+        "acceptance": ["AC-028", "AC-031"],
+        "layers": ["unit", "real-provider-integration"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-037",
+      "title": "Capture bounded, link-free package snapshots",
+      "threats": ["TH-W-051", "TH-W-062"],
+      "boundary": "TB-W-09",
+      "owner": "Content",
+      "requirements": ["CMS-021", "OPS-005"],
+      "evidence": {
+        "acceptance": ["AC-028", "AC-031"],
+        "layers": ["unit"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-038",
+      "title": "Bind import plans to digest, target, actor, dependencies, tokens and expiry",
+      "threats": ["TH-W-052", "TH-W-058", "TH-W-079"],
+      "boundary": "TB-W-09",
+      "owner": "Content",
+      "requirements": ["CMS-021", "FND-016"],
+      "evidence": {
+        "acceptance": ["AC-003", "AC-028"],
+        "layers": ["real-provider-integration", "isolation"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-039",
+      "title": "Map identities only by scoped stable keys or explicit authorized adoption",
+      "threats": ["TH-W-053"],
+      "boundary": "TB-W-09",
+      "owner": "Content",
+      "requirements": ["CMS-021", "OPS-002"],
+      "evidence": {
+        "acceptance": ["AC-004", "AC-028"],
+        "layers": ["real-provider-integration", "isolation"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-040",
+      "title": "Resolve renderer references only to installed declarative renderers",
+      "threats": ["TH-W-054", "TH-W-079"],
+      "boundary": "TB-W-09",
+      "owner": "Content",
+      "requirements": ["CMS-023", "CMS-021", "UI-007"],
+      "evidence": {
+        "acceptance": ["AC-018", "AC-028"],
+        "layers": ["unit", "api-contract"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-041",
+      "title": "Keep dry run free of writes, fetches and messages",
+      "threats": ["TH-W-055"],
+      "boundary": "TB-W-09",
+      "owner": "Content",
+      "requirements": ["CMS-021"],
+      "evidence": {
+        "acceptance": ["AC-028"],
+        "layers": ["real-provider-integration"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-042",
+      "title": "Apply imports in one transaction under a recorded operation identity",
+      "threats": ["TH-W-056", "TH-W-057"],
+      "boundary": "TB-W-09",
+      "owner": "Content",
+      "requirements": ["CMS-021", "FND-009", "OPS-007"],
+      "evidence": {
+        "acceptance": ["AC-012", "AC-028", "AC-029"],
+        "layers": ["real-provider-integration", "operational-recovery"]
+      },
+      "profiles": ["reference", "website"]
+    },
+    {
+      "id": "TM-W-043",
+      "title": "Fetch only authorized repositories at verified pinned commits",
+      "threats": ["TH-W-059", "TH-W-060", "TH-W-064", "TH-W-085"],
+      "boundary": "TB-W-10",
+      "owner": "Documentation",
+      "requirements": ["MOD-011"],
+      "evidence": {
+        "acceptance": ["AC-019"],
+        "layers": ["real-provider-integration", "unit"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-044",
+      "title": "Restrict Git fetches to allowlisted hosts with bounded transfers",
+      "threats": ["TH-W-095", "TH-W-097", "TH-W-061"],
+      "boundary": "TB-W-10",
+      "owner": "Security",
+      "requirements": ["OPS-005", "MOD-011", "CMS-021"],
+      "evidence": {
+        "acceptance": ["AC-019", "AC-028", "AC-031"],
+        "layers": ["real-provider-integration"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-045",
+      "title": "Keep Git source credentials in deployment secrets with read-only scope",
+      "threats": ["TH-W-096", "TH-W-063"],
+      "boundary": "TB-W-10",
+      "owner": "Security",
+      "requirements": ["OPS-004", "MOD-011", "CMS-021"],
+      "evidence": {
+        "acceptance": ["AC-028", "AC-031"],
+        "layers": ["unit", "operational-recovery"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-046",
+      "title": "Encrypt backups and store key material separately under a recovery role",
+      "threats": ["TH-W-088", "TH-W-065"],
+      "boundary": "TB-W-11",
+      "owner": "Operations",
+      "requirements": ["OPS-013", "OPS-004"],
+      "evidence": {
+        "acceptance": ["AC-029", "AC-031"],
+        "layers": ["operational-recovery"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-047",
+      "title": "Verify coordinated backups through isolated restore rehearsals",
+      "threats": ["TH-W-066", "TH-W-069", "TH-W-086"],
+      "boundary": "TB-W-11",
+      "owner": "Operations",
+      "requirements": ["OPS-013", "CMS-022", "FND-039"],
+      "evidence": {
+        "acceptance": ["AC-029"],
+        "layers": ["operational-recovery", "real-provider-integration"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-048",
+      "title": "Hold and reconcile queued effects after restore",
+      "threats": ["TH-W-067", "TH-W-086"],
+      "boundary": "TB-W-11",
+      "owner": "Operations",
+      "requirements": ["OPS-013", "OPS-015", "FND-039"],
+      "evidence": {
+        "acceptance": ["AC-029"],
+        "layers": ["operational-recovery"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-049",
+      "title": "Revoke sessions and review account changes after restore",
+      "threats": ["TH-W-068", "TH-W-086"],
+      "boundary": "TB-W-11",
+      "owner": "Operations",
+      "requirements": ["OPS-013", "MOD-001"],
+      "evidence": {
+        "acceptance": ["AC-002", "AC-029"],
+        "layers": ["operational-recovery"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-050",
+      "title": "Deploy only release artifacts verified by digest, provenance and SBOM",
+      "threats": ["TH-W-070"],
+      "boundary": "TB-W-12",
+      "owner": "Operations",
+      "requirements": ["OPS-009", "DEV-018", "OPS-020"],
+      "evidence": {
+        "acceptance": ["AC-028", "AC-031"],
+        "layers": ["operational-recovery"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-051",
+      "title": "Upgrade only from the previous W release with a validated recovery path",
+      "threats": ["TH-W-071", "TH-W-073"],
+      "boundary": "TB-W-12",
+      "owner": "Release governance",
+      "requirements": ["OPS-020", "OPS-012", "CMS-021"],
+      "evidence": {
+        "acceptance": ["AC-028", "AC-029"],
+        "layers": ["migration", "operational-recovery"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-052",
+      "title": "Review endpoint, permission and identity-mapping differences across upgrades",
+      "threats": ["TH-W-072", "TH-W-073"],
+      "boundary": "TB-W-12",
+      "owner": "Release governance",
+      "requirements": ["OPS-020", "OPS-012", "FND-026", "CMS-021"],
+      "evidence": {
+        "acceptance": ["AC-008", "AC-028"],
+        "layers": ["api-contract", "migration"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-053",
+      "title": "Run the container as non-root with a read-only application filesystem",
+      "threats": ["TH-W-074"],
+      "boundary": "TB-W-13",
+      "owner": "Operations",
+      "requirements": ["OPS-009", "OPS-001"],
+      "evidence": {
+        "acceptance": ["AC-031"],
+        "layers": ["operational-recovery"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-054",
+      "title": "Mount secrets and durable state from declared deployment volumes",
+      "threats": ["TH-W-075", "TH-W-077"],
+      "boundary": "TB-W-13",
+      "owner": "Operations",
+      "requirements": ["OPS-009", "OPS-004", "OPS-013"],
+      "evidence": {
+        "acceptance": ["AC-029", "AC-031"],
+        "layers": ["operational-recovery"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-055",
+      "title": "Limit container egress to declared destinations",
+      "threats": ["TH-W-076"],
+      "boundary": "TB-W-13",
+      "owner": "Operations",
+      "requirements": ["OPS-021", "OPS-005"],
+      "evidence": {
+        "acceptance": ["AC-031"],
+        "layers": ["operational-recovery"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-056",
+      "title": "Configure no credentialed cross-origin access to the Admin and APIs",
+      "threats": ["TH-W-092"],
+      "boundary": "TB-W-04",
+      "owner": "Admin",
+      "requirements": ["UI-002", "FND-018"],
+      "evidence": {
+        "acceptance": ["AC-003", "AC-023"],
+        "layers": ["api-contract", "ui"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-057",
+      "title": "Bind package sources only with a dedicated permission and recent authentication",
+      "threats": ["TH-W-093"],
+      "boundary": "TB-W-09",
+      "owner": "Content",
+      "requirements": ["CMS-021", "OPS-007"],
+      "evidence": {
+        "acceptance": ["AC-003", "AC-012", "AC-028"],
+        "layers": ["isolation", "api-contract"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-058",
+      "title": "Acquire package snapshots at verified full commits bound into the plan",
+      "threats": ["TH-W-094"],
+      "boundary": "TB-W-09",
+      "owner": "Content",
+      "requirements": ["CMS-021"],
+      "evidence": {
+        "acceptance": ["AC-028"],
+        "layers": ["real-provider-integration", "unit"]
+      },
+      "profiles": ["website"]
+    },
+    {
+      "id": "TM-W-059",
+      "title": "Keep the few Admin accounts reachable during lockout attacks",
+      "threats": ["TH-W-090"],
+      "boundary": "TB-W-03",
+      "owner": "Accounts",
+      "requirements": ["MOD-001", "OPS-003"],
+      "evidence": {
+        "acceptance": ["AC-002"],
+        "layers": ["api-contract", "operational-recovery"]
+      },
+      "profiles": ["website"]
+    }
+  ]
+}
