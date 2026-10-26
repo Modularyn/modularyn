@@ -383,6 +383,101 @@ Endpoints must not change state on safe methods; the ingress cannot observe
 that. Operation-specific input contracts, paging and query bounds, public error
 contracts, session cookies and tenant resolution are not part of the ingress.
 
+## Threat-model controls
+
+For each control of boundaries TB-G02-01, TB-G02-02 and TB-G02-11, this records
+what these packages deliver, the tests that exercise it and what remains, with
+the work order it waits on. Tests are in the test project of the package named.
+They are unit and local host tests; SEC-08 maps every control to its evidence.
+
+- **TM-G02-001, partly.** Delivered: the deployment lock and package integrity
+  as a trust validator, and MDC108 for a host without one. Tests:
+  `Modularity.Tests` `DeploymentTrustTests` and `Hosting.Tests`
+  `DeploymentTrustHostingTests`, all `TM_G02_001_*`. Remaining: composition
+  switches in the lock (FND-001), which the composer has no input for and no
+  G-02 work order covers; lock generation in release tooling and verification of
+  artifacts before the process loads them (OPS-009, G-08); real-provider evidence
+  on the sample host (CODE-10 on CI-01).
+- **TM-G02-002, partly.** Delivered: required deployment configuration, including
+  ingress and the key ring, validates before any hosted service starts, so no
+  module is constructed while it is invalid. Tests: `Configuration.Tests`
+  `DeploymentOptionsTests.TM_G02_048_Invalid_deployment_options_refuse_startup_before_any_module_is_constructed`
+  and `KeyRingTests.AC_031_R04_A_deployment_without_a_declared_key_ring_stays_unready_and_generates_no_keys`;
+  `Ingress.Tests`
+  `IngressOptionsTests.TM_G02_006_Widened_ingress_options_or_a_missing_key_ring_refuse_startup_before_module_activation`.
+  Remaining: activation only after migrations complete (CODE-03); declared
+  permissions (SEC-05) and declared endpoints (CODE-06); disabling a module with a
+  report of its dependents, active work and retained data (FND-003), which no
+  G-02 work order covers: CODE-02's scope excludes it and the tool command is
+  DEV-005, Tooling, at G-06. Under the restart model, a selection that drops a
+  required module is already refused with MDC001 naming both modules
+  (`Hosting.Tests` `AcceptanceTests.AC_001_N01_*`), but active work and retained
+  data are not reported.
+- **TM-G02-003, not SEC-02's.** CODE-02 keeps the host unready after a lifecycle
+  failure and CODE-08 adds readiness and draining; SEC-02 adds
+  `DeploymentTrustHostingTests.TM_G02_001_Readiness_follows_a_verified_activation_and_a_refused_composition_stays_unready_with_status_only_health`.
+  Remaining: migration-readiness failure keeping the host unready (CODE-03) and
+  recovery evidence (CODE-10 on CI-01).
+- **TM-G02-004, not SEC-02's.** The architecture checks reject cross-module
+  persistence references (DEP009). Remaining: migrations confined to the owning
+  module's schema (CODE-03).
+- **TM-G02-005, deferred.** No extension-property mechanism exists, and no G-02
+  work order covers FND-005.
+- **TM-G02-006, partly.** Delivered: declared-proxy forwarded headers, host
+  filtering, `PublicOrigins` links and redirect targets, and refusal of widened
+  options. Tests: `Ingress.Tests` `ProxyAndHostTests` (`AC_004_N01_*`) and
+  `IngressOptionsTests.TM_G02_006_*`. Remaining: tenant domains and membership
+  (SEC-04), the redirect policy applied at sign-in (SEC-03), adversarial isolation
+  evidence (SEC-08).
+- **TM-G02-007, partly.** Delivered: antiforgery on every state-changing request
+  that carries cookies, and the antiforgery cookie. Tests: `AntiforgeryTests`
+  (`AC_003_N02_*`, `TM_G02_007_*`). Remaining: session cookies (SEC-03); no state
+  change on safe methods, which the ingress cannot observe, through endpoint
+  conventions (CODE-06) and contract tests (SEC-08).
+- **TM-G02-008, deferred.** Operation-specific input contracts and server-derived
+  fields (CODE-06; SEC-08 for AC-003-N01).
+- **TM-G02-009, partly.** Delivered: body size, header size and count, request
+  line, header timeout, form limits and JSON depth. Tests: `RequestLimitTests`
+  (`TM_G02_009_*`) and `HttpsTests`. Remaining: whole-request time limits and
+  field lengths in JSON bodies (CODE-06); bounded paging, sorting and filtering on
+  declared fields (CODE-06, with CODE-03 for query translation); per-endpoint
+  upload limits (SEC-06); per-tenant resource governance (OPS-018, G-08).
+- **TM-G02-010, deferred.** Stable public error codes with correlation (CODE-06,
+  with CODE-08's correlation). Ingress refusals are bare status codes with no
+  detail.
+- **TM-G02-059, partly.** Delivered: credentialed access only for exactly listed
+  origins. Tests: `CrossOriginTests` (`AC_003_N02_*`, `TM_G02_059_*`).
+  Remaining: browser evidence on the sample's Razor surface (SEC-08 on CODE-09)
+  and client evidence (CODE-06).
+- **TM-G02-060, partly.** Delivered: plain HTTP redirected before processing and
+  HSTS on HTTPS responses for configured hosts, judged only from a declared
+  proxy. Tests: `HttpsTests` (`AC_031_P01_*`). Remaining: recording the subdomain
+  and preload choices with the release, which no G-02 work order covers; host
+  and container evidence (CODE-10 on CI-01). Kestrel's own refusals carry no
+  HSTS.
+- **TM-G02-047, partly.** Delivered: secret references, the mounted file store
+  and redacted secret values. Tests: `SecretStoreTests` and
+  `DeploymentOptionsTests` (`TM_G02_047_*`). Remaining: masked secret settings
+  that accept only replacement (CODE-04); redaction in logs and traces (SEC-07);
+  secret scans of release artifacts (OPS-004, G-08). The repository scan runs in
+  CI.
+- **TM-G02-048, partly.** Delivered: deployment options validated before any
+  hosted service starts, bound strictly and never reloaded. Tests:
+  `DeploymentOptionsTests` and `IngressOptionsTests` (`TM_G02_048_*`).
+  Remaining: provider compatibility at startup (CODE-03); validation before an
+  application or tenant settings reload takes effect (CODE-04); real-provider
+  evidence (CODE-10).
+- **TM-G02-049, deferred.** Separate application and tenant settings contracts
+  with precedence, and tenant-configurable declarations (CODE-04, with SEC-04).
+  Deployment options are already a separate, restart-only contract.
+- **TM-G02-050, partly.** Delivered: the declared, owner-only key ring scoped by
+  application name, with a declared lifetime, refusal of a missing or replaced
+  declaration, rotation and revocation. Tests: `KeyRingTests` (`AC_031_R04_*`,
+  `TM_G02_050_*`). Remaining: the PostgreSQL key store (CODE-03), through the
+  `keyStore` argument; key encryption at rest, which no G-02 work order covers;
+  the backup procedure, which is operational; recovery evidence on host and
+  container (CODE-10 on CI-01).
+
 ## Coverage and verification
 
 The matching test projects cover manifest semantics, resolution, trust, host
