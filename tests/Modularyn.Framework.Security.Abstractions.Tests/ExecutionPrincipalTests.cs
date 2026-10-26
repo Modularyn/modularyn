@@ -106,59 +106,76 @@ public sealed class ExecutionPrincipalTests
     }
 }
 
-public sealed class ExecutionScopeTests
+public sealed class ExecutionPrincipalScopeTests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 26, 12, 0, 0, TimeSpan.Zero);
-    private readonly AmbientExecutionPrincipalAccessor accessor = new();
 
     private static ExecutionPrincipal User() => ExecutionPrincipal.ForUser(new(Guid.NewGuid().ToString("D"), IdentityKind.User), Guid.NewGuid(), Now);
 
-    [Fact(DisplayName = "TM-G02-018 a scope ends with its handle and never leaks into later work on a reused worker")]
-    public async Task TM_G02_018_A_scope_ends_with_its_handle_and_never_leaks_into_later_work()
+    [Fact(DisplayName = "TM-G02-018 a unit's principal is established once, never replaced, and ends with the unit")]
+    public void TM_G02_018_A_unit_s_principal_is_established_once_never_replaced_and_ends_with_the_unit()
     {
-        Assert.Null(accessor.Current);
-        var outer = User();
-        var inner = User();
-        using (ExecutionScope.Begin(outer))
-        {
-            Assert.Same(outer, accessor.Current);
-            Assert.Same(outer, await Task.Run(() => accessor.Current, TestContext.Current.CancellationToken));
-            using (ExecutionScope.Begin(inner)) Assert.Same(inner, accessor.Current);
-            Assert.Same(outer, accessor.Current);
-        }
-        Assert.Null(accessor.Current);
+        var unit = new ExecutionPrincipalScope();
+        var first = User();
+        Assert.Null(unit.Current);
+        Assert.True(unit.TryEstablish(first));
+        Assert.Same(first, unit.Current);
+        Assert.False(unit.TryEstablish(User()));
+        Assert.Same(first, unit.Current);
+        unit.End();
+        Assert.Null(unit.Current);
+        Assert.False(unit.TryEstablish(first));
+        Assert.Null(unit.Current);
 
-        // Work queued after the scope ends, on the same pool, sees no principal.
-        var observed = await Task.WhenAll(Enumerable.Range(0, 32).Select(_ => Task.Run(() => accessor.Current, TestContext.Current.CancellationToken)));
-        Assert.All(observed, Assert.Null);
-
-        // An out-of-order disposal never revives a disposed principal.
-        var first = ExecutionScope.Begin(outer);
-        var second = ExecutionScope.Begin(inner);
-        first.Dispose();
-        Assert.Same(inner, accessor.Current);
-        second.Dispose();
-        Assert.Null(accessor.Current);
-        second.Dispose();
-        Assert.Null(accessor.Current);
+        // A unit that ended before anything was established never gains a principal.
+        var ended = new ExecutionPrincipalScope();
+        ended.End();
+        Assert.False(ended.TryEstablish(first));
+        Assert.Null(ended.Current);
+        Assert.Throws<ArgumentNullException>(() => new ExecutionPrincipalScope().TryEstablish(null!));
     }
 
-    [Fact(DisplayName = "TM-G02-018 a service identity scope replaces the ambient principal and carries none of its authority")]
-    public void TM_G02_018_A_service_identity_scope_replaces_the_ambient_principal()
+    [Fact(DisplayName = "TM-G02-018 concurrent attempts establish exactly one principal, and other units are unaffected")]
+    public async Task TM_G02_018_Concurrent_attempts_establish_exactly_one_principal()
     {
-        var administrator = User();
-        using (ExecutionScope.Begin(administrator))
+        var unit = new ExecutionPrincipalScope();
+        var other = new ExecutionPrincipalScope();
+        var candidates = Enumerable.Range(0, 32).Select(_ => User()).ToArray();
+        var results = await Task.WhenAll(candidates.Select(candidate => Task.Run(() => unit.TryEstablish(candidate), TestContext.Current.CancellationToken)));
+        Assert.Single(results, result => result);
+        Assert.Same(candidates[Array.IndexOf(results, true)], unit.Current);
+        Assert.Null(other.Current);
+    }
+
+    [Fact(DisplayName = "TM-G02-018 a service identity scope runs only a service principal and ends its unit once")]
+    public async Task TM_G02_018_A_service_identity_scope_runs_only_a_service_principal_and_ends_its_unit_once()
+    {
+        var service = ExecutionPrincipal.ForService(new("svc-items", IdentityKind.Service), ["item.reindex"]);
+        var lifetime = new CountingLifetime();
+        var services = new EmptyServices();
+        var scope = new ServiceIdentityScope(service, services, lifetime);
+        Assert.Same(service, scope.Principal);
+        Assert.Same(services, scope.Services);
+        Assert.False(scope.Principal.IsWithinCeiling("item.update", null, Now));
+        await scope.DisposeAsync();
+        await scope.DisposeAsync();
+        Assert.Equal(1, lifetime.Disposals);
+        Assert.Throws<ArgumentException>(() => new ServiceIdentityScope(User(), services, lifetime));
+    }
+
+    private sealed class CountingLifetime : IAsyncDisposable
+    {
+        internal int Disposals { get; private set; }
+
+        public ValueTask DisposeAsync()
         {
-            var service = ExecutionPrincipal.ForService(new("svc-items", IdentityKind.Service), ["item.reindex"]);
-            using (var scope = new ServiceIdentityScope(service))
-            {
-                Assert.Same(service, accessor.Current);
-                Assert.Same(service, scope.Principal);
-                Assert.NotEqual(administrator.Actor, accessor.Current!.Actor);
-                Assert.False(accessor.Current.IsWithinCeiling("item.update", null, Now));
-            }
-            Assert.Same(administrator, accessor.Current);
+            Disposals++;
+            return ValueTask.CompletedTask;
         }
-        Assert.Throws<ArgumentException>(() => new ServiceIdentityScope(administrator));
+    }
+
+    private sealed class EmptyServices : IServiceProvider
+    {
+        public object? GetService(Type serviceType) => null;
     }
 }

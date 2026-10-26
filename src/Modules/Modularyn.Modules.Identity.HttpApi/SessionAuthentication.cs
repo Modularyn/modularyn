@@ -5,6 +5,7 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
@@ -55,25 +56,6 @@ public static class SessionCookie
     }
 }
 
-/// <summary>The principal the session handler established for this request.</summary>
-internal interface IExecutionPrincipalFeature
-{
-    ExecutionPrincipal Principal { get; }
-}
-
-internal sealed record ExecutionPrincipalFeature(ExecutionPrincipal Principal) : IExecutionPrincipalFeature;
-
-/// <summary>
-/// The principal of the current unit of work: one established through <see cref="ExecutionScope"/> takes precedence, such
-/// as a service identity started inside a request; otherwise the principal of the request's validated session.
-/// </summary>
-internal sealed class HttpExecutionPrincipalAccessor(IHttpContextAccessor http) : IExecutionPrincipalAccessor
-{
-    private readonly AmbientExecutionPrincipalAccessor ambient = new();
-
-    public ExecutionPrincipal? Current => ambient.Current ?? http.HttpContext?.Features.Get<IExecutionPrincipalFeature>()?.Principal;
-}
-
 public sealed class SessionAuthenticationOptions : AuthenticationSchemeOptions;
 
 /// <summary>
@@ -107,7 +89,9 @@ internal sealed class SessionAuthenticationHandler(IOptionsMonitor<SessionAuthen
             if (delegated is null) return AuthenticateResult.Fail("The delegation does not resolve for this session.");
             principal = delegated;
         }
-        Context.Features.Set<IExecutionPrincipalFeature>(new ExecutionPrincipalFeature(principal));
+        // The request's own service scope holds its principal, established once; nothing ambient carries it.
+        if (!Context.RequestServices.GetRequiredService<ExecutionPrincipalScope>().TryEstablish(principal))
+            return AuthenticateResult.Fail("The request's principal is already established.");
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, principal.Actor.Id),

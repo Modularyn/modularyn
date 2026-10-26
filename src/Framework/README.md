@@ -22,8 +22,8 @@ only the .NET shared framework, so domain and application contract projects can
 reference it. `Modularyn.Framework.Tenancy` resolves and keeps tenant context,
 over the PostgreSQL persistence adapter and the ingress policy.
 `Modularyn.Framework.Security.Abstractions` holds the execution principal, its
-delegated authority and service scope, the principal accessor, service identity
-scopes, the freshness recheck, `SecretText` and the client credential seam. It
+delegated authority and service scope, the per-unit principal holder and its
+accessor, service identity scopes, the freshness recheck, `SecretText` and the client credential seam. It
 uses only the .NET shared framework, and the identity module implements it; see
 [the identity module](../Modules/Modularyn.Modules.Identity.Application/README.md).
 

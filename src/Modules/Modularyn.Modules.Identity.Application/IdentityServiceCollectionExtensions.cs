@@ -41,7 +41,9 @@ public static class IdentityServiceCollectionExtensions
         services.AddSingleton<IPasskeyCredentials, PasskeyCredentialService>();
         services.AddSingleton<ITenantMemberships, TenantMembershipService>();
         services.TryAddSingleton<Framework.Tenancy.Abstractions.ITenantMembership, IdentityTenantMembership>();
-        services.TryAddSingleton<IExecutionPrincipalAccessor, AmbientExecutionPrincipalAccessor>();
+        // Each service scope, a request's or a unit of work's, holds its own principal; nothing ambient carries one.
+        services.AddScoped<ExecutionPrincipalScope>();
+        services.Replace(ServiceDescriptor.Scoped<IExecutionPrincipalAccessor>(provider => provider.GetRequiredService<ExecutionPrincipalScope>()));
         services.AddSingleton<IValidateOptions<IdentityStoresCheck>, IdentityStoresValidation>();
         services.AddOptions<IdentityStoresCheck>().ValidateOnStart();
         return services;

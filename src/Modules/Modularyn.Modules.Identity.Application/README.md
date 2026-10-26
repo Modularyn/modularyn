@@ -19,8 +19,8 @@ declared service identities (ARC-006). Its projects:
   sign-out, antiforgery and current-user endpoints.
 
 `Modularyn.Framework.Security.Abstractions` holds what other modules consume: the
-`ExecutionPrincipal`, its delegated authority and service scope, the principal
-accessor, service identity scopes, the freshness recheck, `SecretText` and the
+`ExecutionPrincipal`, its delegated authority and service scope, the per-unit
+principal holder and its accessor, service identity scopes, the freshness recheck, `SecretText` and the
 credential-provider seam for generated clients. It uses only the .NET shared
 framework.
 
@@ -130,10 +130,28 @@ not authenticated at all. A delegated principal's ceiling is the grant's scope,
 tenant and window, and its claims name both the actor and the subject.
 
 A service identity is declared once, with its exact permissions, through
-`AddModularynServiceIdentity`. `IServiceIdentityScopes.Begin` runs work as it;
-the scope replaces any ambient principal and carries none of its authority, and
-it ends when it is disposed. A service identity is never delegated to and never
+`AddModularynServiceIdentity`. A service identity is never delegated to and never
 uses a session.
+
+No principal is ambient. As with SEC-04's tenant context, every unit of work holds
+its own principal in its own service scope, in an `ExecutionPrincipalScope`, and
+`IExecutionPrincipalAccessor` reads it from there. A unit's principal is
+established once, can never be replaced, and ends with the unit.
+
+- **Requests.** The session handler establishes the principal in the request's
+  scope, and sign-out ends it for the rest of the request.
+- **Service identities.** `IServiceIdentityScopes.Begin` starts a unit in a new
+  service scope with the service identity as its principal. The work resolves its
+  services from `ServiceIdentityScope.Services`. The code that began the unit
+  keeps its own principal, and neither sees the other's. Disposing the unit ends
+  its principal and its scope.
+- **Everything else has no principal.** Work that is not given a unit's services,
+  such as a task started without them or a new scope, has none. So does later
+  work on a reused worker.
+
+`ServiceIdentityScopeTests` and `ExecutionPrincipalScopeTests` show concurrent
+units seeing only their own principal, work outside a unit seeing none, the
+principal ending with its unit, and refusal to replace one.
 
 ## Stored forms of other credentials
 
@@ -269,8 +287,9 @@ evidence.
   from the actor's own session; service identities with exactly their declared
   scope, never borrowing an interactive session. Tests:
   `Framework.Security.Abstractions.Tests` `ExecutionPrincipalTests` and
-  `ExecutionScopeTests`, `Identity.Domain.Tests` `DelegationGrantTests`, all
-  `TM_G02_018_*`, and `G02AC003Tests.AC_003_B02_*`. Remaining: delegation and
+  `ExecutionPrincipalScopeTests`, `Identity.Domain.Tests` `DelegationGrantTests`,
+  `Identity.Application.Tests` `ServiceIdentityScopeTests`, all `TM_G02_018_*`,
+  and `G02AC003Tests.AC_003_B02_*`. Remaining: delegation and
   impersonation issued by an administrator, which need a permission (SEC-05);
   audit records of issue, use and revocation (SEC-07); jobs and handlers
   running through `IServiceIdentityScopes` (CODE-05, with TM-G02-041).

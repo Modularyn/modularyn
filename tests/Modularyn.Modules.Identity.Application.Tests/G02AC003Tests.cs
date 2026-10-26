@@ -98,15 +98,20 @@ public sealed class G02AC003Tests(ITestOutputHelper output)
         Assert.Equal(DelegationIssueStatus.InvalidWindow,
             (await delegations.IssueAsync(new DelegationRequest(support1Id, user1Id, ["item.read"], Purpose, Tenant, identity.Clock.Now.AddDays(2)), user1, Cancellation)).Status);
 
-        // The item job runs as svc-items with item.reindex only, even when started where an interactive principal is ambient.
+        // The item job runs as svc-items with item.reindex only, in a service scope of its own, even when begun from a
+        // request whose principal is user-1. The request keeps its principal throughout, and the job's ends with the job.
         var scopes = identity.Get<IServiceIdentityScopes>();
-        var accessor = identity.Get<IExecutionPrincipalAccessor>();
-        using (ExecutionScope.Begin(user1))
+        await using (var request = identity.Get<IServiceScopeFactory>().CreateAsyncScope())
         {
+            Assert.True(request.ServiceProvider.GetRequiredService<ExecutionPrincipalScope>().TryEstablish(user1));
+            var requestPrincipals = request.ServiceProvider.GetRequiredService<IExecutionPrincipalAccessor>();
             ExecutionPrincipal? observed;
-            using (scopes.Begin("svc-items"))
+            IExecutionPrincipalAccessor jobPrincipals;
+            await using (var job = scopes.Begin("svc-items"))
             {
-                observed = accessor.Current;
+                jobPrincipals = job.Services.GetRequiredService<IExecutionPrincipalAccessor>();
+                observed = jobPrincipals.Current;
+                Assert.Same(job.Principal, observed);
                 Assert.Equal(new PrincipalReference("svc-items", IdentityKind.Service), observed!.Actor);
                 Assert.Equal(observed.Actor, observed.EffectiveSubject);
                 Assert.Null(observed.SessionId);
@@ -116,8 +121,10 @@ public sealed class G02AC003Tests(ITestOutputHelper output)
                 Assert.False(Permits(observed, "item.read", grants, identity.Clock.Now));
                 Assert.False(Permits(observed, "item.update", grants, identity.Clock.Now));
                 Assert.Equal(FreshnessStatus.Current, await identity.Get<IPrincipalFreshness>().RecheckAsync(observed, Cancellation));
+                Assert.Same(user1, requestPrincipals.Current);
             }
-            Assert.Same(user1, accessor.Current);
+            Assert.Null(jobPrincipals.Current);
+            Assert.Same(user1, requestPrincipals.Current);
             output.WriteLine($"The item job ran as {observed} with scope item.reindex only.");
         }
         Assert.Throws<InvalidOperationException>(() => scopes.Begin("svc-admin"));
@@ -246,18 +253,18 @@ public sealed class G02AC003Tests(ITestOutputHelper output)
         }
         application.MapGet("/items/item-1", (IExecutionPrincipalAccessor principals, TimeProvider clock) => Decide(principals, clock, "item.read"));
         application.MapPut("/items/item-1", (IExecutionPrincipalAccessor principals, TimeProvider clock) => Decide(principals, clock, "item.update"));
-        application.MapPost("/items/reindex", (IExecutionPrincipalAccessor principals, IServiceIdentityScopes scopes, TimeProvider clock) =>
+        application.MapPost("/items/reindex", async (IExecutionPrincipalAccessor principals, IServiceIdentityScopes scopes, TimeProvider clock) =>
         {
-            if (principals.Current is not { } requester) return Results.StatusCode(StatusCodes.Status401Unauthorized);
-            using var job = scopes.Begin("svc-items");
-            var principal = principals.Current!;
+            if (principals.Current is null) return Results.StatusCode(StatusCodes.Status401Unauthorized);
+            await using var job = scopes.Begin("svc-items");
+            var principal = job.Services.GetRequiredService<IExecutionPrincipalAccessor>().Current!;
             var now = clock.GetUtcNow();
             return Results.Json(new
             {
                 actor = principal.Actor.Id, actorKind = Kind(principal.Actor), subject = principal.EffectiveSubject.Id, hasSession = principal.SessionId is not null,
                 delegated = principal.IsDelegated, scope = principal.ServiceScope!.Order(StringComparer.Ordinal).ToArray(),
                 reindex = Permits(principal, "item.reindex", grants, now), read = Permits(principal, "item.read", grants, now),
-                update = Permits(principal, "item.update", grants, now), requestActor = requester.Actor.Id
+                update = Permits(principal, "item.update", grants, now), requestActor = principals.Current?.Actor.Id
             });
         });
     }

@@ -94,7 +94,7 @@ public static class IdentityEndpoints
     {
         if (SessionCookie.TryRead(context.Request, out var token, out _))
             await sessions.SignOutAsync(token!, context.RequestAborted).ConfigureAwait(false);
-        context.Features.Set<IExecutionPrincipalFeature>(null);
+        context.RequestServices.GetRequiredService<ExecutionPrincipalScope>().End();
         context.Response.Cookies.Delete(SessionCookie.Name, SessionCookie.Options());
         return Results.NoContent();
     }

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Modularyn.Framework.Security.Abstractions;
 using Modularyn.Modules.Identity.Application.Contracts;
 using Modularyn.Modules.Identity.Domain;
@@ -71,13 +72,38 @@ internal sealed class DelegationService(IDelegationStore store, IAccountDirector
     }
 }
 
-internal sealed class ServiceIdentityScopes(ServiceIdentityRegistry registry) : IServiceIdentityScopes
+/// <summary>
+/// Begins each service-identity unit in a new service scope whose principal is established once, as the service identity,
+/// and ends with the unit. The scope that began it keeps its own principal; neither sees the other's.
+/// </summary>
+internal sealed class ServiceIdentityScopes(ServiceIdentityRegistry registry, IServiceScopeFactory scopes) : IServiceIdentityScopes
 {
     public ServiceIdentityScope Begin(string serviceIdentity)
     {
         var declaration = registry.Find(serviceIdentity)
             ?? throw new InvalidOperationException("The service identity is not declared. Declare it with AddModularynServiceIdentity.");
-        return new ServiceIdentityScope(ExecutionPrincipal.ForService(declaration.Principal, declaration.Scope));
+        var principal = ExecutionPrincipal.ForService(declaration.Principal, declaration.Scope);
+        var scope = scopes.CreateAsyncScope();
+        try
+        {
+            var holder = scope.ServiceProvider.GetRequiredService<ExecutionPrincipalScope>();
+            if (!holder.TryEstablish(principal)) throw new InvalidOperationException("A new service scope already held a principal.");
+            return new ServiceIdentityScope(principal, scope.ServiceProvider, new UnitLifetime(holder, scope));
+        }
+        catch
+        {
+            scope.Dispose();
+            throw;
+        }
+    }
+
+    private sealed class UnitLifetime(ExecutionPrincipalScope holder, AsyncServiceScope scope) : IAsyncDisposable
+    {
+        public ValueTask DisposeAsync()
+        {
+            holder.End();
+            return scope.DisposeAsync();
+        }
     }
 }
 
