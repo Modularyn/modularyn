@@ -1,0 +1,117 @@
+{
+  "format": "modularyn.evidence-record",
+  "formatVersion": 1,
+  "recordId": "urn:modularyn:evidence:g02:ac-005-p01:single-host:plan",
+  "kind": "plan",
+  "gate": "G-02",
+  "subjects": [
+    {
+      "id": "FND-008",
+      "kind": "requirement",
+      "owner": "Persistence"
+    },
+    {
+      "id": "FND-009",
+      "kind": "requirement",
+      "owner": "Persistence"
+    },
+    {
+      "id": "FND-010",
+      "kind": "requirement",
+      "owner": "Persistence"
+    }
+  ],
+  "caseId": "AC-005-P01",
+  "family": "AC-005",
+  "profile": "reference",
+  "workOrder": "CODE-03",
+  "sourceCommit": null,
+  "corpus": {
+    "location": "docs/acceptance/corpus.json",
+    "sha256": "342d1ddd757cc47129aaea3fc255cb25222f37b07a76a657cbf1a82c764265f8"
+  },
+  "tuple": {
+    "moduleVersions": [
+      {
+        "id": "Modularyn.Framework.Persistence.EfCore",
+        "version": null
+      }
+    ],
+    "runtime": {
+      "sdkVersion": "10.0.403",
+      "runtimeVersion": "10.0.14",
+      "aspNetCoreVersion": "10.0.14",
+      "languageVersion": "14.0"
+    },
+    "database": {
+      "name": "PostgreSQL",
+      "version": "18.6"
+    },
+    "ui": [],
+    "tenancyMode": "shared-database",
+    "deployment": {
+      "operatingSystem": {
+        "name": "Linux",
+        "version": null
+      },
+      "architecture": "x64",
+      "topology": "single-host",
+      "containerImageDigest": null
+    },
+    "providers": [
+      {
+        "name": "EF Core PostgreSQL",
+        "version": null,
+        "mode": "real"
+      }
+    ]
+  },
+  "implementationArtifacts": [
+    {
+      "location": "src/Framework/Modularyn.Framework.Persistence.EfCore/Modularyn.Framework.Persistence.EfCore.csproj",
+      "sha256": null
+    }
+  ],
+  "tests": [
+    {
+      "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+      "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC_005_P01_CommittedWorkAndSoftDeleteFiltersAgreeOnPostgreSql_Integration",
+      "layer": "real-provider-integration"
+    }
+  ],
+  "fixtureInputs": [
+    "PostgreSQL contains active rows item-1 and item-2 plus soft-deleted item-3 in the prequalified context. A declared direct-SQL access path uses the same application filter contract."
+  ],
+  "expectedOutcomes": [
+    "Both reads return item-1 and item-2 and omit item-3.",
+    "The new connection sees both committed changes; the completion callback reports committed once."
+  ],
+  "observedOutcomes": [],
+  "verification": {
+    "status": "not-run",
+    "date": null,
+    "results": []
+  },
+  "documentation": [
+    "docs/acceptance/AC-005.md",
+    "docs/profiles/reference.md",
+    "docs/evidence/README.md"
+  ],
+  "knownLimitations": [
+    "This is a plan with no executed case or qualification evidence.",
+    "The implementation, module and provider pins, operating-system version and measured artifact hashes are not yet available.",
+    "Security prerequisites on this exact tuple remain unmet."
+  ],
+  "securityDependencies": [
+    {
+      "family": "AC-003",
+      "status": "unmet",
+      "evidenceRecords": []
+    },
+    {
+      "family": "AC-004",
+      "status": "unmet",
+      "evidenceRecords": []
+    }
+  ]
+}

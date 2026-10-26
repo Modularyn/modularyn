@@ -1,0 +1,987 @@
+{
+  "format": "modularyn.capability-report",
+  "formatVersion": 1,
+  "kind": "skeleton",
+  "gate": "G-02",
+  "profile": "reference",
+  "status": "planned",
+  "sourceCommit": null,
+  "qualifiedSubset": [],
+  "target": {
+    "host": "Linux",
+    "architecture": "x64",
+    "runtimeVersion": "10.0.14",
+    "sdkVersion": "10.0.403",
+    "languageVersion": "14.0",
+    "database": "PostgreSQL",
+    "databaseVersion": "18.6",
+    "tenantPlacement": "shared-database",
+    "topologies": [
+      "single-host",
+      "single-host-container"
+    ]
+  },
+  "capabilities": [
+    {
+      "caseId": "AC-001-B01",
+      "module": "Modularity and Hosting",
+      "action": "Check the inclusive compatibility edges",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core",
+        "filesystem BLOB storage"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-001-N01",
+      "module": "Modularity and Hosting",
+      "action": "Reject missing, cyclic and incompatible dependencies",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core",
+        "filesystem BLOB storage"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-001-P01",
+      "module": "Modularity and Hosting",
+      "action": "Activate a valid dependency graph",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core",
+        "filesystem BLOB storage"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-001-R01",
+      "module": "Modularity and Hosting",
+      "action": "Recover an interrupted module initialization",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core",
+        "filesystem BLOB storage"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-003-B01",
+      "module": "Authorization",
+      "action": "Measure permission revocation at the declared freshness bound",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-003-B02",
+      "module": "Identity",
+      "action": "Bound delegated authority at its scope and expiry edges",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-003-N01",
+      "module": "Authorization",
+      "action": "Deny another owner's resource and hidden rows in lists, counts and exports",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-003-N02",
+      "module": "Authorization",
+      "action": "Refuse cross-site writes, unlisted origins, ended sessions and over-ceiling grants",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "Razor sign-in and form",
+      "uiDelivery": "planned-native",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-003-N03",
+      "module": "Authorization",
+      "action": "Refuse tenant overrides of deployment options and authority from features",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-003-P01",
+      "module": "Authorization",
+      "action": "Apply a grant equivalently at every declared entry point",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-003-P02",
+      "module": "Settings and features",
+      "action": "Resolve settings and features by declared precedence and invalidate on change",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-003-R01",
+      "module": "Authorization",
+      "action": "Reconcile in-flight work that races a permission revocation",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-003-R02",
+      "module": "Authorization",
+      "action": "Recover authorization decisions across a cache outage and restart",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-004-B01",
+      "module": "Tenancy",
+      "action": "Isolate context at worker reuse and asynchronous continuation edges",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-004-B02",
+      "module": "Tenancy",
+      "action": "Separate cache entries and unique keys that differ in one dimension",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-004-N01",
+      "module": "Tenancy",
+      "action": "Reject forged tenant candidates at ingress",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-004-N02",
+      "module": "Tenancy",
+      "action": "Refuse cross-tenant identifiers in data, references, imports and Files",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core",
+        "filesystem BLOB storage"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-004-N03",
+      "module": "Tenancy",
+      "action": "Deny host scope to tenant administrators and payload-only authority to workers",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-004-P01",
+      "module": "Tenancy",
+      "action": "Resolve and keep each tenant's context through ingress, workers and caches",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-004-R01",
+      "module": "Tenancy",
+      "action": "Recover queued events and jobs without crossing tenants",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-004-R02",
+      "module": "Tenancy",
+      "action": "Restore records and Files without cross-tenant exposure",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core",
+        "filesystem BLOB storage"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-005-B01",
+      "module": "Persistence",
+      "action": "Observe ambient and independent transaction boundaries",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-005-N01",
+      "module": "Persistence",
+      "action": "Reject stale writes and roll back a failed transaction",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-005-P01",
+      "module": "Persistence",
+      "action": "Commit a unit of work and apply soft-delete filters",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-005-R01",
+      "module": "Persistence",
+      "action": "Resume an interrupted migration without reseeding duplicates",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-006-B01",
+      "module": "Events",
+      "action": "Handle duplicate, late and reordered events explicitly",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-006-N01",
+      "module": "Events",
+      "action": "Keep an unsupported event from changing its projection",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-006-P01",
+      "module": "Events",
+      "action": "Deliver one committed integration intent",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-006-R01",
+      "module": "Events",
+      "action": "Reconcile every durable-delivery crash window",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-007-B01",
+      "module": "Background Jobs",
+      "action": "Resolve daylight-saving and misfire edges",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-007-N01",
+      "module": "Background Jobs",
+      "action": "Report exhausted retries and both cancellation modes",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-007-P01",
+      "module": "Background Jobs",
+      "action": "Execute a due job once with visible state",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-007-R01",
+      "module": "Background Jobs",
+      "action": "Recover a job after lease loss and restart",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-008-B01",
+      "module": "API and clients",
+      "action": "Respect compatibility and cancellation boundaries",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-008-N01",
+      "module": "API and clients",
+      "action": "Return actionable typed contract failures",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-008-P01",
+      "module": "API and clients",
+      "action": "Complete the same operation through advertised clients",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-008-R01",
+      "module": "API and clients",
+      "action": "Recover a client after an interrupted response",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-009-B01",
+      "module": "Files",
+      "action": "Enforce declared file size and cancellation boundaries",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core",
+        "filesystem BLOB storage"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-009-N01",
+      "module": "Files",
+      "action": "Reject an integrity mismatch without replacing stored bytes",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core",
+        "filesystem BLOB storage"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-009-P01",
+      "module": "Files",
+      "action": "Preserve logical file identity across immutable versions",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core",
+        "filesystem BLOB storage"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    },
+    {
+      "caseId": "AC-009-R01",
+      "module": "Files",
+      "action": "Reconcile interrupted filesystem writes and restore versions",
+      "status": "planned",
+      "providers": [
+        "PostgreSQL through EF Core",
+        "filesystem BLOB storage"
+      ],
+      "ui": "none",
+      "uiDelivery": "not-applicable",
+      "tenantPlacement": "shared-database",
+      "topologies": [
+        "single-host",
+        "single-host-container"
+      ],
+      "runtimeVersion": "10.0.14",
+      "evidenceRecords": []
+    }
+  ],
+  "supportingCapabilities": [
+    {
+      "capability": "Identity and sign-in fixtures",
+      "workOrder": "SEC-03",
+      "status": "planned",
+      "gap": "Same-tuple sign-in and session fixture evidence is required; AC-002 has no reference cases in this slice.",
+      "evidenceRecords": []
+    },
+    {
+      "capability": "Composition trust and ingress prerequisites",
+      "workOrder": "SEC-02",
+      "status": "planned",
+      "gap": "The four AC-001 cases do not cover untrusted selection. Their AC-031 dependency remains unmet.",
+      "evidenceRecords": []
+    },
+    {
+      "capability": "File eligibility and download prerequisites",
+      "workOrder": "SEC-06",
+      "status": "planned",
+      "gap": "File security dependencies remain unmet until the Builder supplies evidence for the exercised tuple.",
+      "evidenceRecords": []
+    },
+    {
+      "capability": "Privileged audit and redaction prerequisites",
+      "workOrder": "SEC-07",
+      "status": "planned",
+      "gap": "Same-tuple audit evidence is required; AC-012 has no reference cases in this slice.",
+      "evidenceRecords": []
+    },
+    {
+      "capability": "Correlation, diagnostics and host health",
+      "workOrder": "CODE-08",
+      "status": "planned",
+      "gap": "Operational evidence is still required; no reference AC-012 or AC-025 case is added by this plan.",
+      "evidenceRecords": []
+    },
+    {
+      "capability": "Team workspace host and container",
+      "workOrder": "CODE-09",
+      "status": "planned",
+      "gap": "The planned Modularyn.Tooling.Samples.TeamWorkspace application and its deployment evidence remain uncollected. CODE-10 owns its AC-001 real-provider acceptance methods on host and container; CODE-02 owns the existing unit methods.",
+      "evidenceRecords": []
+    }
+  ],
+  "unmetDependencies": [
+    {
+      "family": "AC-002",
+      "status": "unmet",
+      "caseIds": [
+        "AC-003-B01",
+        "AC-003-B02",
+        "AC-003-N02",
+        "AC-003-P01",
+        "AC-004-N01",
+        "AC-004-P01",
+        "AC-008-B01",
+        "AC-008-N01",
+        "AC-008-P01",
+        "AC-008-R01"
+      ],
+      "evidenceRecords": []
+    },
+    {
+      "family": "AC-003",
+      "status": "unmet",
+      "caseIds": [
+        "AC-004-B01",
+        "AC-004-B02",
+        "AC-004-N01",
+        "AC-004-N02",
+        "AC-004-N03",
+        "AC-004-P01",
+        "AC-004-R01",
+        "AC-004-R02",
+        "AC-005-B01",
+        "AC-005-N01",
+        "AC-005-P01",
+        "AC-005-R01",
+        "AC-007-B01",
+        "AC-007-N01",
+        "AC-007-P01",
+        "AC-007-R01",
+        "AC-008-B01",
+        "AC-008-N01",
+        "AC-008-P01",
+        "AC-008-R01",
+        "AC-009-B01",
+        "AC-009-N01",
+        "AC-009-P01",
+        "AC-009-R01"
+      ],
+      "evidenceRecords": []
+    },
+    {
+      "family": "AC-004",
+      "status": "unmet",
+      "caseIds": [
+        "AC-003-B01",
+        "AC-003-N01",
+        "AC-003-N03",
+        "AC-003-P01",
+        "AC-003-P02",
+        "AC-003-R01",
+        "AC-003-R02",
+        "AC-005-B01",
+        "AC-005-N01",
+        "AC-005-P01",
+        "AC-005-R01",
+        "AC-006-B01",
+        "AC-006-N01",
+        "AC-006-P01",
+        "AC-006-R01",
+        "AC-007-B01",
+        "AC-007-N01",
+        "AC-007-P01",
+        "AC-007-R01",
+        "AC-008-B01",
+        "AC-008-N01",
+        "AC-008-P01",
+        "AC-008-R01",
+        "AC-009-B01",
+        "AC-009-N01",
+        "AC-009-P01",
+        "AC-009-R01"
+      ],
+      "evidenceRecords": []
+    },
+    {
+      "family": "AC-012",
+      "status": "unmet",
+      "caseIds": [
+        "AC-004-N03",
+        "AC-006-B01",
+        "AC-006-N01",
+        "AC-006-P01",
+        "AC-006-R01",
+        "AC-007-B01",
+        "AC-007-N01",
+        "AC-007-P01",
+        "AC-007-R01"
+      ],
+      "evidenceRecords": []
+    },
+    {
+      "family": "AC-031",
+      "status": "unmet",
+      "caseIds": [
+        "AC-001-B01",
+        "AC-001-N01",
+        "AC-001-P01",
+        "AC-001-R01",
+        "AC-009-B01",
+        "AC-009-N01",
+        "AC-009-P01",
+        "AC-009-R01"
+      ],
+      "evidenceRecords": []
+    }
+  ],
+  "unsupportedSelections": [
+    {
+      "selection": "Other runtimes, languages, relational stores or MongoDB",
+      "status": "unsupported",
+      "reason": "This tuple exercises .NET 10, C# 14 and PostgreSQL/EF Core only; provider semantics need independent qualification."
+    },
+    {
+      "selection": "Angular, Blazor, mobile or another public renderer",
+      "status": "unsupported",
+      "reason": "Their native components and action ledgers are separate deliverables; React Admin and Razor evidence does not transfer."
+    },
+    {
+      "selection": "Database-per-tenant or hybrid tenant placement",
+      "status": "unsupported",
+      "reason": "Isolation, placement and migration behavior differ from the shared-database mode."
+    },
+    {
+      "selection": "Microservices, multi-host scale, Kubernetes or a separate authorization server",
+      "status": "unsupported",
+      "reason": "Distributed failure, networking and operational behavior are outside the initial single-host topology."
+    },
+    {
+      "selection": "Cloud/object BLOB stores and unspecified mail transports",
+      "status": "unsupported",
+      "reason": "Provider integrity, revocation, delivery and recovery behavior require their own tests."
+    },
+    {
+      "selection": "Unqualified catalog modules, low-code, AI tooling, payments or commerce",
+      "status": "unsupported",
+      "reason": "A baseline tuple does not certify every module; each release must name and qualify its included capability set."
+    },
+    {
+      "selection": "Universal compatibility or full CMS completion at G-02",
+      "status": "unsupported",
+      "reason": "G-02 establishes the foundation slice; later gates retain their own acceptance obligations."
+    },
+    {
+      "selection": "Windows hosts",
+      "status": "unqualified",
+      "reason": "Build and unit-test coverage does not qualify the real-provider host tuple."
+    },
+    {
+      "selection": "macOS hosts",
+      "status": "unqualified",
+      "reason": "Build and unit-test coverage does not qualify the real-provider host tuple."
+    }
+  ],
+  "limitations": [
+    "This skeleton records planned scope only; no case has execution evidence or a qualification claim.",
+    "Exact module, provider, operating-system and container versions require selection and verification before qualification.",
+    "AC-007 covers the existing reference scheduler obligation; it does not change the gate definition.",
+    "The complete reference AC-002 and AC-012 families remain deferred to G-03, and AC-031 to G-08. G-02 fixture obligations remain visible and unmet.",
+    "Canonical React Admin, full CMS and any substitute UI route require separate action-level evidence."
+  ]
+}
