@@ -80,12 +80,12 @@
   "tests": [
     {
       "project": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
-      "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.G02AC009Tests.AC009R01_InterruptedWritesAndRestorePreserveVersionIntegrity_Integration",
+      "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.G02AC009Tests.AC_009_R01_InterruptedWritesAndRestorePreserveVersionIntegrity_Integration",
       "layer": "real-provider-integration"
     },
     {
       "project": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
-      "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.G02AC009Tests.AC009R01_InterruptedWritesAndRestorePreserveVersionIntegrity_Recovery",
+      "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.G02AC009Tests.AC_009_R01_InterruptedWritesAndRestorePreserveVersionIntegrity_Recovery",
       "layer": "operational-recovery"
     }
   ],

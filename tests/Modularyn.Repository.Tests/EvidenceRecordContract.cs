@@ -62,10 +62,9 @@ internal static class EvidenceRecordContract
         {
             Require(String(record, "profile") == "reference" && Families.Contains(String(record, "family"), StringComparer.Ordinal), "G-02 evidence profile/family");
             var planned = Items(Parse(files[PlanPath]), "cases").Single(row => String(row, "caseId") == id);
-            Require(String(record, "workOrder") == String(planned, "workOrder"), "evidence work-order drift");
-            Require(tests.All(test => String(test, "project") == String(planned, "testProject"))
-                && tests.Select(test => (String(test, "name"), String(test, "layer"))).SequenceEqual(
-                    Items(planned, "plannedTests").Select(test => (String(test, "name"), String(test, "layer")))), "evidence planned-test drift");
+            Require(String(record, "workOrder") == ExpectedWorkOrder(source, "real-provider-integration"), "evidence work-order drift");
+            Require(tests.Select(test => (String(test, "project"), String(test, "name"), String(test, "layer"))).SequenceEqual(
+                Items(planned, "plannedTests").Select(test => (String(test, "project"), String(test, "name"), String(test, "layer")))), "evidence planned-test drift");
             Require(String(tuple.GetProperty("database"), "name") == "PostgreSQL"
                 && String(tuple, "tenancyMode") == "shared-database"
                 && String(tuple.GetProperty("deployment").GetProperty("operatingSystem"), "name") == "Linux"

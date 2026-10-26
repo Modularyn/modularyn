@@ -11,6 +11,12 @@ need their own measured evidence. PostgreSQL and filesystem selection does not
 qualify another provider. SDK and runtime pins describe intended execution, not
 an observed deployment.
 
+AC-001 covers the merged Modularity and Hosting packages. Its exact existing
+unit methods belong to CODE-02; CODE-10 owns the planned real-provider methods
+on CODE-09's `Modularyn.Tooling.Samples.TeamWorkspace` host and container. Test
+ownership and existence are read from each entry in the evidence plan. Existing
+source does not qualify an action or supply deployment evidence.
+
 `uiDelivery` distinguishes the planned native Razor sign-in and form surface
 from actions without a UI. It makes no canonical Admin or full CMS claim. A
 future substitute route or companion surface must be named explicitly and must

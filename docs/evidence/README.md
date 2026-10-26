@@ -1,8 +1,8 @@
 # Evidence records and the G-02 plan
 
 [g02-plan.json](g02-plan.json) assigns each of the 41 reference cases in AC-001
-and AC-003 through AC-009 once. It names the work order that writes the tests,
-their planned project and methods, the corpus layers and the required execution
+and AC-003 through AC-009 once. Each test names its writing work order,
+project, method and status, alongside the corpus layers and required execution
 surfaces. These are obligations to implement and verify. No case is recorded as
 executed or passed, and no requirement or capability becomes qualified here.
 
@@ -15,13 +15,35 @@ and layer; the methods together must cover all of that case's observations,
 including each row of an input or failure matrix. A method name alone cannot
 satisfy a case. Planned projects follow the [layout contract](../names-and-layout.md):
 one test project per tested package, with matching assembly and namespace.
-Naming these future test locations does not create or qualify the packages.
+Every method begins with its case id rendered with underscores, such as
+`AC_001_B01_`. The case's owners and projects are the distinct `workOrder` and
+`project` values in `plannedTests`; there is no single case-level owner or project.
+Multiple methods may cover one layer, and their combined layers must equal the
+corpus layers. A test's `status` is `planned` or `existing`: existing means its
+exact method is present in repository source, with no execution claim. Case
+status remains `planned`. Naming future locations creates no packages.
+
+AC-001's existing unit methods are in
+[Hosting's AcceptanceTests](../../tests/Modularyn.Framework.Hosting.Tests/AcceptanceTests.cs)
+and [Modularity's CompositionTests](../../tests/Modularyn.Framework.Modularity.Tests/CompositionTests.cs),
+as merged on main at `86c364a`. CODE-02 supplies those seven methods. CODE-09's
+sample application is planned as `Modularyn.Tooling.Samples.TeamWorkspace`, a
+Tooling sample host composed from foundation modules. Under the layout contract,
+its project is
+`src/Tooling/Modularyn.Tooling.Samples.TeamWorkspace/Modularyn.Tooling.Samples.TeamWorkspace.csproj`
+and its tests are in
+`tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests.csproj`.
+CODE-10 writes its four planned AC-001 integration methods. Each must run on
+both Linux x64 host and container deployments with real PostgreSQL and the
+filesystem store. Container execution is a deployment of the corpus's
+`real-provider-integration` layer, not an additional corpus layer.
 
 The work-order scopes distinguish the following responsibilities:
 
 | Cases | Test-writing order | Boundary of the assignment |
 |---|---|---|
-| AC-001 | CODE-02 | Graph selection and lifecycle; the corpus's trust prerequisite remains separate. |
+| AC-001 unit methods | CODE-02 | Existing graph selection and lifecycle methods in Hosting and Modularity; the corpus's trust prerequisite remains separate. |
+| AC-001 real-provider methods, on host and container | CODE-10 | Planned acceptance methods on CODE-09's sample application, including durable effects and cleanup. |
 | AC-003-P02 | CODE-04 | Settings and feature precedence and invalidation, using established security fixtures. |
 | AC-003-B02 | SEC-03 | The corpus's delegated identity, scope and expiry observations. |
 | AC-003-P01, B01, R01, R02 | SEC-05 | Grant application, freshness and revocation observations. |
@@ -38,7 +60,12 @@ Every SEC order is the Builder's. PLAN-10 selects dependencies and CI-01 supplie
 the real-provider execution environment; both are also the Builder's. CODE-09
 provides the team workspace, including the minimal Razor sign-in and form surface.
 CODE-10 assembles functional acceptance evidence without taking ownership of
-security tests. SEC-08 assembles adversarial and control evidence. This plan
+security tests. An evidence record's `workOrder` identifies the order responsible
+for assembling that case's evidence: CODE-10 for AC-001, and the table's assigned
+order for the other cases. Its `tests` retain the exact project, name and layer
+from every planned entry; test authorship is derived from those entries rather
+than reassigned to the record's assembling order. SEC-08 assembles adversarial
+and control evidence. This plan
 adds no security mechanism or case beyond the corpus.
 
 The `needs` flags describe the complete case qualification run. All cases use

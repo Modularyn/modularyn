@@ -99,16 +99,27 @@
       "family": "AC-001",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-02",
-      "testProject": "tests/Modularyn.Framework.Composition.Tests/Modularyn.Framework.Composition.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Composition.Tests.G02AC001Tests.AC001B01_CompatibilityEdgesHonorTheDeclaredRange_Unit",
-          "layer": "unit"
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.AcceptanceTests.AC_001_B01_Only_inclusive_boundary_versions_activate",
+          "layer": "unit",
+          "workOrder": "CODE-02",
+          "status": "existing"
         },
         {
-          "name": "Modularyn.Framework.Composition.Tests.G02AC001Tests.AC001B01_CompatibilityEdgesHonorTheDeclaredRange_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Modularity.Tests/Modularyn.Framework.Modularity.Tests.csproj",
+          "name": "Modularyn.Framework.Modularity.Tests.CompositionTests.AC_001_B01_Only_the_inclusive_edges_satisfy_the_same_constraint",
+          "layer": "unit",
+          "workOrder": "CODE-02",
+          "status": "existing"
+        },
+        {
+          "project": "tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests.csproj",
+          "name": "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_B01_CompatibilityEdgesHonorTheDeclaredRange_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "CODE-10",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -137,16 +148,27 @@
       "family": "AC-001",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-02",
-      "testProject": "tests/Modularyn.Framework.Composition.Tests/Modularyn.Framework.Composition.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Composition.Tests.G02AC001Tests.AC001N01_InvalidGraphsRefuseActivationWithDiagnostics_Unit",
-          "layer": "unit"
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.AcceptanceTests.AC_001_N01_Independently_mutated_control_graphs_are_refused_without_constructing_modules",
+          "layer": "unit",
+          "workOrder": "CODE-02",
+          "status": "existing"
         },
         {
-          "name": "Modularyn.Framework.Composition.Tests.G02AC001Tests.AC001N01_InvalidGraphsRefuseActivationWithDiagnostics_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Modularity.Tests/Modularyn.Framework.Modularity.Tests.csproj",
+          "name": "Modularyn.Framework.Modularity.Tests.CompositionTests.AC_001_N01_Names_the_complete_cycle_and_a_corrective_action",
+          "layer": "unit",
+          "workOrder": "CODE-02",
+          "status": "existing"
+        },
+        {
+          "project": "tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests.csproj",
+          "name": "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_N01_InvalidGraphsRefuseActivationWithDiagnostics_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "CODE-10",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -177,16 +199,27 @@
       "family": "AC-001",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-02",
-      "testProject": "tests/Modularyn.Framework.Composition.Tests/Modularyn.Framework.Composition.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Composition.Tests.G02AC001Tests.AC001P01_DependenciesInitializeOnceAndStopInReverseOrder_Unit",
-          "layer": "unit"
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.AcceptanceTests.AC_001_P01_Valid_graph_activates_each_module_once_and_shuts_down_in_reverse",
+          "layer": "unit",
+          "workOrder": "CODE-02",
+          "status": "existing"
         },
         {
-          "name": "Modularyn.Framework.Composition.Tests.G02AC001Tests.AC001P01_DependenciesInitializeOnceAndStopInReverseOrder_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Modularity.Tests/Modularyn.Framework.Modularity.Tests.csproj",
+          "name": "Modularyn.Framework.Modularity.Tests.CompositionTests.AC_001_P01_Resolves_each_exact_version_in_dependency_order",
+          "layer": "unit",
+          "workOrder": "CODE-02",
+          "status": "existing"
+        },
+        {
+          "project": "tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests.csproj",
+          "name": "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_P01_DependenciesInitializeOnceAndStopInReverseOrder_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "CODE-10",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -217,16 +250,20 @@
       "family": "AC-001",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-02",
-      "testProject": "tests/Modularyn.Framework.Composition.Tests/Modularyn.Framework.Composition.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Composition.Tests.G02AC001Tests.AC001R01_FailedInitializationCleansUpAndRecovers_Unit",
-          "layer": "unit"
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.AcceptanceTests.AC_001_R01_Recovery_cleans_every_initialized_component_and_preserves_single_durable_effects",
+          "layer": "unit",
+          "workOrder": "CODE-02",
+          "status": "existing"
         },
         {
-          "name": "Modularyn.Framework.Composition.Tests.G02AC001Tests.AC001R01_FailedInitializationCleansUpAndRecovers_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests.csproj",
+          "name": "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_R01_FailedInitializationCleansUpAndRecovers_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "CODE-10",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -257,16 +294,20 @@
       "family": "AC-003",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "SEC-05",
-      "testProject": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC003B01_RevocationMeetsFreshnessAndStopsSensitiveExports_Isolation",
-          "layer": "isolation"
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_B01_RevocationMeetsFreshnessAndStopsSensitiveExports_Isolation",
+          "layer": "isolation",
+          "workOrder": "SEC-05",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC003B01_RevocationMeetsFreshnessAndStopsSensitiveExports_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_B01_RevocationMeetsFreshnessAndStopsSensitiveExports_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "SEC-05",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -302,16 +343,20 @@
       "family": "AC-003",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "SEC-03",
-      "testProject": "tests/Modularyn.Modules.Identity.Application.Tests/Modularyn.Modules.Identity.Application.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Modules.Identity.Application.Tests.G02AC003Tests.AC003B02_DelegationHonorsScopeExpiryAndActorIdentity_Unit",
-          "layer": "unit"
+          "project": "tests/Modularyn.Modules.Identity.Application.Tests/Modularyn.Modules.Identity.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Application.Tests.G02AC003Tests.AC_003_B02_DelegationHonorsScopeExpiryAndActorIdentity_Unit",
+          "layer": "unit",
+          "workOrder": "SEC-03",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Modules.Identity.Application.Tests.G02AC003Tests.AC003B02_DelegationHonorsScopeExpiryAndActorIdentity_Isolation",
-          "layer": "isolation"
+          "project": "tests/Modularyn.Modules.Identity.Application.Tests/Modularyn.Modules.Identity.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Application.Tests.G02AC003Tests.AC_003_B02_DelegationHonorsScopeExpiryAndActorIdentity_Isolation",
+          "layer": "isolation",
+          "workOrder": "SEC-03",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -341,20 +386,27 @@
       "family": "AC-003",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "SEC-08",
-      "testProject": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC003N01_ResourceDenialsHideRowsAndProtectServerFields_Isolation",
-          "layer": "isolation"
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N01_ResourceDenialsHideRowsAndProtectServerFields_Isolation",
+          "layer": "isolation",
+          "workOrder": "SEC-08",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC003N01_ResourceDenialsHideRowsAndProtectServerFields_Contract",
-          "layer": "api-contract"
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N01_ResourceDenialsHideRowsAndProtectServerFields_Contract",
+          "layer": "api-contract",
+          "workOrder": "SEC-08",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC003N01_ResourceDenialsHideRowsAndProtectServerFields_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N01_ResourceDenialsHideRowsAndProtectServerFields_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "SEC-08",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -386,20 +438,27 @@
       "family": "AC-003",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "SEC-08",
-      "testProject": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC003N02_CrossSiteEndedSessionAndOverCeilingCallsAreRefused_Contract",
-          "layer": "api-contract"
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N02_CrossSiteEndedSessionAndOverCeilingCallsAreRefused_Contract",
+          "layer": "api-contract",
+          "workOrder": "SEC-08",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC003N02_CrossSiteEndedSessionAndOverCeilingCallsAreRefused_Browser",
-          "layer": "ui"
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N02_CrossSiteEndedSessionAndOverCeilingCallsAreRefused_Browser",
+          "layer": "ui",
+          "workOrder": "SEC-08",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC003N02_CrossSiteEndedSessionAndOverCeilingCallsAreRefused_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N02_CrossSiteEndedSessionAndOverCeilingCallsAreRefused_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "SEC-08",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -431,16 +490,20 @@
       "family": "AC-003",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "SEC-08",
-      "testProject": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC003N03_SettingsAndFeaturesCannotSupplyAuthority_Unit",
-          "layer": "unit"
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N03_SettingsAndFeaturesCannotSupplyAuthority_Unit",
+          "layer": "unit",
+          "workOrder": "SEC-08",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC003N03_SettingsAndFeaturesCannotSupplyAuthority_Contract",
-          "layer": "api-contract"
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N03_SettingsAndFeaturesCannotSupplyAuthority_Contract",
+          "layer": "api-contract",
+          "workOrder": "SEC-08",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -471,20 +534,27 @@
       "family": "AC-003",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "SEC-05",
-      "testProject": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC003P01_EveryEntryPointAppliesTheSameGrant_Unit",
-          "layer": "unit"
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_P01_EveryEntryPointAppliesTheSameGrant_Unit",
+          "layer": "unit",
+          "workOrder": "SEC-05",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC003P01_EveryEntryPointAppliesTheSameGrant_Contract",
-          "layer": "api-contract"
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_P01_EveryEntryPointAppliesTheSameGrant_Contract",
+          "layer": "api-contract",
+          "workOrder": "SEC-05",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC003P01_EveryEntryPointAppliesTheSameGrant_Isolation",
-          "layer": "isolation"
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_P01_EveryEntryPointAppliesTheSameGrant_Isolation",
+          "layer": "isolation",
+          "workOrder": "SEC-05",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -521,16 +591,20 @@
       "family": "AC-003",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-04",
-      "testProject": "tests/Modularyn.Framework.Settings.Tests/Modularyn.Framework.Settings.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Settings.Tests.G02AC003Tests.AC003P02_PrecedenceAndInvalidationKeepTenantValuesSeparate_Unit",
-          "layer": "unit"
+          "project": "tests/Modularyn.Framework.Settings.Tests/Modularyn.Framework.Settings.Tests.csproj",
+          "name": "Modularyn.Framework.Settings.Tests.G02AC003Tests.AC_003_P02_PrecedenceAndInvalidationKeepTenantValuesSeparate_Unit",
+          "layer": "unit",
+          "workOrder": "CODE-04",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Settings.Tests.G02AC003Tests.AC003P02_PrecedenceAndInvalidationKeepTenantValuesSeparate_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Settings.Tests/Modularyn.Framework.Settings.Tests.csproj",
+          "name": "Modularyn.Framework.Settings.Tests.G02AC003Tests.AC_003_P02_PrecedenceAndInvalidationKeepTenantValuesSeparate_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "CODE-04",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -561,20 +635,27 @@
       "family": "AC-003",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "SEC-05",
-      "testProject": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC003R01_RevokedWorkStopsAtTheNextAuthorityCheck_Isolation",
-          "layer": "isolation"
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_R01_RevokedWorkStopsAtTheNextAuthorityCheck_Isolation",
+          "layer": "isolation",
+          "workOrder": "SEC-05",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC003R01_RevokedWorkStopsAtTheNextAuthorityCheck_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_R01_RevokedWorkStopsAtTheNextAuthorityCheck_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "SEC-05",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC003R01_RevokedWorkStopsAtTheNextAuthorityCheck_Recovery",
-          "layer": "operational-recovery"
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_R01_RevokedWorkStopsAtTheNextAuthorityCheck_Recovery",
+          "layer": "operational-recovery",
+          "workOrder": "SEC-05",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -606,20 +687,27 @@
       "family": "AC-003",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "SEC-05",
-      "testProject": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC003R02_CacheOutageAndRestartKeepCurrentAuthorization_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_R02_CacheOutageAndRestartKeepCurrentAuthorization_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "SEC-05",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC003R02_CacheOutageAndRestartKeepCurrentAuthorization_Isolation",
-          "layer": "isolation"
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_R02_CacheOutageAndRestartKeepCurrentAuthorization_Isolation",
+          "layer": "isolation",
+          "workOrder": "SEC-05",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC003R02_CacheOutageAndRestartKeepCurrentAuthorization_Recovery",
-          "layer": "operational-recovery"
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_R02_CacheOutageAndRestartKeepCurrentAuthorization_Recovery",
+          "layer": "operational-recovery",
+          "workOrder": "SEC-05",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -651,16 +739,20 @@
       "family": "AC-004",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "SEC-04",
-      "testProject": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC004B01_WorkerReuseAndContinuationsKeepContextSeparate_Isolation",
-          "layer": "isolation"
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_B01_WorkerReuseAndContinuationsKeepContextSeparate_Isolation",
+          "layer": "isolation",
+          "workOrder": "SEC-04",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC004B01_WorkerReuseAndContinuationsKeepContextSeparate_Unit",
-          "layer": "unit"
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_B01_WorkerReuseAndContinuationsKeepContextSeparate_Unit",
+          "layer": "unit",
+          "workOrder": "SEC-04",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -691,16 +783,20 @@
       "family": "AC-004",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "SEC-08",
-      "testProject": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC004B02_CacheAndUniqueKeysKeepEveryScopeDimension_Isolation",
-          "layer": "isolation"
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_B02_CacheAndUniqueKeysKeepEveryScopeDimension_Isolation",
+          "layer": "isolation",
+          "workOrder": "SEC-08",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC004B02_CacheAndUniqueKeysKeepEveryScopeDimension_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_B02_CacheAndUniqueKeysKeepEveryScopeDimension_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "SEC-08",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -731,16 +827,20 @@
       "family": "AC-004",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "SEC-08",
-      "testProject": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC004N01_ForgedTenantAndOriginCandidatesAreRefused_Isolation",
-          "layer": "isolation"
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N01_ForgedTenantAndOriginCandidatesAreRefused_Isolation",
+          "layer": "isolation",
+          "workOrder": "SEC-08",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC004N01_ForgedTenantAndOriginCandidatesAreRefused_Contract",
-          "layer": "api-contract"
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N01_ForgedTenantAndOriginCandidatesAreRefused_Contract",
+          "layer": "api-contract",
+          "workOrder": "SEC-08",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -776,20 +876,27 @@
       "family": "AC-004",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "SEC-08",
-      "testProject": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC004N02_ForeignIdentifiersCannotReachDataImportsOrFiles_Isolation",
-          "layer": "isolation"
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N02_ForeignIdentifiersCannotReachDataImportsOrFiles_Isolation",
+          "layer": "isolation",
+          "workOrder": "SEC-08",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC004N02_ForeignIdentifiersCannotReachDataImportsOrFiles_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N02_ForeignIdentifiersCannotReachDataImportsOrFiles_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "SEC-08",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC004N02_ForeignIdentifiersCannotReachDataImportsOrFiles_Contract",
-          "layer": "api-contract"
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N02_ForeignIdentifiersCannotReachDataImportsOrFiles_Contract",
+          "layer": "api-contract",
+          "workOrder": "SEC-08",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -822,16 +929,20 @@
       "family": "AC-004",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "SEC-08",
-      "testProject": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC004N03_HostAndWorkerAuthorityCannotComeFromPayloads_Isolation",
-          "layer": "isolation"
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N03_HostAndWorkerAuthorityCannotComeFromPayloads_Isolation",
+          "layer": "isolation",
+          "workOrder": "SEC-08",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC004N03_HostAndWorkerAuthorityCannotComeFromPayloads_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N03_HostAndWorkerAuthorityCannotComeFromPayloads_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "SEC-08",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -868,16 +979,20 @@
       "family": "AC-004",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "SEC-04",
-      "testProject": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC004P01_IngressWorkersAndCachesKeepValidatedTenantContext_Isolation",
-          "layer": "isolation"
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_P01_IngressWorkersAndCachesKeepValidatedTenantContext_Isolation",
+          "layer": "isolation",
+          "workOrder": "SEC-04",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC004P01_IngressWorkersAndCachesKeepValidatedTenantContext_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_P01_IngressWorkersAndCachesKeepValidatedTenantContext_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "SEC-04",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -913,20 +1028,27 @@
       "family": "AC-004",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "SEC-04",
-      "testProject": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC004R01_RecoveredWorkRevalidatesTenantAndActor_Isolation",
-          "layer": "isolation"
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_R01_RecoveredWorkRevalidatesTenantAndActor_Isolation",
+          "layer": "isolation",
+          "workOrder": "SEC-04",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC004R01_RecoveredWorkRevalidatesTenantAndActor_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_R01_RecoveredWorkRevalidatesTenantAndActor_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "SEC-04",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC004R01_RecoveredWorkRevalidatesTenantAndActor_Recovery",
-          "layer": "operational-recovery"
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_R01_RecoveredWorkRevalidatesTenantAndActor_Recovery",
+          "layer": "operational-recovery",
+          "workOrder": "SEC-04",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -958,20 +1080,27 @@
       "family": "AC-004",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "SEC-08",
-      "testProject": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC004R02_RestorePreservesTenantOwnershipAndRefusals_Isolation",
-          "layer": "isolation"
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_R02_RestorePreservesTenantOwnershipAndRefusals_Isolation",
+          "layer": "isolation",
+          "workOrder": "SEC-08",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC004R02_RestorePreservesTenantOwnershipAndRefusals_Recovery",
-          "layer": "operational-recovery"
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_R02_RestorePreservesTenantOwnershipAndRefusals_Recovery",
+          "layer": "operational-recovery",
+          "workOrder": "SEC-08",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC004R02_RestorePreservesTenantOwnershipAndRefusals_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_R02_RestorePreservesTenantOwnershipAndRefusals_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "SEC-08",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -1003,12 +1132,13 @@
       "family": "AC-005",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-03",
-      "testProject": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC005B01_TransactionModesKeepTheirDeclaredCommitBoundaries_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC_005_B01_TransactionModesKeepTheirDeclaredCommitBoundaries_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "CODE-03",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -1043,12 +1173,13 @@
       "family": "AC-005",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-03",
-      "testProject": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC005N01_StaleWritesConflictAndFailedTransactionsRollBack_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC_005_N01_StaleWritesConflictAndFailedTransactionsRollBack_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "CODE-03",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -1083,12 +1214,13 @@
       "family": "AC-005",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-03",
-      "testProject": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC005P01_CommittedWorkAndSoftDeleteFiltersAgreeOnPostgreSql_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC_005_P01_CommittedWorkAndSoftDeleteFiltersAgreeOnPostgreSql_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "CODE-03",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -1123,20 +1255,27 @@
       "family": "AC-005",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-03",
-      "testProject": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC005R01_InterruptedMigrationResumesWithoutDuplicateSeeds_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC_005_R01_InterruptedMigrationResumesWithoutDuplicateSeeds_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "CODE-03",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC005R01_InterruptedMigrationResumesWithoutDuplicateSeeds_Migration",
-          "layer": "migration"
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC_005_R01_InterruptedMigrationResumesWithoutDuplicateSeeds_Migration",
+          "layer": "migration",
+          "workOrder": "CODE-03",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC005R01_InterruptedMigrationResumesWithoutDuplicateSeeds_Recovery",
-          "layer": "operational-recovery"
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC_005_R01_InterruptedMigrationResumesWithoutDuplicateSeeds_Recovery",
+          "layer": "operational-recovery",
+          "workOrder": "CODE-03",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -1171,16 +1310,20 @@
       "family": "AC-006",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-05",
-      "testProject": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC006B01_DuplicateAndReorderedEventsKeepProjectionVersion_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_B01_DuplicateAndReorderedEventsKeepProjectionVersion_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "CODE-05",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC006B01_DuplicateAndReorderedEventsKeepProjectionVersion_Contract",
-          "layer": "api-contract"
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_B01_DuplicateAndReorderedEventsKeepProjectionVersion_Contract",
+          "layer": "api-contract",
+          "workOrder": "CODE-05",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -1217,16 +1360,20 @@
       "family": "AC-006",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-05",
-      "testProject": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC006N01_UnsupportedEventsRemainVisibleWithoutMutation_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_N01_UnsupportedEventsRemainVisibleWithoutMutation_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "CODE-05",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC006N01_UnsupportedEventsRemainVisibleWithoutMutation_Contract",
-          "layer": "api-contract"
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_N01_UnsupportedEventsRemainVisibleWithoutMutation_Contract",
+          "layer": "api-contract",
+          "workOrder": "CODE-05",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -1262,16 +1409,20 @@
       "family": "AC-006",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-05",
-      "testProject": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC006P01_CommittedIntentProducesOneProjectionEffect_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_P01_CommittedIntentProducesOneProjectionEffect_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "CODE-05",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC006P01_CommittedIntentProducesOneProjectionEffect_Contract",
-          "layer": "api-contract"
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_P01_CommittedIntentProducesOneProjectionEffect_Contract",
+          "layer": "api-contract",
+          "workOrder": "CODE-05",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -1307,20 +1458,27 @@
       "family": "AC-006",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-05",
-      "testProject": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC006R01_AllFiveCrashWindowsReconcileCommittedIntent_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_R01_AllFiveCrashWindowsReconcileCommittedIntent_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "CODE-05",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC006R01_AllFiveCrashWindowsReconcileCommittedIntent_Contract",
-          "layer": "api-contract"
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_R01_AllFiveCrashWindowsReconcileCommittedIntent_Contract",
+          "layer": "api-contract",
+          "workOrder": "CODE-05",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC006R01_AllFiveCrashWindowsReconcileCommittedIntent_Recovery",
-          "layer": "operational-recovery"
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_R01_AllFiveCrashWindowsReconcileCommittedIntent_Recovery",
+          "layer": "operational-recovery",
+          "workOrder": "CODE-05",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -1356,16 +1514,20 @@
       "family": "AC-007",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-05",
-      "testProject": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC007B01_ScheduleEdgesAndMisfiresFollowDeclaredPolicy_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
+          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC_007_B01_ScheduleEdgesAndMisfiresFollowDeclaredPolicy_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "CODE-05",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC007B01_ScheduleEdgesAndMisfiresFollowDeclaredPolicy_Recovery",
-          "layer": "operational-recovery"
+          "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
+          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC_007_B01_ScheduleEdgesAndMisfiresFollowDeclaredPolicy_Recovery",
+          "layer": "operational-recovery",
+          "workOrder": "CODE-05",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -1405,16 +1567,20 @@
       "family": "AC-007",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-05",
-      "testProject": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC007N01_RetryExhaustionAndCancellationHaveDistinctOutcomes_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
+          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC_007_N01_RetryExhaustionAndCancellationHaveDistinctOutcomes_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "CODE-05",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC007N01_RetryExhaustionAndCancellationHaveDistinctOutcomes_Recovery",
-          "layer": "operational-recovery"
+          "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
+          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC_007_N01_RetryExhaustionAndCancellationHaveDistinctOutcomes_Recovery",
+          "layer": "operational-recovery",
+          "workOrder": "CODE-05",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -1454,16 +1620,20 @@
       "family": "AC-007",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-05",
-      "testProject": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC007P01_DueJobRunsOnceWithVisibleState_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
+          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC_007_P01_DueJobRunsOnceWithVisibleState_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "CODE-05",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC007P01_DueJobRunsOnceWithVisibleState_Recovery",
-          "layer": "operational-recovery"
+          "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
+          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC_007_P01_DueJobRunsOnceWithVisibleState_Recovery",
+          "layer": "operational-recovery",
+          "workOrder": "CODE-05",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -1504,16 +1674,20 @@
       "family": "AC-007",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-05",
-      "testProject": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC007R01_LeaseLossAndRestartLeaveOneCommittedEffect_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
+          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC_007_R01_LeaseLossAndRestartLeaveOneCommittedEffect_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "CODE-05",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC007R01_LeaseLossAndRestartLeaveOneCommittedEffect_Recovery",
-          "layer": "operational-recovery"
+          "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
+          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC_007_R01_LeaseLossAndRestartLeaveOneCommittedEffect_Recovery",
+          "layer": "operational-recovery",
+          "workOrder": "CODE-05",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -1553,12 +1727,13 @@
       "family": "AC-008",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-06",
-      "testProject": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC008B01_VersionAndCancellationEdgesPreserveAuthoritativeOutcome_Contract",
-          "layer": "api-contract"
+          "project": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
+          "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC_008_B01_VersionAndCancellationEdgesPreserveAuthoritativeOutcome_Contract",
+          "layer": "api-contract",
+          "workOrder": "CODE-06",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -1597,12 +1772,13 @@
       "family": "AC-008",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-06",
-      "testProject": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC008N01_EveryClientRetainsDistinctTypedFailures_Contract",
-          "layer": "api-contract"
+          "project": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
+          "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC_008_N01_EveryClientRetainsDistinctTypedFailures_Contract",
+          "layer": "api-contract",
+          "workOrder": "CODE-06",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -1641,12 +1817,13 @@
       "family": "AC-008",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-06",
-      "testProject": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC008P01_AdvertisedClientsAgreeWithTheEndpointContract_Contract",
-          "layer": "api-contract"
+          "project": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
+          "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC_008_P01_AdvertisedClientsAgreeWithTheEndpointContract_Contract",
+          "layer": "api-contract",
+          "workOrder": "CODE-06",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -1687,20 +1864,27 @@
       "family": "AC-008",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-06",
-      "testProject": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC008R01_InterruptedResponseReconcilesWithoutDuplicateCreation_Contract",
-          "layer": "api-contract"
+          "project": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
+          "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC_008_R01_InterruptedResponseReconcilesWithoutDuplicateCreation_Contract",
+          "layer": "api-contract",
+          "workOrder": "CODE-06",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC008R01_InterruptedResponseReconcilesWithoutDuplicateCreation_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
+          "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC_008_R01_InterruptedResponseReconcilesWithoutDuplicateCreation_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "CODE-06",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC008R01_InterruptedResponseReconcilesWithoutDuplicateCreation_Recovery",
-          "layer": "operational-recovery"
+          "project": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
+          "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC_008_R01_InterruptedResponseReconcilesWithoutDuplicateCreation_Recovery",
+          "layer": "operational-recovery",
+          "workOrder": "CODE-06",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -1740,16 +1924,20 @@
       "family": "AC-009",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "SEC-06",
-      "testProject": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Modules.Files.Application.Tests.G02AC009Tests.AC009B01_UploadSizeAndCancellationLeaveNoPartialVersion_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.G02AC009Tests.AC_009_B01_UploadSizeAndCancellationLeaveNoPartialVersion_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "SEC-06",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Modules.Files.Application.Tests.G02AC009Tests.AC009B01_UploadSizeAndCancellationLeaveNoPartialVersion_Contract",
-          "layer": "api-contract"
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.G02AC009Tests.AC_009_B01_UploadSizeAndCancellationLeaveNoPartialVersion_Contract",
+          "layer": "api-contract",
+          "workOrder": "SEC-06",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -1789,16 +1977,20 @@
       "family": "AC-009",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-07",
-      "testProject": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.G02AC009Tests.AC009N01_DigestMismatchPreservesThePriorVersion_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.G02AC009Tests.AC_009_N01_DigestMismatchPreservesThePriorVersion_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "CODE-07",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.G02AC009Tests.AC009N01_DigestMismatchPreservesThePriorVersion_Contract",
-          "layer": "api-contract"
+          "project": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.G02AC009Tests.AC_009_N01_DigestMismatchPreservesThePriorVersion_Contract",
+          "layer": "api-contract",
+          "workOrder": "CODE-07",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -1839,16 +2031,20 @@
       "family": "AC-009",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-07",
-      "testProject": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.G02AC009Tests.AC009P01_ImmutableVersionsRetainIdentityLengthAndDigest_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.G02AC009Tests.AC_009_P01_ImmutableVersionsRetainIdentityLengthAndDigest_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "CODE-07",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.G02AC009Tests.AC009P01_ImmutableVersionsRetainIdentityLengthAndDigest_Contract",
-          "layer": "api-contract"
+          "project": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.G02AC009Tests.AC_009_P01_ImmutableVersionsRetainIdentityLengthAndDigest_Contract",
+          "layer": "api-contract",
+          "workOrder": "CODE-07",
+          "status": "planned"
         }
       ],
       "layers": [
@@ -1888,16 +2084,20 @@
       "family": "AC-009",
       "profile": "reference",
       "status": "planned",
-      "workOrder": "CODE-07",
-      "testProject": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
       "plannedTests": [
         {
-          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.G02AC009Tests.AC009R01_InterruptedWritesAndRestorePreserveVersionIntegrity_Integration",
-          "layer": "real-provider-integration"
+          "project": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.G02AC009Tests.AC_009_R01_InterruptedWritesAndRestorePreserveVersionIntegrity_Integration",
+          "layer": "real-provider-integration",
+          "workOrder": "CODE-07",
+          "status": "planned"
         },
         {
-          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.G02AC009Tests.AC009R01_InterruptedWritesAndRestorePreserveVersionIntegrity_Recovery",
-          "layer": "operational-recovery"
+          "project": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.G02AC009Tests.AC_009_R01_InterruptedWritesAndRestorePreserveVersionIntegrity_Recovery",
+          "layer": "operational-recovery",
+          "workOrder": "CODE-07",
+          "status": "planned"
         }
       ],
       "layers": [

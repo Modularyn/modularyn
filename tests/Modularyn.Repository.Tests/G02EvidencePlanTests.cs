@@ -24,8 +24,19 @@ public sealed class G02EvidencePlanTests
     [InlineData("security-owner", "work-order ownership")]
     [InlineData("project", "planned test package drift")]
     [InlineData("test-name", "planned test must be fully qualified and name its case")]
+    [InlineData("compact-name", "planned test must be fully qualified and name its case")]
+    [InlineData("case-in-class", "planned test must be fully qualified and name its case")]
+    [InlineData("duplicate-test", "duplicate planned test name")]
+    [InlineData("missing-order", "fields must be exactly")]
+    [InlineData("missing-status", "fields must be exactly")]
+    [InlineData("test-status", "test status must be planned or existing")]
+    [InlineData("existing-name", "existing test must name a declared test method")]
+    [InlineData("existing-planned", "merged AC-001 unit tests must be marked existing")]
+    [InlineData("planned-existing", "existing test project must be present")]
+    [InlineData("case-order", "fields must be exactly")]
     [InlineData("layers", "corpus layers drift")]
     [InlineData("test-layer", "planned tests must cover corpus layers")]
+    [InlineData("missing-test-layer", "planned tests must cover corpus layers")]
     [InlineData("requirements", "corpus requirements drift")]
     [InlineData("database", "real database and container run required")]
     [InlineData("container", "real database and container run required")]
@@ -38,8 +49,10 @@ public sealed class G02EvidencePlanTests
     public void Plan_drift_is_rejected_for_its_specific_reason(string mutation, string diagnostic)
     {
         var plan = Read(G02EvidencePlanContract.PlanPath);
+        Assert.Empty(ValidatePlan(plan));
         var rows = plan["cases"]!.AsArray();
         var first = rows[0]!;
+        var test = first["plannedTests"]![0]!;
         switch (mutation)
         {
             case "missing-case": rows.RemoveAt(0); break;
@@ -47,13 +60,24 @@ public sealed class G02EvidencePlanTests
             case "foreign-case": first["caseId"] = "AC-001-B99"; break;
             case "family": first["family"] = "AC-005"; break;
             case "profile": first["profile"] = "website"; break;
-            case "unknown-order": first["workOrder"] = "CODE-99"; break;
-            case "wrong-scope": first["workOrder"] = "CODE-03"; break;
+            case "unknown-order": test["workOrder"] = "CODE-99"; break;
+            case "wrong-scope": test["workOrder"] = "CODE-03"; break;
             case "security-owner": plan["workOrders"]!["SEC-08"]!["owner"] = "Implementation contributor"; break;
-            case "project": first["testProject"] = "tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj"; break;
-            case "test-name": first["plannedTests"]![0]!["name"] = "ModuleStarts"; break;
+            case "project": test["project"] = "tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj"; break;
+            case "test-name": test["name"] = "ModuleStarts"; break;
+            case "compact-name": test["name"] = test["name"]!.GetValue<string>().Replace("AC_001_B01_", "AC001B01_", StringComparison.Ordinal); break;
+            case "case-in-class": test["name"] = "Modularyn.Framework.Hosting.Tests.AC_001_B01_AcceptanceTests.Only_inclusive_boundary_versions_activate"; break;
+            case "duplicate-test": first["plannedTests"]!.AsArray().Add(test.DeepClone()); break;
+            case "missing-order": test.AsObject().Remove("workOrder"); break;
+            case "missing-status": test.AsObject().Remove("status"); break;
+            case "test-status": test["status"] = "passed"; break;
+            case "existing-name": test["name"] = test["name"]!.GetValue<string>() + "_Renamed"; break;
+            case "existing-planned": test["status"] = "planned"; break;
+            case "planned-existing": first["plannedTests"]!.AsArray().Last()!["status"] = "existing"; break;
+            case "case-order": first["workOrder"] = "CODE-02"; break;
             case "layers": first["layers"]!.AsArray().RemoveAt(0); break;
-            case "test-layer": first["plannedTests"]![0]!["layer"] = "ui"; break;
+            case "test-layer": test["layer"] = "ui"; break;
+            case "missing-test-layer": first["plannedTests"]!.AsArray().RemoveAt(2); break;
             case "requirements": first["requirements"]!.AsArray().Clear(); break;
             case "database": first["needs"]!["realPostgreSql"] = false; break;
             case "container": first["needs"]!["containerDeployment"] = false; break;
@@ -72,20 +96,50 @@ public sealed class G02EvidencePlanTests
     }
 
     [Theory]
-    [InlineData("AC-003-N01", "SEC-05")]
-    [InlineData("AC-003-N02", "SEC-02")]
-    [InlineData("AC-003-N03", "CODE-04")]
-    [InlineData("AC-003-B02", "SEC-05")]
-    [InlineData("AC-003-P02", "SEC-08")]
-    [InlineData("AC-004-N02", "CODE-03")]
-    [InlineData("AC-004-B02", "SEC-04")]
-    [InlineData("AC-004-R02", "CODE-07")]
-    [InlineData("AC-009-B01", "CODE-07")]
-    public void Related_work_orders_cannot_take_a_case_outside_their_assigned_scope(string caseId, string wrongOrder)
+    [InlineData("AC-001-B01", "unit", "CODE-10")]
+    [InlineData("AC-001-P01", "real-provider-integration", "CODE-02")]
+    [InlineData("AC-003-N01", "isolation", "SEC-05")]
+    [InlineData("AC-003-N02", "ui", "SEC-02")]
+    [InlineData("AC-003-N03", "unit", "CODE-04")]
+    [InlineData("AC-003-B02", "unit", "SEC-05")]
+    [InlineData("AC-003-P02", "unit", "SEC-08")]
+    [InlineData("AC-004-N02", "isolation", "CODE-03")]
+    [InlineData("AC-004-B02", "isolation", "SEC-04")]
+    [InlineData("AC-004-R02", "isolation", "CODE-07")]
+    [InlineData("AC-009-B01", "real-provider-integration", "CODE-07")]
+    public void Related_work_orders_cannot_take_a_case_layer_outside_their_assigned_scope(string caseId, string layer, string wrongOrder)
     {
         var plan = Read(G02EvidencePlanContract.PlanPath);
-        Case(plan, caseId)["workOrder"] = wrongOrder;
+        Assert.Empty(ValidatePlan(plan));
+        Case(plan, caseId)["plannedTests"]!.AsArray().First(test => test!["layer"]!.GetValue<string>() == layer)!["workOrder"] = wrongOrder;
         AssertDiagnostic(ValidatePlan(plan), caseId + ": work order does not cover this case");
+    }
+
+    [Theory]
+    [InlineData("project", "existing test project must be present")]
+    [InlineData("source", "existing test must name a declared test method")]
+    [InlineData("namespace", "existing test must name a declared test method")]
+    [InlineData("class", "existing test must name a declared test method")]
+    [InlineData("method", "existing test must name a declared test method")]
+    [InlineData("attribute", "existing test must name a declared test method")]
+    public void Existing_test_references_must_resolve_to_the_declared_test(string mutation, string diagnostic)
+    {
+        var files = RepositoryFiles.Current.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+        const string project = "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj";
+        const string source = "tests/Modularyn.Framework.Hosting.Tests/AcceptanceTests.cs";
+        const string method = "AC_001_B01_Only_inclusive_boundary_versions_activate";
+        Assert.Empty(G02EvidencePlanContract.ValidatePlan(files[G02EvidencePlanContract.PlanPath], files));
+        switch (mutation)
+        {
+            case "project": files.Remove(project); break;
+            case "source": files.Remove(source); break;
+            case "namespace": files[source] = files[source].Replace("namespace Modularyn.Framework.Hosting.Tests;", "namespace Modularyn.Framework.Hosting.Tests.Moved;", StringComparison.Ordinal); break;
+            case "class": files[source] = files[source].Replace("class AcceptanceTests", "class RenamedAcceptanceTests", StringComparison.Ordinal); break;
+            case "method": files[source] = files[source].Replace(method, method + "_Renamed", StringComparison.Ordinal) + "\n// " + method + "\n"; break;
+            case "attribute": files[source] = files[source].Replace("[Theory(DisplayName = \"AC-001-B01 selected version boundaries at activation\")]", "", StringComparison.Ordinal); break;
+            default: throw new ArgumentOutOfRangeException(nameof(mutation));
+        }
+        AssertDiagnostic(G02EvidencePlanContract.ValidatePlan(files[G02EvidencePlanContract.PlanPath], files), diagnostic);
     }
 
     [Fact]

@@ -49,30 +49,37 @@ internal static class G02EvidencePlanContract
         var allNames = new HashSet<string>(StringComparer.Ordinal);
         foreach (var row in rows)
         {
-            Fields(row, "caseId", "family", "profile", "status", "workOrder", "testProject", "plannedTests", "layers", "requirements", "needs", "securityDependencies");
+            Fields(row, "caseId", "family", "profile", "status", "plannedTests", "layers", "requirements", "needs", "securityDependencies");
             var id = String(row, "caseId");
             var source = corpus[id];
             Require(String(row, "family") == String(source, "family") && String(row, "profile") == "reference", id + ": family/profile drift");
             Require(String(row, "status") == "planned", "case must remain planned");
-            var order = String(row, "workOrder");
-            Require(WorkOrders.Contains(order, StringComparer.Ordinal), "unknown G-02 work order");
-            Require(order == ExpectedWorkOrder(source), id + ": work order does not cover this case");
             EqualStrings(row, "layers", Strings(source, "layers"), id + ": corpus layers drift");
             EqualStrings(row, "requirements", Strings(source, "requirements"), id + ": corpus requirements drift");
             foreach (var requirement in Strings(row, "requirements"))
                 Require(register.TryGetValue(requirement, out var entry) && String(entry, "kind") == "requirement"
                     && Strings(entry, "acceptance").Contains(String(row, "family"), StringComparer.Ordinal), id + ": coverage-register disagreement");
 
-            var project = String(row, "testProject");
-            Require(project == ExpectedProject(source), id + ": planned test package drift");
             var tests = Items(row, "plannedTests").ToArray();
             Require(tests.Length > 0, id + ": planned tests required");
-            Require(tests.Select(test => String(test, "layer")).SequenceEqual(Strings(source, "layers"), StringComparer.Ordinal), id + ": planned tests must cover corpus layers");
+            Require(tests.Select(test => String(test, "layer")).ToHashSet(StringComparer.Ordinal)
+                .SetEquals(Strings(source, "layers")), id + ": planned tests must cover corpus layers");
             foreach (var test in tests)
             {
-                Fields(test, "name", "layer");
+                Fields(test, "project", "name", "layer", "workOrder", "status");
+                var layer = String(test, "layer");
+                var order = String(test, "workOrder");
+                Require(WorkOrders.Contains(order, StringComparer.Ordinal), "unknown G-02 work order");
+                Require(order == ExpectedWorkOrder(source, layer), id + ": work order does not cover this case layer");
+                var project = String(test, "project");
+                Require(ExpectedProjects(source, layer).Contains(project, StringComparer.Ordinal), id + ": planned test package drift");
                 CheckTestName(project, String(test, "name"), id);
                 Require(allNames.Add(String(test, "name")), "duplicate planned test name");
+                var status = String(test, "status");
+                Require(status is "planned" or "existing", "test status must be planned or existing");
+                Require(String(source, "family") != "AC-001" || layer != "unit" || status == "existing",
+                    "merged AC-001 unit tests must be marked existing");
+                if (status == "existing") CheckExistingTest(project, String(test, "name"), files);
             }
             var needs = row.GetProperty("needs");
             Fields(needs, "realPostgreSql", "filesystemStore", "browser", "containerDeployment");
@@ -171,9 +178,9 @@ internal static class G02EvidencePlanContract
             .ToDictionary(row => String(row, "id"), StringComparer.Ordinal);
 
     // These assignments preserve the reviewed G-02 work-order scope boundaries.
-    internal static string ExpectedWorkOrder(JsonElement source) => String(source, "family") switch
+    internal static string ExpectedWorkOrder(JsonElement source, string layer) => String(source, "family") switch
     {
-        "AC-001" => "CODE-02",
+        "AC-001" => layer == "unit" ? "CODE-02" : "CODE-10",
         "AC-003" => String(source, "id") switch
         {
             "AC-003-N01" or "AC-003-N02" or "AC-003-N03" => "SEC-08",
@@ -189,8 +196,12 @@ internal static class G02EvidencePlanContract
         _ => throw new ContractViolation("case outside G-02 scope")
     };
 
-    private static string ExpectedProject(JsonElement source)
+    private static string[] ExpectedProjects(JsonElement source, string layer)
     {
+        if (String(source, "family") == "AC-001")
+            return layer == "unit"
+                ? [TestProject("Modularyn.Framework.Hosting"), TestProject("Modularyn.Framework.Modularity")]
+                : [TestProject("Modularyn.Tooling.Samples.TeamWorkspace")];
         var package = String(source, "id") switch
         {
             "AC-003-B02" => "Modularyn.Modules.Identity.Application",
@@ -198,7 +209,6 @@ internal static class G02EvidencePlanContract
             "AC-009-B01" => "Modularyn.Modules.Files.Application",
             _ => String(source, "family") switch
             {
-                "AC-001" => "Modularyn.Framework.Composition",
                 "AC-003" => "Modularyn.Framework.Authorization",
                 "AC-004" => "Modularyn.Framework.Tenancy",
                 "AC-005" => "Modularyn.Framework.Persistence.EfCore",
@@ -209,8 +219,10 @@ internal static class G02EvidencePlanContract
                 _ => throw new ContractViolation("case outside G-02 scope")
             }
         };
-        return $"tests/{package}.Tests/{package}.Tests.csproj";
+        return [TestProject(package)];
     }
+
+    private static string TestProject(string package) => $"tests/{package}.Tests/{package}.Tests.csproj";
 
     internal static void CheckTestName(string project, string name, string caseId)
     {
@@ -221,7 +233,28 @@ internal static class G02EvidencePlanContract
             && (!NamesAndLayoutContract.RequiresModuleRole(package) || NamesAndLayoutContract.ModuleRole(package).Length > 0), "test project violates the layout contract");
         Require(name.StartsWith(assembly + ".", StringComparison.Ordinal)
             && Regex.IsMatch(name, @"^(?:[A-Za-z][A-Za-z0-9_]*\.)+[A-Za-z][A-Za-z0-9_]*(?![\s\S])", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1))
-            && name.Contains("." + caseId.Replace("-", "", StringComparison.Ordinal) + "_", StringComparison.Ordinal), "planned test must be fully qualified and name its case");
+            && name[(name.LastIndexOf('.') + 1)..].StartsWith(caseId.Replace("-", "_", StringComparison.Ordinal) + "_", StringComparison.Ordinal),
+            "planned test must be fully qualified and name its case");
+    }
+
+    private static void CheckExistingTest(string project, string name, IReadOnlyDictionary<string, string> files)
+    {
+        Require(files.ContainsKey(project), "existing test project must be present in the repository");
+        var methodSeparator = name.LastIndexOf('.');
+        var classSeparator = name.LastIndexOf('.', methodSeparator - 1);
+        var testNamespace = name[..classSeparator];
+        var testClass = name[(classSeparator + 1)..methodSeparator];
+        var method = name[(methodSeparator + 1)..];
+        var directory = project[..(project.LastIndexOf('/') + 1)];
+        // The merged test sources use file-scoped namespaces and top-level test classes.
+        var namespacePattern = @"(?m)^namespace " + Regex.Escape(testNamespace) + @";[ \t]*\r?$";
+        var classPattern = @"(?m)^public (?:sealed )?class " + Regex.Escape(testClass) + @"[ \t]*\r?\n\{";
+        var methodPattern = @"(?m)^    \[(?:Fact|Theory)(?:\([^\r\n]*\))?\][ \t]*\r?\n"
+            + @"(?:    \[[^\r\n]+\][ \t]*\r?\n)*    public (?:async )?(?:void|Task|ValueTask) "
+            + Regex.Escape(method) + @"\(";
+        Require(files.Any(file => file.Key.StartsWith(directory, StringComparison.Ordinal) && file.Key.EndsWith(".cs", StringComparison.Ordinal)
+            && new[] { namespacePattern, classPattern, methodPattern }.All(pattern => Regex.IsMatch(file.Value, pattern,
+                RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)))), "existing test must name a declared test method in its project and class");
     }
 
     internal static bool NeedsFilesystem(JsonElement source) => String(source, "family") is "AC-001" or "AC-009"

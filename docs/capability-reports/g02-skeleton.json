@@ -24,7 +24,7 @@
   "capabilities": [
     {
       "caseId": "AC-001-B01",
-      "module": "Composition",
+      "module": "Modularity and Hosting",
       "action": "Check the inclusive compatibility edges",
       "status": "planned",
       "providers": [
@@ -43,7 +43,7 @@
     },
     {
       "caseId": "AC-001-N01",
-      "module": "Composition",
+      "module": "Modularity and Hosting",
       "action": "Reject missing, cyclic and incompatible dependencies",
       "status": "planned",
       "providers": [
@@ -62,7 +62,7 @@
     },
     {
       "caseId": "AC-001-P01",
-      "module": "Composition",
+      "module": "Modularity and Hosting",
       "action": "Activate a valid dependency graph",
       "status": "planned",
       "providers": [
@@ -81,7 +81,7 @@
     },
     {
       "caseId": "AC-001-R01",
-      "module": "Composition",
+      "module": "Modularity and Hosting",
       "action": "Recover an interrupted module initialization",
       "status": "planned",
       "providers": [
@@ -811,7 +811,7 @@
       "capability": "Team workspace host and container",
       "workOrder": "CODE-09",
       "status": "planned",
-      "gap": "Application and deployment evidence remain uncollected.",
+      "gap": "The planned Modularyn.Tooling.Samples.TeamWorkspace application and its deployment evidence remain uncollected. CODE-10 owns its AC-001 real-provider acceptance methods on host and container; CODE-02 owns the existing unit methods.",
       "evidenceRecords": []
     }
   ],

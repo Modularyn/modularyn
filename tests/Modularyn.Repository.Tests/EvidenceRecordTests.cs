@@ -80,6 +80,9 @@ public sealed class EvidenceRecordTests
     [InlineData("corpus", "evidence corpus identity drift")]
     [InlineData("outcomes", "evidence must retain the corpus observations")]
     [InlineData("test", "planned test must be fully qualified and name its case")]
+    [InlineData("compact-name", "planned test must be fully qualified and name its case")]
+    [InlineData("work-order", "evidence work-order drift")]
+    [InlineData("test-mapping", "evidence planned-test drift")]
     [InlineData("documentation", "evidence documentation must resolve")]
     [InlineData("claim", "schema oneOf")]
     [InlineData("date", "schema oneOf")]
@@ -94,6 +97,7 @@ public sealed class EvidenceRecordTests
     public void Incomplete_or_misleading_records_are_rejected(string mutation, string diagnostic)
     {
         var record = Example();
+        Assert.Empty(Validate(record));
         switch (mutation)
         {
             case "owner": record["subjects"]![0]!["owner"] = "Composition"; break;
@@ -103,6 +107,9 @@ public sealed class EvidenceRecordTests
             case "corpus": record["corpus"]!["sha256"] = new string('1', 64); break;
             case "outcomes": record["expectedOutcomes"]![0] = "A different observation."; break;
             case "test": record["tests"]![0]!["name"] = "PersistenceWorks"; break;
+            case "compact-name": record["tests"]![0]!["name"] = record["tests"]![0]!["name"]!.GetValue<string>().Replace("AC_005_P01_", "AC005P01_", StringComparison.Ordinal); break;
+            case "work-order": record["workOrder"] = "CODE-10"; break;
+            case "test-mapping": record["tests"]![0]!["name"] = record["tests"]![0]!["name"]!.GetValue<string>() + "_Changed"; break;
             case "documentation": record["documentation"]![0] = "docs/evidence/absent.md"; break;
             case "claim": record["verification"]!["status"] = "passed"; break;
             case "date": record["verification"]!["date"] = "2026-10-26"; break;
@@ -117,6 +124,50 @@ public sealed class EvidenceRecordTests
             default: throw new ArgumentOutOfRangeException(nameof(mutation));
         }
         AssertDiagnostic(Validate(record), diagnostic);
+    }
+
+    [Fact]
+    public void Composition_evidence_retains_both_test_authors_and_all_projects_under_its_assembling_order()
+    {
+        // A transient plan shape: existing source and future methods supply no execution evidence.
+        var record = JsonNode.Parse(RepositoryFiles.Current[ContainerExample])!;
+        var plan = JsonNode.Parse(RepositoryFiles.Current[G02EvidencePlanContract.PlanPath])!;
+        var row = plan["cases"]!.AsArray().Single(item => item!["caseId"]!.GetValue<string>() == "AC-001-B01")!;
+        var corpus = JsonNode.Parse(RepositoryFiles.Current[AcceptanceCorpusContract.CorpusPath])!;
+        var source = corpus["cases"]!.AsArray().Single(item => item!["id"]!.GetValue<string>() == "AC-001-B01")!;
+        var register = JsonNode.Parse(RepositoryFiles.Current[G02EvidencePlanContract.RegisterPath])!;
+        var requirement = register["entries"]!.AsArray().Single(item => item!["id"]!.GetValue<string>() == "FND-001")!;
+        record["recordId"] = "urn:modularyn:metadata-test:composition-plan";
+        record["caseId"] = "AC-001-B01";
+        record["family"] = "AC-001";
+        record["workOrder"] = "CODE-10";
+        record["subjects"] = new JsonArray(new JsonObject
+        {
+            ["id"] = "FND-001", ["kind"] = "requirement", ["owner"] = requirement["owner"]!.DeepClone()
+        });
+        record["securityDependencies"] = row["securityDependencies"]!.DeepClone();
+        record["fixtureInputs"] = source["preconditions"]!.DeepClone();
+        record["expectedOutcomes"] = source["expectedOutcome"]!.DeepClone();
+        record["tests"] = new JsonArray(row["plannedTests"]!.AsArray().Select(test => (JsonNode)new JsonObject
+        {
+            ["project"] = test!["project"]!.DeepClone(), ["name"] = test!["name"]!.DeepClone(), ["layer"] = test!["layer"]!.DeepClone()
+        }).ToArray());
+        record["tuple"]!["moduleVersions"] = new JsonArray(row["plannedTests"]!.AsArray()
+            .Select(test => Path.GetFileNameWithoutExtension(test!["project"]!.GetValue<string>())[..^6]).Distinct(StringComparer.Ordinal)
+            .Select(package => (JsonNode)new JsonObject { ["id"] = package, ["version"] = null }).ToArray());
+        record["implementationArtifacts"] = new JsonArray(new JsonObject
+        {
+            ["location"] = "src/Tooling/Modularyn.Tooling.Samples.TeamWorkspace/Modularyn.Tooling.Samples.TeamWorkspace.csproj", ["sha256"] = null
+        });
+        record["documentation"] = new JsonArray("docs/evidence/README.md", "docs/acceptance/AC-001.md");
+        record["knownLimitations"] = new JsonArray("Unexecuted metadata fixture; versions, artifacts and results remain unmeasured.");
+        Assert.Empty(Validate(record));
+        record["workOrder"] = "CODE-02";
+        AssertDiagnostic(Validate(record), "evidence work-order drift");
+        record["workOrder"] = "CODE-10";
+        // Dropping one unit method still covers both layers, but loses a planned project and observation.
+        record["tests"]!.AsArray().RemoveAt(0);
+        AssertDiagnostic(Validate(record), "evidence planned-test drift");
     }
 
     [Theory]

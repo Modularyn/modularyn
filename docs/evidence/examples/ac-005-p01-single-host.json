@@ -75,7 +75,7 @@
   "tests": [
     {
       "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
-      "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC005P01_CommittedWorkAndSoftDeleteFiltersAgreeOnPostgreSql_Integration",
+      "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC_005_P01_CommittedWorkAndSoftDeleteFiltersAgreeOnPostgreSql_Integration",
       "layer": "real-provider-integration"
     }
   ],
