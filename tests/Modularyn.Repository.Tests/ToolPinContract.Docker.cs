@@ -1,147 +1,157 @@
-using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Modularyn.Repository.Tests;
 
-// A text check of the docker commands in workflows and CI scripts: every image that docker pull, run or create can
-// fetch is digest-pinned, or is a local tag that the same workflows build and that run or create never pulls, and every
-// build reads a tracked Dockerfile, which the Dockerfile rules check, from a literal context. docs/ci.md states its limits.
+// The docker commands of the workflows and CI scripts, as an exact allowlist. Every line in .github/workflows and
+// .github/scripts that names docker must equal, after trimming whitespace, one of the lines below for its file. Any
+// other docker command, continued line, or eval, bash -c or sh -c fails. A new command, such as the build of the
+// sample application that work order CODE-09 adds, joins the list through review. docs/ci.md states the limits.
 internal static partial class ToolPinContract
 {
-    private const int MaximumResolutionDepth = 5;
-    private static readonly Regex DockerCommand = new(
-        @"(?<![A-Za-z0-9_.-])docker\s+(?:(?:container|image|buildx)\s+)?(?<verb>run|create|pull|build)(?=\s|$)(?<rest>.*)$",
-        RegexOptions.CultureInvariant);
-    private static readonly Regex VariableReference = new(@"^\$(?:\{(?<name>[A-Za-z_][A-Za-z0-9_]*)\}|(?<name>[A-Za-z_][A-Za-z0-9_]*))$",
-        RegexOptions.CultureInvariant);
+    private const string Ci = CiPath;
+    private const string Database = DatabaseScriptPath;
 
-    private sealed record DockerToken(string Text, bool Dynamic);
+    public static readonly (string Path, string Line)[] DockerAllowlist =
+    [
+        (Ci, "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container"),
+        (Ci, "platform=\"$(docker image inspect --format '{{.Os}}/{{.Architecture}}' \"${FIXTURE_IMAGE}\")\""),
+        (Ci, "user=\"$(docker image inspect --format '{{.Config.User}}' \"${FIXTURE_IMAGE}\")\""),
+        (Ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\""),
+        (Ci, "base_layers=\"$(docker image inspect --format '{{json .RootFS.Layers}}' \"${ASPNET_IMAGE}\")\""),
+        (Ci, "fixture_layers=\"$(docker image inspect --format '{{json .RootFS.Layers}}' \"${FIXTURE_IMAGE}\")\""),
+        (Ci, "reported=\"$(docker run --rm --pull=never --platform=linux/amd64 --network=none \"${FIXTURE_IMAGE}\")\" || fail \"The fixture image did not run.\""),
+        (Ci, "echo \"Fixture image $(docker image inspect --format '{{.Id}}' \"${FIXTURE_IMAGE}\") on ${platform}, user ${user}, runtime ${runtime}, layers of ${ASPNET_IMAGE}\""),
+        (Database, "configured=\"$(docker inspect --format '{{.Config.Image}}' \"${POSTGRES_CONTAINER}\")\" || fail \"Cannot inspect the service.\""),
+        (Database, "image_id=\"$(docker inspect --format '{{.Image}}' \"${POSTGRES_CONTAINER}\")\" || fail \"Cannot inspect the service.\""),
+        (Database, "platform=\"$(docker image inspect --format '{{.Os}}/{{.Architecture}}' \"${image_id}\")\" || fail \"Cannot inspect ${image_id}.\""),
+        (Database, "repo_digests=\"$(docker image inspect --format '{{join .RepoDigests \" \"}}' \"${image_id}\")\" || fail \"Cannot inspect ${image_id}.\""),
+        (Database, "local admin=(docker exec -i --user postgres \"${POSTGRES_CONTAINER}\" psql --no-psqlrc --quiet --tuples-only --no-align --set=ON_ERROR_STOP=1 --dbname=postgres)"),
+        (Database, "local tcp=(docker exec -i -e PGPASSWORD --user postgres \"${POSTGRES_CONTAINER}\" psql --no-psqlrc --no-password --quiet --tuples-only --no-align --set=ON_ERROR_STOP=1)"),
+        (Database, "printf '%s\\n' \"${hba_rules}\" | docker exec -i --user postgres \"${POSTGRES_CONTAINER}\" sh -c 'cat > \"$1\"' sh \"${hba_file}\" || fail \"Cannot write ${hba_file}.\"")
+    ];
 
-    private sealed record DockerUse(string Path, string Verb, List<DockerToken> Options, DockerToken? Positional);
+    // The variables that the allowed lines name for images and build files, each defined once, as a literal, in the
+    // env of the job named, and assigned nowhere else.
+    public static readonly (string Job, string Variable)[] DockerVariables =
+    [
+        (ContainerJob, "FIXTURE_IMAGE"), (ContainerJob, "FIXTURE_DOCKERFILE"), (ContainerJob, "ASPNET_IMAGE"), (RealProviderJob, "POSTGRES_IMAGE")
+    ];
+
+    private static readonly Regex DockerWord = new(@"(?<![A-Za-z0-9_.-])docker(?![A-Za-z0-9_.-])",
+        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    private static readonly Regex ShellWrapper = new(@"(?<![A-Za-z0-9_.-])(?:eval|(?:ba|da|k|z)?sh\s+-[A-Za-z]*c)(?![A-Za-z0-9_.-])",
+        RegexOptions.CultureInvariant);
+    private static readonly Regex StandardInput = new(@"(?:^|\s)-(?:\s|$)", RegexOptions.CultureInvariant);
+    private static readonly Regex RemoteContext = new("(?:://|git@)", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    private static readonly Regex ArrayDefinition = new(@"^local (?<name>[a-z_]+)=\(docker ", RegexOptions.CultureInvariant);
+    private static readonly Regex LocalTag = new("^[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9.-]*$", RegexOptions.CultureInvariant);
+
+    public static bool InDockerScope(string path) => IsWorkflowPath(path) || path.StartsWith(".github/scripts/", StringComparison.Ordinal);
 
     public static List<string> DockerCommandErrors(IReadOnlyDictionary<string, string> files)
     {
         var errors = new List<string>();
-        var sources = files.Where(pair => IsWorkflowPath(pair.Key) || pair.Key.StartsWith(".github/scripts/", StringComparison.Ordinal))
-            .OrderBy(pair => pair.Key, StringComparer.Ordinal).ToList();
-        var workflows = sources.Where(pair => IsWorkflowPath(pair.Key)).Select(pair => pair.Value).ToList();
-        var uses = new List<DockerUse>();
-        foreach (var (path, text) in sources)
+        var used = new HashSet<(string, string)>();
+        var scoped = files.Where(pair => InDockerScope(pair.Key)).OrderBy(pair => pair.Key, StringComparer.Ordinal).ToList();
+        foreach (var (path, text) in scoped)
         {
-            foreach (var line in LogicalLines(text))
+            var lines = text.Replace("\r\n", "\n").Split('\n');
+            for (var index = 0; index < lines.Length; index++)
             {
-                foreach (Match command in DockerCommand.Matches(line))
+                var line = lines[index].Trim();
+                if (line.Length == 0 || line.StartsWith('#'))
                 {
-                    uses.Add(Parse(path, command.Groups["verb"].Value, command.Groups["rest"].Value));
-                }
-            }
-        }
-
-        // Variables resolve from the workflows' KEY: value lines and from literal shell assignments; in a CI script, a
-        // variable can come from any workflow step's environment, so every workflow's definitions count.
-        List<string>? Resolve(string path, DockerToken token, int depth = 0)
-        {
-            if (token.Dynamic || depth > MaximumResolutionDepth)
-            {
-                return null;
-            }
-
-            if (!token.Text.Contains('$', StringComparison.Ordinal))
-            {
-                return [token.Text];
-            }
-
-            var reference = VariableReference.Match(token.Text);
-            if (!reference.Success)
-            {
-                return null;
-            }
-
-            var name = reference.Groups["name"].Value;
-            var scope = IsWorkflowPath(path) ? [files[path]] : workflows.Append(files[path]).ToList();
-            if (scope.Any(text => text.Split('\n').Any(line => line.Contains("GITHUB_ENV", StringComparison.Ordinal)
-                    && line.Contains(name + "=", StringComparison.Ordinal))))
-            {
-                return null;
-            }
-
-            var definitions = scope.SelectMany(text => Values(text, name).Concat(Assignments(text, name))).ToList();
-            if (definitions.Count == 0)
-            {
-                return null;
-            }
-
-            var values = new List<string>();
-            foreach (var definition in definitions)
-            {
-                var resolved = Resolve(path, Token(definition), depth + 1);
-                if (resolved is null)
-                {
-                    return null;
+                    continue;
                 }
 
-                values.AddRange(resolved);
-            }
-
-            return values;
-        }
-
-        var localTags = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var use in uses.Where(use => use.Verb == "build"))
-        {
-            foreach (var tag in OptionValues(use, "tag", "t"))
-            {
-                foreach (var value in Resolve(use.Path, tag) ?? [])
+                var location = $"{path}:{index + 1}";
+                var allowed = DockerAllowlist.Contains((path, line));
+                if (!DockerWord.IsMatch(line))
                 {
-                    localTags.Add(value);
-                }
-            }
-        }
-
-        foreach (var use in uses)
-        {
-            if (use.Verb == "build")
-            {
-                var context = use.Positional is null ? null : Resolve(use.Path, use.Positional);
-                if (context is null || context.Any(value => value is "" or "-" || value.Contains("://", StringComparison.Ordinal)
-                        || value.Contains('$', StringComparison.Ordinal)))
-                {
-                    errors.Add($"{use.Path}: docker build must name a literal local context, not standard input, a URL or a computed value.");
-                }
-
-                var dockerfiles = OptionValues(use, "file").Select(file => Resolve(use.Path, file)).ToList();
-                if (dockerfiles.Count != 1 || dockerfiles[0] is not { Count: > 0 } paths
-                    || paths.Any(value => !files.ContainsKey(value) || !IsDockerfile(value)))
-                {
-                    errors.Add($"{use.Path}: docker build must name exactly one tracked Dockerfile with --file=, so the Dockerfile rules cover it.");
-                }
-
-                foreach (var option in use.Options.Where(option => option.Text.Contains("docker-image://", StringComparison.Ordinal)))
-                {
-                    var image = option.Text[(option.Text.IndexOf("docker-image://", StringComparison.Ordinal) + "docker-image://".Length)..];
-                    if (option.Dynamic || !IsPinnedImage(image))
+                    if (!allowed && ShellWrapper.IsMatch(line))
                     {
-                        errors.Add($"{use.Path}: docker build may take a docker-image:// context only as a digest-pinned reference.");
+                        errors.Add($"{location}: eval, bash -c and sh -c can hide a docker command, so CI files must not use them.");
                     }
+
+                    continue;
                 }
 
+                if (line.Contains("--build-context", StringComparison.Ordinal))
+                {
+                    errors.Add($"{location}: docker build --build-context is refused; a build reads only its tracked Dockerfile and context.");
+                }
+
+                if (line.Contains("docker-image://", StringComparison.OrdinalIgnoreCase))
+                {
+                    errors.Add($"{location}: docker-image:// is refused; an image enters a build only through a checked FROM.");
+                }
+                else if (RemoteContext.IsMatch(line))
+                {
+                    errors.Add($"{location}: a URL or git context is refused in a docker command.");
+                }
+
+                if (StandardInput.IsMatch(line))
+                {
+                    errors.Add($"{location}: standard input is refused as a docker context or Dockerfile.");
+                }
+
+                if (!allowed)
+                {
+                    errors.Add($"{location}: this docker command is not on the allowlist in ToolPinContract.Docker.cs; add it there "
+                        + "through review, as one complete line.");
+                    continue;
+                }
+
+                used.Add((path, line));
+                if (index > 0 && Continued.IsMatch(lines[index - 1]))
+                {
+                    errors.Add($"{location}: the line before an allowed docker command continues into it.");
+                }
+            }
+        }
+
+        foreach (var entry in DockerAllowlist.Where(entry => !used.Contains(entry)))
+        {
+            errors.Add($"{entry.Path}: the allowed docker command '{entry.Line}' is not used; remove it from the allowlist.");
+        }
+
+        // The arrays that the allowed lines define hold docker commands, so only those lines may assign them.
+        foreach (var (path, line) in DockerAllowlist)
+        {
+            var array = ArrayDefinition.Match(line);
+            if (!array.Success || !files.TryGetValue(path, out var text))
+            {
                 continue;
             }
 
-            var images = use.Positional is null ? null : Resolve(use.Path, use.Positional);
-            var neverPulls = OptionValues(use, "pull").Select(value => value.Text).SequenceEqual(["never"]);
-            if (images is null)
+            var name = Regex.Escape(array.Groups["name"].Value);
+            var assignments = text.Replace("\r\n", "\n").Split('\n').Select(candidate => candidate.Trim())
+                .Count(candidate => Regex.IsMatch(candidate, $@"(?<![A-Za-z0-9_]){name}(?:\[[^\]]*\])?\+?=", RegexOptions.CultureInvariant));
+            if (assignments != 1)
             {
-                errors.Add($"{use.Path}: docker {use.Verb} names an image that this check cannot resolve; give options as --option=value "
-                    + "and the image as a literal or a variable with literal definitions.");
-                continue;
+                errors.Add($"{path}: only its allowed docker line may assign {array.Groups["name"].Value}.");
+            }
+        }
+
+        var jobs = Jobs(files.GetValueOrDefault(CiPath, ""));
+        foreach (var (job, variable) in DockerVariables)
+        {
+            var definitions = scoped.SelectMany(pair => Values(pair.Value, variable)).ToList();
+            var inJob = jobs.TryGetValue(job, out var jobText) ? Values(jobText, variable) : [];
+            if (definitions.Count != 1 || inJob is not [var value] || value.Length == 0
+                || value.Any(character => char.IsWhiteSpace(character) || character is '$' or '"' or '\'' or '`'))
+            {
+                errors.Add($"{CiPath}: {variable} must be defined exactly once, as a literal, in the env of the {job} job.");
+            }
+            else if (variable == "FIXTURE_IMAGE" && !LocalTag.IsMatch(value))
+            {
+                errors.Add($"{CiPath}: FIXTURE_IMAGE must be a local tag such as name:tag, with no registry, so it never names a pullable image.");
             }
 
-            foreach (var image in images.Where(image => !IsPinnedImage(image)
-                         && !(use.Verb != "pull" && neverPulls && localTags.Contains(image))))
+            if (scoped.Any(pair => pair.Value.Split('\n').Any(candidate =>
+                    Regex.IsMatch(candidate, $@"(?<![A-Za-z0-9_]){variable}\+?=", RegexOptions.CultureInvariant))))
             {
-                errors.Add($"{use.Path}: docker {use.Verb} uses {image}, which is not digest-pinned"
-                    + (use.Verb == "pull" ? "." : " or a local tag that a workflow builds, used with --pull=never."));
+                errors.Add($"{CiPath}: {variable} may be set only by its env definition, not by a shell assignment or GITHUB_ENV.");
             }
         }
 
@@ -150,106 +160,4 @@ internal static partial class ToolPinContract
 
     private static bool IsWorkflowPath(string path) => path.StartsWith(".github/workflows/", StringComparison.Ordinal)
         && (path.EndsWith(".yml", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase));
-
-    // Options are --name=value or flags; the first other word is the image, or for a build its context. An option written
-    // as "--name value" therefore makes its value the positional word, which fails closed.
-    private static DockerUse Parse(string path, string verb, string rest)
-    {
-        var options = new List<DockerToken>();
-        DockerToken? positional = null;
-        foreach (var token in Tokens(rest))
-        {
-            if (token.Text.StartsWith('-'))
-            {
-                options.Add(token);
-                continue;
-            }
-
-            positional = token;
-            break;
-        }
-
-        return new DockerUse(path, verb, options, positional);
-    }
-
-    // The values of --name=value options, or -n=value for a one-letter name.
-    private static List<DockerToken> OptionValues(DockerUse use, params string[] names) =>
-        use.Options.Select(option => (option, at: option.Text.IndexOf('=', StringComparison.Ordinal)))
-            .Where(pair => pair.at > 0 && names.Any(name => pair.option.Text[..pair.at] == (name.Length == 1 ? "-" : "--") + name))
-            .Select(pair => new DockerToken(pair.option.Text[(pair.at + 1)..], pair.option.Dynamic)).ToList();
-
-    // Shell words up to the end of the command: whitespace separates words outside quotes, quotes are removed, and an
-    // unquoted operator or closing parenthesis ends the command. A word with a command substitution is dynamic.
-    private static List<DockerToken> Tokens(string text)
-    {
-        var tokens = new List<DockerToken>();
-        var word = new StringBuilder();
-        var dynamic = false;
-        var started = false;
-        char? quote = null;
-        for (var index = 0; index < text.Length; index++)
-        {
-            var character = text[index];
-            if (quote is not null)
-            {
-                if (character == quote)
-                {
-                    quote = null;
-                    continue;
-                }
-
-                dynamic |= quote == '"' && (character == '`' || character == '$' && index + 1 < text.Length && text[index + 1] == '(');
-                word.Append(character);
-                continue;
-            }
-
-            if (character is '"' or '\'')
-            {
-                quote = character;
-                started = true;
-                continue;
-            }
-
-            if (char.IsWhiteSpace(character) || character is '|' or '&' or ';' or '<' or '>' or ')' or '`')
-            {
-                if (started)
-                {
-                    tokens.Add(new DockerToken(word.ToString(), dynamic));
-                    word.Clear();
-                    dynamic = false;
-                    started = false;
-                }
-
-                if (char.IsWhiteSpace(character))
-                {
-                    continue;
-                }
-
-                break;
-            }
-
-            dynamic |= character == '$' && index + 1 < text.Length && text[index + 1] == '(';
-            word.Append(character);
-            started = true;
-        }
-
-        if (started)
-        {
-            tokens.Add(new DockerToken(word.ToString(), dynamic || quote is not null));
-        }
-
-        return tokens;
-    }
-
-    private static DockerToken Token(string definition)
-    {
-        var tokens = Tokens(definition);
-        return tokens.Count == 1 ? tokens[0] : new DockerToken(definition, Dynamic: true);
-    }
-
-    // Literal shell assignments of a variable, NAME=value, with an optional local, export or readonly.
-    private static IEnumerable<string> Assignments(string text, string name) =>
-        text.Replace("\r\n", "\n").Split('\n')
-            .Select(line => Regex.Match(line, $@"^\s*(?:(?:local|export|readonly)\s+)?{Regex.Escape(name)}=(?<value>.*?)\s*$", RegexOptions.CultureInvariant))
-            .Where(match => match.Success).Select(match => match.Groups["value"].Value);
 }

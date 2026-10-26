@@ -39,7 +39,9 @@ internal static partial class ToolPinContract
     private static readonly Regex InlineContainer = new(@"^\s*container\s*:\s*[^\s#]", RegexOptions.CultureInvariant);
     private static readonly Regex JobKey = new(@"^  (?<id>[A-Za-z_][A-Za-z0-9_-]*):\s*$", RegexOptions.CultureInvariant);
     private static readonly Regex BrowserInstall = new(@"\bplaywright\b.*\binstall\b", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
-    private static readonly Regex SyntaxDirective = new(@"^\s*#\s*syntax\s*=", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    private static readonly Regex ParserDirective = new(@"^\s*#\s*(?<name>[A-Za-z][A-Za-z0-9_-]*)\s*=", RegexOptions.CultureInvariant);
+    private static readonly string[] NamedDirectives = ["syntax", "escape", "check"];
+    private static readonly string[] RunnerFiles = ["GITHUB_ENV", "GITHUB_OUTPUT", "GITHUB_STATE", "GITHUB_PATH"];
     private static readonly Regex FromInstruction = new(@"^\s*from\s", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     private static readonly Regex FromOption = new(@"(?:^|[\s,=-])from=(?<source>[^,\s]+)", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     private static readonly Regex AddInstruction = new(@"^\s*(?:onbuild\s+)?add\s", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
@@ -166,18 +168,29 @@ internal static partial class ToolPinContract
         var stages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var lines = text.Replace("\r\n", "\n").Split('\n');
         var bases = 0;
+        var instructions = 0;
         for (var index = 0; index < lines.Length; index++)
         {
             var line = lines[index];
             var location = $"{path}:{index + 1}";
-            if (SyntaxDirective.IsMatch(line))
+            // Parser directives can select a frontend image or change the continuation character, so none is allowed:
+            // syntax, escape and check anywhere, and any "# name=" line before the first instruction.
+            var directive = ParserDirective.Match(line);
+            if (directive.Success && (instructions == 0
+                    || NamedDirectives.Contains(directive.Groups["name"].Value.ToLowerInvariant(), StringComparer.Ordinal)))
             {
-                errors.Add($"{location}: a syntax directive pulls a frontend image that nothing pins.");
+                errors.Add($"{location}: the parser directive {directive.Groups["name"].Value.ToLowerInvariant()} is refused; "
+                    + "directives can select a frontend image or change how lines continue.");
             }
 
             if (line.TrimStart().StartsWith('#'))
             {
                 continue;
+            }
+
+            if (line.Trim().Length > 0)
+            {
+                instructions++;
             }
 
             foreach (Match option in FromOption.Matches(line))
@@ -596,13 +609,17 @@ internal static partial class ToolPinContract
             errors.Add($"{DatabaseScriptPath}: must generate the password from /dev/urandom, mask it, and set {PostgreSqlTarget.Variable}.");
         }
 
-        if (script.Contains("GITHUB_ENV", StringComparison.Ordinal) || script.Contains("GITHUB_OUTPUT", StringComparison.Ordinal))
+        // Both scripts hold the credentials in their environment, so neither may write to a runner file that a later step reads.
+        var tests = files.GetValueOrDefault(TestsScriptPath, "");
+        foreach (var (path, text) in new[] { (DatabaseScriptPath, script), (TestsScriptPath, tests) })
         {
-            errors.Add($"{DatabaseScriptPath}: must pass {PostgreSqlTarget.Variable} only to its command, never to GITHUB_ENV or GITHUB_OUTPUT.");
+            if (RunnerFiles.Any(file => text.Contains(file, StringComparison.Ordinal)))
+            {
+                errors.Add($"{path}: must pass {PostgreSqlTarget.Variable} only to its command, never to {string.Join(", ", RunnerFiles)}.");
+            }
         }
 
         // dotnet test succeeds when its filter selects nothing, so the tests script counts the results itself.
-        var tests = files.GetValueOrDefault(TestsScriptPath, "");
         var runs = LogicalLines(tests).Where(line => line.Contains("dotnet test", StringComparison.Ordinal)).ToList();
         if (runs.Count == 0 || runs.Any(line => !line.TrimEnd().EndsWith(" " + RealProviderFilter, StringComparison.Ordinal)))
         {
@@ -612,7 +629,7 @@ internal static partial class ToolPinContract
         foreach (var required in new[]
                  {
                      "git ls-files -z -- 'tests/*/*.Tests.csproj'", "--logger \"trx;LogFileName=${name}.trx\"",
-                     "[ \"${passed}\" -eq \"${total}\" ]", "[ \"${passed}\" -ge 1 ]"
+                     "[ \"${passed}\" -eq \"${total}\" ]", "[ \"${passed}\" -ge 1 ]", "count_results \"${results}\" \"${names[@]}\""
                  })
         {
             if (!tests.Contains(required, StringComparison.Ordinal))

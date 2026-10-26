@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -313,6 +314,7 @@ public sealed class ToolPinTests
     [InlineData("# A comment that mentions from=elsewhere is ignored.\r\nfrom {0}\r\n")]
     [InlineData("FROM {0}\nADD --checksum=sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef https://example.com/tool.tar.gz /opt/tool.tar.gz\n")]
     [InlineData("FROM {0}\nADD app.tar.gz /app/\nadd --chown=1654 config /app/config\n")]
+    [InlineData("# Note: a comment with key: value is not a directive.\nFROM {0}\n# setting=value after the first instruction is only a comment\n")]
     public void Dockerfiles_on_the_pinned_base_and_its_stages_are_accepted(string dockerfile)
     {
         const string pinned = "mcr.microsoft.com/dotnet/aspnet:10.0.14-noble@sha256:de0ee358cdd672f7017a003bed21e9ac9ed48a27c922a59b18175b6e82fa7fee";
@@ -366,7 +368,11 @@ public sealed class ToolPinTests
     [InlineData("dockerfile-other-base", "or an earlier stage")]
     [InlineData("dockerfile-unpinned-base", "or an earlier stage")]
     [InlineData("dockerfile-arg-base", "or an earlier stage")]
-    [InlineData("dockerfile-syntax-directive", "a syntax directive pulls a frontend image")]
+    [InlineData("dockerfile-syntax-directive", "the parser directive syntax is refused")]
+    [InlineData("dockerfile-escape-directive", "the parser directive escape is refused")]
+    [InlineData("dockerfile-check-directive", "the parser directive check is refused")]
+    [InlineData("dockerfile-unknown-directive", "the parser directive future is refused")]
+    [InlineData("dockerfile-escape-after-from", "the parser directive escape is refused")]
     [InlineData("dockerfile-copy-from-image", "is not an earlier stage")]
     [InlineData("dockerfile-mount-from-image", "is not an earlier stage")]
     [InlineData("dockerfile-later-stage", "is not an earlier stage")]
@@ -383,6 +389,7 @@ public sealed class ToolPinTests
     [InlineData("dockerfile-add-variable", "ADD of a remote or variable source needs exactly one source and --checksum")]
     [InlineData("dockerfile-onbuild-add-url", "ADD of a remote or variable source needs exactly one source and --checksum")]
     [InlineData("dockerfile-add-continued", "keep each ADD instruction on one line")]
+    [InlineData("dockerfile-add-continued-space", "keep each ADD instruction on one line")]
     [InlineData("missing-real-provider-job", "the real-provider job is missing")]
     [InlineData("real-provider-on-windows", "real-provider job must run on ubuntu-latest")]
     [InlineData("service-host-trust", "must start with POSTGRES_HOST_AUTH_METHOD reject")]
@@ -392,7 +399,10 @@ public sealed class ToolPinTests
     [InlineData("database-step-other-command", "step must come after its Build step and run")]
     [InlineData("database-before-build", "step must come after its Build step and run")]
     [InlineData("database-in-another-step", "may run .github/scripts/postgresql-test-database.sh, so the credentials exist in no other step")]
-    [InlineData("database-to-github-env", "never to GITHUB_ENV or GITHUB_OUTPUT")]
+    [InlineData("database-to-github-env", "never to GITHUB_ENV, GITHUB_OUTPUT, GITHUB_STATE, GITHUB_PATH")]
+    [InlineData("database-to-github-state", "never to GITHUB_ENV, GITHUB_OUTPUT, GITHUB_STATE, GITHUB_PATH")]
+    [InlineData("database-to-github-path", "never to GITHUB_ENV, GITHUB_OUTPUT, GITHUB_STATE, GITHUB_PATH")]
+    [InlineData("tests-to-github-env", "never to GITHUB_ENV, GITHUB_OUTPUT, GITHUB_STATE, GITHUB_PATH")]
     [InlineData("unmasked-password", "must generate the password from /dev/urandom, mask it")]
     [InlineData("missing-database-script", "must generate the password from /dev/urandom, mask it")]
     [InlineData("real-provider-direct-test", "every dotnet test in the real-provider job must select its tests")]
@@ -414,20 +424,37 @@ public sealed class ToolPinTests
     [InlineData("container-other-fixture", "must build tests/Fixtures/container/Dockerfile")]
     [InlineData("playwright-install-step", "must not install Playwright browsers")]
     [InlineData("playwright-install-script", "must not install Playwright browsers")]
-    [InlineData("unpinned-docker-run", "uses docker.io/library/alpine:3.22, which is not digest-pinned")]
-    [InlineData("unpinned-docker-pull-script", "uses postgres:18, which is not digest-pinned")]
-    [InlineData("unpinned-container-run-script", "uses alpine, which is not digest-pinned")]
-    [InlineData("space-form-option", "uses none, which is not digest-pinned")]
-    [InlineData("local-tag-without-pull-never", "uses modularyn-fixture:ci, which is not digest-pinned or a local tag")]
-    [InlineData("pull-local-tag", "uses modularyn-fixture:ci, which is not digest-pinned.")]
-    [InlineData("unresolved-image-variable", "names an image that this check cannot resolve")]
-    [InlineData("computed-image", "names an image that this check cannot resolve")]
-    [InlineData("image-from-github-env", "names an image that this check cannot resolve")]
-    [InlineData("build-from-stdin", "must name exactly one tracked Dockerfile with --file=")]
-    [InlineData("build-untracked-dockerfile", "must name exactly one tracked Dockerfile with --file=")]
-    [InlineData("build-remote-context", "must name a literal local context")]
-    [InlineData("build-stdin-context", "must name a literal local context")]
-    [InlineData("build-image-context", "docker-image:// context only as a digest-pinned reference")]
+    [InlineData("build-space-form-stdin", "standard input is refused as a docker context or Dockerfile")]
+    [InlineData("build-space-form-context", "this docker command is not on the allowlist")]
+    [InlineData("build-context-url", "docker build --build-context is refused")]
+    [InlineData("build-context-git", "docker build --build-context is refused")]
+    [InlineData("build-context-pinned-image", "docker-image:// is refused")]
+    [InlineData("build-url-context", "a URL or git context is refused")]
+    [InlineData("build-git-context", "a URL or git context is refused")]
+    [InlineData("buildx-build", "this docker command is not on the allowlist")]
+    [InlineData("image-build", "this docker command is not on the allowlist")]
+    [InlineData("container-run", "this docker command is not on the allowlist")]
+    [InlineData("compose-script", "this docker command is not on the allowlist")]
+    [InlineData("service-script", "this docker command is not on the allowlist")]
+    [InlineData("unpinned-run", "this docker command is not on the allowlist")]
+    [InlineData("uppercase-docker", "this docker command is not on the allowlist")]
+    [InlineData("absolute-docker", "this docker command is not on the allowlist")]
+    [InlineData("docker-in-variable", "this docker command is not on the allowlist")]
+    [InlineData("allowed-line-in-other-file", "this docker command is not on the allowlist")]
+    [InlineData("continuation-into-allowed", "the line before an allowed docker command continues into it")]
+    [InlineData("split-allowed-line", "this docker command is not on the allowlist")]
+    [InlineData("appended-command", "this docker command is not on the allowlist")]
+    [InlineData("bash-c-docker", "this docker command is not on the allowlist")]
+    [InlineData("sh-c", "eval, bash -c and sh -c can hide a docker command")]
+    [InlineData("bash-lc", "eval, bash -c and sh -c can hide a docker command")]
+    [InlineData("eval", "eval, bash -c and sh -c can hide a docker command")]
+    [InlineData("redefined-array", "only its allowed docker line may assign admin")]
+    [InlineData("fixture-image-registry", "FIXTURE_IMAGE must be a local tag")]
+    [InlineData("fixture-image-assigned", "FIXTURE_IMAGE may be set only by its env definition")]
+    [InlineData("image-to-github-env", "ASPNET_IMAGE may be set only by its env definition")]
+    [InlineData("second-image-definition", "FIXTURE_IMAGE must be defined exactly once, as a literal")]
+    [InlineData("computed-dockerfile-env", "FIXTURE_DOCKERFILE must be defined exactly once, as a literal")]
+    [InlineData("unused-allowlist-entry", "is not used; remove it from the allowlist")]
     public void A_single_ci_pin_violation_is_rejected(string mutation, string expectedDiagnostic)
     {
         // Every mutation derives its values from the current files, so a later pin update cannot turn it into a no-op.
@@ -511,6 +538,12 @@ public sealed class ToolPinTests
                     StringComparison.Ordinal));
                 break;
             case "dockerfile-syntax-directive": files[FixturePath] = "# syntax=docker/dockerfile:1\n" + fixture; break;
+            case "dockerfile-escape-directive":
+                files[FixturePath] = "# escape=`\n" + fixture + "ADD `\n  https://example.com/tool.tar.gz /opt/tool.tar.gz\n";
+                break;
+            case "dockerfile-check-directive": files[FixturePath] = "# check=skip=all\n" + fixture; break;
+            case "dockerfile-unknown-directive": files[FixturePath] = "# future=value\n" + fixture; break;
+            case "dockerfile-escape-after-from": files[FixturePath] = fixture + "# escape=`\n"; break;
             case "dockerfile-copy-from-image": files[FixturePath] = fixture + "COPY --from=docker.io/library/busybox:1 /bin/busybox /busybox\n"; break;
             case "dockerfile-mount-from-image": files[FixturePath] = fixture + "RUN --mount=type=bind,from=alpine,target=/opt/alpine true\n"; break;
             case "dockerfile-later-stage": files[FixturePath] = fixture + "COPY --from=later /a /a\nFROM " + aspnetReference + " AS later\n"; break;
@@ -545,6 +578,7 @@ public sealed class ToolPinTests
             case "dockerfile-add-variable": files[FixturePath] = fixture + "ARG TOOL\nADD ${TOOL} /opt/tool\n"; break;
             case "dockerfile-onbuild-add-url": files[FixturePath] = fixture + "ONBUILD ADD https://example.com/tool.tar.gz /opt/\n"; break;
             case "dockerfile-add-continued": files[FixturePath] = fixture + "ADD \\\n  https://example.com/tool.tar.gz /opt/\n"; break;
+            case "dockerfile-add-continued-space": files[FixturePath] = fixture + "ADD \\  \n  https://example.com/tool.tar.gz /opt/\n"; break;
             case "missing-real-provider-job": files[CiPath] = ReplaceLine(ci, "  real-provider:", "  integration:"); break;
             case "real-provider-on-windows": files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, "runs-on: ubuntu-latest", "runs-on: windows-latest"); break;
             case "service-host-trust": files[CiPath] = ReplaceLine(ci, "          POSTGRES_HOST_AUTH_METHOD: reject", "          POSTGRES_HOST_AUTH_METHOD: trust"); break;
@@ -567,6 +601,16 @@ public sealed class ToolPinTests
             case "database-in-another-step":
                 files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, "      - name: Restore locked dependencies",
                     $"      - name: Prepare\n        run: bash {ScriptPath} ci true\n      - name: Restore locked dependencies");
+                break;
+            case "database-to-github-state":
+                files[ScriptPath] = ReplaceText(files[ScriptPath], "  local status\n", "  echo \"name=${name}\" >> \"${GITHUB_STATE}\"\n  local status\n");
+                break;
+            case "database-to-github-path":
+                files[ScriptPath] = ReplaceText(files[ScriptPath], "  local status\n", "  echo \"${name}\" >> \"${GITHUB_PATH}\"\n  local status\n");
+                break;
+            case "tests-to-github-env":
+                files[TestsScriptPath] = ReplaceText(files[TestsScriptPath], "  count_results \"${results}\" \"${names[@]}\"\n",
+                    "  echo \"results=${results}\" >> \"${GITHUB_ENV}\"\n  count_results \"${results}\" \"${names[@]}\"\n");
                 break;
             case "database-to-github-env":
                 files[ScriptPath] = Changed(files[ScriptPath], files[ScriptPath].Replace("  local status\n",
@@ -620,46 +664,71 @@ public sealed class ToolPinTests
                     "      - name: Install browsers\n        run: pwsh playwright.ps1 install --with-deps chromium\n      - name: Restore locked dependencies");
                 break;
             case "playwright-install-script": files[".github/scripts/browsers.sh"] = "#!/usr/bin/env bash\nnpx playwright install chromium\n"; break;
-            case "unpinned-docker-run":
-                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "          printf '%s\\n' \"${reported}\"\n",
-                    "          printf '%s\\n' \"${reported}\"\n          docker run --rm --pull=never docker.io/library/alpine:3.22 true\n");
+            case "build-space-form-stdin":
+                files[CiPath] = ReplaceText(ci, "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container",
+                    "docker build --platform=linux/amd64 --pull --no-cache --tag \"${FIXTURE_IMAGE}\" --file \"${FIXTURE_DOCKERFILE}\" -");
                 break;
-            case "unpinned-docker-pull-script": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\ndocker pull postgres:18\n"; break;
-            case "unpinned-container-run-script":
-                files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\nresult=\"$(docker container run --rm alpine true)\"\n";
+            case "build-space-form-context":
+                files[CiPath] = ReplaceText(ci, "--file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container", "--file \"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container");
                 break;
-            case "space-form-option": files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "--network=none", "--network none"); break;
-            case "local-tag-without-pull-never": files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "--pull=never ", ""); break;
-            case "pull-local-tag":
-                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "          printf '%s\\n' \"${reported}\"\n",
-                    "          printf '%s\\n' \"${reported}\"\n          docker pull \"${FIXTURE_IMAGE}\"\n");
+            case "build-context-url":
+                files[CiPath] = ReplaceText(ci, "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container", "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container --build-context=base=https://example.com/base.tar.gz");
                 break;
-            case "unresolved-image-variable":
-                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "          printf '%s\\n' \"${reported}\"\n",
-                    "          printf '%s\\n' \"${reported}\"\n          docker run --rm \"${OTHER_IMAGE}\" true\n");
+            case "build-context-git":
+                files[CiPath] = ReplaceText(ci, "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container", "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container --build-context=src=git@github.com:example/src.git");
                 break;
-            case "computed-image":
-                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "          printf '%s\\n' \"${reported}\"\n",
-                    "          printf '%s\\n' \"${reported}\"\n          docker run --rm \"$(cat image.txt)\" true\n");
+            case "build-context-pinned-image":
+                files[CiPath] = ReplaceText(ci, "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container", "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container --build-context=base=docker-image://" + aspnetReference);
                 break;
-            case "image-from-github-env":
-                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "          set -euo pipefail\n",
-                    "          set -euo pipefail\n          echo \"FIXTURE_IMAGE=docker.io/library/alpine:3\" >> \"${GITHUB_ENV}\"\n");
+            case "build-url-context":
+                files[CiPath] = ReplaceText(ci, "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container", "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container".Replace("tests/Fixtures/container", "https://github.com/Modularyn/modularyn.git"));
                 break;
-            case "build-from-stdin":
-                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "--file=\"${FIXTURE_DOCKERFILE}\"", "--file=-");
+            case "build-git-context":
+                files[CiPath] = ReplaceText(ci, "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container", "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container".Replace("tests/Fixtures/container", "git@github.com:Modularyn/modularyn.git"));
                 break;
-            case "build-untracked-dockerfile":
-                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "--file=\"${FIXTURE_DOCKERFILE}\"", "--file=tests/Fixtures/other/Dockerfile");
+            case "buildx-build": files[CiPath] = ReplaceText(ci, "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container", "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container".Replace("docker build", "docker buildx build")); break;
+            case "image-build": files[CiPath] = ReplaceText(ci, "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container", "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container".Replace("docker build", "docker image build")); break;
+            case "container-run": files[CiPath] = ReplaceText(ci, "$(docker run --rm", "$(docker container run --rm"); break;
+            case "compose-script": files[".github/scripts/services.sh"] = "#!/usr/bin/env bash\ndocker compose up --detach\n"; break;
+            case "service-script": files[".github/scripts/services.sh"] = "#!/usr/bin/env bash\ndocker service create --name cache redis\n"; break;
+            case "unpinned-run":
+                files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          docker run --rm docker.io/library/alpine:3.22 true\n");
                 break;
-            case "build-remote-context":
-                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "\" tests/Fixtures/container\n",
-                    "\" https://github.com/Modularyn/modularyn.git\n");
+            case "uppercase-docker": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\nDocker pull alpine\n"; break;
+            case "absolute-docker": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\n/usr/bin/docker pull alpine\n"; break;
+            case "docker-in-variable": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\ntool=docker\n\"${tool}\" pull alpine\n"; break;
+            case "allowed-line-in-other-file": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\ndocker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n"; break;
+            case "continuation-into-allowed":
+                files[CiPath] = ReplaceText(ci, "          docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "          env DOCKER_CONFIG=other \\\n          docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n");
                 break;
-            case "build-stdin-context": files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "\" tests/Fixtures/container\n", "\" -\n"); break;
-            case "build-image-context":
-                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "--no-cache ",
-                    "--no-cache --build-context=base=docker-image://docker.io/library/alpine:3 ");
+            case "split-allowed-line":
+                files[CiPath] = ReplaceText(ci, "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container", "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container".Replace(" --file=", " \\\n            --file="));
+                break;
+            case "appended-command": files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"; docker pull alpine\n"); break;
+            case "bash-c-docker": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\nbash -c 'docker pull alpine'\n"; break;
+            case "sh-c": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\nsh -c \"$(printf 'cmd')\"\n"; break;
+            case "bash-lc": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\nbash -lc \"${command}\"\n"; break;
+            case "eval": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\neval \"$(printf 'ZG9ja2VyIHB1bGwgYWxwaW5l' | base64 -d)\"\n"; break;
+            case "redefined-array":
+                files[ScriptPath] = ReplaceText(files[ScriptPath], "  local version\n", "  admin=(\"${admin[@]:0:1}\" run --rm alpine)\n  local version\n");
+                break;
+            case "fixture-image-registry":
+                files[CiPath] = ReplaceLine(ci, "      FIXTURE_IMAGE: modularyn-fixture:ci", "      FIXTURE_IMAGE: docker.io/library/alpine:3.22");
+                break;
+            case "fixture-image-assigned":
+                files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          FIXTURE_IMAGE=\"docker.io/library/alpine:3.22\"\n");
+                break;
+            case "image-to-github-env":
+                files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          echo \"ASPNET_IMAGE=docker.io/library/alpine:3\" >> \"${GITHUB_ENV}\"\n");
+                break;
+            case "second-image-definition":
+                files[CiPath] = ReplaceLine(ci, "      POSTGRESQL_VERSION: '18.6'", "      POSTGRESQL_VERSION: '18.6'\n      FIXTURE_IMAGE: other:ci");
+                break;
+            case "computed-dockerfile-env":
+                files[CiPath] = ReplaceLine(ci, "      FIXTURE_DOCKERFILE: " + FixturePath, "      FIXTURE_DOCKERFILE: ${{ vars.DOCKERFILE }}");
+                break;
+            case "unused-allowlist-entry":
+                files[CiPath] = ReplaceText(ci, "user=\"$(docker image inspect --format '{{.Config.User}}' \"${FIXTURE_IMAGE}\")\"", "user=\"1654\"");
                 break;
             default: throw new ArgumentOutOfRangeException(nameof(mutation), mutation, "Unknown mutation case.");
         }
@@ -678,24 +747,96 @@ public sealed class ToolPinTests
         Assert.Contains(ToolPinContract.Validate(files), error => error.Contains(expectedDiagnostic, StringComparison.Ordinal));
     }
 
-    [Theory]
-    [InlineData("docker pull --platform=linux/amd64 docker.io/library/postgres:18.6-trixie@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6")]
-    [InlineData("docker build --pull --tag=local-image:1 --file=deploy/Dockerfile deploy\ndocker run --rm --pull=never local-image:1")]
-    [InlineData("image=\"${PINNED}\"\nresult=\"$(docker container run --rm --network=none \"${image}\")\" || exit 1")]
-    [InlineData("docker image pull \\\n  \"${PINNED}\" > /dev/null")]
-    [InlineData("docker inspect --format '{{.Image}}' local-image:1\ndocker exec -i container psql")]
-    public void Docker_commands_with_pinned_or_built_images_are_accepted(string script)
+    [Fact]
+    public void Docker_commands_are_exactly_the_allowlisted_lines()
     {
-        var workflow = string.Join('\n', "env:",
-            "  PINNED: docker.io/library/postgres:18.6-trixie@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6",
-            "jobs:", "  job:", "    steps:", "      - name: Use images", "        run: |") + "\n"
-            + string.Join('\n', script.Split('\n').Select(line => "          " + line)) + "\n";
-        var files = new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            [".github/workflows/images.yml"] = workflow,
-            ["deploy/Dockerfile"] = "FROM docker.io/library/postgres:18.6-trixie@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6\n"
-        };
+        var files = RepositoryFiles.Current;
+        var found = files.Where(pair => ToolPinContract.InDockerScope(pair.Key)).SelectMany(pair => pair.Value.Replace("\r\n", "\n").Split('\n')
+                .Select(line => line.Trim()).Where(line => !line.StartsWith('#') && Regex.IsMatch(line, "(?<![A-Za-z0-9_.-])docker(?![A-Za-z0-9_.-])",
+                    RegexOptions.IgnoreCase)).Select(line => (pair.Key, line)))
+            .ToHashSet();
+        Assert.Equal(ToolPinContract.DockerAllowlist.ToHashSet(), found);
         Assert.Empty(ToolPinContract.DockerCommandErrors(files));
+        Assert.All(ToolPinContract.DockerAllowlist, entry => Assert.DoesNotContain("--build-context", entry.Line, StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("one-passed", true, "1 PostgreSQL tests passed across 1 test projects.")]
+    [InlineData("passed-across-projects", true, "2 PostgreSQL tests passed across 3 test projects.")]
+    [InlineData("zero", false, "No test with the trait Requires=PostgreSQL ran")]
+    [InlineData("skipped", false, "Only 0 of 1 PostgreSQL tests passed")]
+    [InlineData("failed", false, "Only 1 of 2 PostgreSQL tests passed")]
+    [InlineData("missing", false, "wrote no test results")]
+    [InlineData("no-counters", false, "has no result counters")]
+    public void Real_provider_counting_requires_a_passed_test_and_nothing_else(string scenario, bool passes, string expected)
+    {
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "The CI scripts run under bash: on Linux in CI and on Linux or macOS locally. "
+            + "No CI job runs them on Windows, so this test does not either.");
+        var directory = Directory.CreateTempSubdirectory("modularyn-trx-");
+        try
+        {
+            void Results(string name, int total, int passed, int failed, int notExecuted) =>
+                File.WriteAllText(Path.Combine(directory.FullName, name + ".trx"), string.Join('\n',
+                    "<?xml version=\"1.0\" encoding=\"utf-8\"?>",
+                    "<TestRun xmlns=\"http://microsoft.com/schemas/VisualStudio/TeamTest/2010\">",
+                    $"  <ResultSummary outcome=\"{(failed > 0 ? "Failed" : "Completed")}\">",
+                    $"    <Counters total=\"{total}\" executed=\"{total - notExecuted}\" passed=\"{passed}\" failed=\"{failed}\" error=\"0\" "
+                    + "timeout=\"0\" aborted=\"0\" inconclusive=\"0\" passedButRunAborted=\"0\" notRunnable=\"0\" "
+                    + $"notExecuted=\"{notExecuted}\" disconnected=\"0\" warning=\"0\" completed=\"0\" inProgress=\"0\" pending=\"0\" />",
+                    "  </ResultSummary>", "</TestRun>", ""));
+            string[] names = ["Alpha.Tests"];
+            switch (scenario)
+            {
+                case "one-passed": Results("Alpha.Tests", 1, 1, 0, 0); break;
+                case "passed-across-projects":
+                    names = ["Alpha.Tests", "Beta.Tests", "Gamma.Tests"];
+                    Results("Alpha.Tests", 0, 0, 0, 0);
+                    Results("Beta.Tests", 1, 1, 0, 0);
+                    Results("Gamma.Tests", 1, 1, 0, 0);
+                    break;
+                case "zero": Results("Alpha.Tests", 0, 0, 0, 0); break;
+                case "skipped": Results("Alpha.Tests", 1, 0, 0, 1); break;
+                case "failed": Results("Alpha.Tests", 2, 1, 1, 0); break;
+                case "missing":
+                    names = ["Alpha.Tests", "Beta.Tests"];
+                    Results("Alpha.Tests", 1, 1, 0, 0);
+                    break;
+                case "no-counters": File.WriteAllText(Path.Combine(directory.FullName, "Alpha.Tests.trx"), "<TestRun />\n"); break;
+                default: throw new ArgumentOutOfRangeException(nameof(scenario), scenario, "Unknown scenario.");
+            }
+
+            var (exitCode, output) = Bash(TestsScriptPath, ["count", directory.FullName, .. names]);
+            Assert.True(passes == (exitCode == 0), $"Scenario {scenario} exited with {exitCode}: {output}");
+            Assert.Contains(expected, output, StringComparison.Ordinal);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    // Runs a repository script with bash from the repository root, outside GitHub Actions' annotations.
+    private static (int ExitCode, string Output) Bash(string script, string[] arguments)
+    {
+        var start = new ProcessStartInfo("bash")
+        {
+            WorkingDirectory = RepositoryFiles.Root,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        start.ArgumentList.Add(Path.Combine(RepositoryFiles.Root, script));
+        foreach (var argument in arguments)
+        {
+            start.ArgumentList.Add(argument);
+        }
+
+        start.Environment.Remove("GITHUB_ACTIONS");
+        using var process = Process.Start(start) ?? throw new InvalidOperationException("Cannot start bash.");
+        var output = process.StandardOutput.ReadToEndAsync();
+        var error = process.StandardError.ReadToEndAsync();
+        Assert.True(process.WaitForExit(30_000), $"{script} did not finish within 30 seconds.");
+        return (process.ExitCode, output.GetAwaiter().GetResult() + error.GetAwaiter().GetResult());
     }
 
     private static string ReplaceText(string text, string value, string replacement)

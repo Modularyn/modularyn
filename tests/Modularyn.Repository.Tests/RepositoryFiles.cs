@@ -5,11 +5,15 @@ namespace Modularyn.Repository.Tests;
 
 internal static class RepositoryFiles
 {
+    private static readonly Lazy<string> RootDirectory = new(FindRoot);
     private static readonly Lazy<IReadOnlyDictionary<string, string>> Snapshot = new(Read);
 
     public static IReadOnlyDictionary<string, string> Current => Snapshot.Value;
 
-    private static Dictionary<string, string> Read()
+    // The repository root, the directory above the test assembly that holds Modularyn.slnx.
+    public static string Root => RootDirectory.Value;
+
+    private static string FindRoot()
     {
         var directory = new DirectoryInfo(Path.GetDirectoryName(typeof(RepositoryFiles).Assembly.Location)!);
         while (!File.Exists(Path.Combine(directory.FullName, "Modularyn.slnx")))
@@ -17,6 +21,13 @@ internal static class RepositoryFiles
             directory = directory.Parent
                 ?? throw new InvalidOperationException("Cannot find Modularyn.slnx above the test assembly.");
         }
+
+        return directory.FullName;
+    }
+
+    private static Dictionary<string, string> Read()
+    {
+        var directory = new DirectoryInfo(Root);
 
         var start = new ProcessStartInfo("git")
         {

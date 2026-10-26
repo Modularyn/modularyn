@@ -589,14 +589,20 @@ jobs:
             stages=" "
             number=0
             bases=0
+            instructions=0
             while IFS= read -r line || [ -n "${line}" ]; do
               number=$((number + 1))
               line="${line%$'\r'}"
               location="${file}:${number}"
-              if [[ "${line}" =~ ^[[:space:]]*#[[:space:]]*[Ss][Yy][Nn][Tt][Aa][Xx][[:space:]]*= ]]; then
-                fail "${location}: a syntax directive pulls a frontend image that nothing pins."
+              # Parser directives can select a frontend image or change the continuation character, so none is allowed.
+              if [[ "${line}" =~ ^[[:space:]]*#[[:space:]]*([A-Za-z][A-Za-z0-9_-]*)[[:space:]]*= ]]; then
+                directive="$(lower "${BASH_REMATCH[1]}")"
+                if [ "${instructions}" -eq 0 ] || [ "${directive}" = "syntax" ] || [ "${directive}" = "escape" ] || [ "${directive}" = "check" ]; then
+                  fail "${location}: the parser directive ${directive} is refused; directives can select a frontend image or change how lines continue."
+                fi
               fi
               [[ "${line}" =~ ^[[:space:]]*# ]] && continue
+              [[ "${line}" =~ ^[[:space:]]*$ ]] || instructions=$((instructions + 1))
               lowered="$(lower "${line}")"
               # Every --from and mount from= must name an earlier stage, never another image.
               rest="${lowered}"
@@ -659,22 +665,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker build --platform=linux/amd64 --pull --no-cache --tag="${FIXTURE_IMAGE}" \
-            --file="${FIXTURE_DOCKERFILE}" tests/Fixtures/container
+          docker build --platform=linux/amd64 --pull --no-cache --tag="${FIXTURE_IMAGE}" --file="${FIXTURE_DOCKERFILE}" tests/Fixtures/container
       - name: Check the fixture image
         shell: bash
         run: |
           set -euo pipefail
           fail() { echo "::error::$*"; exit 1; }
-          image="${FIXTURE_IMAGE}"
-          platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "${image}")"
+          platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "${FIXTURE_IMAGE}")"
           [ "${platform}" = "linux/amd64" ] || fail "The fixture image is ${platform}, not linux/amd64."
-          user="$(docker image inspect --format '{{.Config.User}}' "${image}")"
+          user="$(docker image inspect --format '{{.Config.User}}' "${FIXTURE_IMAGE}")"
           [[ "${user}" =~ ^[1-9][0-9]*$ ]] || fail "The fixture image must run as a numeric non-root user, not '${user}'."
           # The fixture adds no layer, so its layers must be exactly those of the pinned base.
           docker pull --platform=linux/amd64 "${ASPNET_IMAGE}" > /dev/null || fail "Pull of ${ASPNET_IMAGE} failed."
           base_layers="$(docker image inspect --format '{{json .RootFS.Layers}}' "${ASPNET_IMAGE}")"
-          fixture_layers="$(docker image inspect --format '{{json .RootFS.Layers}}' "${image}")"
+          fixture_layers="$(docker image inspect --format '{{json .RootFS.Layers}}' "${FIXTURE_IMAGE}")"
           [ "${fixture_layers}" = "${base_layers}" ] || fail "The fixture image's layers are not those of ${ASPNET_IMAGE}."
           # The runtime release is the version in the image tag, which the register aligns with the SDK pin.
           tag="${ASPNET_IMAGE#*:}"
@@ -685,4 +689,4 @@ jobs:
           listed="$(printf '%s\n' "${reported}" | awk '{ print $1 " " $2 }' | LC_ALL=C sort)"
           expected="$(printf '%s\n' "Microsoft.AspNetCore.App ${runtime}" "Microsoft.NETCore.App ${runtime}")"
           [ "${listed}" = "${expected}" ] || fail "The fixture image must report exactly the ASP.NET Core and .NET runtimes ${runtime}."
-          echo "Fixture image $(docker image inspect --format '{{.Id}}' "${image}") on ${platform}, user ${user}, runtime ${runtime}, layers of ${ASPNET_IMAGE}"
+          echo "Fixture image $(docker image inspect --format '{{.Id}}' "${FIXTURE_IMAGE}") on ${platform}, user ${user}, runtime ${runtime}, layers of ${ASPNET_IMAGE}"
