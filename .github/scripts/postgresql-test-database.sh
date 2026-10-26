@@ -2,14 +2,15 @@
 # Creates the per-run PostgreSQL test database that MODULARYN_TEST_POSTGRESQL names, the same way in
 # CI and in local runs (docs/ci.md, "Real-provider tests").
 #
-#   ci              The real-provider job: checks the PostgreSQL service container, creates the test
-#                   role and database in it, opens host connections for that role only, and appends
-#                   MODULARYN_TEST_POSTGRESQL to GITHUB_ENV.
+#   ci COMMAND...   The real-provider job: checks the PostgreSQL service container, creates the test
+#                   role and database in it, opens host connections for that role only, and runs
+#                   COMMAND with MODULARYN_TEST_POSTGRESQL set.
 #   run COMMAND...  A local run: creates the test role and database on the local PostgreSQL 18 server,
 #                   runs COMMAND with MODULARYN_TEST_POSTGRESQL set, then drops them.
 #
 # Each run generates its own role name, database name and password. The password is masked in CI and
-# never printed, and the statements that carry it are kept out of the server log.
+# never printed, and the statements that carry it are kept out of the server log. The connection string
+# exists only in COMMAND's environment: neither mode writes it to a file or to a later step.
 set -euo pipefail
 
 variable="MODULARYN_TEST_POSTGRESQL"
@@ -52,10 +53,10 @@ SQL
 }
 
 ci() {
+  [ "$#" -gt 0 ] || fail "Usage: $0 ci COMMAND [ARGUMENT...]"
   [ "${GITHUB_ACTIONS:-}" = "true" ] || fail "The ci mode runs only in GitHub Actions."
   [ "${RUNNER_OS:-}/${RUNNER_ARCH:-}" = "Linux/X64" ] \
     || fail "The real-provider job runs on Linux x64, not ${RUNNER_OS:-unknown} ${RUNNER_ARCH:-unknown}."
-  : "${GITHUB_ENV:?GITHUB_ENV is not set.}"
   [[ "${POSTGRES_CONTAINER:-}" =~ ^[0-9a-f]{12,64}$ ]] || fail "POSTGRES_CONTAINER must be the service container id."
   [[ "${POSTGRES_PORT:-}" =~ ^[1-9][0-9]{0,4}$ ]] || fail "POSTGRES_PORT must be the service's host port."
   [[ "${POSTGRES_IMAGE:-}" =~ ^docker\.io/library/postgres:[A-Za-z0-9._-]+@(sha256:[0-9a-f]{64})$ ]] \
@@ -129,9 +130,14 @@ ci() {
     fail "The superuser can still sign in over TCP."
   fi
 
-  printf '%s=Host=127.0.0.1;Port=%s;Database=%s;Username=%s;Password=%s\n' \
-    "${variable}" "${POSTGRES_PORT}" "${name}" "${name}" "${password}" >> "${GITHUB_ENV}"
-  echo "Created role and database ${name}; ${variable} names them on 127.0.0.1:${POSTGRES_PORT}."
+  echo "Created role and database ${name}; ${variable} names them on 127.0.0.1:${POSTGRES_PORT} for this command only."
+  export MODULARYN_TEST_POSTGRESQL="Host=127.0.0.1;Port=${POSTGRES_PORT};Database=${name};Username=${name};Password=${password}"
+  local status
+  set +e
+  "$@"
+  status=$?
+  set -e
+  return "${status}"
 }
 
 # Globals, because the EXIT trap that drops the role and database runs after run() has returned.
@@ -175,7 +181,7 @@ run() {
 }
 
 case "${1:-}" in
-  ci) shift; [ "$#" -eq 0 ] || fail "The ci mode takes no arguments."; ci ;;
+  ci) shift; ci "$@" ;;
   run) shift; run "$@" ;;
-  *) fail "Usage: $0 ci | $0 run COMMAND [ARGUMENT...]" ;;
+  *) fail "Usage: $0 ci COMMAND [ARGUMENT...] | $0 run COMMAND [ARGUMENT...]" ;;
 esac

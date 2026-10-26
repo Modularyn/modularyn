@@ -57,7 +57,7 @@ The tests require the pin file's version to equal `NODE_VERSION` and the registe
 
 ## Real-provider tests
 
-Tests that need PostgreSQL carry the xUnit trait `Requires=PostgreSQL`. The `real-provider` job runs exactly those, with `--filter "Requires=PostgreSQL"`, and every other job excludes them. A test with the trait fails, rather than skips, when no database is configured, so the job cannot pass without PostgreSQL. Today the only such test is the environment probe in [PostgreSqlEnvironmentTests](../tests/Modularyn.Repository.Tests/PostgreSqlEnvironmentTests.cs); the real-provider cases of the [G-02 evidence plan](evidence/g02-plan.json) join it as their work orders add them.
+Tests that need PostgreSQL carry the xUnit trait `Requires=PostgreSQL`. The `real-provider` job runs exactly those, with `--filter "Requires=PostgreSQL"`, and every other job excludes them. A test with the trait fails, rather than skips, when no database is configured, and the job fails unless at least one such test ran and every one passed, so it cannot pass without PostgreSQL. Today the only such test is the environment probe in [PostgreSqlEnvironmentTests](../tests/Modularyn.Repository.Tests/PostgreSqlEnvironmentTests.cs); the real-provider cases of the [G-02 evidence plan](evidence/g02-plan.json) join it as their work orders add them.
 
 ### The connection-string convention
 
@@ -69,16 +69,18 @@ The probe test signs in with the variable's credentials over TCP and checks that
 
 The `real-provider` job runs on `ubuntu-latest`, a Linux x64 runner, with a PostgreSQL service from `docker.io/library/postgres:18.6-trixie` at its pinned index digest, published only on the runner's `127.0.0.1:5432`. The service starts with `POSTGRES_HOST_AUTH_METHOD=reject`, so no host connection can sign in until the job has created its credentials, and a `pg_isready` health check gates the job's steps. The image needs a superuser password to initialize; the job gives it the run's public id, which never authenticates anything.
 
-After the SDK and Node.js steps, which are the same as `build-test`'s on Linux and which a test keeps identical, `bash .github/scripts/postgresql-test-database.sh ci`:
+After the SDK and Node.js steps, which are the same as `build-test`'s on Linux and which a test keeps identical, the job restores and builds. Its last step, `Test against PostgreSQL`, then runs `bash .github/scripts/postgresql-test-database.sh ci bash .github/scripts/real-provider-tests.sh`. The database script:
 
 1. fails unless the runner is Linux x64 and the service runs `POSTGRES_IMAGE`, the same reference as the service image, pulled by its index digest, on linux/amd64, and reports PostgreSQL `POSTGRESQL_VERSION`, 18.6;
 2. generates a role and database name and a 64-character hexadecimal password from `/dev/urandom` and masks the password in the log;
 3. creates the role and its database through the container's Unix socket, with statement logging off for that session, and removes the bootstrap superuser password;
 4. replaces the service's `pg_hba.conf` so that the socket admits only the container's postgres user and host connections admit only the test role, to its database, with SCRAM-SHA-256, then checks that the file has no errors, prints its rules to the log and reloads it;
 5. checks that the test role signs in over TCP and that the superuser cannot; and
-6. appends `MODULARYN_TEST_POSTGRESQL` for `127.0.0.1` and the service's port to `GITHUB_ENV`.
+6. runs its command with `MODULARYN_TEST_POSTGRESQL` set for `127.0.0.1` and the service's port, and returns the command's status.
 
-The job then restores, builds and runs the PostgreSQL tests with detailed console output, so the log records each test's observations, such as the probe's sign-in method and server version. The repository tests check the image, the server version and the test filters against the [dependency register](dependencies/README.md).
+The credentials therefore exist only in that step's process environment: no earlier step, file, `GITHUB_ENV` or later step receives them, and the restore and build run before they exist.
+
+The command is [real-provider-tests.sh](../.github/scripts/real-provider-tests.sh). `dotnet test` succeeds when its filter selects no test, so the script does not rely on its exit status alone. It runs `dotnet test --filter "Requires=PostgreSQL"` on every test project that `git ls-files` lists under `tests/`, one project after another and each with its own TRX results file, so no project's results can overwrite another's and the projects never share the database concurrently. It then reads each file's counters and fails unless at least one PostgreSQL test ran across all projects and every one that ran passed; a skipped test fails it too. Because it runs every test project, PostgreSQL tests added in any project count. Its console output is detailed, so the log records each test's observations, such as the probe's sign-in method and server version. The repository tests check the image, the server version, the step order, the test filters and these rules against the [dependency register](dependencies/README.md).
 
 ### Local runs
 
@@ -88,17 +90,34 @@ Local runs use a PostgreSQL 18 server listening on localhost, such as Homebrew's
 bash .github/scripts/postgresql-test-database.sh run dotnet test -c Release --no-build
 ```
 
-The script checks that the server is PostgreSQL 18, creates a role and database with generated names and password exactly as CI does, runs the command with `MODULARYN_TEST_POSTGRESQL` set, and drops both when the command ends, whatever its result. It prints neither the password nor the connection string. If the local server trusts loopback connections, as Homebrew's default configuration does, the script says so: that server does not check the generated password, so only CI exercises SCRAM sign-in. Without a local PostgreSQL, exclude the PostgreSQL tests explicitly with `--filter "Requires!=PostgreSQL"`; nothing skips them silently.
+To run exactly what the `real-provider` job runs, with its check that at least one PostgreSQL test passed, give the database script the tests script as its command:
+
+```sh
+bash .github/scripts/postgresql-test-database.sh run bash .github/scripts/real-provider-tests.sh
+```
+
+The database script checks that the server is PostgreSQL 18, creates a role and database with generated names and password exactly as CI does, runs the command with `MODULARYN_TEST_POSTGRESQL` set, and drops both when the command ends, whatever its result. It prints neither the password nor the connection string. If the local server trusts loopback connections, as Homebrew's default configuration does, the script says so: that server does not check the generated password, so only CI exercises SCRAM sign-in. Without a local PostgreSQL, exclude the PostgreSQL tests explicitly with `--filter "Requires!=PostgreSQL"`; nothing skips them silently.
 
 ## Container build
 
 The `container-build` job checks every Dockerfile in the repository, then builds [the container fixture](../tests/Fixtures/container/Dockerfile), the smallest image on the ASP.NET Core runtime base:
 
-1. It lists Dockerfiles with `git ls-files` (`*Dockerfile`, `*Dockerfile.*`, `*.dockerfile`, `*Containerfile` and `*Containerfile.*`) and fails if there is none. In each, every `FROM` must name `ASPNET_IMAGE`, which is `mcr.microsoft.com/dotnet/aspnet:10.0.14-noble` at its pinned index digest, or an earlier stage, and its only allowed option is `--platform=linux/amd64`. Every `--from` and mount `from=` must name an earlier stage or stage index, and no `syntax` directive may select a frontend image.
-2. It builds the fixture with `docker build --platform linux/amd64 --pull --no-cache`.
-3. It fails unless the image is linux/amd64, runs as a numeric non-root user, has exactly the layers of the pinned base, which it pulls by the same reference, and reports exactly the ASP.NET Core and .NET runtimes of the tag's version, 10.0.14, when run without a network.
+1. It lists every tracked file whose name, in any letter case, ends with `dockerfile` or `containerfile` or contains `dockerfile.` or `containerfile.`, and fails if there is none. In each, every `FROM` must name `ASPNET_IMAGE`, which is `mcr.microsoft.com/dotnet/aspnet:10.0.14-noble` at its pinned index digest, or an earlier stage, and its only allowed option is `--platform=linux/amd64`. Every `--from` and mount `from=` must name an earlier stage or stage index, and no `syntax` directive may select a frontend image. An `ADD`, or `ONBUILD ADD`, whose source is remote (`http://`, `https://`, `git://`, `ssh://` or `git@`) or a variable must name exactly one source and verify it with `--checksum=sha256:` and 64 lowercase hexadecimal characters, so a remote `ADD` without a pinned hash, and any remote git source, is refused. `FROM` and `ADD` instructions must each stay on one line.
+2. It builds the fixture with `docker build --platform=linux/amd64 --pull --no-cache`, under the local tag `FIXTURE_IMAGE`.
+3. It fails unless the image is linux/amd64, runs as a numeric non-root user, has exactly the layers of the pinned base, which it pulls by the same reference, and reports exactly the ASP.NET Core and .NET runtimes of the tag's version, 10.0.14, when run without a network and with `--pull=never`.
 
 The repository tests apply the same Dockerfile rules on every platform and require `ASPNET_IMAGE` to equal the register's reference. A build of the sample application therefore publishes it with the pinned SDK and copies the output into an image on that base, rather than building in an SDK image that nothing pins. Work order CODE-09 adds the sample application's Dockerfile, which the job's check already covers, and the step that builds it.
+
+### Images in docker commands
+
+The repository tests also check every `docker pull`, `docker run`, `docker create` and `docker build`, including their `docker container`, `docker image` and `docker buildx` forms, in the workflows and in `.github/scripts`:
+
+- The image that `pull`, `run` or `create` names must be a digest-pinned `<registry>/<repository>:<tag>@sha256:<index digest>`, or, for `run` and `create` only and with `--pull=never`, a local tag that a `docker build --tag=` in the workflows builds.
+- A `build` must name exactly one tracked Dockerfile with `--file=`, so the Dockerfile rules above cover it, and a literal local context, not standard input or a URL. A `docker-image://` build context must be digest-pinned.
+- Options must be written `--option=value`: the first word that is not an option is taken as the image, or for a build as the context, so an option written with a separate value fails the check rather than hiding the image.
+- An image or path given as a variable must resolve, through the workflows' `KEY: value` lines and literal shell assignments, to acceptable values only. A variable with a computed definition, one written to `GITHUB_ENV`, or no definition at all fails the check.
+
+This is a text check, and its limits are those of reading text. It sees only commands that appear literally as `docker` followed by one of those verbs, after joining continued lines and dropping comment lines. It does not see a command that a shell function, alias, `eval` or a variable assembles, images that other tools fetch, such as Podman, Buildah, `docker compose`, an action or a program like Testcontainers, or downloads by other means, such as `curl` in a `RUN` instruction. Its resolution of variables is an over-approximation within a workflow file: every definition anywhere in the file counts, and every one must be acceptable.
 
 ## Browsers
 
@@ -108,7 +127,7 @@ No workflow installs browsers. Playwright 1.64.1 downloads its browser builds wi
 
 The test assembly locates the repository by walking upward to `Modularyn.slnx`. The tests enforce central build settings and package versions, the SDK and Node.js pins and their archive hashes, the gitleaks digest, the image references of the workflows and Dockerfiles, the structure of the `real-provider` and `container-build` jobs, complete license text, portable text files, and the exact action allow list. Local checks include tracked files and untracked files that Git does not ignore. Generated build output and local coordination data are excluded through `.gitignore`.
 
-The convention validators also receive deliberately invalid content in memory. Those tests require each violation to be rejected, including project overrides, floating packages, incomplete license text, machine paths, workflow actions that are unpinned or absent from the allow list, tool hashes that are missing, malformed or out of step with `global.json` or the register, unpinned or unregistered images, Dockerfiles on another base, a PostgreSQL service that admits host connections before the job sets its credentials, diverged copies of the shared install steps, and browser installs. These cases do not write invalid files to the repository.
+The convention validators also receive deliberately invalid content in memory. Those tests require each violation to be rejected, including project overrides, floating packages, incomplete license text, machine paths, workflow actions that are unpinned or absent from the allow list, tool hashes that are missing, malformed or out of step with `global.json` or the register, unpinned or unregistered images, Dockerfiles on another base or with an unverified remote `ADD`, docker commands that use an unpinned image, a PostgreSQL service that admits host connections before the job sets its credentials, credentials that outlive the test step, a real-provider run that could pass with no PostgreSQL test, diverged copies of the shared install steps, and browser installs. These cases do not write invalid files to the repository.
 
 ## Dependency and action updates
 

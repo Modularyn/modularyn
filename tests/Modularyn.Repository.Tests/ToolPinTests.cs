@@ -15,6 +15,7 @@ public sealed class ToolPinTests
     private const string RegisterPath = DependencyRegister.RegisterPath;
     private const string NodePinPath = ToolPinContract.NodePinPath;
     private const string ScriptPath = ToolPinContract.DatabaseScriptPath;
+    private const string TestsScriptPath = ToolPinContract.TestsScriptPath;
     private const string FixturePath = ToolPinContract.FixtureDockerfile;
 
     [Fact]
@@ -27,7 +28,7 @@ public sealed class ToolPinTests
     public void Tool_pins_accept_platform_line_endings()
     {
         var files = RepositoryFiles.Current.ToDictionary();
-        foreach (var path in new[] { PinPath, CiPath, SecretScanPath, RegisterPath, "global.json", NodePinPath, ScriptPath, FixturePath })
+        foreach (var path in new[] { PinPath, CiPath, SecretScanPath, RegisterPath, "global.json", NodePinPath, ScriptPath, TestsScriptPath, FixturePath })
         {
             files[path] = files[path].Replace("\r\n", "\n").Replace("\n", "\r\n");
         }
@@ -310,6 +311,8 @@ public sealed class ToolPinTests
     [InlineData("FROM {0} AS base\nFROM base AS final\nCOPY --from=base /app /app\n")]
     [InlineData("FROM --platform=linux/amd64 {0} AS Build\nRUN --mount=type=cache,from=build,target=/cache true\nFROM {0}\nCOPY --from=0 /a /a\n")]
     [InlineData("# A comment that mentions from=elsewhere is ignored.\r\nfrom {0}\r\n")]
+    [InlineData("FROM {0}\nADD --checksum=sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef https://example.com/tool.tar.gz /opt/tool.tar.gz\n")]
+    [InlineData("FROM {0}\nADD app.tar.gz /app/\nadd --chown=1654 config /app/config\n")]
     public void Dockerfiles_on_the_pinned_base_and_its_stages_are_accepted(string dockerfile)
     {
         const string pinned = "mcr.microsoft.com/dotnet/aspnet:10.0.14-noble@sha256:de0ee358cdd672f7017a003bed21e9ac9ed48a27c922a59b18175b6e82fa7fee";
@@ -322,6 +325,10 @@ public sealed class ToolPinTests
     [InlineData("deploy/Dockerfile.release", true)]
     [InlineData("deploy/app.dockerfile", true)]
     [InlineData("deploy/Containerfile", true)]
+    [InlineData("src/Tooling/Sample/dockerfile", true)]
+    [InlineData("deploy/DOCKERFILE.prod", true)]
+    [InlineData("deploy/App.DockerFile", true)]
+    [InlineData("deploy/containerfile", true)]
     [InlineData("docs/dockerfiles.md", false)]
     [InlineData(".dockerignore", false)]
     public void Dockerfiles_are_found_as_the_container_build_job_finds_them(string path, bool expected)
@@ -368,17 +375,34 @@ public sealed class ToolPinTests
     [InlineData("dockerfile-extra-from-words", "FROM takes an image and an optional AS <stage>")]
     [InlineData("dockerfile-without-from", "a Dockerfile needs a FROM instruction")]
     [InlineData("second-dockerfile-other-base", "or an earlier stage")]
+    [InlineData("lowercase-dockerfile-other-base", "or an earlier stage")]
+    [InlineData("dockerfile-add-url", "ADD of a remote or variable source needs exactly one source and --checksum")]
+    [InlineData("dockerfile-add-git", "ADD of a remote or variable source needs exactly one source and --checksum")]
+    [InlineData("dockerfile-add-uppercase-checksum", "ADD of a remote or variable source needs exactly one source and --checksum")]
+    [InlineData("dockerfile-add-two-remote", "ADD of a remote or variable source needs exactly one source and --checksum")]
+    [InlineData("dockerfile-add-variable", "ADD of a remote or variable source needs exactly one source and --checksum")]
+    [InlineData("dockerfile-onbuild-add-url", "ADD of a remote or variable source needs exactly one source and --checksum")]
+    [InlineData("dockerfile-add-continued", "keep each ADD instruction on one line")]
     [InlineData("missing-real-provider-job", "the real-provider job is missing")]
     [InlineData("real-provider-on-windows", "real-provider job must run on ubuntu-latest")]
     [InlineData("service-host-trust", "must start with POSTGRES_HOST_AUTH_METHOD reject")]
     [InlineData("missing-health-check", "needs a pg_isready health check")]
     [InlineData("postgresql-version-mismatch", "POSTGRESQL_VERSION must equal")]
     [InlineData("postgresql-register-candidate", "POSTGRESQL_VERSION must equal")]
-    [InlineData("missing-database-step", "must create its test database")]
+    [InlineData("database-step-other-command", "step must come after its Build step and run")]
+    [InlineData("database-before-build", "step must come after its Build step and run")]
+    [InlineData("database-in-another-step", "may run .github/scripts/postgresql-test-database.sh, so the credentials exist in no other step")]
+    [InlineData("database-to-github-env", "never to GITHUB_ENV or GITHUB_OUTPUT")]
     [InlineData("unmasked-password", "must generate the password from /dev/urandom, mask it")]
     [InlineData("missing-database-script", "must generate the password from /dev/urandom, mask it")]
-    [InlineData("real-provider-unfiltered", "every dotnet test in the real-provider job must select its tests")]
-    [InlineData("real-provider-unit-filter", "every dotnet test in the real-provider job must select its tests")]
+    [InlineData("real-provider-direct-test", "every dotnet test in the real-provider job must select its tests")]
+    [InlineData("tests-script-unfiltered", "must run dotnet test with --filter \"Requires=PostgreSQL\", and only with it")]
+    [InlineData("tests-script-unit-filter", "must run dotnet test with --filter \"Requires=PostgreSQL\", and only with it")]
+    [InlineData("missing-tests-script", "must run dotnet test with --filter \"Requires=PostgreSQL\", and only with it")]
+    [InlineData("tests-script-without-minimum", "require at least one PostgreSQL test to have run")]
+    [InlineData("tests-script-allows-failures", "require at least one PostgreSQL test to have run")]
+    [InlineData("tests-script-shared-results", "require at least one PostgreSQL test to have run")]
+    [InlineData("tests-script-some-projects", "require at least one PostgreSQL test to have run")]
     [InlineData("build-test-unfiltered", "every dotnet test in the build-test job must select its tests")]
     [InlineData("build-test-real-provider-filter", "every dotnet test in the build-test job must select its tests")]
     [InlineData("build-test-without-tests", "the build-test job must run dotnet test")]
@@ -390,6 +414,20 @@ public sealed class ToolPinTests
     [InlineData("container-other-fixture", "must build tests/Fixtures/container/Dockerfile")]
     [InlineData("playwright-install-step", "must not install Playwright browsers")]
     [InlineData("playwright-install-script", "must not install Playwright browsers")]
+    [InlineData("unpinned-docker-run", "uses docker.io/library/alpine:3.22, which is not digest-pinned")]
+    [InlineData("unpinned-docker-pull-script", "uses postgres:18, which is not digest-pinned")]
+    [InlineData("unpinned-container-run-script", "uses alpine, which is not digest-pinned")]
+    [InlineData("space-form-option", "uses none, which is not digest-pinned")]
+    [InlineData("local-tag-without-pull-never", "uses modularyn-fixture:ci, which is not digest-pinned or a local tag")]
+    [InlineData("pull-local-tag", "uses modularyn-fixture:ci, which is not digest-pinned.")]
+    [InlineData("unresolved-image-variable", "names an image that this check cannot resolve")]
+    [InlineData("computed-image", "names an image that this check cannot resolve")]
+    [InlineData("image-from-github-env", "names an image that this check cannot resolve")]
+    [InlineData("build-from-stdin", "must name exactly one tracked Dockerfile with --file=")]
+    [InlineData("build-untracked-dockerfile", "must name exactly one tracked Dockerfile with --file=")]
+    [InlineData("build-remote-context", "must name a literal local context")]
+    [InlineData("build-stdin-context", "must name a literal local context")]
+    [InlineData("build-image-context", "docker-image:// context only as a digest-pinned reference")]
     public void A_single_ci_pin_violation_is_rejected(string mutation, string expectedDiagnostic)
     {
         // Every mutation derives its values from the current files, so a later pin update cannot turn it into a no-op.
@@ -493,6 +531,20 @@ public sealed class ToolPinTests
             case "second-dockerfile-other-base":
                 files["src/Tooling/Sample/Dockerfile"] = "FROM docker.io/library/alpine:3.22@sha256:" + new string('a', 64) + "\n";
                 break;
+            case "lowercase-dockerfile-other-base":
+                files["src/Tooling/Sample/dockerfile"] = "FROM docker.io/library/alpine:3.22@sha256:" + new string('a', 64) + "\n";
+                break;
+            case "dockerfile-add-url": files[FixturePath] = fixture + "ADD https://example.com/tool.tar.gz /opt/tool.tar.gz\n"; break;
+            case "dockerfile-add-git": files[FixturePath] = fixture + "ADD git@github.com:example/tool.git /opt/tool\n"; break;
+            case "dockerfile-add-uppercase-checksum":
+                files[FixturePath] = fixture + "ADD --checksum=sha256:" + new string('A', 64) + " https://example.com/tool.tar.gz /opt/\n";
+                break;
+            case "dockerfile-add-two-remote":
+                files[FixturePath] = fixture + "ADD --checksum=sha256:" + new string('a', 64) + " https://example.com/a https://example.com/b /opt/\n";
+                break;
+            case "dockerfile-add-variable": files[FixturePath] = fixture + "ARG TOOL\nADD ${TOOL} /opt/tool\n"; break;
+            case "dockerfile-onbuild-add-url": files[FixturePath] = fixture + "ONBUILD ADD https://example.com/tool.tar.gz /opt/\n"; break;
+            case "dockerfile-add-continued": files[FixturePath] = fixture + "ADD \\\n  https://example.com/tool.tar.gz /opt/\n"; break;
             case "missing-real-provider-job": files[CiPath] = ReplaceLine(ci, "  real-provider:", "  integration:"); break;
             case "real-provider-on-windows": files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, "runs-on: ubuntu-latest", "runs-on: windows-latest"); break;
             case "service-host-trust": files[CiPath] = ReplaceLine(ci, "          POSTGRES_HOST_AUTH_METHOD: reject", "          POSTGRES_HOST_AUTH_METHOD: trust"); break;
@@ -501,18 +553,47 @@ public sealed class ToolPinTests
                 files[CiPath] = RewriteLine(ci, "POSTGRESQL_VERSION", line => line.Replace(Value(postgres, "version"), Bump(Value(postgres, "version"))));
                 break;
             case "postgresql-register-candidate": Set(Entry("binary:postgresql"), "status", "candidate"); break;
-            case "missing-database-step":
-                files[CiPath] = ReplaceLine(ci, $"        run: bash {ScriptPath} ci", "        run: echo no database");
+            case "database-step-other-command":
+                files[CiPath] = ReplaceLine(ci, "        run: " + ToolPinContract.RealProviderTestRun,
+                    $"        run: bash {ScriptPath} ci dotnet test -c Release --no-build " + ToolPinContract.RealProviderFilter);
+                break;
+            case "database-before-build":
+                var testStep = ci[ci.IndexOf("      - name: " + ToolPinContract.RealProviderTestStep, StringComparison.Ordinal)..];
+                testStep = testStep[..(testStep.IndexOf("\n\n", StringComparison.Ordinal) + 1)];
+                var withoutTest = ReplaceInJob(ci, ToolPinContract.RealProviderJob, testStep, "");
+                files[CiPath] = ReplaceInJob(withoutTest, ToolPinContract.RealProviderJob, "      - name: Restore locked dependencies\n",
+                    testStep + "      - name: Restore locked dependencies\n");
+                break;
+            case "database-in-another-step":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, "      - name: Restore locked dependencies",
+                    $"      - name: Prepare\n        run: bash {ScriptPath} ci true\n      - name: Restore locked dependencies");
+                break;
+            case "database-to-github-env":
+                files[ScriptPath] = Changed(files[ScriptPath], files[ScriptPath].Replace("  local status\n",
+                    "  echo \"MODULARYN_TEST_DATABASE=${name}\" >> \"${GITHUB_ENV}\"\n  local status\n", StringComparison.Ordinal));
                 break;
             case "unmasked-password":
                 files[ScriptPath] = Changed(files[ScriptPath], files[ScriptPath].Replace("echo \"::add-mask::${password}\"", "true", StringComparison.Ordinal));
                 break;
             case "missing-database-script": Assert.True(files.Remove(ScriptPath)); break;
-            case "real-provider-unfiltered":
-                files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, " " + ToolPinContract.RealProviderFilter, "");
+            case "real-provider-direct-test":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, "      - name: Restore locked dependencies",
+                    "      - name: Test everything\n        run: dotnet test -c Release --no-build\n      - name: Restore locked dependencies");
                 break;
-            case "real-provider-unit-filter":
-                files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, ToolPinContract.RealProviderFilter, ToolPinContract.UnitFilter);
+            case "tests-script-unfiltered": files[TestsScriptPath] = ReplaceText(files[TestsScriptPath], " " + ToolPinContract.RealProviderFilter, ""); break;
+            case "tests-script-unit-filter":
+                files[TestsScriptPath] = ReplaceText(files[TestsScriptPath], ToolPinContract.RealProviderFilter, ToolPinContract.UnitFilter);
+                break;
+            case "missing-tests-script": Assert.True(files.Remove(TestsScriptPath)); break;
+            case "tests-script-without-minimum": files[TestsScriptPath] = ReplaceText(files[TestsScriptPath], "[ \"${passed}\" -ge 1 ]", "true"); break;
+            case "tests-script-allows-failures":
+                files[TestsScriptPath] = ReplaceText(files[TestsScriptPath], "[ \"${passed}\" -eq \"${total}\" ]", "true");
+                break;
+            case "tests-script-shared-results":
+                files[TestsScriptPath] = ReplaceText(files[TestsScriptPath], "LogFileName=${name}.trx", "LogFileName=results.trx");
+                break;
+            case "tests-script-some-projects":
+                files[TestsScriptPath] = ReplaceText(files[TestsScriptPath], "'tests/*/*.Tests.csproj'", "'tests/Modularyn.Repository.Tests/*.csproj'");
                 break;
             case "build-test-unfiltered": files[CiPath] = ReplaceInJob(ci, ToolPinContract.BuildTestJob, " " + ToolPinContract.UnitFilter, ""); break;
             case "build-test-real-provider-filter":
@@ -529,7 +610,7 @@ public sealed class ToolPinTests
             case "missing-container-job": files[CiPath] = ReplaceLine(ci, "  container-build:", "  image-build:"); break;
             case "container-on-macos": files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "runs-on: ubuntu-latest", "runs-on: macos-latest"); break;
             case "container-other-platform":
-                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "docker build --platform linux/amd64 ", "docker build --platform linux/arm64 ");
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "docker build --platform=linux/amd64 ", "docker build --platform=linux/arm64 ");
                 break;
             case "container-other-fixture":
                 files[CiPath] = ReplaceLine(ci, "      FIXTURE_DOCKERFILE: " + FixturePath, "      FIXTURE_DOCKERFILE: tests/Fixtures/other/Dockerfile");
@@ -539,6 +620,47 @@ public sealed class ToolPinTests
                     "      - name: Install browsers\n        run: pwsh playwright.ps1 install --with-deps chromium\n      - name: Restore locked dependencies");
                 break;
             case "playwright-install-script": files[".github/scripts/browsers.sh"] = "#!/usr/bin/env bash\nnpx playwright install chromium\n"; break;
+            case "unpinned-docker-run":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "          printf '%s\\n' \"${reported}\"\n",
+                    "          printf '%s\\n' \"${reported}\"\n          docker run --rm --pull=never docker.io/library/alpine:3.22 true\n");
+                break;
+            case "unpinned-docker-pull-script": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\ndocker pull postgres:18\n"; break;
+            case "unpinned-container-run-script":
+                files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\nresult=\"$(docker container run --rm alpine true)\"\n";
+                break;
+            case "space-form-option": files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "--network=none", "--network none"); break;
+            case "local-tag-without-pull-never": files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "--pull=never ", ""); break;
+            case "pull-local-tag":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "          printf '%s\\n' \"${reported}\"\n",
+                    "          printf '%s\\n' \"${reported}\"\n          docker pull \"${FIXTURE_IMAGE}\"\n");
+                break;
+            case "unresolved-image-variable":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "          printf '%s\\n' \"${reported}\"\n",
+                    "          printf '%s\\n' \"${reported}\"\n          docker run --rm \"${OTHER_IMAGE}\" true\n");
+                break;
+            case "computed-image":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "          printf '%s\\n' \"${reported}\"\n",
+                    "          printf '%s\\n' \"${reported}\"\n          docker run --rm \"$(cat image.txt)\" true\n");
+                break;
+            case "image-from-github-env":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "          set -euo pipefail\n",
+                    "          set -euo pipefail\n          echo \"FIXTURE_IMAGE=docker.io/library/alpine:3\" >> \"${GITHUB_ENV}\"\n");
+                break;
+            case "build-from-stdin":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "--file=\"${FIXTURE_DOCKERFILE}\"", "--file=-");
+                break;
+            case "build-untracked-dockerfile":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "--file=\"${FIXTURE_DOCKERFILE}\"", "--file=tests/Fixtures/other/Dockerfile");
+                break;
+            case "build-remote-context":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "\" tests/Fixtures/container\n",
+                    "\" https://github.com/Modularyn/modularyn.git\n");
+                break;
+            case "build-stdin-context": files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "\" tests/Fixtures/container\n", "\" -\n"); break;
+            case "build-image-context":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "--no-cache ",
+                    "--no-cache --build-context=base=docker-image://docker.io/library/alpine:3 ");
+                break;
             default: throw new ArgumentOutOfRangeException(nameof(mutation), mutation, "Unknown mutation case.");
         }
 
@@ -554,6 +676,32 @@ public sealed class ToolPinTests
             || Canonical(pair.Key, text) != Canonical(pair.Key, pair.Value));
         Assert.True(changed, $"Mutation {mutation} must change the repository files.");
         Assert.Contains(ToolPinContract.Validate(files), error => error.Contains(expectedDiagnostic, StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("docker pull --platform=linux/amd64 docker.io/library/postgres:18.6-trixie@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6")]
+    [InlineData("docker build --pull --tag=local-image:1 --file=deploy/Dockerfile deploy\ndocker run --rm --pull=never local-image:1")]
+    [InlineData("image=\"${PINNED}\"\nresult=\"$(docker container run --rm --network=none \"${image}\")\" || exit 1")]
+    [InlineData("docker image pull \\\n  \"${PINNED}\" > /dev/null")]
+    [InlineData("docker inspect --format '{{.Image}}' local-image:1\ndocker exec -i container psql")]
+    public void Docker_commands_with_pinned_or_built_images_are_accepted(string script)
+    {
+        var workflow = string.Join('\n', "env:",
+            "  PINNED: docker.io/library/postgres:18.6-trixie@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6",
+            "jobs:", "  job:", "    steps:", "      - name: Use images", "        run: |") + "\n"
+            + string.Join('\n', script.Split('\n').Select(line => "          " + line)) + "\n";
+        var files = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [".github/workflows/images.yml"] = workflow,
+            ["deploy/Dockerfile"] = "FROM docker.io/library/postgres:18.6-trixie@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6\n"
+        };
+        Assert.Empty(ToolPinContract.DockerCommandErrors(files));
+    }
+
+    private static string ReplaceText(string text, string value, string replacement)
+    {
+        Assert.Contains(value, text, StringComparison.Ordinal);
+        return Changed(text, text.Replace(value, replacement, StringComparison.Ordinal));
     }
 
     private static string Reference(JsonNode image)

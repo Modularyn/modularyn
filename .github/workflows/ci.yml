@@ -537,19 +537,19 @@ jobs:
           [ "${reported}" = "v${NODE_VERSION}" ] \
             || fail "node --version reports ${reported}, but NODE_VERSION is ${NODE_VERSION}."
           echo "Using Node.js ${reported} from ${install_dir}, with its bundled npm $(npm --version)"
-      - name: Create the per-run test database
-        shell: bash
-        env:
-          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
-          POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
-        run: bash .github/scripts/postgresql-test-database.sh ci
       - name: Restore locked dependencies
         run: dotnet restore --locked-mode
       - name: Build
         run: dotnet build -c Release --no-restore
-      # Detailed output records each test's observations, such as the probe's sign-in method and server version.
+      # The database script creates the per-run credentials and runs the tests script with MODULARYN_TEST_POSTGRESQL
+      # set, so the credentials exist only in this step. The tests script runs every project's PostgreSQL tests with
+      # detailed output and fails unless at least one ran and all passed.
       - name: Test against PostgreSQL
-        run: dotnet test -c Release --no-build --logger "console;verbosity=detailed" --filter "Requires=PostgreSQL"
+        shell: bash
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+          POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
+        run: bash .github/scripts/postgresql-test-database.sh ci bash .github/scripts/real-provider-tests.sh
 
   # The fixture image on the digest-pinned ASP.NET Core runtime base, built for linux/amd64. Every
   # Dockerfile in the repository must use that base; CODE-09 adds the sample application's build.
@@ -560,6 +560,8 @@ jobs:
     env:
       ASPNET_IMAGE: mcr.microsoft.com/dotnet/aspnet:10.0.14-noble@sha256:de0ee358cdd672f7017a003bed21e9ac9ed48a27c922a59b18175b6e82fa7fee
       FIXTURE_DOCKERFILE: tests/Fixtures/container/Dockerfile
+      # A local tag, never pulled: docker run uses it only with --pull=never.
+      FIXTURE_IMAGE: modularyn-fixture:ci
     steps:
       - name: Check out the exact head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -577,6 +579,12 @@ jobs:
           git ls-files --error-unmatch -- "${FIXTURE_DOCKERFILE}" > /dev/null || fail "${FIXTURE_DOCKERFILE} is not tracked."
           checked=0
           while IFS= read -r -d '' file; do
+            # Dockerfile names in any letter case, as the repository tests find them.
+            name="$(lower "${file##*/}")"
+            case "${name}" in
+              *dockerfile | *dockerfile.* | *containerfile | *containerfile.*) ;;
+              *) continue ;;
+            esac
             checked=$((checked + 1))
             stages=" "
             number=0
@@ -598,9 +606,32 @@ jobs:
                 [[ "${stages}" == *" ${source} "* || "${source}" =~ ^[0-9]+$ ]] \
                   || fail "${location}: ${source} is not an earlier stage, so it would pull an unpinned image."
               done
+              # ADD of a remote source must name exactly one source and verify it with a pinned SHA-256; a variable
+              # source could hide a remote one, so it needs the checksum too.
+              if [[ "${lowered}" =~ ^[[:space:]]*(onbuild[[:space:]]+)?add[[:space:]] ]]; then
+                [[ ! "${line}" =~ \\[[:space:]]*$ ]] || fail "${location}: keep each ADD instruction on one line."
+                remote=0
+                rest="${lowered}"
+                while [[ "${rest}" =~ (https?://|git://|ssh://|git@)(.*)$ ]]; do
+                  remote=$((remote + 1))
+                  rest="${BASH_REMATCH[2]}"
+                done
+                checksums=0
+                checksum=""
+                rest="${line}"
+                while [[ "${rest}" =~ (^|[[:space:]])--checksum=([^[:space:]]*)(.*)$ ]]; do
+                  checksums=$((checksums + 1))
+                  checksum="${BASH_REMATCH[2]}"
+                  rest="${BASH_REMATCH[3]}"
+                done
+                if [ "${remote}" -gt 0 ] || [[ "${line}" == *'$'* ]]; then
+                  { [ "${remote}" -le 1 ] && [ "${checksums}" -eq 1 ] && [[ "${checksum}" =~ ^sha256:[0-9a-f]{64}$ ]]; } \
+                    || fail "${location}: ADD of a remote or variable source needs exactly one source and --checksum=sha256:<digest>."
+                fi
+              fi
               [[ "${lowered}" =~ ^[[:space:]]*from[[:space:]] ]] || continue
               bases=$((bases + 1))
-              [[ "${line}" != *\\ ]] || fail "${location}: keep each FROM instruction on one line."
+              [[ ! "${line}" =~ \\[[:space:]]*$ ]] || fail "${location}: keep each FROM instruction on one line."
               read -r -a words <<< "${line}"
               index=1
               if [[ "${words[index]:-}" == --* ]]; then
@@ -622,26 +653,26 @@ jobs:
             done < "${file}"
             [ "${bases}" -gt 0 ] || fail "${file}: a Dockerfile needs a FROM instruction."
             echo "${file}: every base is ${ASPNET_IMAGE} or an earlier stage"
-          done < <(git ls-files -z -- '*Dockerfile' '*Dockerfile.*' '*.Dockerfile' '*.dockerfile' '*Containerfile' '*Containerfile.*')
+          done < <(git ls-files -z)
           [ "${checked}" -gt 0 ] || fail "No Dockerfile found; ${FIXTURE_DOCKERFILE} must exist."
       - name: Build the fixture image for linux/amd64
         shell: bash
         run: |
           set -euo pipefail
-          docker build --platform linux/amd64 --pull --no-cache --tag modularyn-fixture:ci \
-            --file "${FIXTURE_DOCKERFILE}" "$(dirname "${FIXTURE_DOCKERFILE}")"
+          docker build --platform=linux/amd64 --pull --no-cache --tag="${FIXTURE_IMAGE}" \
+            --file="${FIXTURE_DOCKERFILE}" tests/Fixtures/container
       - name: Check the fixture image
         shell: bash
         run: |
           set -euo pipefail
           fail() { echo "::error::$*"; exit 1; }
-          image="modularyn-fixture:ci"
+          image="${FIXTURE_IMAGE}"
           platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "${image}")"
           [ "${platform}" = "linux/amd64" ] || fail "The fixture image is ${platform}, not linux/amd64."
           user="$(docker image inspect --format '{{.Config.User}}' "${image}")"
           [[ "${user}" =~ ^[1-9][0-9]*$ ]] || fail "The fixture image must run as a numeric non-root user, not '${user}'."
           # The fixture adds no layer, so its layers must be exactly those of the pinned base.
-          docker pull --platform linux/amd64 "${ASPNET_IMAGE}" > /dev/null || fail "Pull of ${ASPNET_IMAGE} failed."
+          docker pull --platform=linux/amd64 "${ASPNET_IMAGE}" > /dev/null || fail "Pull of ${ASPNET_IMAGE} failed."
           base_layers="$(docker image inspect --format '{{json .RootFS.Layers}}' "${ASPNET_IMAGE}")"
           fixture_layers="$(docker image inspect --format '{{json .RootFS.Layers}}' "${image}")"
           [ "${fixture_layers}" = "${base_layers}" ] || fail "The fixture image's layers are not those of ${ASPNET_IMAGE}."
@@ -649,7 +680,7 @@ jobs:
           tag="${ASPNET_IMAGE#*:}"
           runtime="${tag%%[-@]*}"
           [[ "${runtime}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "Cannot read the runtime version from ${ASPNET_IMAGE}."
-          reported="$(docker run --rm --platform linux/amd64 --network none "${image}")" || fail "The fixture image did not run."
+          reported="$(docker run --rm --pull=never --platform=linux/amd64 --network=none "${FIXTURE_IMAGE}")" || fail "The fixture image did not run."
           printf '%s\n' "${reported}"
           listed="$(printf '%s\n' "${reported}" | awk '{ print $1 " " $2 }' | LC_ALL=C sort)"
           expected="$(printf '%s\n' "Microsoft.AspNetCore.App ${runtime}" "Microsoft.NETCore.App ${runtime}")"

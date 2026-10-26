@@ -9,6 +9,9 @@ internal static partial class ToolPinContract
 {
     public const string NodePinPath = ".github/node.json";
     public const string DatabaseScriptPath = ".github/scripts/postgresql-test-database.sh";
+    public const string TestsScriptPath = ".github/scripts/real-provider-tests.sh";
+    public const string RealProviderTestStep = "Test against PostgreSQL";
+    public static readonly string RealProviderTestRun = $"bash {DatabaseScriptPath} ci bash {TestsScriptPath}";
     public const string FixtureDockerfile = "tests/Fixtures/container/Dockerfile";
     public const string BuildTestJob = "build-test";
     public const string RealProviderJob = "real-provider";
@@ -39,12 +42,18 @@ internal static partial class ToolPinContract
     private static readonly Regex SyntaxDirective = new(@"^\s*#\s*syntax\s*=", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     private static readonly Regex FromInstruction = new(@"^\s*from\s", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     private static readonly Regex FromOption = new(@"(?:^|[\s,=-])from=(?<source>[^,\s]+)", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    private static readonly Regex AddInstruction = new(@"^\s*(?:onbuild\s+)?add\s", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    private static readonly Regex RemoteSource = new("(?:https?://|git://|ssh://|git@)", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    private static readonly Regex AddChecksum = new(@"(?:^|\s)--checksum=(?<value>\S*)", RegexOptions.CultureInvariant);
+    private static readonly Regex Continued = new(@"\\\s*$", RegexOptions.CultureInvariant);
 
-    // Dockerfiles as the container-build job finds them with git ls-files.
-    public static bool IsDockerfile(string path) =>
-        path.EndsWith("Dockerfile", StringComparison.Ordinal) || path.Contains("Dockerfile.", StringComparison.Ordinal)
-        || path.EndsWith(".dockerfile", StringComparison.Ordinal) || path.EndsWith("Containerfile", StringComparison.Ordinal)
-        || path.Contains("Containerfile.", StringComparison.Ordinal);
+    // Dockerfiles as the container-build job finds them: by file name, in any letter case.
+    public static bool IsDockerfile(string path)
+    {
+        var name = path[(path.LastIndexOf('/') + 1)..].ToLowerInvariant();
+        return name.EndsWith("dockerfile", StringComparison.Ordinal) || name.Contains("dockerfile.", StringComparison.Ordinal)
+            || name.EndsWith("containerfile", StringComparison.Ordinal) || name.Contains("containerfile.", StringComparison.Ordinal);
+    }
 
     public static string NodeArchiveUrl(string version, string target) =>
         $"https://nodejs.org/dist/v{version}/node-v{version}-{target}.{(target.StartsWith("win-", StringComparison.Ordinal) ? "zip" : "tar.gz")}";
@@ -180,13 +189,30 @@ internal static partial class ToolPinContract
                 }
             }
 
+            // ADD of a remote source must name exactly one source and verify it with a pinned SHA-256; a variable source
+            // could hide a remote one, so it needs the checksum too.
+            if (AddInstruction.IsMatch(line))
+            {
+                var remote = RemoteSource.Matches(line).Count;
+                var checksums = AddChecksum.Matches(line);
+                if (Continued.IsMatch(line))
+                {
+                    errors.Add($"{location}: keep each ADD instruction on one line.");
+                }
+                else if ((remote > 0 || line.Contains('$', StringComparison.Ordinal)) && (remote > 1 || checksums.Count != 1
+                    || !Regex.IsMatch(checksums[0].Groups["value"].Value, "^sha256:[0-9a-f]{64}$", RegexOptions.CultureInvariant)))
+                {
+                    errors.Add($"{location}: ADD of a remote or variable source needs exactly one source and --checksum=sha256:<digest>.");
+                }
+            }
+
             if (!FromInstruction.IsMatch(line))
             {
                 continue;
             }
 
             bases++;
-            if (line.TrimEnd().EndsWith('\\'))
+            if (Continued.IsMatch(line))
             {
                 errors.Add($"{location}: keep each FROM instruction on one line.");
                 continue;
@@ -423,7 +449,7 @@ internal static partial class ToolPinContract
                 errors.Add($"{CiPath}: every dotnet test in the {id} job must select its tests with {filter}.");
             }
 
-            if (id is BuildTestJob or RealProviderJob && tests.Count == 0)
+            if (id is BuildTestJob && tests.Count == 0)
             {
                 errors.Add($"{CiPath}: the {id} job must run dotnet test with {filter}.");
             }
@@ -464,11 +490,48 @@ internal static partial class ToolPinContract
                 errors.Add($"{CiPath}: the {ContainerJob} job must build {FixtureDockerfile}.");
             }
 
-            if (!container.Contains($"docker build --platform {LinuxPlatform} ", StringComparison.Ordinal))
+            if (!container.Contains($"docker build --platform={LinuxPlatform} ", StringComparison.Ordinal))
             {
-                errors.Add($"{CiPath}: the {ContainerJob} job must build for {LinuxPlatform} with docker build --platform {LinuxPlatform}.");
+                errors.Add($"{CiPath}: the {ContainerJob} job must build for {LinuxPlatform} with docker build --platform={LinuxPlatform}.");
             }
         }
+
+        errors.AddRange(DockerCommandErrors(files));
+    }
+
+    // The step names of a job, in order.
+    public static List<string> StepNames(string job) =>
+        job.Split('\n').Where(line => line.StartsWith("      - name: ", StringComparison.Ordinal))
+            .Select(line => line["      - name: ".Length..]).ToList();
+
+    // Logical lines of a script: continuation lines joined, comment lines dropped.
+    public static List<string> LogicalLines(string text)
+    {
+        var lines = new List<string>();
+        var current = "";
+        foreach (var raw in text.Replace("\r\n", "\n").Split('\n'))
+        {
+            if (current.Length == 0 && raw.TrimStart().StartsWith('#'))
+            {
+                continue;
+            }
+
+            if (Continued.IsMatch(raw))
+            {
+                current += Continued.Replace(raw, " ");
+                continue;
+            }
+
+            lines.Add(current + raw);
+            current = "";
+        }
+
+        if (current.Length > 0)
+        {
+            lines.Add(current);
+        }
+
+        return lines;
     }
 
     private static void ValidateRealProviderJob(string job, List<RegisterEntry> register, IReadOnlyDictionary<string, string> files,
@@ -512,9 +575,18 @@ internal static partial class ToolPinContract
                 + $"binary:postgresql and {PostgresImageId} entries.");
         }
 
-        if (!job.Split('\n').Any(line => line.Trim() == $"run: bash {DatabaseScriptPath} ci"))
+        // The credentials exist only in the test step: it comes after the build, and only it runs the database script.
+        var steps = StepNames(job);
+        if (Run(job, RealProviderTestStep) != RealProviderTestRun || steps.IndexOf(RealProviderTestStep) < steps.IndexOf("Build") + 1
+            || steps.IndexOf("Build") < 0)
         {
-            errors.Add($"{CiPath}: the {RealProviderJob} job must create its test database with bash {DatabaseScriptPath} ci.");
+            errors.Add($"{CiPath}: the {RealProviderJob} job's '{RealProviderTestStep}' step must come after its Build step and run "
+                + $"{RealProviderTestRun}.");
+        }
+
+        if (job.Split('\n').Count(line => line.Contains(DatabaseScriptPath, StringComparison.Ordinal)) != 1)
+        {
+            errors.Add($"{CiPath}: only the '{RealProviderTestStep}' step may run {DatabaseScriptPath}, so the credentials exist in no other step.");
         }
 
         var script = files.GetValueOrDefault(DatabaseScriptPath, "");
@@ -522,6 +594,32 @@ internal static partial class ToolPinContract
             || !script.Contains("/dev/urandom", StringComparison.Ordinal) || !script.Contains(PostgreSqlTarget.Variable, StringComparison.Ordinal))
         {
             errors.Add($"{DatabaseScriptPath}: must generate the password from /dev/urandom, mask it, and set {PostgreSqlTarget.Variable}.");
+        }
+
+        if (script.Contains("GITHUB_ENV", StringComparison.Ordinal) || script.Contains("GITHUB_OUTPUT", StringComparison.Ordinal))
+        {
+            errors.Add($"{DatabaseScriptPath}: must pass {PostgreSqlTarget.Variable} only to its command, never to GITHUB_ENV or GITHUB_OUTPUT.");
+        }
+
+        // dotnet test succeeds when its filter selects nothing, so the tests script counts the results itself.
+        var tests = files.GetValueOrDefault(TestsScriptPath, "");
+        var runs = LogicalLines(tests).Where(line => line.Contains("dotnet test", StringComparison.Ordinal)).ToList();
+        if (runs.Count == 0 || runs.Any(line => !line.TrimEnd().EndsWith(" " + RealProviderFilter, StringComparison.Ordinal)))
+        {
+            errors.Add($"{TestsScriptPath}: must run dotnet test with {RealProviderFilter}, and only with it.");
+        }
+
+        foreach (var required in new[]
+                 {
+                     "git ls-files -z -- 'tests/*/*.Tests.csproj'", "--logger \"trx;LogFileName=${name}.trx\"",
+                     "[ \"${passed}\" -eq \"${total}\" ]", "[ \"${passed}\" -ge 1 ]"
+                 })
+        {
+            if (!tests.Contains(required, StringComparison.Ordinal))
+            {
+                errors.Add($"{TestsScriptPath}: must run every test project with its own results file and require at least one "
+                    + $"PostgreSQL test to have run and all to have passed ({required}).");
+            }
         }
     }
 
