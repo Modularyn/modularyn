@@ -10,13 +10,19 @@ public enum ModuleStageOutcome { Began, Succeeded, Failed, Cancelled }
 
 public sealed record ModuleStatus(string ModuleId, ModuleState State);
 public sealed record ModuleLifecycleEvent(int Attempt, string ModuleId, ModuleStage Stage,
-    ModuleStageOutcome Outcome, DateTimeOffset Timestamp);
+    ModuleStageOutcome Outcome, DateTimeOffset Timestamp)
+{
+    public string CorrelationId { get; init; } = string.Empty;
+    public string TraceId { get; init; } = string.Empty;
+    public string SpanId { get; init; } = string.Empty;
+}
 
 /// <summary>An immutable observation; history includes prior failed activation attempts.</summary>
 public sealed class ModuleHostReport
 {
     internal ModuleHostReport(ModuleHostState state, ActivationPlan? plan, IEnumerable<ModuleStatus> modules,
-        IEnumerable<ModuleLifecycleEvent> events, IEnumerable<CompositionDiagnostic> diagnostics, IEnumerable<string> retainedInstances)
+        IEnumerable<ModuleLifecycleEvent> events, IEnumerable<CompositionDiagnostic> diagnostics, IEnumerable<string> retainedInstances,
+        int pendingWork)
     {
         State = state;
         Plan = plan;
@@ -24,6 +30,7 @@ public sealed class ModuleHostReport
         Events = Array.AsReadOnly(events.ToArray());
         Diagnostics = Array.AsReadOnly(diagnostics.ToArray());
         RetainedInstances = Array.AsReadOnly(retainedInstances.ToArray());
+        PendingWork = pendingWork;
     }
     public ModuleHostState State { get; }
     public bool IsReady => State == ModuleHostState.Ready;
@@ -33,6 +40,8 @@ public sealed class ModuleHostReport
     public IReadOnlyList<CompositionDiagnostic> Diagnostics { get; }
     /// <summary>Instances still requiring shutdown, including any whose cleanup failed.</summary>
     public IReadOnlyList<string> RetainedInstances { get; }
+    /// <summary>Outstanding work leases when this snapshot was published.</summary>
+    public int PendingWork { get; }
 }
 
 public sealed class ModuleCompositionException : Exception
@@ -63,4 +72,6 @@ public static class ModuleHostDiagnosticCodes
     public const string ShutdownFailed = "MDC103";
     public const string StartupCancelled = "MDC104";
     public const string ValidationFailed = "MDC105";
+    public const string WorkDrainIncomplete = "MDC106";
+    public const string HealthCheckBindingFailed = "MDC107";
 }

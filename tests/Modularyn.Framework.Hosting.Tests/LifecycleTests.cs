@@ -222,7 +222,7 @@ public sealed class LifecycleTests
         var trace = activity.Context;
         fixture.DuringStage = (_, _, _) =>
         {
-            Assert.Equal(trace, Activity.Current!.Context);
+            Assert.Equal(trace.TraceId, Activity.Current!.TraceId);
             return Task.CompletedTask;
         };
         var host = fixture.Host(clock: clock);
@@ -234,7 +234,8 @@ public sealed class LifecycleTests
         Assert.All(fixture.Observations, item =>
         {
             Assert.Same(clock, item.Context.TimeProvider);
-            Assert.Equal(trace, item.Context.TraceContext);
+            Assert.Equal(trace.TraceId, item.Context.TraceContext.TraceId);
+            Assert.Equal(trace.TraceId.ToHexString(), item.Context.CorrelationId);
             Assert.Equal(item.Id, item.Context.Manifest.Id);
             Assert.Equal(Cancellation, item.Token);
         });
@@ -269,6 +270,8 @@ internal sealed class ManualClock(DateTimeOffset now) : TimeProvider
     private DateTimeOffset current = now;
     private readonly List<ManualTimer> timers = [];
     public override DateTimeOffset GetUtcNow() => current;
+    public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+    public override long GetTimestamp() => current.UtcTicks;
     public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
     {
         var timer = new ManualTimer(this, callback, state, dueTime);
