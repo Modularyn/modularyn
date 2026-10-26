@@ -36,4 +36,19 @@ public static class ModuleHostingExtensions
         ModuleHealthChecks.Register(services, registrations);
         return services;
     }
+
+    /// <summary>
+    /// Verifies every activation against the release's deployment lock: the selected modules, their exact versions,
+    /// manifest digests and migrations, and the content hashes of their package files under <paramref name="contentRoot"/>,
+    /// which defaults to the application base directory. Verification runs before any module is constructed.
+    /// </summary>
+    public static IServiceCollection AddModularynDeploymentTrust(this IServiceCollection services, string lockPath, string? contentRoot = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(lockPath);
+        if (services.Any(descriptor => descriptor.ServiceType == typeof(ICompositionValidator) && descriptor.ImplementationInstance is DeploymentLockValidator))
+            throw new InvalidOperationException("A deployment lock is already registered. Register exactly one deployment lock for the release.");
+        services.AddSingleton<ICompositionValidator>(new DeploymentLockValidator(lockPath, contentRoot ?? AppContext.BaseDirectory));
+        return services;
+    }
 }

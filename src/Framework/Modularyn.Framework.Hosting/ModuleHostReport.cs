@@ -74,4 +74,5 @@ public static class ModuleHostDiagnosticCodes
     public const string ValidationFailed = "MDC105";
     public const string WorkDrainIncomplete = "MDC106";
     public const string HealthCheckBindingFailed = "MDC107";
+    public const string TrustNotConfigured = "MDC108";
 }

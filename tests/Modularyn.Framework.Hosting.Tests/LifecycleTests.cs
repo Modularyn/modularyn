@@ -254,7 +254,7 @@ public sealed class LifecycleTests
             if (stage == ModuleStage.Shutdown) clock.Advance(TimeSpan.FromSeconds(5));
             return Task.CompletedTask;
         };
-        var host = fixture.Host(clock: clock, options: new() { FailedStartCleanupTimeout = TimeSpan.FromSeconds(5) });
+        var host = fixture.Host(clock: clock, options: new() { FailedStartCleanupTimeout = TimeSpan.FromSeconds(5), AllowUnverifiedComposition = true });
         var exception = await Assert.ThrowsAsync<ModuleLifecycleException>(() => host.StartAsync(Cancellation));
         Assert.Equal(new[] { "C", "B" }, exception.Report.RetainedInstances);
         Assert.All(exception.Report.Modules.Where(item => item.ModuleId != "A"), item => Assert.Equal(ModuleState.CleanupFailed, item.State));

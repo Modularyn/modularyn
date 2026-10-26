@@ -21,6 +21,7 @@ public sealed class ModuleHost : IHostedLifecycleService, IDisposable
     private readonly bool ownsTelemetry;
     private readonly bool ownsWorkGate;
     private readonly CancellationTokenRegistration applicationStopping;
+    private readonly bool allowUnverifiedComposition;
     private readonly SemaphoreSlim transition = new(1, 1);
     private readonly List<Instance> instances = [];
     private readonly List<ModuleLifecycleEvent> events = [];
@@ -45,6 +46,7 @@ public sealed class ModuleHost : IHostedLifecycleService, IDisposable
         this.services = services ?? throw new ArgumentNullException(nameof(services));
         this.timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         cleanupTimeout = (options ?? new()).FailedStartCleanupTimeout;
+        allowUnverifiedComposition = (options ?? new()).AllowUnverifiedComposition;
         if (cleanupTimeout <= TimeSpan.Zero || cleanupTimeout.TotalMilliseconds > uint.MaxValue - 1)
             throw new ArgumentOutOfRangeException(nameof(options), "Failed-start cleanup requires a positive, finite timer deadline.");
         if (shutdownTimeout is { } timeout && timeout != Timeout.InfiniteTimeSpan
@@ -93,6 +95,16 @@ public sealed class ModuleHost : IHostedLifecycleService, IDisposable
             plan = null;
             foreach (var id in states.Keys.ToArray()) states[id] = ModuleState.Selected;
             SetHostState(ModuleHostState.Validating);
+            if (!composer.VerifiesTrust && !allowUnverifiedComposition)
+            {
+                foreach (var id in states.Keys.ToArray()) states[id] = ModuleState.Refused;
+                var refusal = new CompositionDiagnostic(ModuleHostDiagnosticCodes.TrustNotConfigured,
+                    "No composition trust validator is registered, so the selection cannot be verified against a deployment lock. Register the release's deployment lock with AddModularynDeploymentTrust before activation.",
+                    states.Keys.Order(StringComparer.Ordinal));
+                diagnostics.Add(refusal);
+                SetHostState(ModuleHostState.Failed);
+                throw new ModuleCompositionException([refusal]);
+            }
             CompositionResult composition;
             try
             {

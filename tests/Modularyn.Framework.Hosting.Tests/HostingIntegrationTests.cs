@@ -17,7 +17,7 @@ public sealed class HostingIntegrationTests
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { DisableDefaults = true });
         var clock = new ManualClock(new DateTimeOffset(2026, 2, 3, 4, 5, 6, TimeSpan.Zero));
         builder.Services.AddSingleton<TimeProvider>(clock);
-        builder.Services.AddModularynModules(LifecycleFixture.Environment, fixture.Registrations(LifecycleFixture.Graph()));
+        builder.Services.AddModularynModules(LifecycleFixture.Environment, fixture.Registrations(LifecycleFixture.Graph()), LifecycleFixture.Unverified);
         using var application = builder.Build();
         var modules = application.Services.GetRequiredService<ModuleHost>();
         Assert.Same(modules, Assert.Single(application.Services.GetServices<IHostedService>(), service => service is ModuleHost));
@@ -37,7 +37,7 @@ public sealed class HostingIntegrationTests
     {
         using var fixture = new LifecycleFixture();
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { DisableDefaults = true });
-        builder.Services.AddModularynModules(LifecycleFixture.Environment, fixture.Registrations(LifecycleFixture.Graph()[..2]));
+        builder.Services.AddModularynModules(LifecycleFixture.Environment, fixture.Registrations(LifecycleFixture.Graph()[..2]), LifecycleFixture.Unverified);
         using var application = builder.Build();
         await Assert.ThrowsAsync<ModuleCompositionException>(() => application.StartAsync(Cancellation));
         Assert.False(application.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStarted.IsCancellationRequested);
@@ -113,7 +113,7 @@ public sealed class HostingIntegrationTests
             token.ThrowIfCancellationRequested();
             return ValueTask.FromResult<IReadOnlyList<CompositionDiagnostic>>([new("MDC902", "Module 'A' needs a configured data directory. Configure the directory before activation.", ["A"])]);
         }));
-        builder.Services.AddModularynModules(LifecycleFixture.Environment, fixture.Registrations(LifecycleFixture.Graph()));
+        builder.Services.AddModularynModules(LifecycleFixture.Environment, fixture.Registrations(LifecycleFixture.Graph()), LifecycleFixture.Unverified);
         using var application = builder.Build();
         var exception = await Assert.ThrowsAsync<ModuleCompositionException>(() => application.StartAsync(Cancellation));
         Assert.Equal("MDC902", Assert.Single(exception.Diagnostics).Code);

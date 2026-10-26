@@ -49,3 +49,11 @@ public interface ICompositionValidator
     int Order { get; }
     ValueTask<IReadOnlyList<CompositionDiagnostic>> ValidateAsync(CompositionSelection selection, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// Decides whether the selection is the one the deployment trusts. Trust validators run before the built-in
+/// structural checks, in ascending Order, and their diagnostics are reported even when those checks also fail.
+/// They must therefore accept structurally invalid selections, including duplicate module identifiers.
+/// Other validators run only after trust and structure both pass.
+/// </summary>
+public interface ICompositionTrustValidator : ICompositionValidator;
