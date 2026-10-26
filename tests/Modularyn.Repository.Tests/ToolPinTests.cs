@@ -13,6 +13,9 @@ public sealed class ToolPinTests
     private const string SecretScanPath = ToolPinContract.SecretScanPath;
     private const string AllowListPath = ".github/workflows/actions.allow";
     private const string RegisterPath = DependencyRegister.RegisterPath;
+    private const string NodePinPath = ToolPinContract.NodePinPath;
+    private const string ScriptPath = ToolPinContract.DatabaseScriptPath;
+    private const string FixturePath = ToolPinContract.FixtureDockerfile;
 
     [Fact]
     public void Tool_pins_agree_with_global_json_the_workflows_and_the_register()
@@ -24,7 +27,7 @@ public sealed class ToolPinTests
     public void Tool_pins_accept_platform_line_endings()
     {
         var files = RepositoryFiles.Current.ToDictionary();
-        foreach (var path in new[] { PinPath, CiPath, SecretScanPath, RegisterPath, "global.json" })
+        foreach (var path in new[] { PinPath, CiPath, SecretScanPath, RegisterPath, "global.json", NodePinPath, ScriptPath, FixturePath })
         {
             files[path] = files[path].Replace("\r\n", "\n").Replace("\n", "\r\n");
         }
@@ -266,6 +269,323 @@ public sealed class ToolPinTests
             || Canonical(pair.Key, text) != Canonical(pair.Key, pair.Value));
         Assert.True(changed, $"Mutation {mutation} must change the repository files.");
         Assert.Contains(ToolPinContract.Validate(files), error => error.Contains(expectedDiagnostic, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Real_provider_job_runs_the_build_test_steps_it_shares_and_the_pinned_service()
+    {
+        var jobs = ToolPinContract.Jobs(RepositoryFiles.Current[CiPath]);
+        Assert.Equal(new[] { ToolPinContract.BuildTestJob, ToolPinContract.RealProviderJob, ToolPinContract.ContainerJob }, jobs.Keys);
+        foreach (var step in ToolPinContract.SharedLinuxSteps)
+        {
+            var run = ToolPinContract.Run(jobs[ToolPinContract.BuildTestJob], step);
+            Assert.False(string.IsNullOrWhiteSpace(run), $"build-test must run '{step}'.");
+            Assert.StartsWith("set -euo pipefail\n", run.TrimStart(), StringComparison.Ordinal);
+            Assert.Equal(run, ToolPinContract.Run(jobs[ToolPinContract.RealProviderJob], step));
+        }
+
+        var entries = JsonNode.Parse(RepositoryFiles.Current[RegisterPath])!["entries"]!.AsArray();
+        var postgres = Assert.Single(entries, entry => (string?)entry!["id"] == ToolPinContract.PostgresImageId)!;
+        var index = Assert.Single(postgres["digests"]!.AsArray(), digest => (string?)digest!["target"] == "index")!;
+        var reference = ToolPinContract.PinnedReference(Value(postgres, "name"), Value(index, "url"), Value(index, "digest"));
+        Assert.Equal(new[] { reference }, ToolPinContract.Values(jobs[ToolPinContract.RealProviderJob], "image"));
+        Assert.Equal("docker.io/library/postgres:18.6-trixie@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6", reference);
+    }
+
+    [Fact]
+    public void Node_pin_records_the_registered_archives_for_the_workflow_version()
+    {
+        var pin = JsonNode.Parse(RepositoryFiles.Current[NodePinPath])!;
+        var version = Value(pin, "version");
+        Assert.Equal(new[] { version }, ToolPinContract.Values(RepositoryFiles.Current[CiPath], "NODE_VERSION"));
+        var entries = JsonNode.Parse(RepositoryFiles.Current[RegisterPath])!["entries"]!.AsArray();
+        var node = Assert.Single(entries, entry => (string?)entry!["id"] == "binary:node")!;
+        Assert.Equal(("in-use", version), (Value(node, "status"), Value(node, "version")));
+        var recorded = node["digests"]!.AsArray().ToDictionary(digest => Value(digest!, "target"), digest => (Value(digest!, "url"), Value(digest!, "digest")));
+        var pinned = pin["archives"]!.AsObject().ToDictionary(archive => archive.Key, archive => (Value(archive.Value!, "url"), "sha256:" + Value(archive.Value!, "sha256")));
+        Assert.Equal(recorded.OrderBy(pair => pair.Key, StringComparer.Ordinal), pinned.OrderBy(pair => pair.Key, StringComparer.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("FROM {0} AS base\nFROM base AS final\nCOPY --from=base /app /app\n")]
+    [InlineData("FROM --platform=linux/amd64 {0} AS Build\nRUN --mount=type=cache,from=build,target=/cache true\nFROM {0}\nCOPY --from=0 /a /a\n")]
+    [InlineData("# A comment that mentions from=elsewhere is ignored.\r\nfrom {0}\r\n")]
+    public void Dockerfiles_on_the_pinned_base_and_its_stages_are_accepted(string dockerfile)
+    {
+        const string pinned = "mcr.microsoft.com/dotnet/aspnet:10.0.14-noble@sha256:de0ee358cdd672f7017a003bed21e9ac9ed48a27c922a59b18175b6e82fa7fee";
+        Assert.Empty(ToolPinContract.DockerfileErrors("Dockerfile", string.Format(CultureInfo.InvariantCulture, dockerfile, pinned), pinned));
+    }
+
+    [Theory]
+    [InlineData("Dockerfile", true)]
+    [InlineData("src/Tooling/Sample/Dockerfile", true)]
+    [InlineData("deploy/Dockerfile.release", true)]
+    [InlineData("deploy/app.dockerfile", true)]
+    [InlineData("deploy/Containerfile", true)]
+    [InlineData("docs/dockerfiles.md", false)]
+    [InlineData(".dockerignore", false)]
+    public void Dockerfiles_are_found_as_the_container_build_job_finds_them(string path, bool expected)
+    {
+        Assert.Equal(expected, ToolPinContract.IsDockerfile(path));
+    }
+
+    [Theory]
+    [InlineData("missing-node-pin", "the Node.js archive pin file is missing")]
+    [InlineData("invalid-node-pin", "must contain valid JSON")]
+    [InlineData("node-pin-version-mismatch", "must equal the workflow's NODE_VERSION")]
+    [InlineData("node-workflow-version-mismatch", "must equal the workflow's NODE_VERSION")]
+    [InlineData("duplicate-node-version", "must pin NODE_VERSION exactly once")]
+    [InlineData("node-register-candidate", "needs exactly one in-use binary:node entry")]
+    [InlineData("node-register-version-mismatch", "must equal the register's in-use binary:node version")]
+    [InlineData("node-other-source", "source must be the release's")]
+    [InlineData("node-uncited-source", "must cite the source")]
+    [InlineData("missing-node-target", "archives must name exactly")]
+    [InlineData("extra-node-target", "archives must name exactly")]
+    [InlineData("node-other-host", "url must be the official Node.js archive")]
+    [InlineData("node-windows-tarball", "url must be the official Node.js archive")]
+    [InlineData("node-uppercase-hash", "sha256 must be 64 lowercase hexadecimal characters")]
+    [InlineData("node-sha512-field", "fields must be exactly url, sha256")]
+    [InlineData("node-duplicate-hash", "duplicates the hash of")]
+    [InlineData("node-register-digest-mismatch", "must equal the register's binary:node")]
+    [InlineData("ci-without-node-pin", "must install Node.js from the archives pinned in")]
+    [InlineData("unpinned-service-image", "must be <registry>/<repository>:<tag>@sha256:<index digest>")]
+    [InlineData("other-service-digest", "only service image must be the register's")]
+    [InlineData("postgres-image-env-mismatch", "POSTGRES_IMAGE must equal its service image")]
+    [InlineData("postgres-register-candidate", "needs exactly one in-use container-image:docker.io/library/postgres entry")]
+    [InlineData("inline-container", "give a job container as a mapping")]
+    [InlineData("aspnet-image-env-mismatch", "ASPNET_IMAGE must be the register's")]
+    [InlineData("aspnet-register-candidate", "needs exactly one in-use container-image:mcr.microsoft.com/dotnet/aspnet entry")]
+    [InlineData("missing-fixture", "the container-build fixture is missing")]
+    [InlineData("dockerfile-other-base", "or an earlier stage")]
+    [InlineData("dockerfile-unpinned-base", "or an earlier stage")]
+    [InlineData("dockerfile-arg-base", "or an earlier stage")]
+    [InlineData("dockerfile-syntax-directive", "a syntax directive pulls a frontend image")]
+    [InlineData("dockerfile-copy-from-image", "is not an earlier stage")]
+    [InlineData("dockerfile-mount-from-image", "is not an earlier stage")]
+    [InlineData("dockerfile-later-stage", "is not an earlier stage")]
+    [InlineData("dockerfile-other-platform", "the only FROM option allowed is --platform=linux/amd64")]
+    [InlineData("dockerfile-continued-from", "keep each FROM instruction on one line")]
+    [InlineData("dockerfile-extra-from-words", "FROM takes an image and an optional AS <stage>")]
+    [InlineData("dockerfile-without-from", "a Dockerfile needs a FROM instruction")]
+    [InlineData("second-dockerfile-other-base", "or an earlier stage")]
+    [InlineData("missing-real-provider-job", "the real-provider job is missing")]
+    [InlineData("real-provider-on-windows", "real-provider job must run on ubuntu-latest")]
+    [InlineData("service-host-trust", "must start with POSTGRES_HOST_AUTH_METHOD reject")]
+    [InlineData("missing-health-check", "needs a pg_isready health check")]
+    [InlineData("postgresql-version-mismatch", "POSTGRESQL_VERSION must equal")]
+    [InlineData("postgresql-register-candidate", "POSTGRESQL_VERSION must equal")]
+    [InlineData("missing-database-step", "must create its test database")]
+    [InlineData("unmasked-password", "must generate the password from /dev/urandom, mask it")]
+    [InlineData("missing-database-script", "must generate the password from /dev/urandom, mask it")]
+    [InlineData("real-provider-unfiltered", "every dotnet test in the real-provider job must select its tests")]
+    [InlineData("real-provider-unit-filter", "every dotnet test in the real-provider job must select its tests")]
+    [InlineData("build-test-unfiltered", "every dotnet test in the build-test job must select its tests")]
+    [InlineData("build-test-real-provider-filter", "every dotnet test in the build-test job must select its tests")]
+    [InlineData("build-test-without-tests", "the build-test job must run dotnet test")]
+    [InlineData("diverged-shared-step", "exactly as build-test does")]
+    [InlineData("missing-shared-step", "exactly as build-test does")]
+    [InlineData("missing-container-job", "the container-build job is missing")]
+    [InlineData("container-on-macos", "container-build job must run on ubuntu-latest")]
+    [InlineData("container-other-platform", "must build for linux/amd64")]
+    [InlineData("container-other-fixture", "must build tests/Fixtures/container/Dockerfile")]
+    [InlineData("playwright-install-step", "must not install Playwright browsers")]
+    [InlineData("playwright-install-script", "must not install Playwright browsers")]
+    public void A_single_ci_pin_violation_is_rejected(string mutation, string expectedDiagnostic)
+    {
+        // Every mutation derives its values from the current files, so a later pin update cannot turn it into a no-op.
+        var original = RepositoryFiles.Current;
+        var files = original.ToDictionary();
+        Assert.Empty(ToolPinContract.Validate(files));
+        var pin = JsonNode.Parse(files[NodePinPath])!;
+        var archives = pin["archives"]!.AsObject();
+        var (firstTarget, first) = archives.First();
+        var (_, second) = archives.Skip(1).First();
+        var (_, windows) = archives.First(archive => archive.Key.StartsWith("win-", StringComparison.Ordinal));
+        var register = JsonNode.Parse(files[RegisterPath])!;
+        var entries = register["entries"]!.AsArray();
+        JsonNode Entry(string id) => entries.Single(entry => (string?)entry!["id"] == id)!;
+        var node = Entry("binary:node");
+        var postgres = Entry(ToolPinContract.PostgresImageId);
+        var aspnet = Entry(ToolPinContract.AspNetImageId);
+        var postgresReference = Reference(postgres);
+        var aspnetReference = Reference(aspnet);
+        var ci = files[CiPath];
+        var fixture = files[FixturePath];
+        string? pinText = null;
+        switch (mutation)
+        {
+            case "missing-node-pin": Assert.True(files.Remove(NodePinPath)); break;
+            case "invalid-node-pin": pinText = files[NodePinPath].TrimEnd()[..^1]; break;
+            case "node-pin-version-mismatch": Set(pin, "version", Bump(Value(pin, "version"))); break;
+            case "node-workflow-version-mismatch":
+                files[CiPath] = RewriteLine(ci, "NODE_VERSION", line => line.Replace(Value(pin, "version"), Bump(Value(pin, "version"))));
+                break;
+            case "duplicate-node-version": files[CiPath] = RewriteLine(ci, "NODE_VERSION", line => line + "\n" + line); break;
+            case "node-register-candidate": Set(node, "status", "candidate"); break;
+            case "node-register-version-mismatch": Set(node, "version", Bump(Value(node, "version"))); break;
+            case "node-other-source": Set(pin, "source", Value(pin, "source").Replace("SHASUMS256.txt", "SHASUMS256.txt.asc")); break;
+            case "node-uncited-source":
+                var sources = node["maintenance"]!["sources"]!.AsArray();
+                Assert.True(sources.Remove(sources.First(source => (string?)source == Value(pin, "source"))));
+                break;
+            case "missing-node-target": Assert.True(archives.Remove(firstTarget)); break;
+            case "extra-node-target": archives.Add(firstTarget.Split('-')[0] + "-ppc64le", first!.DeepClone()); break;
+            case "node-other-host": Set(first!, "url", Value(first!, "url").Replace("nodejs.org", "mirror.example")); break;
+            case "node-windows-tarball": Set(windows!, "url", Value(windows!, "url").Replace(".zip", ".tar.gz")); break;
+            case "node-uppercase-hash": Set(first!, "sha256", Value(first!, "sha256").ToUpperInvariant()); break;
+            case "node-sha512-field":
+                first!["sha512"] = Value(first!, "sha256");
+                Assert.True(first.AsObject().Remove("sha256"));
+                break;
+            case "node-duplicate-hash": Set(second!, "sha256", Value(first!, "sha256")); break;
+            case "node-register-digest-mismatch":
+                var recorded = node["digests"]!.AsArray().First(digest => (string?)digest!["target"] == firstTarget)!;
+                var digest = Value(recorded, "digest");
+                Set(recorded, "digest", digest[..^1] + (digest[^1] == '0' ? '1' : '0'));
+                break;
+            case "ci-without-node-pin": files[CiPath] = Changed(ci, ci.Replace(NodePinPath, ".github/node-pin.json", StringComparison.Ordinal)); break;
+            case "unpinned-service-image":
+                files[CiPath] = ReplaceLine(ci, "        image: " + postgresReference, "        image: " + postgresReference.Split('@')[0]);
+                break;
+            case "other-service-digest":
+                files[CiPath] = ReplaceLine(ci, "        image: " + postgresReference, "        image: " + Flip(postgresReference));
+                break;
+            case "postgres-image-env-mismatch":
+                files[CiPath] = ReplaceLine(ci, "      POSTGRES_IMAGE: " + postgresReference, "      POSTGRES_IMAGE: " + Flip(postgresReference));
+                break;
+            case "postgres-register-candidate": Set(postgres, "status", "candidate"); break;
+            case "inline-container":
+                files[CiPath] = ReplaceLine(ci, "    timeout-minutes: 15", "    timeout-minutes: 15\n    container: " + aspnetReference, firstOnly: true);
+                break;
+            case "aspnet-image-env-mismatch":
+                files[CiPath] = ReplaceLine(ci, "      ASPNET_IMAGE: " + aspnetReference, "      ASPNET_IMAGE: " + Flip(aspnetReference));
+                break;
+            case "aspnet-register-candidate": Set(aspnet, "status", "candidate"); break;
+            case "missing-fixture": Assert.True(files.Remove(FixturePath)); break;
+            case "dockerfile-other-base":
+                files[FixturePath] = Changed(fixture, fixture.Replace("/dotnet/aspnet:", "/dotnet/runtime:", StringComparison.Ordinal));
+                break;
+            case "dockerfile-unpinned-base":
+                files[FixturePath] = Changed(fixture, fixture.Replace(aspnetReference, aspnetReference.Split('@')[0], StringComparison.Ordinal));
+                break;
+            case "dockerfile-arg-base":
+                files[FixturePath] = Changed(fixture, fixture.Replace("FROM " + aspnetReference, "ARG BASE=" + aspnetReference + "\nFROM ${BASE}",
+                    StringComparison.Ordinal));
+                break;
+            case "dockerfile-syntax-directive": files[FixturePath] = "# syntax=docker/dockerfile:1\n" + fixture; break;
+            case "dockerfile-copy-from-image": files[FixturePath] = fixture + "COPY --from=docker.io/library/busybox:1 /bin/busybox /busybox\n"; break;
+            case "dockerfile-mount-from-image": files[FixturePath] = fixture + "RUN --mount=type=bind,from=alpine,target=/opt/alpine true\n"; break;
+            case "dockerfile-later-stage": files[FixturePath] = fixture + "COPY --from=later /a /a\nFROM " + aspnetReference + " AS later\n"; break;
+            case "dockerfile-other-platform":
+                files[FixturePath] = Changed(fixture, fixture.Replace("FROM " + aspnetReference, "FROM --platform=linux/arm64 " + aspnetReference,
+                    StringComparison.Ordinal));
+                break;
+            case "dockerfile-continued-from":
+                files[FixturePath] = Changed(fixture, fixture.Replace("FROM " + aspnetReference, "FROM \\\n  " + aspnetReference, StringComparison.Ordinal));
+                break;
+            case "dockerfile-extra-from-words":
+                files[FixturePath] = Changed(fixture, fixture.Replace("FROM " + aspnetReference, "FROM " + aspnetReference + " AS base extra",
+                    StringComparison.Ordinal));
+                break;
+            case "dockerfile-without-from":
+                files[FixturePath] = Changed(fixture, string.Join('\n', fixture.Split('\n').Where(line => !line.StartsWith("FROM ", StringComparison.Ordinal))));
+                break;
+            case "second-dockerfile-other-base":
+                files["src/Tooling/Sample/Dockerfile"] = "FROM docker.io/library/alpine:3.22@sha256:" + new string('a', 64) + "\n";
+                break;
+            case "missing-real-provider-job": files[CiPath] = ReplaceLine(ci, "  real-provider:", "  integration:"); break;
+            case "real-provider-on-windows": files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, "runs-on: ubuntu-latest", "runs-on: windows-latest"); break;
+            case "service-host-trust": files[CiPath] = ReplaceLine(ci, "          POSTGRES_HOST_AUTH_METHOD: reject", "          POSTGRES_HOST_AUTH_METHOD: trust"); break;
+            case "missing-health-check": files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, "\"pg_isready ", "\"true "); break;
+            case "postgresql-version-mismatch":
+                files[CiPath] = RewriteLine(ci, "POSTGRESQL_VERSION", line => line.Replace(Value(postgres, "version"), Bump(Value(postgres, "version"))));
+                break;
+            case "postgresql-register-candidate": Set(Entry("binary:postgresql"), "status", "candidate"); break;
+            case "missing-database-step":
+                files[CiPath] = ReplaceLine(ci, $"        run: bash {ScriptPath} ci", "        run: echo no database");
+                break;
+            case "unmasked-password":
+                files[ScriptPath] = Changed(files[ScriptPath], files[ScriptPath].Replace("echo \"::add-mask::${password}\"", "true", StringComparison.Ordinal));
+                break;
+            case "missing-database-script": Assert.True(files.Remove(ScriptPath)); break;
+            case "real-provider-unfiltered":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, " " + ToolPinContract.RealProviderFilter, "");
+                break;
+            case "real-provider-unit-filter":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, ToolPinContract.RealProviderFilter, ToolPinContract.UnitFilter);
+                break;
+            case "build-test-unfiltered": files[CiPath] = ReplaceInJob(ci, ToolPinContract.BuildTestJob, " " + ToolPinContract.UnitFilter, ""); break;
+            case "build-test-real-provider-filter":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.BuildTestJob, ToolPinContract.UnitFilter, ToolPinContract.RealProviderFilter);
+                break;
+            case "build-test-without-tests":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.BuildTestJob, "run: dotnet test -c Release --no-build " + ToolPinContract.UnitFilter,
+                    "run: echo no tests");
+                break;
+            case "diverged-shared-step": files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, "--retry 3", "--retry 1"); break;
+            case "missing-shared-step":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, "- name: " + ToolPinContract.SharedLinuxSteps[^1], "- name: Verify Node.js");
+                break;
+            case "missing-container-job": files[CiPath] = ReplaceLine(ci, "  container-build:", "  image-build:"); break;
+            case "container-on-macos": files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "runs-on: ubuntu-latest", "runs-on: macos-latest"); break;
+            case "container-other-platform":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "docker build --platform linux/amd64 ", "docker build --platform linux/arm64 ");
+                break;
+            case "container-other-fixture":
+                files[CiPath] = ReplaceLine(ci, "      FIXTURE_DOCKERFILE: " + FixturePath, "      FIXTURE_DOCKERFILE: tests/Fixtures/other/Dockerfile");
+                break;
+            case "playwright-install-step":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, "      - name: Restore locked dependencies",
+                    "      - name: Install browsers\n        run: pwsh playwright.ps1 install --with-deps chromium\n      - name: Restore locked dependencies");
+                break;
+            case "playwright-install-script": files[".github/scripts/browsers.sh"] = "#!/usr/bin/env bash\nnpx playwright install chromium\n"; break;
+            default: throw new ArgumentOutOfRangeException(nameof(mutation), mutation, "Unknown mutation case.");
+        }
+
+        if (files.ContainsKey(NodePinPath))
+        {
+            files[NodePinPath] = pinText ?? pin.ToJsonString();
+        }
+
+        files[RegisterPath] = register.ToJsonString();
+
+        // Compare JSON files by content and every other file by text, so an unchanged mutation fails here.
+        var changed = files.Count != original.Count || files.Any(pair => !original.TryGetValue(pair.Key, out var text)
+            || Canonical(pair.Key, text) != Canonical(pair.Key, pair.Value));
+        Assert.True(changed, $"Mutation {mutation} must change the repository files.");
+        Assert.Contains(ToolPinContract.Validate(files), error => error.Contains(expectedDiagnostic, StringComparison.Ordinal));
+    }
+
+    private static string Reference(JsonNode image)
+    {
+        var index = image["digests"]!.AsArray().Single(digest => (string?)digest!["target"] == "index")!;
+        return ToolPinContract.PinnedReference(Value(image, "name"), Value(index, "url"), Value(index, "digest"))
+            ?? throw new InvalidOperationException("The image entry has no index fetched by tag.");
+    }
+
+    // Changes the last hexadecimal digit of a digest-pinned reference, which keeps it well formed and different.
+    private static string Flip(string reference) => reference[..^1] + (reference[^1] == '0' ? '1' : '0');
+
+    // Replaces one exact line of a file, or the first of several when firstOnly is set.
+    private static string ReplaceLine(string text, string line, string replacement, bool firstOnly = false)
+    {
+        var lines = text.Split('\n').ToList();
+        var matches = lines.Select((value, index) => (value, index)).Where(pair => pair.value.TrimEnd('\r') == line).ToList();
+        Assert.True(firstOnly ? matches.Count >= 1 : matches.Count == 1, $"The file must contain the line '{line}' {(firstOnly ? "at least" : "exactly")} once.");
+        lines[matches[0].index] = replacement;
+        return Changed(text, string.Join('\n', lines));
+    }
+
+    // Replaces the first occurrence of a text within one job of the CI workflow.
+    private static string ReplaceInJob(string workflow, string job, string value, string replacement)
+    {
+        var start = workflow.IndexOf($"\n  {job}:\n", StringComparison.Ordinal);
+        Assert.True(start >= 0, $"The workflow must define the {job} job.");
+        var next = Regex.Match(workflow[(start + 1)..], @"\n  [A-Za-z_][A-Za-z0-9_-]*:\n");
+        var end = next.Success ? start + 1 + next.Index : workflow.Length;
+        var at = workflow.IndexOf(value, start, end - start, StringComparison.Ordinal);
+        Assert.True(at >= 0, $"The {job} job must contain '{value}'.");
+        return Changed(workflow, workflow[..at] + replacement + workflow[(at + value.Length)..]);
     }
 
     private static JsonNode Pin() => JsonNode.Parse(RepositoryFiles.Current[PinPath])!;

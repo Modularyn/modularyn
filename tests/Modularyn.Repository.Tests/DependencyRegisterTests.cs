@@ -193,7 +193,10 @@ public sealed class DependencyRegisterTests
     [InlineData("image-tag-mismatch", "of a tag that names version")]
     [InlineData("image-manifest-mismatch", "the linux/amd64 url must be the registry manifest URL of its digest")]
     [InlineData("image-name", "container-image name must be <registry>/<repository>")]
-    [InlineData("in-use-image", "in-use container-image entries require")]
+    [InlineData("candidate-image-reference", "needs an in-use container-image entry with that tag and index digest")]
+    [InlineData("unregistered-image-reference", "needs an in-use container-image entry with that tag and index digest")]
+    [InlineData("unpulled-image", "is pulled by no workflow or Dockerfile")]
+    [InlineData("image-without-tag-index", "needs an index digest fetched by tag")]
     [InlineData("node-missing-platform", "binary:node digests must name exactly")]
     [InlineData("node-other-url", "binary:node digests must name exactly")]
     [InlineData("misaligned-runtime-package", "must match the runtime version")]
@@ -399,9 +402,9 @@ public sealed class DependencyRegisterTests
             case "multiline-text": Set(nuget, "reason", "First line.\nSecond line."); break;
             case "long-text": Set(maintenance, "activity", new string('a', 601)); break;
             case "unsorted":
-                var moved = entries[1];
+                var first = entries[1];
                 entries.RemoveAt(1);
-                entries.Insert(0, moved);
+                entries.Insert(0, first);
                 break;
             case "null-entry": entries[0] = null; break;
             case "null-entries": register["entries"] = null; break;
@@ -433,7 +436,20 @@ public sealed class DependencyRegisterTests
                 Set(image, "name", Value(image, "name").Split('/')[^1]);
                 Set(image, "id", $"container-image:{Value(image, "name")}");
                 break;
-            case "in-use-image": Set(image, "status", "in-use"); break;
+            case "candidate-image-reference": Set(image, "status", "candidate"); break;
+            case "unregistered-image-reference":
+                files[".github/workflows/ci.yml"] += string.Join('\n', "", "env:",
+                    "  UNREVIEWED_IMAGE: docker.io/library/unreviewed:1.0.0@sha256:" + new string('a', 64), "");
+                break;
+            case "unpulled-image":
+                var reference = ToolPinContract.PinnedReference(Value(image, "name"), Value(index, "url"), Value(index, "digest"))!;
+                var moved = reference[..^1] + (reference[^1] == '0' ? '1' : '0');
+                var pulling = files.Keys.Where(path => files[path].Contains(reference, StringComparison.Ordinal)
+                    && (path.StartsWith(".github/workflows/", StringComparison.Ordinal) || ToolPinContract.IsDockerfile(path))).ToList();
+                Assert.NotEmpty(pulling);
+                foreach (var path in pulling) files[path] = files[path].Replace(reference, moved, StringComparison.Ordinal);
+                break;
+            case "image-without-tag-index": Set(index, "url", Value(platform, "url").Replace(Value(platform, "digest"), Value(index, "digest"))); break;
             case "node-missing-platform": nodeDigests.RemoveAt(nodeDigests.Count - 1); break;
             case "node-other-url": Set(firstDigest, "url", Value(firstDigest, "url").Replace("nodejs.org", "mirror.example")); break;
             case "misaligned-runtime-package":
@@ -469,6 +485,49 @@ public sealed class DependencyRegisterTests
             || (pair.Key == RegisterPath ? JsonNode.Parse(text)!.ToJsonString() != pair.Value : text != pair.Value));
         Assert.True(changed, $"Mutation {mutation} must change the repository files.");
         Assert.Contains(DependencyRegister.Validate(files), error => error.Contains(expectedDiagnostic, StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("enabled", true)]
+    [InlineData("disabled", false)]
+    [InlineData("disabled-quoted", false)]
+    [InlineData("disabled-false", true)]
+    [InlineData("pinned-ryuk", false)]
+    [InlineData("registered-unpinned-ryuk", true)]
+    [InlineData("candidate-ryuk", true)]
+    public void Adopting_testcontainers_requires_a_registered_or_disabled_ryuk(string scenario, bool rejected)
+    {
+        // The Ryuk reference is the one Testcontainers 4.16.0 hard-codes (README, exception 9).
+        const string ryuk = "docker.io/testcontainers/ryuk:0.14.0@sha256:7c1a8a9a47c780ed0f983770a662f80deb115d95cce3e2daa3d12115b8cd28f0";
+        var files = RepositoryFiles.Current.ToDictionary();
+        var register = JsonNode.Parse(files[RegisterPath])!;
+        var entries = register["entries"]!.AsArray();
+        Assert.DoesNotContain(DependencyRegister.Validate(files), error => error.Contains("Ryuk", StringComparison.Ordinal));
+        Set(First(entries, entry => Value(entry, "id") == "nuget:testcontainers"), "status", "in-use");
+        var workflow = ".github/workflows/ci.yml";
+        string Env(string line) => string.Join('\n', "", "env:", "  " + line, "");
+        switch (scenario)
+        {
+            case "enabled": break;
+            case "disabled": files[workflow] += Env("TESTCONTAINERS_RYUK_DISABLED: true"); break;
+            case "disabled-quoted": files[workflow] += Env("TESTCONTAINERS_RYUK_DISABLED: 'true'"); break;
+            case "disabled-false": files[workflow] += Env("TESTCONTAINERS_RYUK_DISABLED: 'false'"); break;
+            case "pinned-ryuk":
+                entries.Add(Ryuk(entries, ryuk, "in-use"));
+                files[workflow] += Env("TESTCONTAINERS_RYUK_CONTAINER_IMAGE: " + ryuk);
+                break;
+            case "registered-unpinned-ryuk": entries.Add(Ryuk(entries, ryuk, "in-use")); break;
+            case "candidate-ryuk":
+                entries.Add(Ryuk(entries, ryuk, "candidate"));
+                files[workflow] += Env("TESTCONTAINERS_RYUK_CONTAINER_IMAGE: " + ryuk);
+                break;
+            default: throw new ArgumentOutOfRangeException(nameof(scenario), scenario, "Unknown scenario.");
+        }
+
+        files[RegisterPath] = register.ToJsonString();
+        var errors = DependencyRegister.Validate(files);
+        Assert.Equal(rejected, errors.Any(error => error.StartsWith("nuget:testcontainers: in-use Testcontainers starts the Ryuk sidecar",
+            StringComparison.Ordinal)));
     }
 
     [Theory]
@@ -585,6 +644,23 @@ public sealed class DependencyRegisterTests
         throw new InvalidOperationException("No workflow pins a tool version.");
     }
 
+    // A Ryuk image entry built from the registered PostgreSQL image entry, for the Testcontainers rule.
+    private static JsonNode Ryuk(JsonArray entries, string reference, string status)
+    {
+        var ryuk = First(entries, entry => Value(entry, "id") == ToolPinContract.PostgresImageId).DeepClone();
+        var version = reference.Split(':')[1].Split('@')[0];
+        var platform = "sha256:" + new string('b', 64);
+        ryuk["id"] = DependencyRegister.RyukImageId;
+        ryuk["name"] = DependencyRegister.RyukImageId["container-image:".Length..];
+        ryuk["version"] = version;
+        ryuk["status"] = status;
+        ryuk["maintenance"]!["latestEligible"] = version;
+        ryuk["digests"] = new JsonArray(
+            new JsonObject { ["target"] = "index", ["url"] = $"https://registry-1.docker.io/v2/testcontainers/ryuk/manifests/{version}", ["digest"] = reference.Split('@')[1] },
+            new JsonObject { ["target"] = "linux/amd64", ["url"] = $"https://registry-1.docker.io/v2/testcontainers/ryuk/manifests/{platform}", ["digest"] = platform });
+        return ryuk;
+    }
+
     private static string MutateLock(string text, Action<JsonObject> mutate)
     {
         var document = JsonNode.Parse(text)!;
@@ -676,7 +752,13 @@ internal static class DependencyRegister
     private sealed record Digest(string Target, string Url, string Value);
 
     private sealed record Dependency(string Id, string Name, string Ecosystem, string Version, string Status, bool Unpinned,
-        DateOnly? Reviewed);
+        DateOnly? Reviewed, List<Digest>? Digests);
+
+    // The Ryuk sidecar that Testcontainers starts unless a workflow disables it (README, exception 9).
+    public const string RyukImageId = "container-image:docker.io/testcontainers/ryuk";
+    private static readonly Regex ImageReference = new(
+        @"(?<![A-Za-z0-9._/-])(?<name>[a-z0-9-]+(?:\.[a-z0-9-]+)+/[a-z0-9]+(?:[._-][a-z0-9]+)*(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)*):(?<tag>[A-Za-z0-9_][A-Za-z0-9_.-]*)@(?<digest>sha256:[0-9a-f]{64})",
+        RegexOptions.CultureInvariant);
 
     public static List<string> Validate(IReadOnlyDictionary<string, string> files) => Validate(files, RuntimeAlignmentExceptions);
 
@@ -1011,7 +1093,7 @@ internal static class DependencyRegister
             }
         }
 
-        return new Dependency(id, name, ecosystem, version, status, unpinned, reviewed);
+        return new Dependency(id, name, ecosystem, version, status, unpinned, reviewed, digests);
     }
 
     // Digests record SHA-256 values for artifacts that no lock file, commit SHA or SDK pin file covers: tool archives and images.
@@ -1226,14 +1308,81 @@ internal static class DependencyRegister
             errors.Add($"{dependency.Id}: in-use npm entries require a lock-file check that this register does not have yet.");
         }
 
-        foreach (var dependency in inUse.Where(dependency => dependency.Ecosystem == "container-image"))
-        {
-            errors.Add($"{dependency.Id}: in-use container-image entries require a check of the digest that CI pulls, which "
-                + "this register does not have yet.");
-        }
-
+        ValidateImages(files, inUse, errors);
+        ValidateTestcontainers(files, inUse, errors);
         ValidateWorkflows(files, inUse, errors);
     }
+
+    // Every image reference in a workflow or Dockerfile names an in-use entry by its tag and index digest, and every
+    // in-use image is pulled somewhere at that reference, as action SHAs and tool versions agree with their entries.
+    private static void ValidateImages(IReadOnlyDictionary<string, string> files, List<Dependency> inUse, List<string> errors)
+    {
+        var pinned = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var image in inUse.Where(dependency => dependency.Ecosystem == "container-image"))
+        {
+            var index = image.Digests?.Where(digest => digest.Target == "index").ToList() ?? [];
+            var reference = index.Count == 1 ? ToolPinContract.PinnedReference(image.Name, index[0].Url, index[0].Value) : null;
+            if (reference is not null)
+            {
+                pinned[reference] = image.Id;
+            }
+        }
+
+        var pulled = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var (path, text) in files.Where(pair => IsWorkflow(pair.Key) || ToolPinContract.IsDockerfile(pair.Key))
+                     .OrderBy(pair => pair.Key, StringComparer.Ordinal))
+        {
+            foreach (Match match in ImageReference.Matches(text))
+            {
+                pulled.Add(match.Value);
+                if (!pinned.ContainsKey(match.Value))
+                {
+                    errors.Add($"{path}: image {match.Value} needs an in-use container-image entry with that tag and index digest.");
+                }
+            }
+        }
+
+        foreach (var (reference, id) in pinned.Where(pair => !pulled.Contains(pair.Key)))
+        {
+            errors.Add($"{id}: in-use container-image entry is pulled by no workflow or Dockerfile at {reference}.");
+        }
+
+        foreach (var image in inUse.Where(dependency => dependency.Ecosystem == "container-image" && !pinned.ContainsValue(dependency.Id)))
+        {
+            errors.Add($"{image.Id}: in-use container-image entry needs an index digest fetched by tag.");
+        }
+    }
+
+    // Testcontainers starts the privileged Ryuk sidecar by default, so adopting it needs Ryuk registered and pinned, or
+    // disabled in a workflow.
+    private static void ValidateTestcontainers(IReadOnlyDictionary<string, string> files, List<Dependency> inUse, List<string> errors)
+    {
+        var adopted = inUse.Where(dependency => dependency.Ecosystem == "nuget"
+            && dependency.Name.StartsWith("Testcontainers", StringComparison.OrdinalIgnoreCase)).ToList();
+        if (adopted.Count == 0)
+        {
+            return;
+        }
+
+        var workflows = files.Where(pair => IsWorkflow(pair.Key)).Select(pair => pair.Value).ToList();
+        var disabled = workflows.Any(text => ToolPinContract.Values(text, "TESTCONTAINERS_RYUK_DISABLED").Contains("true"));
+        var ryuk = inUse.FirstOrDefault(dependency => dependency.Id == RyukImageId);
+        var index = ryuk?.Digests?.Where(digest => digest.Target == "index").ToList() ?? [];
+        var reference = index.Count == 1 ? ToolPinContract.PinnedReference(ryuk!.Name, index[0].Url, index[0].Value) : null;
+        var pinnedRyuk = reference is not null
+            && workflows.Any(text => ToolPinContract.Values(text, "TESTCONTAINERS_RYUK_CONTAINER_IMAGE").Contains(reference));
+        if (!disabled && !pinnedRyuk)
+        {
+            foreach (var dependency in adopted)
+            {
+                errors.Add($"{dependency.Id}: in-use Testcontainers starts the Ryuk sidecar; register {RyukImageId} as in-use and pin "
+                    + "it with TESTCONTAINERS_RYUK_CONTAINER_IMAGE in a workflow, or set TESTCONTAINERS_RYUK_DISABLED to true in a workflow.");
+            }
+        }
+    }
+
+    private static bool IsWorkflow(string path) => path.StartsWith(".github/workflows/", StringComparison.Ordinal)
+        && (path.EndsWith(".yml", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase));
 
     private static void ValidateSdk(string text, List<Dependency> dependencies, List<string> errors)
     {

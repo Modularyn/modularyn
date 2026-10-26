@@ -3,8 +3,9 @@ using System.Text.RegularExpressions;
 
 namespace Modularyn.Repository.Tests;
 
-// Checks the hashes pinned for the tools CI downloads: the SDK archives and the gitleaks archive.
-internal static class ToolPinContract
+// Checks the pins for what CI downloads and pulls: the SDK, Node.js and gitleaks archives and the container images,
+// and the workflow structure that uses them.
+internal static partial class ToolPinContract
 {
     public const string SdkPinPath = ".github/dotnet-sdk.json";
     public const string CiPath = ".github/workflows/ci.yml";
@@ -24,7 +25,7 @@ internal static class ToolPinContract
     private static readonly Regex GitleaksDigest = new(
         """^\s*GITLEAKS_SHA256\s*:\s*(?<quote>["']?)(?<value>[^"'\s#]*)\k<quote>\s*(?:#.*)?$""", RegexOptions.CultureInvariant);
 
-    private sealed record RegisterEntry(string Id, string Ecosystem, string Status, string Version, string[] Sources,
+    private sealed record RegisterEntry(string Id, string Name, string Ecosystem, string Status, string Version, string[] Sources,
         (string Target, string Url, string Digest)[] Digests);
 
     public static string GitleaksArchiveUrl(string version) =>
@@ -38,6 +39,9 @@ internal static class ToolPinContract
         ValidateSdkPin(files, sdkVersion, register, errors);
         ValidateWorkflows(files, errors);
         ValidateGitleaks(files, register, errors);
+        ValidateNode(files, register, errors);
+        ValidateImages(files, register, errors);
+        ValidateJobs(files, register, errors);
         return errors;
     }
 
@@ -81,7 +85,7 @@ internal static class ToolPinContract
                     ? pinned.EnumerateArray().Where(digest => digest.ValueKind == JsonValueKind.Object)
                         .Select(digest => (Text(digest, "target") ?? "", Text(digest, "url") ?? "", Text(digest, "digest") ?? "")).ToArray()
                     : [];
-                entries.Add(new RegisterEntry(Text(entry, "id") ?? "", Text(entry, "ecosystem") ?? "",
+                entries.Add(new RegisterEntry(Text(entry, "id") ?? "", Text(entry, "name") ?? "", Text(entry, "ecosystem") ?? "",
                     Text(entry, "status") ?? "", Text(entry, "version") ?? "", sources, digests));
             }
         }
