@@ -178,7 +178,10 @@ public sealed class DependencyRegisterTests
                 }));
                 break;
             case "stale-nuget-entry":
-                files[LockPath] = MutateLock(files[LockPath], locked => Assert.True(locked.Remove(locked.First().Key)));
+                var absentPackage = JsonNode.Parse(files[LockPath])!["dependencies"]!["net10.0"]!.AsObject().First().Key;
+                // A shared test dependency must be removed from every project's lock to become stale.
+                foreach (var path in files.Keys.Where(path => Path.GetFileName(path) == "packages.lock.json").ToArray())
+                    files[path] = MutateLock(files[path], locked => { locked.Remove(absentPackage); });
                 break;
             case "unregistered-action":
                 var workflow = files.Keys.Where(path => path.StartsWith(".github/workflows/", StringComparison.Ordinal)
@@ -793,6 +796,10 @@ internal static class DependencyRegister
                 {
                     foreach (var package in framework.Value.EnumerateObject())
                     {
+                        // Local project references are checked by architecture discovery, not the external dependency register.
+                        if (package.Value.TryGetProperty("type", out var kind) && kind.GetString() == "Project"
+                            && files.Keys.Any(project => project.EndsWith(".csproj", StringComparison.Ordinal)
+                                && string.Equals(Path.GetFileNameWithoutExtension(project), package.Name, StringComparison.OrdinalIgnoreCase))) continue;
                         var resolved = package.Value.GetProperty("resolved").GetString() ?? "";
                         locked.Add($"{package.Name}@{resolved}");
                         if (!nuget.TryGetValue(package.Name, out var registered) || registered != resolved)
