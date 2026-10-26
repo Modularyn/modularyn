@@ -238,13 +238,14 @@ internal static class Conventions
                 }
 
                 var lockPath = path[..(path.LastIndexOf('/') + 1)] + "packages.lock.json";
-                ValidateLock(lockPath, files.GetValueOrDefault(lockPath, ""), references, versions, errors);
+                ValidateLock(lockPath, files.GetValueOrDefault(lockPath, ""), references, versions,
+                    projects.Select(project => Path.GetFileNameWithoutExtension(project)).ToHashSet(StringComparer.OrdinalIgnoreCase), errors);
             }
         }
     }
 
     private static void ValidateLock(string path, string text, string[] references,
-        Dictionary<string, string> versions, List<string> errors)
+        Dictionary<string, string> versions, HashSet<string> projectNames, List<string> errors)
     {
         try
         {
@@ -262,6 +263,8 @@ internal static class Conventions
             foreach (var package in dependencies.EnumerateObject())
             {
                 var value = package.Value;
+                // Local project entries have no package archive or content hash.
+                if (value.GetProperty("type").GetString() == "Project" && projectNames.Contains(package.Name)) continue;
                 if (Convert.FromBase64String(value.GetProperty("contentHash").GetString() ?? "").Length != 64)
                 {
                     errors.Add($"{path}: every package needs its SHA-512 content hash.");

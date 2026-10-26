@@ -16,6 +16,10 @@ public sealed class ArchitectureTests
     {
         var graph = new ArchitectureFixture();
         graph.ProjectReference("Modularyn.Modules.Files.Domain", "Modularyn.Framework.Domain");
+        graph.ProjectReference("Modularyn.Modules.Files.Domain", "Modularyn.Framework.Modularity.Abstractions");
+        graph.ProjectReference("Modularyn.Modules.Files.Application.Contracts", "Modularyn.Framework.Modularity.Abstractions");
+        graph.ProjectReference("Modularyn.Framework.Hosting", "Modularyn.Framework.Modularity");
+        graph.ProjectReference("Modularyn.Framework.Modularity", "Modularyn.Framework.Modularity.Abstractions");
         graph.ProjectReference("Modularyn.Modules.Files.Application.Contracts", "Modularyn.Framework.Sdk.Contracts");
         graph.ProjectReference("Modularyn.Modules.Files.Application", "Modularyn.Modules.Files.Domain");
         graph.ProjectReference("Modularyn.Modules.Files.Application", "Modularyn.Modules.Files.Application.Contracts");
@@ -41,6 +45,9 @@ public sealed class ArchitectureTests
     [InlineData("Modularyn.Pro.Workflow.Application.Contracts", "Pro", "Modularyn.Pro.Workflow", "application-contracts", "paid")]
     [InlineData("Modularyn.Pro.Studio.Domain", "Pro", "", "", "paid")]
     [InlineData("Modularyn.Framework.Sdk.Contracts", "Framework", "", "", "community")]
+    [InlineData("Modularyn.Framework.Modularity.Abstractions", "Framework", "", "", "community")]
+    [InlineData("Modularyn.Framework.Modularity", "Framework", "", "", "community")]
+    [InlineData("Modularyn.Framework.Hosting", "Framework", "", "", "community")]
     [InlineData("Modularyn.UI.Admin.Shell", "UI", "", "", "community")]
     [InlineData("Modularyn", "FrontDoor", "", "", "community")]
     [InlineData("dotnet-modularyn", "Tooling", "", "", "community")]
