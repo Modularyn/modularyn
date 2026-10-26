@@ -91,7 +91,7 @@ public sealed class OwnershipTests
     public async Task A_manifest_cannot_omit_owned_migrations_even_before_database_access()
     {
         var module = PostgreSqlModule.Create("Sample", "sample", Options, owner => new SampleContext(owner));
-        var selection = new CompositionSelection([new("Sample", new(1, 0, 0))], new(new(10, 0, 14), new(1, 0, 0)));
+        var selection = new CompositionSelection([new("Sample", SemanticVersion.Parse("1.0.0"))], new(SemanticVersion.Parse("10.0.14"), SemanticVersion.Parse("1.0.0")));
         var diagnostics = await new MigrationActivationValidator(new([module])).ValidateAsync(selection, TestContext.Current.CancellationToken);
         Assert.Equal(MigrationActivationValidator.Invalid, Assert.Single(diagnostics).Code);
     }
@@ -125,9 +125,9 @@ public sealed class OwnershipTests
     public async Task Host_refuses_declared_migrations_when_the_completion_gate_was_not_registered()
     {
         var constructed = 0;
-        var manifest = new ModuleManifest("Sample", new(1, 0, 0), migrations: [new(SampleInitial.Id, new(1, 0, 0))]);
+        var manifest = new ModuleManifest("Sample", SemanticVersion.Parse("1.0.0"), migrations: [new(SampleInitial.Id, SemanticVersion.Parse("1.0.0"))]);
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { DisableDefaults = true });
-        builder.Services.AddModularynModules(new(new(10, 0, 14), new(1, 0, 0)),
+        builder.Services.AddModularynModules(new(SemanticVersion.Parse("10.0.14"), SemanticVersion.Parse("1.0.0")),
             [new(manifest, _ => { constructed++; return new LifecycleModule(); })], new() { AllowUnverifiedComposition = true });
         using var host = builder.Build();
         var refusal = await Assert.ThrowsAsync<ModuleCompositionException>(() => host.StartAsync(TestContext.Current.CancellationToken));

@@ -1,7 +1,8 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore;
 using Modularyn.Framework.Persistence.Abstractions;
+using Npgsql;
 using Xunit;
 
 namespace Modularyn.Framework.Persistence.EfCore.Tests;
@@ -23,7 +24,7 @@ public sealed class MigrationFailureTests : PostgreSqlTestDatabase
         Assert.Equal("Failed", await ProgressStateAsync(RecoveryExtend.Id));
         Assert.Equal(1L, await ScalarAsync<long>("SELECT count(*) FROM " + Table(PostgreSqlModule.HistoryTable)));
         Assert.Equal(0L, await ScalarAsync<long>(
-            "SELECT count(*) FROM information_schema.columns WHERE table_schema = @schema AND table_name = 'SystemSeeds' AND column_name = 'Note'", new("schema", Schema)));
+            "SELECT count(*) FROM information_schema.columns WHERE table_schema = @schema AND table_name = 'SystemSeeds' AND column_name = 'Note'", new NpgsqlParameter("schema", Schema)));
         Assert.Equal(0L, await ScalarAsync<long>("SELECT count(*) FROM " + Table("SystemSeeds") + " WHERE \"Id\" = 'core'"));
         Assert.Equal(1L, await ScalarAsync<long>("SELECT count(*) FROM " + Table("SystemSeeds") + " WHERE \"Id\" = 'existing'"));
         Assert.Contains(await new MigrationActivationValidator(registry).ValidateAsync(plan.Selection, Cancellation),
@@ -40,7 +41,7 @@ public sealed class MigrationFailureTests : PostgreSqlTestDatabase
         Assert.Equal(1L, await ScalarAsync<long>("SELECT count(*) FROM " + Table("SystemSeeds") + " WHERE \"Id\" = 'existing'"));
         Assert.Equal(2L, await ScalarAsync<long>("SELECT count(*) FROM " + Table(PostgreSqlModule.HistoryTable)));
         Assert.Equal("YES:text", await ScalarAsync<string>(
-            "SELECT is_nullable || ':' || data_type FROM information_schema.columns WHERE table_schema = @schema AND table_name = 'SystemSeeds' AND column_name = 'Note'", new("schema", Schema)));
+            "SELECT is_nullable || ':' || data_type FROM information_schema.columns WHERE table_schema = @schema AND table_name = 'SystemSeeds' AND column_name = 'Note'", new NpgsqlParameter("schema", Schema)));
         await AssertCompleteAsync(module);
         Assert.Empty((await new PostgreSqlMigrationCoordinator(registry).ApplyAsync(plan, cancellationToken: Cancellation)).Completed);
     }

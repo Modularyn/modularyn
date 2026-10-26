@@ -138,9 +138,9 @@ public sealed class G02AC005Tests(ITestOutputHelper output) : PostgreSqlTestData
                 UnitOfWorkMode.New => UnitOfWorkState.Committed,
                 _ => UnitOfWorkState.CompletedWithoutTransaction
             }, Assert.Single(innerCompletions).State);
-            Assert.Equal(0L, await ScalarAsync<long>("SELECT count(*) FROM " + Table("Items") + " WHERE \"Id\" = @id", new("id", outerId)));
+            Assert.Equal(0L, await ScalarAsync<long>("SELECT count(*) FROM " + Table("Items") + " WHERE \"Id\" = @id", new NpgsqlParameter("id", outerId)));
             Assert.Equal(mode == UnitOfWorkMode.Join ? 0L : 1L,
-                await ScalarAsync<long>("SELECT count(*) FROM " + Table("Items") + " WHERE \"Id\" = @id", new("id", innerId)));
+                await ScalarAsync<long>("SELECT count(*) FROM " + Table("Items") + " WHERE \"Id\" = @id", new NpgsqlParameter("id", innerId)));
         }
     }
 
@@ -199,7 +199,7 @@ public sealed class G02AC005Tests(ITestOutputHelper output) : PostgreSqlTestData
         Assert.Equal(2L, await ScalarAsync<long>("SELECT count(*) FROM " + Table(PostgreSqlModule.HistoryTable)));
         Assert.Equal("YES:text", await ScalarAsync<string>(
             "SELECT is_nullable || ':' || data_type FROM information_schema.columns WHERE table_schema = @schema AND table_name = 'Items' AND column_name = 'Note'",
-            new("schema", Schema)));
+            new NpgsqlParameter("schema", Schema)));
         Assert.Equal(3L, await ScalarAsync<long>("SELECT count(*) FROM " + Table("Items") + " WHERE \"Note\" IS NULL"));
         await AssertCompleteAsync(module);
         var repeated = await new PostgreSqlMigrationCoordinator(registry).ApplyAsync(plan, cancellationToken: Cancellation);

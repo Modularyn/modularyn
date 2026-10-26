@@ -17,7 +17,7 @@ public abstract class PostgreSqlTestDatabase : IAsyncLifetime
     protected string Schema { get; } = "ac005_" + Guid.NewGuid().ToString("N");
     protected PostgreSqlPersistenceOptions Options { get; private set; } = null!;
     protected static CancellationToken Cancellation => TestContext.Current.CancellationToken;
-    protected static CompositionEnvironment EnvironmentVersion { get; } = new(new(10, 0, 14), new(1, 0, 0));
+    protected static CompositionEnvironment EnvironmentVersion { get; } = new(SemanticVersion.Parse("10.0.14"), SemanticVersion.Parse("1.0.0"));
 
     public async ValueTask InitializeAsync()
     {
@@ -58,8 +58,8 @@ public abstract class PostgreSqlTestDatabase : IAsyncLifetime
     protected static ModuleManifest Manifest(PostgreSqlModule module, IEnumerable<ModuleDependency>? dependencies = null)
     {
         using var context = module.CreateContext();
-        return new(module.ModuleId, new(1, 0, 0), dependencies: dependencies,
-            migrations: context.GetService<IMigrationsAssembly>().Migrations.Keys.Select(id => new ModuleAsset(id, new(1, 0, 0))));
+        return new(module.ModuleId, SemanticVersion.Parse("1.0.0"), dependencies: dependencies,
+            migrations: context.GetService<IMigrationsAssembly>().Migrations.Keys.Select(id => new ModuleAsset(id, SemanticVersion.Parse("1.0.0"))));
     }
 
     protected static async Task<ActivationPlan> PlanAsync(params ModuleManifest[] manifests)
@@ -90,7 +90,7 @@ public abstract class PostgreSqlTestDatabase : IAsyncLifetime
     protected static string Quote(string name) => "\"" + name.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
 
     protected async Task<string> ProgressStateAsync(string migrationId) => await ScalarAsync<string>(
-        "SELECT \"State\" FROM " + Table(PostgreSqlModule.ProgressTable) + " WHERE \"MigrationId\" = @id", new("id", migrationId));
+        "SELECT \"State\" FROM " + Table(PostgreSqlModule.ProgressTable) + " WHERE \"MigrationId\" = @id", new NpgsqlParameter("id", migrationId));
 
     protected async Task AssertCompleteAsync(PostgreSqlModule module)
     {

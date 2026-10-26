@@ -23,7 +23,11 @@ public sealed class ModuleSql
     {
         context.RequireWork();
         var entity = Entity<TEntity>();
+        // Only identifiers from the EF model, quoted by PostgreSqlModule.Quote, are concatenated;
+        // every value is a provider parameter.
+#pragma warning disable EF1003
         return context.Set<TEntity>().FromSqlRaw("SELECT * FROM " + Table(entity)).AsNoTracking();
+#pragma warning restore EF1003
     }
 
     public IQueryable<TEntity> Query<TEntity, TValue>(Expression<Func<TEntity, TValue>> column, TValue value) where TEntity : class

@@ -1,11 +1,12 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Modularyn.Framework.Hosting;
 using Modularyn.Framework.Modularity.Abstractions;
 using Modularyn.Framework.Persistence.Abstractions;
+using Npgsql;
 using Xunit;
 
 namespace Modularyn.Framework.Persistence.EfCore.Tests;
@@ -30,7 +31,7 @@ public sealed class MigrationCoordinationTests : PostgreSqlTestDatabase
         Assert.Equal(MigrationActivationValidator.Incomplete, Assert.Single(pending.Diagnostics).Code);
         Assert.Equal(0, constructed);
         Assert.False(host.Services.GetRequiredService<ModuleHost>().Report.IsReady);
-        Assert.Equal(0L, await ScalarAsync<long>("SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = @schema", new("schema", Schema)));
+        Assert.Equal(0L, await ScalarAsync<long>("SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = @schema", new NpgsqlParameter("schema", Schema)));
 
         var plan = await PlanAsync(manifest);
         var failure = await new PostgreSqlMigrationCoordinator(registry).ApplyAsync(plan,
