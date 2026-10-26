@@ -20,6 +20,9 @@ public abstract class PostgreSqlTestDatabase : IAsyncLifetime
     protected static CancellationToken Cancellation => TestContext.Current.CancellationToken;
     protected static CompositionEnvironment EnvironmentVersion { get; } = new(SemanticVersion.Parse("10.0.14"), SemanticVersion.Parse("1.0.0"));
 
+    /// <summary>The explicit scope in which these tests write their host-scoped sample data.</summary>
+    protected static DeploymentScope Deployment { get; } = new("test.persistence-fixture", "Persistence tests write host-scoped sample data.");
+
     public async ValueTask InitializeAsync()
     {
         // Reuse the repository's connection convention and probe unchanged.

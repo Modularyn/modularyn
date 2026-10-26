@@ -443,7 +443,16 @@ configured origins and an unavailable seam look alike.
 A host endpoint answers 403 when host authority is missing or the request names
 a tenant, and 503 when audit or a seam is unavailable; an unavailable directory
 answers 503. The refusal codes `MTN001` to `MTN013` are logged with no request
-value.
+value: refusals at information level, and an unavailable directory, seam or
+audit store as a warning, even where the response stays 404, so that a member
+endpoint's outage reveals nothing about which tenants exist.
+
+Each declaration also wraps the endpoint's request delegate. A declared endpoint
+runs only when its request has an established, active context of the declared
+kind, and for a host endpoint the declared operation. Otherwise it answers 500
+with no body and logs an error. A pipeline that places `UseModularynTenancy`
+before routing, or omits it, therefore fails closed instead of running declared
+endpoints without a context.
 
 ### Execution context
 
@@ -465,7 +474,12 @@ in its route or header, or arrives on a tenant's domain, never gets host scope,
 and a tenant administrator's membership never implies it. A host-scope unit
 reads tenant data only through `AcrossTenants`, which still requires the scope
 to be active at each execution, and changes none of it except a named tenant's
-row through `ModuleSql.UpdateForTenantAsync`.
+row through `ModuleSql.UpdateForTenantAsync`. Host-scoped data, such as the
+directory, changes only in a host scope or in the persistence adapter's named
+`DeploymentScope`, which product code outside the adapter does not open; a unit
+of work with neither can only read it. A host grant names its operation, and
+`AcrossTenants` accepts any active grant: binding an operation to the modules and
+entities it may reach belongs to the elevated policy that SEC-05 supplies.
 
 ### Propagation contract for events, jobs and files
 
@@ -616,12 +630,14 @@ evidence.
   conflicting, unknown, suspended and foreign candidates before any handler, with
   one contract for existing and unknown tenants; the effective tenant only after
   the directory, domain and membership checks; tenant domains limited to the
-  configured public origins, read through `PublicOrigins`. Tests: `Tenancy.Tests`
-  `TenantResolutionTests` and `TenancyHttpTests` (`TM_G02_025_*`), and
-  `G02AC004Tests.AC_004_P01_*`. Remaining: the actor and membership seams
+  configured public origins, read through `PublicOrigins`; declared endpoints that
+  refuse to run without a context, whatever the pipeline order. Tests:
+  `Tenancy.Tests` `TenantResolutionTests` and `TenancyHttpTests` (`TM_G02_025_*`),
+  and `G02AC004Tests.AC_004_P01_*`. Remaining: the actor and membership seams
   (SEC-03, SEC-05), which the tests replace with doubles; the permission for the
   requested operation (SEC-05); adversarial evidence for AC-004-N01 (SEC-08); the
-  website profile's equivalent host forms (AC-004-B03).
+  website profile's equivalent host forms (AC-004-B03). An unavailable seam on a
+  member endpoint answers 404, by design, and is logged as a warning.
 - **TM-G02-026, partly.** Delivered: a scoped `TenantExecution` for each request
   and each propagated unit, established once, unchangeable and ended with its
   scope on every path, including exceptions and cancellation; no ambient state;
@@ -645,19 +661,25 @@ evidence.
   combined with, a tenant the request names; tenant data reached only through the
   explicit cross-tenant read, checked again at each execution, and never changed
   except a named tenant's disposition row; directory administration as a host
-  operation. Tests: `HostScopeTests` and `HostScopeDatabaseTests`
-  (`TM_G02_028_*`). Remaining: the elevated policy and host-authority grants
-  (SEC-05); the audit store, records in the transaction of the change and the
+  operation; host-scoped data changed only in a host scope or a named deployment
+  scope, never by a unit without either. Tests: `HostScopeTests` and
+  `HostScopeDatabaseTests` (`Tenancy.Tests`) and `HostWriteTests`
+  (`Persistence.EfCore.Tests`), all `TM_G02_028_*`. Remaining: the elevated policy
+  and host-authority grants (SEC-05), including binding a host operation to the
+  modules and entities it may reach, since `AcrossTenants` accepts any active
+  grant; the audit store, records in the transaction of the change and the
   affected tenants (SEC-07, TM-G02-051); adversarial evidence for AC-004-N03
   (SEC-08).
 - **TM-G02-029, tenant part (SEC-04), partly.** Delivered: every root entity
   declares its scope; the tenant and scope filters on CODE-03's seam for every
   tenant-scoped entity, on the EF and direct-SQL paths; the query guard, which
-  refuses EF Core's general `IgnoreQueryFilters`, unissued named forms, foreign raw
-  SQL, `SqlQuery`, `ExecuteSql` and unsafe bulk writes; writes held to the unit's
-  tenant; the tenant in every key, index and reference, in the model and in
-  migrations; no tenant rows in migrations; the repository check that keeps raw
-  SQL inside the adapter. Tests: `Persistence.EfCore.Tests` `QueryGuardTests` and
+  refuses EF Core's general `IgnoreQueryFilters`, unissued named forms, raw SQL
+  other than `ModuleSql`'s own text, `SqlQuery`, `ExecuteSql` and unsafe bulk
+  writes, including physical deletes of soft-deleted rows and, under TM-G02-030,
+  bulk writes that skip a version token; a scope predicate that holds a tenant
+  unit to its tenant on its own; writes held to the unit's tenant; the tenant in
+  every key, index and reference, in the model and in migrations; no tenant rows
+  in migrations; the repository check that keeps raw SQL inside the adapter. Tests: `Persistence.EfCore.Tests` `QueryGuardTests` and
   `TenantModelTests`, `Tenancy.Tests` `TenantFilterTests` (`TM_G02_029_*`) and
   `Repository.Tests` `PersistenceBoundaryTests`. Remaining: audit records for the
   soft-delete and cross-tenant bypasses (SEC-07); bounded paging and sorting on

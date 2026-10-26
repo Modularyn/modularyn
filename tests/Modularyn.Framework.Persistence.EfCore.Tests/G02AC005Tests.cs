@@ -16,7 +16,7 @@ public sealed class G02AC005Tests(ITestOutputHelper output) : PostgreSqlTestData
         var module = SampleModule();
         await MigrateAsync(module);
         var completions = new List<UnitOfWorkResult>();
-        await using (var work = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: Cancellation))
+        await using (var work = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation))
         {
             work.OnCompleted(completions.Add);
             var context = (SampleContext)work.Context;
@@ -51,8 +51,8 @@ public sealed class G02AC005Tests(ITestOutputHelper output) : PostgreSqlTestData
     {
         var module = SampleModule();
         await MigrateAsync(module);
-        await using (var editorA = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: Cancellation))
-        await using (var editorB = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: Cancellation))
+        await using (var editorA = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation))
+        await using (var editorB = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation))
         {
             var first = await editorA.Context.Set<SampleRow>().SingleAsync(row => row.Id == "item-1", Cancellation);
             var stale = await editorB.Context.Set<SampleRow>().SingleAsync(row => row.Id == "item-1", Cancellation);
@@ -71,7 +71,7 @@ public sealed class G02AC005Tests(ITestOutputHelper output) : PostgreSqlTestData
         Assert.Equal("winner", await ScalarAsync<string>("SELECT \"Name\" FROM " + Table("Items") + " WHERE \"Id\" = 'item-1'"));
 
         var completions = new List<UnitOfWorkResult>();
-        await using (var failed = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: Cancellation))
+        await using (var failed = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation))
         {
             failed.OnCompleted(completions.Add);
             var first = await failed.Context.Set<SampleRow>().SingleAsync(row => row.Id == "item-1", Cancellation);
@@ -100,11 +100,11 @@ public sealed class G02AC005Tests(ITestOutputHelper output) : PostgreSqlTestData
             var innerId = "inner-" + mode;
             var outerCompletions = new List<UnitOfWorkResult>();
             var innerCompletions = new List<UnitOfWorkResult>();
-            await using (var outer = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: Cancellation))
+            await using (var outer = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation))
             {
                 outer.OnCompleted(outerCompletions.Add);
                 await outer.Sql.InsertAsync(new SampleRow { Id = outerId, Name = "outer" }, Cancellation);
-                await using (var inner = await EfCoreUnitOfWork.BeginAsync(module, mode, outer, Cancellation))
+                await using (var inner = await EfCoreUnitOfWork.BeginAsync(module, Deployment, mode, outer, Cancellation))
                 {
                     inner.OnCompleted(innerCompletions.Add);
                     if (mode == UnitOfWorkMode.Join)

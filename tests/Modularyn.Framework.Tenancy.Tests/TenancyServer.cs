@@ -67,10 +67,13 @@ internal sealed class TenancyServer : IAsyncDisposable
     /// <summary>Each handled request's context, as the handler observed it.</summary>
     internal ConcurrentQueue<ContextSnapshot> Observed { get; } = new();
 
+    /// <summary>The server's log events, by identifier and level, without messages or values.</summary>
+    internal RecordingLoggerProvider Events { get; private init; } = new();
+
     /// <summary>The context objects handlers received, kept to show that each ends with its request.</summary>
     internal ConcurrentQueue<TenantContext> Contexts { get; } = new();
 
-    internal static async Task<TenancyServer> StartAsync(TenancyDatabase database)
+    internal static async Task<TenancyServer> StartAsync(TenancyDatabase database, TenancyPipeline pipeline = TenancyPipeline.Standard)
     {
         var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { EnvironmentName = "Production" });
         builder.Configuration.Sources.Clear();
@@ -83,6 +86,8 @@ internal sealed class TenancyServer : IAsyncDisposable
             settings["Modularyn:Ingress:PublicOrigins:" + index] = TenancyDatabase.PublicOrigins[index];
         builder.Configuration.AddInMemoryCollection(settings);
         builder.Logging.ClearProviders();
+        var events = new RecordingLoggerProvider();
+        builder.Logging.AddProvider(events);
         builder.WebHost.ConfigureKestrel(kestrel => kestrel.Listen(IPAddress.Loopback, 0, listen => listen.UseHttps(Certificate.Value)));
         builder.Services.AddModularynDataProtection(builder.Configuration);
         builder.Services.AddModularynIngress(builder.Configuration);
@@ -99,7 +104,19 @@ internal sealed class TenancyServer : IAsyncDisposable
                 context.User = TestIdentity.User(subject, [.. context.Request.Headers[ClaimHeader].Select(value => value ?? "")]);
             return next(context);
         });
-        application.UseModularynTenancy();
+        switch (pipeline)
+        {
+            case TenancyPipeline.Standard:
+                application.UseModularynTenancy();
+                break;
+            case TenancyPipeline.TenancyBeforeRouting:
+                // Misplaced: routing runs after tenancy, so the middleware sees no endpoint and establishes nothing.
+                application.UseModularynTenancy();
+                application.UseRouting();
+                break;
+            case TenancyPipeline.TenancyOmitted:
+                break;
+        }
 
         application.MapPost("/items", async (HttpContext http, TenantExecution execution, string code, string name) =>
         {
@@ -173,7 +190,7 @@ internal sealed class TenancyServer : IAsyncDisposable
 
         await application.StartAsync(TestContext.Current.CancellationToken);
         var address = application.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Select(item => new Uri(item)).Single();
-        server = new TenancyServer(application, address);
+        server = new TenancyServer(application, address) { Events = events };
         return server;
     }
 
@@ -228,6 +245,27 @@ internal sealed class TenancyServer : IAsyncDisposable
         return X509CertificateLoader.LoadPkcs12(created.Export(X509ContentType.Pkcs12), password: null);
     }
 }
+
+/// <summary>Records each log event's identifier and level.</summary>
+internal sealed class RecordingLoggerProvider : ILoggerProvider
+{
+    internal ConcurrentQueue<(int Id, LogLevel Level)> Recorded { get; } = new();
+
+    public ILogger CreateLogger(string categoryName) => new Logger(this);
+
+    public void Dispose() { }
+
+    private sealed class Logger(RecordingLoggerProvider owner) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            owner.Recorded.Enqueue((eventId.Id, logLevel));
+    }
+}
+
+/// <summary>Where the test server places the tenancy middleware.</summary>
+public enum TenancyPipeline { Standard, TenancyBeforeRouting, TenancyOmitted }
 
 internal sealed record ItemView(Guid Tenant, Guid Id, string Code);
 

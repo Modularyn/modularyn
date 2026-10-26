@@ -84,10 +84,12 @@ public sealed class TenantFilterTests
             // The executed statements carry the tenant parameter, evaluated for this unit.
             foreach (var sql in new[] { items.Items.ToQueryString(), work.Sql.Query<Item>().ToQueryString(), items.Notes.ToQueryString() })
             {
+                TestContext.Current.TestOutputHelper?.WriteLine(sql);
                 Assert.Contains("\"TenantId\" = @ef_filter__TenantFilterValue", sql, StringComparison.Ordinal);
+                // The scope predicate compares the tenant again, so lifting the tenant predicate alone cannot widen a tenant unit.
+                Assert.Matches(@"\(@ef_filter__ScopeHostValue\d* OR \w+\.""TenantId"" = @ef_filter__ScopeTenantValue\d*\)", sql);
                 Assert.Contains(TenantIdentifier.Format(database.TenantA), sql, StringComparison.Ordinal);
                 Assert.DoesNotContain(TenantIdentifier.Format(database.TenantB), sql, StringComparison.Ordinal);
-                TestContext.Current.TestOutputHelper?.WriteLine(sql);
             }
         }
     }
@@ -128,14 +130,28 @@ public sealed class TenantFilterTests
                 var foreign = await work.Sql.UpdateAsync<Item, Guid, string>(row => row.Id, fixture.B1, bVersion, row => row.Name, "from A", Cancellation);
                 Assert.False(foreign.Succeeded);
             }
-            // Bulk writes compose the tenant predicate: they reach only the unit's own rows.
+            // Bulk writes compose the tenant predicate, so they reach only the unit's own rows. They are refused where they
+            // would skip a version token or physically delete soft-deleted rows; the versioned direct update remains.
             await using (var work = await EfCoreUnitOfWork.BeginAsync(database.Items, context, cancellationToken: Cancellation))
             {
                 var items = (ItemsContext)work.Context;
-                Assert.Equal(3, await items.Items.ExecuteUpdateAsync(setters => setters.SetProperty(row => row.Name, "bulk A"), Cancellation));
-                Assert.Equal(1, await items.Notes.ExecuteDeleteAsync(Cancellation));
+                Assert.Equal("MPS010", (await Assert.ThrowsAsync<PersistenceContractException>(() => items.Items
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.Name, "bulk A"), Cancellation))).Code);
+                Assert.Equal("MPS041", (await Assert.ThrowsAsync<PersistenceContractException>(() => items.Items.ExecuteDeleteAsync(Cancellation))).Code);
+                Assert.Equal(1, await items.Notes.ExecuteUpdateAsync(setters => setters.SetProperty(row => row.Text, "bulk A"), Cancellation));
                 Assert.Equal(UnitOfWorkState.Committed, (await work.CompleteAsync(Cancellation)).State);
             }
+            Assert.Equal([(database.TenantA, "bulk A"), (database.TenantB, "note b")],
+                (await database.InventoryAsync("ItemNotes", "Text")).OrderBy(row => row.Tenant == database.TenantA ? 0 : 1));
+            var a2Version = await database.ScalarAsync<Guid>("SELECT \"Version\" FROM " + database.Table("Items") + " WHERE \"Id\" = @id", new NpgsqlParameter("id", fixture.A2));
+            await using (var work = await EfCoreUnitOfWork.BeginAsync(database.Items, context, cancellationToken: Cancellation))
+            {
+                Assert.Equal(1, await ((ItemsContext)work.Context).Notes.ExecuteDeleteAsync(Cancellation));
+                // A soft delete through the versioned direct update keeps the row and its tenant.
+                Assert.True((await work.Sql.UpdateAsync<Item, Guid, bool>(row => row.Id, fixture.A2, a2Version, row => row.IsDeleted, true, Cancellation)).Succeeded);
+                Assert.Equal(UnitOfWorkState.Committed, (await work.CompleteAsync(Cancellation)).State);
+            }
+            Assert.True(await database.ScalarAsync<bool>("SELECT \"IsDeleted\" FROM " + database.Table("Items") + " WHERE \"Id\" = @id", new NpgsqlParameter("id", fixture.A2)));
             // Host data is readable from a tenant unit but cannot be changed by it.
             await using (var work = await EfCoreUnitOfWork.BeginAsync(database.Items, context, cancellationToken: Cancellation))
             {
@@ -148,7 +164,7 @@ public sealed class TenantFilterTests
         Assert.Equal("b-1", await database.ScalarAsync<string>("SELECT \"Name\" FROM " + database.Table("Items") + " WHERE \"Id\" = @id", new NpgsqlParameter("id", fixture.B1)));
         Assert.Equal(bVersion, await database.ScalarAsync<Guid>("SELECT \"Version\" FROM " + database.Table("Items") + " WHERE \"Id\" = @id", new NpgsqlParameter("id", fixture.B1)));
         Assert.Equal([(database.TenantB, "note b")], await database.InventoryAsync("ItemNotes", "Text"));
-        Assert.All((await database.InventoryAsync("Items", "Name")).Where(row => row.Tenant == database.TenantA), row => Assert.Equal("bulk A", row.Value));
+        Assert.DoesNotContain(await database.InventoryAsync("Items", "Name"), row => row.Value == "bulk A");
         Assert.Equal(0L, await database.ScalarAsync<long>("SELECT count(*) FROM " + database.Table("Items") + " WHERE \"TenantId\" = @tenant AND \"Code\" LIKE 'forged%'",
             new NpgsqlParameter("tenant", database.TenantB)));
         Assert.Equal(1L, await database.ScalarAsync<long>("SELECT count(*) FROM " + database.Table("Lookups")));

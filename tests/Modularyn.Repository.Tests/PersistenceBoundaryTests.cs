@@ -6,13 +6,15 @@ namespace Modularyn.Repository.Tests;
 // TM-G02-029: EF Core's filter bypass and raw SQL appear only inside the persistence adapter, whose query guard refuses
 // the general bypass at run time and whose ModuleSql composes every filter, the tenant filter included, over its own
 // SQL. Product code elsewhere, module persistence adapters included, reaches data through module contexts and ModuleSql.
-// Tests may inspect the database directly and are outside this check.
+// TM-G02-028: no product code outside the adapter opens a deployment scope, so host-scoped data changes in product code
+// only under an audited host scope. Tests may inspect the database directly and open deployment scopes, and are outside
+// this check.
 public sealed class PersistenceBoundaryTests
 {
     internal const string Adapter = "src/Framework/Modularyn.Framework.Persistence.EfCore/";
 
     private static readonly Regex Forbidden = new(
-        @"\b(?:IgnoreQueryFilters|FromSql\w*|SqlQuery\w*|ExecuteSql\w*|GetDbConnection|Npgsql(?:Command|Connection|DataSource|Batch)\w*)\b",
+        @"\b(?:IgnoreQueryFilters|FromSql\w*|SqlQuery\w*|ExecuteSql\w*|GetDbConnection|Npgsql(?:Command|Connection|DataSource|Batch)\w*|DeploymentScope)\b",
         RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
 
     internal static IReadOnlyList<string> Violations(IReadOnlyDictionary<string, string> files) => files
@@ -38,6 +40,7 @@ public sealed class PersistenceBoundaryTests
     [InlineData("new NpgsqlConnection(text)")]
     [InlineData("NpgsqlDataSource.Create(text)")]
     [InlineData("new NpgsqlBatch()")]
+    [InlineData("new DeploymentScope(\"seed\", \"Seed host data.\")")]
     public void TM_G02_029_Each_bypass_and_raw_SQL_form_is_found_outside_the_adapter(string code)
     {
         const string module = "src/Modules/Modularyn.Modules.Sample.Persistence.EfCore/Reader.cs";

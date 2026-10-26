@@ -5,13 +5,17 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Query;
+using Microsoft.EntityFrameworkCore.Query.Internal;
 using Modularyn.Framework.Persistence.Abstractions;
 
 namespace Modularyn.Framework.Persistence.EfCore;
 
 /// <summary>
-/// Adapter-internal marker calls. Only this assembly can place them in a query, and the guard removes them before EF
-/// translates the query. They identify the adapter's own bypass forms, raw SQL reads and direct updates.
+/// Adapter-internal marker calls that identify the adapter's own bypass forms, raw SQL reads and direct updates; the
+/// guard removes them before EF translates the query. They are private methods, but code in the same process could
+/// still build such a call by reflection, so isolation never rests on a marker alone. A raw SQL read must also carry
+/// exactly the text that ModuleSql builds for its entity, and the scope filter holds a tenant unit to its tenant even
+/// where a marker lifts the tenant predicate.
 /// </summary>
 internal static class QueryMarkers
 {
@@ -37,10 +41,11 @@ internal static class QueryMarkers
 
 /// <summary>
 /// Inspects every LINQ query a module context compiles, on the EF and direct-SQL paths alike, before translation.
-/// It refuses EF Core's general <c>IgnoreQueryFilters</c> and any named form the adapter did not issue, raw SQL and
-/// other query roots that the adapter did not build, bulk writes that would change a tenant or host-scoped data outside
-/// <see cref="ModuleSql"/>, and bulk writes over a cross-tenant bypass. It is stateless: a compiled query is cached by
-/// its shape, and every decision here depends only on that shape and the module model.
+/// It refuses EF Core's general <c>IgnoreQueryFilters</c> and any named form the adapter did not issue; raw SQL and other
+/// query roots other than ModuleSql's own reads, whose text must match its template; bulk writes that would change a
+/// tenant, change host-scoped data outside <see cref="ModuleSql"/>, run over a cross-tenant bypass, physically delete
+/// soft-deleted rows or skip a version token. It is stateless: a compiled query is cached by its shape, and every
+/// decision here depends only on that shape, the module and its model.
 /// </summary>
 internal sealed class ModuleQueryGuard : IQueryExpressionInterceptor
 {
@@ -49,12 +54,12 @@ internal sealed class ModuleQueryGuard : IQueryExpressionInterceptor
     public Expression QueryCompilationStarting(Expression queryExpression, QueryExpressionEventData eventData)
     {
         ArgumentNullException.ThrowIfNull(queryExpression);
-        var model = eventData.Context?.Model
+        var context = eventData.Context as ModuleDbContext
             ?? throw new PersistenceContractException("MPS033", "A module query must compile within its module context.");
-        return new Visitor(model).Visit(queryExpression);
+        return new Visitor(context.Module, context.Model).Visit(queryExpression);
     }
 
-    private sealed class Visitor(IModel model) : ExpressionVisitor
+    private sealed class Visitor(PostgreSqlModule module, IModel model) : ExpressionVisitor
     {
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
@@ -65,9 +70,8 @@ internal sealed class ModuleQueryGuard : IQueryExpressionInterceptor
                 var source = node.Arguments[0];
                 if (marker == QueryMarkers.SoftDeleteBypass) return Bypass(source, ModuleQueryFilterRegistry.SoftDelete);
                 if (marker == QueryMarkers.TenantBypass) return Bypass(source, ModuleQueryFilterRegistry.Tenant);
-                // The adapter's FromSql root is the only raw SQL a module query may contain.
-                if (marker == QueryMarkers.AdapterSql && source is EntityQueryRootExpression && source.GetType() != typeof(EntityQueryRootExpression))
-                    return source;
+                // The adapter's FromSql root is the only raw SQL a module query may contain, and only with the adapter's text.
+                if (marker == QueryMarkers.AdapterSql) return AdapterRead(source);
                 if (marker == QueryMarkers.AdapterUpdate && source.GetType() == typeof(EntityQueryRootExpression)) return source;
                 throw new PersistenceContractException("MPS033", "A module query contains an adapter marker in an unsupported position.");
             }
@@ -86,6 +90,19 @@ internal sealed class ModuleQueryGuard : IQueryExpressionInterceptor
                 throw new PersistenceContractException("MPS034",
                     "Raw SQL and other query roots are refused on module queries. Use ModuleSql, whose reads compose every filter.");
             return node;
+        }
+
+        private Expression AdapterRead(Expression source)
+        {
+            // EF exposes the FromSql root only as an internal type. The SDK pin and locked packages fix its shape, and this
+            // file's tests fail if it changes. Its text is compared with the adapter's own template for its entity.
+#pragma warning disable EF1001
+            if (source is FromSqlQueryRootExpression root && root.GetType() == typeof(FromSqlQueryRootExpression)
+                && ModuleSqlText.IsAdapterRead(module, root.EntityType, root.Sql))
+                return source;
+#pragma warning restore EF1001
+            throw new PersistenceContractException("MPS034",
+                "A raw SQL read must be ModuleSql's own, with the text it builds for the entity. Use ModuleSql, whose reads compose every filter.");
         }
 
         private Expression Bypass(Expression source, string filter)
@@ -110,17 +127,27 @@ internal sealed class ModuleQueryGuard : IQueryExpressionInterceptor
             if (tenant is null && !markers.Found.Contains(QueryMarkers.AdapterUpdate))
                 throw new PersistenceContractException("MPS037",
                     "Bulk LINQ writes to host-scoped data are refused. Use tracked writes or ModuleSql.UpdateAsync, which check the unit's scope.");
-            if (tenant is null || !node.Method.Name.StartsWith("ExecuteUpdate", StringComparison.Ordinal)) return;
-            if (node.Arguments.Count != 2 || node.Arguments[1] is not NewArrayExpression setters)
-                throw new PersistenceContractException("MPS036", "A bulk update of tenant-scoped data must use recognizable property setters.");
-            foreach (var setter in setters.Expressions)
+            var update = node.Method.Name.StartsWith("ExecuteUpdate", StringComparison.Ordinal);
+            if (tenant is not null && update)
             {
-                if (setter is not NewExpression { Arguments.Count: 2 } pair || StripQuote(pair.Arguments[0]) is not LambdaExpression selector
-                    || Target(entity, selector) is not { } property)
+                if (node.Arguments.Count != 2 || node.Arguments[1] is not NewArrayExpression setters)
                     throw new PersistenceContractException("MPS036", "A bulk update of tenant-scoped data must use recognizable property setters.");
-                if (property.DeclaringType is IReadOnlyEntityType declaring && ReferenceEquals(TenantModel.TenantProperty(declaring), property))
-                    throw new PersistenceContractException("MPS036", "A tenant-scoped row's tenant cannot be changed.");
+                foreach (var setter in setters.Expressions)
+                {
+                    if (setter is not NewExpression { Arguments.Count: 2 } pair || StripQuote(pair.Arguments[0]) is not LambdaExpression selector
+                        || Target(entity, selector) is not { } property)
+                        throw new PersistenceContractException("MPS036", "A bulk update of tenant-scoped data must use recognizable property setters.");
+                    if (property.DeclaringType is IReadOnlyEntityType declaring && ReferenceEquals(TenantModel.TenantProperty(declaring), property))
+                        throw new PersistenceContractException("MPS036", "A tenant-scoped row's tenant cannot be changed.");
+                }
             }
+            // A bulk delete would remove soft-deleted rows outright, and a bulk write would skip the version token.
+            if (!update && typeof(ISoftDeleted).IsAssignableFrom(entity.ClrType))
+                throw new PersistenceContractException("MPS041",
+                    "ExecuteDelete would physically delete soft-deleted rows. Remove tracked entities, which the adapter marks as deleted, or set IsDeleted with ModuleSql.UpdateAsync.");
+            if (typeof(IConcurrencyTracked).IsAssignableFrom(entity.ClrType) && !markers.Found.Contains(QueryMarkers.AdapterUpdate))
+                throw new PersistenceContractException("MPS010",
+                    "A bulk write to a version-tracked type would skip its version token. Use ModuleSql.UpdateAsync with the expected version, or tracked writes.");
         }
 
         private static IReadOnlyProperty? Target(IReadOnlyEntityType entity, LambdaExpression selector)

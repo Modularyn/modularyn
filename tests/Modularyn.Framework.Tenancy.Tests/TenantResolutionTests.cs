@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Claims;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Modularyn.Framework.Tenancy.Abstractions;
 using Xunit;
 
@@ -208,6 +209,13 @@ public sealed class TenancyHttpTests
         Assert.Equal(HttpStatusCode.BadRequest, await Status("/context", "attacker.example.net", "user-a"));
         Assert.Equal(handled, server.Handled);
 
+        // An unavailable seam answers like any other refusal, and is logged as a warning for operators.
+        database.Seams.Membership.Failing = true;
+        Assert.Equal(HttpStatusCode.NotFound, await Status("/context", TenancyDatabase.HostA, "user-a"));
+        database.Seams.Membership.Failing = false;
+        Assert.Contains(server.Events.Recorded, item => item == (8101, LogLevel.Warning));
+        Assert.DoesNotContain(server.Events.Recorded, item => item.Id == 8100 && item.Level != LogLevel.Information);
+
         // Where no endpoint declares a tenant, candidates establish nothing.
         var plain = await server.SendAsync(HttpMethod.Get, "/plain", TenancyDatabase.HostA, "user-a",
             request => request.Headers.Add(TenancyHttp.HeaderName, b));
@@ -224,6 +232,49 @@ public sealed class TenancyHttpTests
             await administration.SetStateAsync(host, database.TenantA, TenantState.Active, TestContext.Current.CancellationToken);
             Assert.Equal(HttpStatusCode.OK, await Status("/context", TenancyDatabase.HostA, "user-a"));
         }
+    }
+
+    [Theory]
+    [InlineData(TenancyPipeline.TenancyBeforeRouting)]
+    [InlineData(TenancyPipeline.TenancyOmitted)]
+    public async Task TM_G02_025_A_declared_endpoint_refuses_to_run_without_a_context_whatever_the_pipeline_order(TenancyPipeline pipeline)
+    {
+        await using var database = await TenancyDatabase.CreateAsync();
+        await using (var seeding = database.Services()) await database.SeedAsync(seeding);
+        database.Seams.Authority.Grant("host-1", TenancyServer.HostReport);
+        await using var server = await TenancyServer.StartAsync(database, pipeline);
+        foreach (var (path, host, subject) in new[]
+        {
+            ("/context", TenancyDatabase.HostA, "user-a"), ("/items", TenancyDatabase.HostA, "user-a"),
+            ("/t/" + TenantIdentifier.Format(database.TenantA) + "/items", TenancyDatabase.AppHost, "user-a"),
+            ("/host/report", TenancyDatabase.AppHost, "host-1")
+        })
+        {
+            var response = await server.SendAsync(HttpMethod.Get, path, host, subject);
+            Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+            Assert.Empty(await response.Content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken));
+        }
+        Assert.Equal(0, server.Handled);
+        Assert.Empty(server.Observed);
+        // Each refusal is the endpoint guard's, not an unhandled failure.
+        Assert.Equal(4, server.Events.Recorded.Count(item => item == (8102, LogLevel.Error)));
+        Assert.DoesNotContain(server.Events.Recorded, item => item.Level == LogLevel.Critical);
+        // Endpoints that declare nothing are unaffected.
+        var plain = await server.SendAsync(HttpMethod.Get, "/plain", TenancyDatabase.HostA, "user-a");
+        Assert.Equal("none", await plain.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task TM_G02_025_In_the_documented_order_declared_endpoints_run_in_their_declared_context()
+    {
+        await using var database = await TenancyDatabase.CreateAsync();
+        await using (var seeding = database.Services()) await database.SeedAsync(seeding);
+        database.Seams.Authority.Grant("host-1", TenancyServer.HostReport);
+        await using var server = await TenancyServer.StartAsync(database, TenancyPipeline.Standard);
+        Assert.Equal(HttpStatusCode.OK, (await server.SendAsync(HttpMethod.Get, "/context", TenancyDatabase.HostA, "user-a")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await server.SendAsync(HttpMethod.Get, "/items", TenancyDatabase.HostA, "user-a")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await server.SendAsync(HttpMethod.Get, "/host/report", TenancyDatabase.AppHost, "host-1")).StatusCode);
+        Assert.Equal(["Tenant", "Tenant", "Host"], server.Observed.Select(snapshot => snapshot.Scope));
     }
 
     [Fact]

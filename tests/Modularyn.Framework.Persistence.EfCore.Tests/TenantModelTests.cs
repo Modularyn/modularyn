@@ -116,6 +116,23 @@ public sealed class TenantModelTests
             Assert.Equal(code, Assert.Throws<PersistenceContractException>(() => assembly.CreateMigration(type.GetTypeInfo(), context.Database.ProviderName!)).Code);
     }
 
+    [Fact]
+    public void TM_G02_030_Bulk_writes_cannot_delete_soft_deleted_rows_or_skip_a_version_token()
+    {
+        // The guard decides when the query compiles, before any parameter is evaluated or connection opened.
+        using var context = Module(ValidModel).CreateContext();
+        Assert.Equal("MPS041", Assert.Throws<PersistenceContractException>(() => context.Set<TenantItem>().ExecuteDelete()).Code);
+        Assert.Equal("MPS041", Assert.Throws<PersistenceContractException>(() => context.Set<TenantItem>().Where(row => row.Code == "x").ExecuteDelete()).Code);
+        Assert.Equal("MPS010", Assert.Throws<PersistenceContractException>(() => context.Set<TenantItem>()
+            .ExecuteUpdate(setters => setters.SetProperty(row => row.Code, "bulk"))).Code);
+        Assert.Equal("MPS010", Assert.Throws<PersistenceContractException>(() => context.Set<TenantItem>()
+            .ExecuteUpdate(setters => setters.SetProperty(row => row.IsDeleted, true))).Code);
+        // A type that is neither soft-deleted nor version-tracked passes the guard and meets the tenant filter instead.
+        Assert.Equal("MPS035", Assert.Throws<PersistenceContractException>(() => context.Set<TenantNote>().ExecuteDelete()).Code);
+        Assert.Equal("MPS035", Assert.Throws<PersistenceContractException>(() => context.Set<TenantNote>()
+            .ExecuteUpdate(setters => setters.SetProperty(row => row.Text, "bulk"))).Code);
+    }
+
     internal static void ValidModel(ModelBuilder builder)
     {
         builder.Entity<TenantItem>(entity =>

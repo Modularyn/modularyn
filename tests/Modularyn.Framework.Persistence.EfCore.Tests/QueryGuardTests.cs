@@ -19,14 +19,14 @@ public sealed class QueryGuardTests(ITestOutputHelper output) : PostgreSqlTestDa
     {
         var module = SampleModule();
         await MigrateAsync(module);
-        await using (var insert = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: Cancellation))
+        await using (var insert = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation))
         {
             await insert.Sql.InsertAsync(new SampleRow { Id = "item-hidden", Name = "excluded", IsDeleted = true }, Cancellation);
             Assert.Equal(UnitOfWorkState.Committed, (await insert.CompleteAsync(Cancellation)).State);
         }
         Assert.Equal(4L, await ScalarAsync<long>("SELECT count(*) FROM " + Table("Items")));
 
-        await using var read = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: Cancellation);
+        await using var read = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation);
         var context = (SampleContext)read.Context;
         Assert.Equal(2, await context.Items.CountAsync(Cancellation));
         Assert.Equal(2, await read.Sql.Query<SampleRow>().CountAsync(Cancellation));
@@ -61,7 +61,7 @@ public sealed class QueryGuardTests(ITestOutputHelper output) : PostgreSqlTestDa
     {
         var module = SampleModule();
         await MigrateAsync(module);
-        await using var work = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: Cancellation);
+        await using var work = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation);
         var context = (SampleContext)work.Context;
         // A module-supplied FromSql text could forge any column a filter reads, so it is refused even when it is harmless.
         Assert.Equal("MPS034", (await Assert.ThrowsAsync<PersistenceContractException>(() => context.Items
@@ -83,11 +83,31 @@ public sealed class QueryGuardTests(ITestOutputHelper output) : PostgreSqlTestDa
     }
 
     [Fact]
+    public async Task TM_G02_029_ModuleSql_reads_run_while_module_code_calling_FromSqlRaw_itself_is_refused_even_with_the_same_text()
+    {
+        var module = SampleModule();
+        await MigrateAsync(module);
+        await using var work = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation);
+        var context = (SampleContext)work.Context;
+        Assert.Equal(["item-1", "item-2"], await work.Sql.Query<SampleRow>().OrderBy(row => row.Id).Select(row => row.Id).ToArrayAsync(Cancellation));
+        Assert.Equal("item-2", (await work.Sql.Query<SampleRow, string>(row => row.Name, "second").SingleAsync(Cancellation)).Id);
+        // The text ModuleSql would build is still refused when module code supplies it: acceptance needs the adapter's read.
+        var selectAll = "SELECT * FROM " + Table("Items");
+        var selectWhere = selectAll + " WHERE \"Name\" IS NOT DISTINCT FROM @value";
+#pragma warning disable EF1003 // The test supplies the adapter's own text from module code; the guard refuses it before it runs.
+        Assert.Equal("MPS034", (await Assert.ThrowsAsync<PersistenceContractException>(() => context.Items.FromSqlRaw(selectAll).CountAsync(Cancellation))).Code);
+        Assert.Equal("MPS034", (await Assert.ThrowsAsync<PersistenceContractException>(() => context.Items
+            .FromSqlRaw(selectWhere, new Npgsql.NpgsqlParameter("value", "second")).CountAsync(Cancellation))).Code);
+#pragma warning restore EF1003
+        Assert.Equal(2, await work.Sql.Query<SampleRow>().CountAsync(Cancellation));
+    }
+
+    [Fact]
     public async Task TM_G02_029_Bulk_LINQ_writes_to_host_scoped_data_are_refused_and_ModuleSql_updates_still_apply()
     {
         var module = SampleModule();
         await MigrateAsync(module);
-        await using (var work = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: Cancellation))
+        await using (var work = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation))
         {
             var context = (SampleContext)work.Context;
             Assert.Equal("MPS037", (await Assert.ThrowsAsync<PersistenceContractException>(() => context.Items.ExecuteDeleteAsync(Cancellation))).Code);

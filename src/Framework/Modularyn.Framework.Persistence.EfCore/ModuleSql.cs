@@ -25,7 +25,7 @@ public sealed class ModuleSql
     {
         context.RequireWork();
         var entity = Entity<TEntity>();
-        return Read<TEntity>("SELECT * FROM " + Table(entity));
+        return Read<TEntity>(ModuleSqlText.SelectAll(context.Module, entity));
     }
 
     public IQueryable<TEntity> Query<TEntity, TValue>(Expression<Func<TEntity, TValue>> column, TValue value) where TEntity : class
@@ -35,7 +35,7 @@ public sealed class ModuleSql
         var property = Property(entity, column);
         using var command = new NpgsqlCommand();
         var parameter = property.GetRelationalTypeMapping().CreateParameter(command, "value", value);
-        return Read<TEntity>("SELECT * FROM " + Table(entity) + " WHERE " + Column(entity, property) + " IS NOT DISTINCT FROM @value", parameter);
+        return Read<TEntity>(ModuleSqlText.SelectWhere(context.Module, entity, property), parameter);
     }
 
     public BypassedQuery<TEntity> IncludingSoftDeleted<TEntity>(SoftDeleteBypass bypass) where TEntity : class =>
@@ -49,9 +49,10 @@ public sealed class ModuleSql
     }
 
     /// <summary>
-    /// The adapter's only raw SQL read. The text is built here from owned EF identifiers, quoted by
-    /// PostgreSqlModule.Quote, and every value is a provider parameter. The marker lets the query guard
-    /// accept this FromSql root, and only this one; EF composes every named filter over it.
+    /// The adapter's only raw SQL read. The text comes from <see cref="ModuleSqlText"/>, built from owned EF
+    /// identifiers quoted by PostgreSqlModule.Quote, and every value is a provider parameter. The query guard
+    /// accepts this FromSql root only under the adapter's marker and only when its text equals that template for
+    /// the root's entity; EF composes every named filter over it.
     /// </summary>
     private IQueryable<TEntity> Read<TEntity>(string sql, params object[] parameters) where TEntity : class
     {
@@ -174,8 +175,7 @@ public sealed class ModuleSql
     private IEntityType Entity<TEntity>() where TEntity : class
     {
         var entity = context.Model.FindEntityType(typeof(TEntity));
-        if (entity is null || entity.BaseType is not null || entity.GetDerivedTypes().Any() || entity.IsOwned()
-            || entity.GetMappingFragments(StoreObjectType.Table).Any())
+        if (entity is null || !ModuleSqlText.IsDirectSqlEntity(entity))
             throw new PersistenceContractException("MPS017", "Direct SQL requires one owned entity mapped to one table without inheritance or splitting.");
         return entity;
     }
@@ -191,7 +191,34 @@ public sealed class ModuleSql
 
     private string Table(IEntityType entity) => context.Module.Table(entity.GetTableName()!);
 
-    private static string Column(IEntityType entity, IProperty property) => PostgreSqlModule.Quote(
-        property.GetColumnName(StoreObjectIdentifier.Table(entity.GetTableName()!, entity.GetSchema()))
-        ?? throw new PersistenceContractException("MPS018", "The selected member has no column mapping."));
+    private static string Column(IEntityType entity, IProperty property) => ModuleSqlText.Column(entity, property)
+        ?? throw new PersistenceContractException("MPS018", "The selected member has no column mapping.");
+}
+
+/// <summary>
+/// The text of the adapter's raw SQL reads. <see cref="ModuleSql"/> builds its reads from these templates, and the query
+/// guard accepts a FromSql root only when its text equals one of them for the root's entity, so no other SQL text can
+/// stand behind an adapter read, whatever expression it arrives in.
+/// </summary>
+internal static class ModuleSqlText
+{
+    internal static bool IsDirectSqlEntity(IReadOnlyEntityType entity) => entity.BaseType is null && !entity.GetDerivedTypes().Any()
+        && !entity.IsOwned() && !entity.GetMappingFragments(StoreObjectType.Table).Any() && entity.GetTableName() is not null;
+
+    internal static string SelectAll(PostgreSqlModule module, IReadOnlyEntityType entity) => "SELECT * FROM " + module.Table(entity.GetTableName()!);
+
+    internal static string SelectWhere(PostgreSqlModule module, IReadOnlyEntityType entity, IReadOnlyProperty property) =>
+        SelectAll(module, entity) + " WHERE " + (Column(entity, property)
+            ?? throw new PersistenceContractException("MPS018", "The selected member has no column mapping.")) + " IS NOT DISTINCT FROM @value";
+
+    internal static string? Column(IReadOnlyEntityType entity, IReadOnlyProperty property) =>
+        property.GetColumnName(StoreObjectIdentifier.Table(entity.GetTableName()!, entity.GetSchema())) is { } column
+            ? PostgreSqlModule.Quote(column)
+            : null;
+
+    /// <summary>True only for the exact text ModuleSql builds for this entity in this module.</summary>
+    internal static bool IsAdapterRead(PostgreSqlModule module, IReadOnlyEntityType entity, string sql) =>
+        IsDirectSqlEntity(entity) && (string.Equals(sql, SelectAll(module, entity), StringComparison.Ordinal)
+            || entity.GetProperties().Any(property => Column(entity, property) is not null
+                && string.Equals(sql, SelectWhere(module, entity, property), StringComparison.Ordinal)));
 }

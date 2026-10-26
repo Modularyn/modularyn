@@ -14,8 +14,10 @@ public abstract class ModuleDbContext : DbContext
 {
     private static readonly PropertyInfo TenantFilterProperty =
         typeof(ModuleDbContext).GetProperty(nameof(TenantFilterValue), BindingFlags.NonPublic | BindingFlags.Instance)!;
-    private static readonly PropertyInfo ScopeFilterProperty =
-        typeof(ModuleDbContext).GetProperty(nameof(ScopeFilterValue), BindingFlags.NonPublic | BindingFlags.Instance)!;
+    private static readonly PropertyInfo ScopeHostProperty =
+        typeof(ModuleDbContext).GetProperty(nameof(ScopeHostValue), BindingFlags.NonPublic | BindingFlags.Instance)!;
+    private static readonly PropertyInfo ScopeTenantProperty =
+        typeof(ModuleDbContext).GetProperty(nameof(ScopeTenantValue), BindingFlags.NonPublic | BindingFlags.Instance)!;
 
     protected ModuleDbContext(PostgreSqlModule module) : base(CreateOptions(module)) => Module = module;
 
@@ -28,6 +30,12 @@ public abstract class ModuleDbContext : DbContext
     /// <see cref="AcrossTenants{TEntity}"/>.
     /// </summary>
     public TenantContext? Tenant { get; private set; }
+
+    /// <summary>
+    /// The named deployment scope bound by the unit of work, or null. It allows host-scoped writes outside a host scope,
+    /// for framework metadata, required seeds and tests, and nothing else.
+    /// </summary>
+    public DeploymentScope? Deployment { get; private set; }
 
     private static DbContextOptions CreateOptions(PostgreSqlModule module)
     {
@@ -60,8 +68,11 @@ public abstract class ModuleDbContext : DbContext
                 // Context members are evaluated for each execution, so a cached query never carries another unit's tenant.
                 filters.Add(entity.ClrType, ModuleQueryFilterRegistry.Tenant, Expression.Lambda(Expression.Equal(
                     Expression.Property(parameter, TenantModel.TenantMember), Expression.Property(context, TenantFilterProperty)), parameter));
-                filters.Add(entity.ClrType, ModuleQueryFilterRegistry.Scope,
-                    Expression.Lambda(Expression.Property(context, ScopeFilterProperty), parameter));
+                // The scope predicate holds a tenant unit to its tenant on its own, so a query that lifts the tenant
+                // predicate can reach other tenants only in an active host scope.
+                filters.Add(entity.ClrType, ModuleQueryFilterRegistry.Scope, Expression.Lambda(Expression.OrElse(
+                    Expression.Property(context, ScopeHostProperty), Expression.Equal(Expression.Property(parameter, TenantModel.TenantMember),
+                        Expression.Property(context, ScopeTenantProperty))), parameter));
             }
             if (!typeof(ISoftDeleted).IsAssignableFrom(entity.ClrType)) continue;
             filters.Add(entity.ClrType, ModuleQueryFilterRegistry.SoftDelete,
@@ -92,12 +103,16 @@ public abstract class ModuleDbContext : DbContext
     internal HostScopeGrant RequireHostGrant() => Tenant is { Scope: TenantScope.Host, IsActive: true, HostGrant: { } grant } ? grant
         : throw new PersistenceContractException("MPS038", "Reading across tenants requires an active, audited host-scope unit of work.");
 
-    internal void BindTenant(TenantContext? tenant)
+    internal void Bind(TenantContext? tenant, DeploymentScope? deployment)
     {
-        if (Tenant is not null) throw new PersistenceContractException("MPS035", "A module context is bound to one tenant context once.");
+        if (Tenant is not null || Deployment is not null)
+            throw new PersistenceContractException("MPS035", "A module context is bound to one context once.");
+        if (tenant is not null && deployment is not null)
+            throw new PersistenceContractException("MPS035", "A unit of work runs in a tenant or host context or in a deployment scope, not both.");
         if (tenant is { IsActive: false })
             throw new PersistenceContractException("MPS035", "The tenant context has ended; begin a unit of work only while its context is active.");
         Tenant = tenant;
+        Deployment = deployment;
     }
 
     /// <summary>The tenant predicate's value for one execution. It refuses rather than widening or emptying the result.</summary>
@@ -110,9 +125,17 @@ public abstract class ModuleDbContext : DbContext
         _ => Tenant.TenantId!.Value
     };
 
-    /// <summary>Kept on every tenant-scoped query, a cross-tenant one included: the unit's context must still be active.</summary>
-    internal bool ScopeFilterValue => Tenant is { IsActive: true }
-        ? true
+    /// <summary>
+    /// Kept on every tenant-scoped query, a cross-tenant one included: the unit's context must still be active, and only an
+    /// active host scope is exempt from the scope predicate's own tenant comparison.
+    /// </summary>
+    internal bool ScopeHostValue => Tenant is { IsActive: true } current
+        ? current.Scope == TenantScope.Host
+        : throw new PersistenceContractException("MPS035", "Tenant-scoped data requires an active, validated tenant context.");
+
+    /// <summary>The scope predicate's tenant for one execution; it matches no row in host scope, where the predicate is exempt.</summary>
+    internal Guid ScopeTenantValue => Tenant is { IsActive: true } current
+        ? current.TenantId ?? Guid.Empty
         : throw new PersistenceContractException("MPS035", "Tenant-scoped data requires an active, validated tenant context.");
 
     public sealed override int SaveChanges(bool acceptAllChangesOnSuccess)
@@ -206,11 +229,15 @@ public abstract class ModuleDbContext : DbContext
         _ => Tenant.TenantId!.Value
     };
 
+    /// <summary>Host-scoped data changes only in an active host scope or a named deployment scope, never implicitly.</summary>
     internal void RequireHostWrite()
     {
         if (Tenant is { IsActive: false }) throw new PersistenceContractException("MPS035", "The unit's tenant context has ended.");
         if (Tenant is { Scope: TenantScope.Tenant })
             throw new PersistenceContractException("MPS037", "A tenant unit of work can read host-scoped data but cannot change it.");
+        if (Tenant is null && Deployment is null)
+            throw new PersistenceContractException("MPS040",
+                "Changing host-scoped data requires an audited host scope or a named deployment scope; a unit without either can only read.");
     }
 
     internal void RequireWork()

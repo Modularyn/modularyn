@@ -32,14 +32,18 @@ public sealed record TenantEndpointMetadata
     public string? Reason { get; }
 }
 
+/// <summary>
+/// Declarations for endpoints. Each declaration also wraps the endpoint's request delegate, so the endpoint runs only when
+/// its request has an established, active context of the declared kind, whatever the pipeline order: placing the tenancy
+/// middleware before routing, or omitting it, refuses the endpoint rather than running it without a context.
+/// </summary>
 public static class TenancyEndpointConventionBuilderExtensions
 {
     /// <summary>The endpoint runs in the tenant its candidates name, only for an authenticated current member.</summary>
     public static TBuilder RequireTenantMember<TBuilder>(this TBuilder builder) where TBuilder : IEndpointConventionBuilder
     {
         ArgumentNullException.ThrowIfNull(builder);
-        builder.WithMetadata(new TenantEndpointMetadata(TenantAccess.Member, null, null));
-        return builder;
+        return Declare(builder, new TenantEndpointMetadata(TenantAccess.Member, null, null));
     }
 
     /// <summary>The endpoint runs in host scope, only under separately granted host authority for the operation, recorded in audit first.</summary>
@@ -48,16 +52,49 @@ public static class TenancyEndpointConventionBuilderExtensions
         ArgumentNullException.ThrowIfNull(builder);
         if (!PropagatedTenantContext.ValidOperation(operationId) || !PropagatedTenantContext.ValidReason(reason))
             throw new ArgumentException("Declare a host operation identity of letters, digits, '.', '-' or '_', and a reason.");
-        builder.WithMetadata(new TenantEndpointMetadata(TenantAccess.Host, operationId, reason));
+        return Declare(builder, new TenantEndpointMetadata(TenantAccess.Host, operationId, reason));
+    }
+
+    private static TBuilder Declare<TBuilder>(TBuilder builder, TenantEndpointMetadata declared) where TBuilder : IEndpointConventionBuilder
+    {
+        builder.WithMetadata(declared);
+        builder.Add(endpoint =>
+        {
+            var inner = endpoint.RequestDelegate
+                ?? throw new InvalidOperationException("Tenancy cannot guard an endpoint without a request delegate; declare tenancy on a routed endpoint.");
+            endpoint.RequestDelegate = context => TenancyEndpointGuard.InvokeAsync(context, declared, inner);
+        });
         return builder;
     }
+}
+
+/// <summary>Runs a declared endpoint only in an established, active context of the declared kind and operation.</summary>
+internal static partial class TenancyEndpointGuard
+{
+    internal static Task InvokeAsync(HttpContext context, TenantEndpointMetadata declared, RequestDelegate inner)
+    {
+        var current = context.RequestServices.GetService<TenantExecution>()?.Context;
+        var satisfied = declared.Access == TenantAccess.Host
+            ? current is { Scope: TenantScope.Host, IsActive: true, HostGrant: { } grant } && grant.OperationId == declared.OperationId
+            : current is { Scope: TenantScope.Tenant, IsActive: true };
+        if (satisfied) return inner(context);
+        if (context.RequestServices.GetService<ILoggerFactory>() is { } loggers)
+            Unguarded(loggers.CreateLogger(typeof(TenancyEndpointGuard).FullName!));
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        return Task.CompletedTask;
+    }
+
+    [LoggerMessage(EventId = 8102, Level = LogLevel.Error,
+        Message = "An endpoint that declares tenancy ran without an established context. Place UseModularynTenancy after routing and authentication.")]
+    private static partial void Unguarded(ILogger logger);
 }
 
 public static class TenancyApplicationBuilderExtensions
 {
     /// <summary>
     /// Establishes each request's tenant context from its endpoint's declaration. Place it after the ingress, routing and
-    /// authentication, and before authorization and the endpoints.
+    /// authentication, and before authorization and the endpoints. Declared endpoints refuse to run without a context, so
+    /// a misplaced or missing call fails closed.
     /// </summary>
     public static IApplicationBuilder UseModularynTenancy(this IApplicationBuilder app)
     {
@@ -97,7 +134,8 @@ internal sealed partial class TenancyMiddleware(RequestDelegate next, PublicOrig
             if (decision is not { Succeeded: true })
             {
                 var code = decision?.Code ?? TenancyCodes.Conflict;
-                Refused(logger, code);
+                if (code is TenancyCodes.SeamUnavailable or TenancyCodes.AuditUnavailable or TenancyCodes.DirectoryUnavailable) Unavailable(logger, code);
+                else Refused(logger, code);
                 context.Response.StatusCode = Status(code, declared[0].Access);
                 return;
             }
@@ -132,4 +170,8 @@ internal sealed partial class TenancyMiddleware(RequestDelegate next, PublicOrig
 
     [LoggerMessage(EventId = 8100, Level = LogLevel.Information, Message = "Tenant context refused with {Code}.")]
     private static partial void Refused(ILogger logger, string code);
+
+    // Outages are operators' concern even where the response stays 404, so they are logged as warnings.
+    [LoggerMessage(EventId = 8101, Level = LogLevel.Warning, Message = "Tenant context refused with {Code} because a dependency is unavailable.")]
+    private static partial void Unavailable(ILogger logger, string code);
 }
