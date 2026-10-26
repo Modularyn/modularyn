@@ -9,6 +9,7 @@
     <Project Path="tests/Modularyn.Framework.Modularity.Abstractions.Tests/Modularyn.Framework.Modularity.Abstractions.Tests.csproj" />
     <Project Path="tests/Modularyn.Framework.Modularity.Tests/Modularyn.Framework.Modularity.Tests.csproj" />
     <Project Path="tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj" />
+    <Project Path="tests/Modularyn.Framework.Observability.Tests/Modularyn.Framework.Observability.Tests.csproj" />
     <Project Path="tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj" />
   </Folder>
 </Solution>
