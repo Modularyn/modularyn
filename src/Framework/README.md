@@ -1,4 +1,4 @@
-# Framework composition, hosting, configuration and ingress
+# Framework composition, hosting, observability, configuration and ingress
 
 `Modularyn.Framework.Modularity.Abstractions` contains immutable manifests,
 SemVer values, explicit version intervals, composition validators and lifecycle

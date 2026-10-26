@@ -1,7 +1,14 @@
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Modularyn.Framework.Modularity;
 using Modularyn.Framework.Modularity.Abstractions;
 using Xunit;
@@ -45,6 +52,62 @@ public sealed class DeploymentTrustHostingTests : IDisposable
         await Assert.ThrowsAsync<ModuleCompositionException>(() => application.StartAsync(Cancellation));
         Assert.False(application.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStarted.IsCancellationRequested);
         Assert.Equal(0, fixture.Constructed);
+        var health = application.Services.GetRequiredService<HealthCheckService>();
+        Assert.False(application.Services.GetRequiredService<ModuleHost>().Work.IsAccepting);
+        AssertStatusOnly(await Check(health, ModuleHealthChecks.ReadinessTag), HealthStatus.Unhealthy);
+        AssertStatusOnly(await Check(health, ModuleHealthChecks.LivenessTag), HealthStatus.Healthy);
+    }
+
+    [Fact(DisplayName = "TM-G02-001 readiness follows a verified activation, and a refused composition stays unready with status-only health")]
+    public async Task TM_G02_001_Readiness_follows_a_verified_activation_and_a_refused_composition_stays_unready_with_status_only_health()
+    {
+        using var fixture = new LifecycleFixture();
+        var graph = LifecycleFixture.Graph();
+        File.WriteAllText(lockPath, new DeploymentLock(graph.Select(Package)).ToJson(), new UTF8Encoding(false));
+        var file = Path.Combine(content, "B", "Modularyn.Modules.B.dll");
+        var original = File.ReadAllBytes(file);
+        var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { EnvironmentName = "Production" });
+        builder.Logging.ClearProviders();
+        builder.WebHost.ConfigureKestrel(server => server.Listen(IPAddress.Loopback, 0));
+        builder.Services.AddModularynDeploymentTrust(lockPath, content);
+        builder.Services.AddModularynModules(LifecycleFixture.Environment, fixture.Registrations(graph));
+        await using var application = builder.Build();
+        application.UseRouting();
+        application.UseModularynRequests();
+        application.MapModularynHealthChecks();
+        application.MapGet("/work", () => "done");
+        var host = application.Services.GetRequiredService<ModuleHost>();
+        var health = application.Services.GetRequiredService<HealthCheckService>();
+        AssertStatusOnly(await Check(health, ModuleHealthChecks.ReadinessTag), HealthStatus.Unhealthy);
+
+        await application.StartAsync(Cancellation);
+        var address = Assert.Single(application.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses);
+        using var client = new HttpClient { BaseAddress = new Uri(address) };
+        Assert.True(host.Report.IsReady);
+        await AssertProbe(client, "/health/ready", HttpStatusCode.OK, "Healthy");
+        await AssertProbe(client, "/health/live", HttpStatusCode.OK, "Healthy");
+        await AssertProbe(client, "/work", HttpStatusCode.OK, "done");
+        AssertStatusOnly(await Check(health, ModuleHealthChecks.ReadinessTag), HealthStatus.Healthy);
+
+        await host.StopAsync(Cancellation);
+        File.WriteAllBytes(file, RandomNumberGenerator.GetBytes(original.Length));
+        var refused = await Assert.ThrowsAsync<ModuleCompositionException>(() => host.StartAsync(Cancellation));
+        Assert.Equal("MDC211", Assert.Single(refused.Diagnostics).Code);
+        Assert.False(host.Report.IsReady);
+        Assert.False(host.Work.IsAccepting);
+        Assert.All(host.Report.Modules, module => Assert.Equal(ModuleState.Refused, module.State));
+        Assert.Equal(3, fixture.Constructed);
+        await AssertProbe(client, "/health/ready", HttpStatusCode.ServiceUnavailable, "Unhealthy");
+        await AssertProbe(client, "/health/live", HttpStatusCode.OK, "Healthy");
+        await AssertProbe(client, "/work", HttpStatusCode.ServiceUnavailable, "Unhealthy");
+        AssertStatusOnly(await Check(health, ModuleHealthChecks.ReadinessTag), HealthStatus.Unhealthy);
+
+        File.WriteAllBytes(file, original);
+        await host.StartAsync(Cancellation);
+        Assert.Equal(6, fixture.Constructed);
+        await AssertProbe(client, "/health/ready", HttpStatusCode.OK, "Healthy");
+        await application.StopAsync(Cancellation);
+        Assert.Empty(fixture.ActiveResources);
     }
 
     [Fact(DisplayName = "TM-G02-001 the standard host activates only the locked release and recovers once it is restored")]
@@ -123,6 +186,27 @@ public sealed class DeploymentTrustHostingTests : IDisposable
         var bytes = RandomNumberGenerator.GetBytes(2048);
         File.WriteAllBytes(Path.Combine(directory, $"Modularyn.Modules.{manifest.Id}.dll"), bytes);
         return LockedModule.Describe(manifest, [new LockedFile($"{manifest.Id}/Modularyn.Modules.{manifest.Id}.dll", Convert.ToHexStringLower(SHA256.HashData(bytes)))]);
+    }
+
+    private static Task<HealthReport> Check(HealthCheckService health, string tag) =>
+        health.CheckHealthAsync(registration => registration.Tags.Contains(tag), Cancellation);
+
+    private static void AssertStatusOnly(HealthReport report, HealthStatus status)
+    {
+        Assert.Equal(status, report.Status);
+        Assert.All(report.Entries.Values, entry =>
+        {
+            Assert.Null(entry.Description);
+            Assert.Null(entry.Exception);
+            Assert.Empty(entry.Data);
+        });
+    }
+
+    private static async Task AssertProbe(HttpClient client, string path, HttpStatusCode status, string body)
+    {
+        using var response = await client.GetAsync(path, Cancellation);
+        Assert.Equal(status, response.StatusCode);
+        Assert.Equal(body, await response.Content.ReadAsStringAsync(Cancellation));
     }
 
     private static void AssertRefusedBeforeActivation(ModuleHost host, LifecycleFixture fixture)
