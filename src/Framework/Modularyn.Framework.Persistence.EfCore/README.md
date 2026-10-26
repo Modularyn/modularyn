@@ -91,19 +91,94 @@ All commands use the unit's connection and transaction. Inserts require explicit
 keys and scalar values; inheritance, generated values and split mappings are
 refused. Direct writes do not refresh previously tracked objects.
 
-## Filters and scope
+## Tenant scope
 
-`ConfigureFilters(IQueryFilterRegistry)` is the shared extension seam. The
-adapter registers a named soft-delete predicate for `ISoftDeleted` entities and
-converts tracked deletions to flag updates. `IncludingSoftDeleted` bypasses only
-that named predicate for its returned query; other predicates remain active.
-It requires a reason and operation identity, retained with the query for a future
+Every root entity of a module context declares `ITenantScoped` or `IHostScoped`
+from `Modularyn.Framework.Tenancy.Abstractions`. An undeclared, doubly declared
+or shared-type entity, or an owned type that declares a scope, is refused
+(`MPS030`), and `ITenantScoped.TenantId` must be a mapped public `Guid`
+(`MPS031`). Every key, unique constraint, index and reference of a tenant-scoped
+type carries its tenant, in the model and in the module's migrations, and a
+host-scoped type cannot reference tenant-scoped data (`MPS032`). A migration
+cannot insert, update or delete rows of a tenant-scoped table (`MPS039`).
+
+`EfCoreUnitOfWork.BeginAsync(module, tenant, ...)` binds a validated
+`TenantContext` to the unit's context for its whole life. The overload without
+one binds none, a joined scope shares its ambient unit's context, and a new or
+suppressed scope never inherits one. Each tenant-scoped root carries two adapter
+filters on the named seam: `Modularyn.Tenant`, which requires `TenantId` to equal
+the unit's tenant, and `Modularyn.Scope`, which requires the unit's context to be
+active. Their values are read for each execution, so a cached query never
+carries another unit's tenant. Without an active tenant-scope context,
+tenant-scoped data is refused, never returned unfiltered or empty (`MPS035`). A
+host-scope context reaches it only through `AcrossTenants`, on the EF and
+direct-SQL paths. That lifts only the tenant predicate, keeps soft delete, module
+filters and the scope check, and returns the audited grant (`MPS038` otherwise).
+
+Writes take the tenant from the unit. A new row's empty tenant is set to it, and
+a row of another tenant or a change of tenant is refused (`MPS036`), on tracked
+saves, direct inserts and direct updates alike. A tenant unit can read
+host-scoped data but cannot change it (`MPS037`), and a unit without a context
+cannot change tenant-scoped data (`MPS035`). A host-scope unit cannot change
+tenant-scoped data either (`MPS038`), except one named tenant's row through
+`ModuleSql.UpdateForTenantAsync`, for records the host keeps about tenant work,
+such as a denied disposition.
+
+## Filters and query guard
+
+`ConfigureFilters(IQueryFilterRegistry)` is the shared extension seam. Names
+beginning with `Modularyn.` belong to the adapter (`MPS012`). The adapter
+registers a named soft-delete predicate for `ISoftDeleted` entities and converts
+tracked deletions to flag updates. `IncludingSoftDeleted` bypasses only that
+named predicate for its returned query; other predicates remain active. It
+requires a reason and operation identity, retained with the query for a future
 audit integration. It grants no authority and writes no audit record.
 
-SEC-04 can contribute its filter through the same registry. This adapter makes
-no tenant, authorization, key-storage or secret-management decision. Connection
-strings remain configured options. The bypass audit implementation belongs to
-SEC-07.
+Every module context registers a query-expression interceptor, which inspects
+each LINQ query before EF translates it, on `Set<T>()` and `ModuleSql` alike, and
+a command interceptor:
+
+- EF Core's general `IgnoreQueryFilters()`, and every named form that the adapter
+  did not issue, are refused (`MPS033`), in subqueries and compiled queries too.
+  The adapter's two bypasses, `IncludingSoftDeleted` and `AcrossTenants`, carry an
+  adapter-internal marker that the guard checks and removes; each must ignore
+  exactly its own filter.
+- A `FromSql` root other than `ModuleSql`'s own, `Database.SqlQuery` and every
+  other non-entity query root are refused (`MPS034`), as is `Database.ExecuteSql`
+  in each of its forms, through the command interceptor.
+- A bulk LINQ write to host-scoped data is refused (`MPS037`), since
+  `ModuleSql.UpdateAsync` checks the unit's scope instead. A bulk write over the
+  cross-tenant bypass is refused (`MPS038`), and so is a bulk update that sets a
+  tenant (`MPS036`).
+
+The guard is stateless and decides from the query's shape and the model, because
+EF caches a compiled query by its shape. Decisions that depend on the unit are
+made where the adapter issues a bypass and in the filter values that each
+execution evaluates. Code in the same process can still call `GetDbConnection()`
+and run any SQL; the repository test `PersistenceBoundaryTests` keeps the filter
+bypass, raw SQL and Npgsql command APIs out of product source outside this
+adapter, and cannot see code outside the repository.
+
+This adapter enforces the tenant scope that the tenancy runtime validates; it
+does not resolve tenants and makes no authorization, key-storage or
+secret-management decision. Connection strings remain configured options. The
+bypass audit implementation belongs to SEC-07.
+
+## Raw SQL sites
+
+Each raw or direct SQL site in this adapter, and how it keeps the tenant filter:
+
+| Site | SQL | Tenant filter |
+|---|---|---|
+| `ModuleSql.Query` and its filtered overload, through `Read` | `SELECT *` from one owned table, optionally where one column `IS NOT DISTINCT FROM` a parameter | EF composes `Modularyn.Tenant`, `Modularyn.Scope`, soft delete and module filters over the `SELECT`; the guard accepts this root only under the adapter's marker |
+| `ModuleSql.InsertAsync` | `INSERT` of one scalar row, every value a parameter | An insert has nothing to filter, so the row's tenant is set from, or must equal, the unit's tenant, and a tenant unit cannot insert a host-scoped row |
+| `ModuleSql.UpdateAsync` and `UpdateForTenantAsync` | EF's direct update of one value and the version, by key and expected version | Every filter applies, and the tenant column cannot be the value; the host form lifts only the tenant predicate, adds the named tenant as an explicit predicate and requires an active host grant |
+| `ModuleSchemaOwnership` | Ownership-row and catalog reads on the unit's connection | Framework metadata of the module schema; no tenant data |
+| `MigrationProgressStore`, `PostgreSqlMigrationLock` | Schema, ownership and progress tables, and the advisory lock | Framework metadata under the migration lock; no tenant data |
+| Migrations and EF history, through the coordinator and the activation validator | Validated migration operations and EF's history queries | Migrations cannot change tenant rows, and tenant tables keep the tenant in keys, indexes and references |
+
+Both read overloads share `Read`, so the one EF1003 suppression, with its
+justification, covers the adapter's only `FromSqlRaw` call.
 
 ## Verification handoff
 
@@ -115,7 +190,13 @@ covers the database; the lock-contention case starts competing coordinators
 explicitly. All real-provider cases carry `Requires=PostgreSQL`; the six AC-005 method names
 match the evidence plan. Additional cases cover partial DDL rollback, forward
 repair, lock contention, ownership, activation refusal, cancellation and the
-direct-SQL filter and concurrency paths.
+direct-SQL filter and concurrency paths. `QueryGuardTests` show the guard's
+refusals against PostgreSQL on both paths, and `TenantModelTests` the
+classification, key and migration rules; the tenant filter's behavior with
+validated contexts is tested in `Modularyn.Framework.Tenancy.Tests`. Each
+real-provider test also holds a session advisory lock under its own key, so the
+PostgreSQL tests of different projects never contend for the migration lock when
+they run at once.
 
 The Builder generates dependency locks, adopts the registered package versions,
 then runs restore, Release build, the unit suite and PostgreSQL suite through

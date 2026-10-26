@@ -204,9 +204,13 @@
           "Modularyn.Framework.Modularity": "[1.0.0, )",
           "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Persistence.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )",
           "Npgsql": "[10.0.3, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
         }
+      },
+      "modularyn.framework.tenancy.abstractions": {
+        "type": "Project"
       },
       "Microsoft.EntityFrameworkCore": {
         "type": "CentralTransitive",

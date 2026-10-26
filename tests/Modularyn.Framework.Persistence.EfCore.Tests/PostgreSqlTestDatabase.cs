@@ -14,6 +14,7 @@ namespace Modularyn.Framework.Persistence.EfCore.Tests;
 public abstract class PostgreSqlTestDatabase : IAsyncLifetime
 {
     private readonly List<string> schemas = [];
+    private PostgreSqlTestLock? testLock;
     protected string Schema { get; } = "ac005_" + Guid.NewGuid().ToString("N");
     protected PostgreSqlPersistenceOptions Options { get; private set; } = null!;
     protected static CancellationToken Cancellation => TestContext.Current.CancellationToken;
@@ -28,6 +29,7 @@ public abstract class PostgreSqlTestDatabase : IAsyncLifetime
         Assert.Equal("off", session.Parameters.GetValueOrDefault("is_superuser"));
         Assert.Equal("UTF8", session.Parameters.GetValueOrDefault("server_encoding"));
         Options = new(System.Environment.GetEnvironmentVariable(PostgreSqlTarget.Variable)!);
+        testLock = await PostgreSqlTestLock.AcquireAsync(Options.ConnectionString, Cancellation);
         await CreateSchemaAsync(Schema);
     }
 
@@ -42,6 +44,7 @@ public abstract class PostgreSqlTestDatabase : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
+        await using var held = testLock;
         if (schemas.Count == 0) return;
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         await using var connection = new NpgsqlConnection(Options.ConnectionString);

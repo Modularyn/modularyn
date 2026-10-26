@@ -1,4 +1,4 @@
-# Framework composition, hosting, observability, configuration and ingress
+# Framework composition, hosting, observability, configuration, ingress and tenancy
 
 `Modularyn.Framework.Modularity.Abstractions` contains immutable manifests,
 SemVer values, explicit version intervals, composition validators and lifecycle
@@ -17,6 +17,10 @@ the modularity contracts remain independent of logging and HTTP adapters.
 resolves secret references and declares the data-protection key ring.
 `Modularyn.Framework.Ingress` applies the HTTP ingress policy. Configuration and
 Ingress use only the `Microsoft.AspNetCore.App` shared framework.
+`Modularyn.Framework.Tenancy.Abstractions` holds the tenancy contracts and uses
+only the .NET shared framework, so domain and application contract projects can
+reference it. `Modularyn.Framework.Tenancy` resolves and keeps tenant context,
+over the PostgreSQL persistence adapter and the ingress policy.
 
 ## Selection and validation
 
@@ -383,12 +387,140 @@ Endpoints must not change state on safe methods; the ingress cannot observe
 that. Operation-specific input contracts, paging and query bounds, public error
 contracts, session cookies and tenant resolution are not part of the ingress.
 
+## Tenancy
+
+`Modularyn.Framework.Tenancy.Abstractions` contains `ITenantScoped` and
+`IHostScoped`, the validated `TenantContext`, the canonical tenant identifier,
+the propagated-context format and four seams. Tenancy implements none of the
+seams; while one is absent or fails, every operation that needs it is refused:
+
+| Seam | Answers | Supplied by |
+|---|---|---|
+| `ITenantActorResolver` | The actor of an authenticated principal | Identity (SEC-03) |
+| `ITenantMembership` | Whether an actor is currently a member of a tenant | Identity or authorization (SEC-03, SEC-05) |
+| `IHostAuthority` | Whether an actor currently holds host authority for one operation | Authorization (SEC-05) |
+| `IHostScopeAudit` | Records a host-scope grant before the scope exists | Audit (SEC-07) |
+
+The claim type `modularyn.tenant` is the tenant candidate that a principal may
+carry; whether identity issues it is SEC-03's decision.
+
+### Directory
+
+`TenantDirectoryModule.Create` returns the directory's PostgreSQL module, with
+its own schema, context, migration and manifest. Add it to the host's one module
+registry and selection, so the migration coordinator applies its migration and
+the activation gate checks it. A tenant has an identifier, a name and a state;
+each domain names exactly one tenant. `TenantDirectoryAdministration` changes the
+directory only in a host scope granted for `modularyn.tenancy.directory`, and
+accepts a domain only when it is the host of a configured public origin.
+Resolution reads the directory afresh for every unit, so a suspension or a
+removed domain takes effect at once.
+
+### Resolution
+
+`services.AddModularynTenancy(directoryModule)` registers tenancy, and
+`app.UseModularynTenancy()` applies it after the ingress, routing and
+authentication and before authorization and the endpoints. An endpoint declares
+`RequireTenantMember()` or `RequireHostAuthority(operation, reason)`; an endpoint
+without either gets no tenant context, whatever its request carries.
+
+The candidates are the host of the configured public origin that matches the
+validated request host, through SEC-02's `PublicOrigins` and never from a raw
+Host or forwarded header; the `tenant` route value; the `X-Modularyn-Tenant`
+header; and the principal's `modularyn.tenant` claims, which resolution adds on
+every path. A tenant identifier is accepted only in its canonical form, a
+lowercase hyphenated GUID that is not empty; a variant in letter case, braces,
+whitespace, encoding or separators is refused, never normalized. Each source
+may give one value, every source must name the same tenant, a tenant domain
+must be that tenant's, the directory must hold the tenant as active, and the
+actor must be a current member. Only then does a context exist.
+
+Malformed or ambiguous candidates answer 400 and an unauthenticated principal
+401, both decided before any lookup. Every other refusal of a member endpoint
+answers 404 with no body: an unknown, suspended or other tenant, conflicting or
+missing candidates, a principal that is not a member, a request off the
+configured origins and an unavailable seam look alike.
+A host endpoint answers 403 when host authority is missing or the request names
+a tenant, and 503 when audit or a seam is unavailable; an unavailable directory
+answers 503. The refusal codes `MTN001` to `MTN013` are logged with no request
+value.
+
+### Execution context
+
+`TenantExecution` is a scoped service, so each request, job and message has its
+own in its own service scope. Its context is established once and cannot change.
+It ends when the request leaves the tenancy middleware or the scope ends, on
+every path, exceptions and cancellation included. Ending it also ends the
+`TenantContext` itself, so a leaked reference to it, or a unit of work bound to
+it, can no longer reach tenant data. No ambient state carries the context:
+there is no `AsyncLocal`, and work that is not given the context explicitly,
+such as a task started without it or a new scope, has none.
+
+### Host scope
+
+Host scope exists only after `IHostAuthority` grants the operation and
+`IHostScopeAudit` has recorded the grant, with the unit, actor, operation,
+reason, source, time and correlation identifier. A request that names a tenant
+in its route or header, or arrives on a tenant's domain, never gets host scope,
+and a tenant administrator's membership never implies it. A host-scope unit
+reads tenant data only through `AcrossTenants`, which still requires the scope
+to be active at each execution, and changes none of it except a named tenant's
+row through `ModuleSql.UpdateForTenantAsync`.
+
+### Propagation contract for events, jobs and files
+
+CODE-05 (events and jobs) and CODE-07 (Files) carry tenant context this way:
+
+1. **Produce in the tenant's unit.** Write the outbox event, job or
+   file-processing row as an `ITenantScoped` entity in the producing tenant's
+   unit, so its tenant comes from that unit and the row shares its transaction,
+   and store `PropagatedTenantContext.Capture(context).ToJson()` beside the
+   payload. The format holds the scope, the tenant, the actor's kind and subject,
+   the host operation and reason in host scope, the producing unit and the time:
+   references only, never a credential, token, request object or payload value.
+2. **Dispatch from host scope.** A dispatcher lists due work across tenants in an
+   audited host scope through `AcrossTenants`. It cannot change those rows, except
+   to record a disposition on one named tenant's row with `UpdateForTenantAsync`.
+3. **Revalidate on receipt.** Run each item with `TenantWorkRunner.RunAsync`. It
+   parses the stored reference strictly, revalidates it in a new service scope
+   (the tenant still active and the actor still a member, or, in host scope, host
+   authority again with a new audit record) and passes the reconstructed context
+   explicitly. Begin the item's units with that context, so its effect and its
+   completion share one transaction. Never act for a tenant that the payload names.
+4. **Record the disposition.** `Completed` ran the work. `Denied` is terminal, for
+   a malformed reference, an unknown or suspended tenant, an actor who is no longer
+   a member, or revoked host authority: record it and do not retry. `Deferred` is
+   transient, for an unavailable directory, seam or audit store: retry under the
+   bounded policy. An exception from the work itself propagates to that policy.
+5. **Files.** File metadata is tenant-scoped; storage locations derive from the
+   validated context's tenant and server-issued identities, never from a supplied
+   name or tenant; and scanning and validation steps propagate as jobs do.
+
+### Tenant cache
+
+`TenantCache` builds each key from an active context and a declared
+`TenantCacheEntry`: the tenant or host scope, the owning module, its schema
+version, the principal for a principal-scoped entry, the entry name and its
+parts, each length-prefixed, so entries that differ in one dimension never share
+a key. An authorization-sensitive entry must be principal-scoped. Each entry
+declares a staleness limit of at most one day and expires at it;
+`InvalidateTenant` and `InvalidatePrincipal` make earlier entries unreachable at
+once. Concurrent misses for one key share a single build, which a waiter's
+cancellation does not cancel, and a failed build is not cached. The store is the
+process's own memory cache: it has no separate outage, and it coordinates
+nothing across processes, which the single-node profile does not need.
+
 ## Threat-model controls
 
-For each control of boundaries TB-G02-01, TB-G02-02 and TB-G02-11, this records
-what these packages deliver, the tests that exercise it and what remains, with
-the work order it waits on. Tests are in the test project of the package named.
-They are unit and local host tests; SEC-08 maps every control to its evidence.
+For each control of boundaries TB-G02-01, TB-G02-02, TB-G02-06, TB-G02-08 and
+TB-G02-11, and for the tenant part of TM-G02-029, this records what these
+packages deliver, the tests that exercise it and what remains, with the work
+order it waits on. Tests are in the test project of the package named. The
+SEC-02 controls' tests are unit and local host tests. The tenancy tests with the
+trait `Requires=PostgreSQL` run against PostgreSQL, through CI's real-provider
+job, and the others are unit tests; identity, membership, host authority and
+audit come from test doubles of their seams. SEC-08 maps every control to its
+evidence.
 
 - **TM-G02-001, partly.** Delivered: the deployment lock and package integrity
   as a trust validator, and MDC108 for a host without one. Tests:
@@ -426,9 +558,11 @@ They are unit and local host tests; SEC-08 maps every control to its evidence.
 - **TM-G02-006, partly.** Delivered: declared-proxy forwarded headers, host
   filtering, `PublicOrigins` links and redirect targets, and refusal of widened
   options. Tests: `Ingress.Tests` `ProxyAndHostTests` (`AC_004_N01_*`) and
-  `IngressOptionsTests.TM_G02_006_*`. Remaining: tenant domains and membership
-  (SEC-04), the redirect policy applied at sign-in (SEC-03), adversarial isolation
-  evidence (SEC-08).
+  `IngressOptionsTests.TM_G02_006_*`. Tenant domains, limited to the configured
+  public origins, are resolved through `PublicOrigins` (SEC-04, under
+  TM-G02-025). Remaining: membership through the seam that tenancy consumes
+  (SEC-03, SEC-05), the redirect policy applied at sign-in (SEC-03), adversarial
+  isolation evidence (SEC-08).
 - **TM-G02-007, partly.** Delivered: antiforgery on every state-changing request
   that carries cookies, and the antiforgery cookie. Tests: `AntiforgeryTests`
   (`AC_003_N02_*`, `TM_G02_007_*`). Remaining: session cookies (SEC-03); no state
@@ -477,11 +611,79 @@ They are unit and local host tests; SEC-08 maps every control to its evidence.
   `keyStore` argument; key encryption at rest, which no G-02 work order covers;
   the backup procedure, which is operational; recovery evidence on host and
   container (CODE-10 on CI-01).
+- **TM-G02-025, partly.** Delivered: host names, routes, headers and claims are
+  candidates only; canonical identifiers; refusal of malformed, ambiguous,
+  conflicting, unknown, suspended and foreign candidates before any handler, with
+  one contract for existing and unknown tenants; the effective tenant only after
+  the directory, domain and membership checks; tenant domains limited to the
+  configured public origins, read through `PublicOrigins`. Tests: `Tenancy.Tests`
+  `TenantResolutionTests` and `TenancyHttpTests` (`TM_G02_025_*`), and
+  `G02AC004Tests.AC_004_P01_*`. Remaining: the actor and membership seams
+  (SEC-03, SEC-05), which the tests replace with doubles; the permission for the
+  requested operation (SEC-05); adversarial evidence for AC-004-N01 (SEC-08); the
+  website profile's equivalent host forms (AC-004-B03).
+- **TM-G02-026, partly.** Delivered: a scoped `TenantExecution` for each request
+  and each propagated unit, established once, unchangeable and ended with its
+  scope on every path, including exceptions and cancellation; no ambient state;
+  persistence refuses a unit whose context has ended. Tests:
+  `G02AC004Tests.AC_004_B01_*`, `ExecutionContextTests` and
+  `TenancyHttpTests.TM_G02_026_*` (`Tenancy.Tests`). Remaining: CODE-05's workers
+  running each message and job through `TenantWorkRunner`; host and container
+  evidence on the sample application (CODE-10 on CI-01).
+- **TM-G02-027, partly.** Delivered: the `PropagatedTenantContext` format, which
+  holds references only and is parsed strictly; revalidation of tenant and actor,
+  or host authority with a new audit record, before any work; terminal and
+  transient dispositions; the named-tenant update for recording a denial. Tests:
+  `PropagationTests` and `PropagationDatabaseTests` (`TM_G02_027_*`, `TM_G02_041_*`)
+  and `G02AC004Tests.AC_004_R01_*`, over a test work table and dispatcher.
+  Remaining: the durable outbox, inbox and job store adopting the contract, with
+  AC-006 and AC-007 evidence (CODE-05); file processing steps (CODE-07); the
+  producer's permission for the specific action (SEC-05); adversarial evidence
+  for AC-004-N03 (SEC-08).
+- **TM-G02-028, partly.** Delivered: host scope only under host authority for a
+  named operation and after its audit record is written; never derived from, or
+  combined with, a tenant the request names; tenant data reached only through the
+  explicit cross-tenant read, checked again at each execution, and never changed
+  except a named tenant's disposition row; directory administration as a host
+  operation. Tests: `HostScopeTests` and `HostScopeDatabaseTests`
+  (`TM_G02_028_*`). Remaining: the elevated policy and host-authority grants
+  (SEC-05); the audit store, records in the transaction of the change and the
+  affected tenants (SEC-07, TM-G02-051); adversarial evidence for AC-004-N03
+  (SEC-08).
+- **TM-G02-029, tenant part (SEC-04), partly.** Delivered: every root entity
+  declares its scope; the tenant and scope filters on CODE-03's seam for every
+  tenant-scoped entity, on the EF and direct-SQL paths; the query guard, which
+  refuses EF Core's general `IgnoreQueryFilters`, unissued named forms, foreign raw
+  SQL, `SqlQuery`, `ExecuteSql` and unsafe bulk writes; writes held to the unit's
+  tenant; the tenant in every key, index and reference, in the model and in
+  migrations; no tenant rows in migrations; the repository check that keeps raw
+  SQL inside the adapter. Tests: `Persistence.EfCore.Tests` `QueryGuardTests` and
+  `TenantModelTests`, `Tenancy.Tests` `TenantFilterTests` (`TM_G02_029_*`) and
+  `Repository.Tests` `PersistenceBoundaryTests`. Remaining: audit records for the
+  soft-delete and cross-tenant bypasses (SEC-07); bounded paging and sorting on
+  declared fields (CODE-06); adversarial evidence for AC-004-N02 (SEC-08).
+  In-process code that opens the connection itself can bypass every filter; only
+  the repository check, over this repository's sources, covers that.
+- **TM-G02-033, partly.** Delivered: `TenantCache` keys built only from an
+  active context and a declared entry, varying by tenant or host, module, schema
+  version, principal for principal-scoped entries, name and parts; declared
+  staleness of at most a day; tenant and principal invalidation. Tests:
+  `TenantCacheTests` (`TM_G02_033_*`) and `G02AC004Tests.AC_004_P01_*` and
+  `AC_004_B01_*`. Remaining: invalidation on grant, capability and setting changes
+  (SEC-05, CODE-04); the freshness bound for authorization entries (TM-G02-017,
+  SEC-03 and SEC-05); bootstrap configuration (TM-G02-014, CODE-04); adversarial
+  evidence for AC-004-B02 (SEC-08).
+- **TM-G02-034, partly.** Delivered: one shared build for concurrent misses,
+  independent of a waiter's cancellation, no cached failures, and the declared
+  outage behavior of an in-process store that coordinates nothing across
+  processes. Tests: `TenantCacheTests.TM_G02_034_*`. Remaining: the settings and
+  feature caches (CODE-04); the operational-recovery evidence of AC-030, a
+  website-profile family outside the G-02 reference plan.
 
 ## Coverage and verification
 
 The matching test projects cover manifest semantics, resolution, trust, host
-lifecycle, configuration and ingress behavior. Test display names beginning
+lifecycle, configuration, ingress and tenancy behavior. Test display names beginning
 AC-001-P01, AC-001-N01, AC-001-B01 and AC-001-R01 correspond to the reference
 corpus's valid graph, independent invalid graph mutations, inclusive version
 boundaries and interrupted initialization recovery. Additional cases cover
@@ -500,6 +702,15 @@ at the framework layer, against a real Kestrel server on loopback and the real
 filesystem. They do not cover the tenant, identity, session or container parts
 of those cases.
 
-These are unit and local host tests. Reference-profile qualification requires
-the separately executed real-provider, host and container evidence specified by
-the acceptance corpus. Test source does not establish execution results.
+The tenancy tests named for AC-004-B01, AC-004-P01 and AC-004-R01, the cases the
+G-02 evidence plan assigns to SEC-04, exercise those cases at the framework layer.
+Their real-provider methods use the tenant directory, units of work and an items
+fixture on PostgreSQL, a real Kestrel server behind the ingress, and a test work
+table and dispatcher in place of CODE-05's outbox and job store; the unit method
+uses an in-memory directory. AC-003, their security dependency, stays unmet:
+identity, membership, host authority and audit are test doubles.
+
+Apart from the tests with the trait `Requires=PostgreSQL`, these are unit and
+local host tests. Reference-profile qualification requires the separately
+executed real-provider, host and container evidence specified by the acceptance
+corpus. Test source does not establish execution results.

@@ -3,6 +3,7 @@ using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Modularyn.Framework.Persistence.Abstractions;
+using Modularyn.Framework.Tenancy.Abstractions;
 
 namespace Modularyn.Framework.Persistence.EfCore;
 
@@ -48,7 +49,20 @@ public sealed class EfCoreUnitOfWork : IUnitOfWork
     public UnitOfWorkState State => root.result?.State ?? (joinedComplete ? UnitOfWorkState.Joined : UnitOfWorkState.Active);
     public Guid? TransactionId => root.transaction?.TransactionId;
 
-    public static async Task<EfCoreUnitOfWork> BeginAsync(PostgreSqlModule module, UnitOfWorkMode mode = UnitOfWorkMode.Join,
+    /// <summary>
+    /// Begins a unit of work with no tenant context: it can read and write host-scoped data only. A joined scope shares
+    /// its explicitly supplied ambient unit's context, tenant included.
+    /// </summary>
+    public static Task<EfCoreUnitOfWork> BeginAsync(PostgreSqlModule module, UnitOfWorkMode mode = UnitOfWorkMode.Join,
+        EfCoreUnitOfWork? ambient = null, CancellationToken cancellationToken = default) =>
+        BeginAsync(module, mode == UnitOfWorkMode.Join ? ambient?.Context.Tenant : null, mode, ambient, cancellationToken);
+
+    /// <summary>
+    /// Begins a unit of work bound to a validated tenant context for its whole life. The context is passed explicitly and
+    /// never inherited: a new or suppressed scope uses exactly the context given, and a joined scope must name its
+    /// ambient unit's context.
+    /// </summary>
+    public static async Task<EfCoreUnitOfWork> BeginAsync(PostgreSqlModule module, TenantContext? tenant, UnitOfWorkMode mode = UnitOfWorkMode.Join,
         EfCoreUnitOfWork? ambient = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(module);
@@ -56,17 +70,22 @@ public sealed class EfCoreUnitOfWork : IUnitOfWork
         if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode));
         if (System.Transactions.Transaction.Current is not null)
             throw new PersistenceContractException("MPS023", "External ambient transactions are unsupported. Pass the module unit of work explicitly.");
+        if (tenant is { IsActive: false })
+            throw new PersistenceContractException("MPS035", "The tenant context has ended; begin a unit of work only while its context is active.");
         if (mode == UnitOfWorkMode.Join && ambient is not null)
         {
             ambient.EnsureActive();
             if (!ReferenceEquals(module, ambient.Context.Module))
                 throw new PersistenceContractException("MPS013", "A joined scope must use the same registered module and database.");
+            if (!ReferenceEquals(tenant, ambient.Context.Tenant))
+                throw new PersistenceContractException("MPS035", "A joined scope must use its ambient unit's tenant context.");
             return new(ambient);
         }
 
         var context = module.CreateContext();
         try
         {
+            context.BindTenant(tenant);
             // Materialize and validate ownership before opening a connection.
             _ = context.Model;
             await context.Database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);

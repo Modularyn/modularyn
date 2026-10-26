@@ -5,6 +5,7 @@
     <PackageReference Include="Npgsql" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <ProjectReference Include="../Modularyn.Framework.Persistence.Abstractions/Modularyn.Framework.Persistence.Abstractions.csproj" />
+    <ProjectReference Include="../Modularyn.Framework.Tenancy.Abstractions/Modularyn.Framework.Tenancy.Abstractions.csproj" />
     <ProjectReference Include="../Modularyn.Framework.Modularity/Modularyn.Framework.Modularity.csproj" />
     <ProjectReference Include="../Modularyn.Framework.Modularity.Abstractions/Modularyn.Framework.Modularity.Abstractions.csproj" />
   </ItemGroup>

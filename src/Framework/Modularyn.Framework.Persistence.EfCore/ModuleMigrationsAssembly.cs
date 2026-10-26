@@ -17,10 +17,12 @@ public abstract class ModuleMigration : Migration
 public sealed class ModuleMigrationsAssembly : IMigrationsAssembly
 {
     private readonly PostgreSqlModule module;
+    private readonly ModuleDbContext context;
 
     public ModuleMigrationsAssembly(ICurrentDbContext currentContext)
     {
-        module = ((ModuleDbContext)currentContext.Context).Module;
+        context = (ModuleDbContext)currentContext.Context;
+        module = context.Module;
         Assembly = module.ContextType.Assembly;
         var migrations = new SortedDictionary<string, TypeInfo>(StringComparer.Ordinal);
         foreach (var type in Assembly.DefinedTypes.Where(type => !type.IsAbstract && typeof(Migration).IsAssignableFrom(type)
@@ -54,7 +56,7 @@ public sealed class ModuleMigrationsAssembly : IMigrationsAssembly
             ?? throw new PersistenceContractException("MPS005", "The migration could not be constructed.");
         if (migration is ModuleMigration owned) owned.Bind(module);
         migration.ActiveProvider = activeProvider;
-        ModuleOwnership.ValidateMigration(migration.UpOperations, module);
+        ModuleOwnership.ValidateMigration(migration.UpOperations, module, TenantModel.TenantTables(context.Model, module.Schema));
         return migration;
     }
 }
