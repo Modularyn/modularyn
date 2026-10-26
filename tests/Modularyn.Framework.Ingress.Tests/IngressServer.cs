@@ -86,7 +86,7 @@ internal sealed class IngressServer : IAsyncDisposable
         return configuration;
     }
 
-    internal static WebApplication Build(Dictionary<string, string?> configuration)
+    internal static WebApplication Build(Dictionary<string, string?> configuration, Action<IServiceCollection>? services = null)
     {
         var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { EnvironmentName = "Production" });
         builder.Configuration.Sources.Clear();
@@ -99,12 +99,14 @@ internal sealed class IngressServer : IAsyncDisposable
         });
         builder.Services.AddModularynDataProtection(builder.Configuration);
         builder.Services.AddModularynIngress(builder.Configuration);
+        services?.Invoke(builder.Services);
         return builder.Build();
     }
 
-    internal static async Task<IngressServer> StartAsync(Dictionary<string, string?> configuration)
+    internal static async Task<IngressServer> StartAsync(Dictionary<string, string?> configuration, Action<IServiceCollection>? services = null,
+        Action<WebApplication>? endpoints = null)
     {
-        var application = Build(configuration);
+        var application = Build(configuration, services);
         IngressServer? server = null;
         application.UseModularynIngress();
         application.MapGet("/", (HttpContext context) =>
@@ -152,6 +154,7 @@ internal sealed class IngressServer : IAsyncDisposable
             return Results.Text(length.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }).DisableAntiforgery();
         application.MapPost("/json", (JsonElement body) => Results.Text(body.ValueKind.ToString())).DisableAntiforgery();
+        endpoints?.Invoke(application);
         application.MapGet("/leaky", (HttpContext context) =>
         {
             context.Response.Headers.AccessControlAllowOrigin = "*";

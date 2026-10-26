@@ -1,5 +1,6 @@
 using System.Net;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HostFiltering;
@@ -113,23 +114,38 @@ public static class IngressApplicationBuilderExtensions
 {
     /// <summary>
     /// Adds the ingress policy at the start of the pipeline, in order: declared-proxy forwarded headers, host filtering,
-    /// HTTPS redirection, HSTS, the request body limit, cross-origin policy and antiforgery enforcement. Call it before any
-    /// other middleware; endpoint metadata is available when routing runs first, as WebApplication arranges by default.
+    /// HTTPS redirection, HSTS, the request body limit, cross-origin policy, authentication when authentication services
+    /// are registered, and antiforgery enforcement. Authentication therefore never runs for a plain-HTTP or
+    /// unconfigured-host request, and antiforgery tokens are validated against the authenticated user they were issued
+    /// to. Call it before any other middleware and do not call UseAuthentication yourself; call UseAuthorization after it,
+    /// and after tenancy when the application uses it. Endpoint metadata is available when routing runs first, as
+    /// WebApplication arranges by default.
     /// </summary>
     public static IApplicationBuilder UseModularynIngress(this IApplicationBuilder app)
     {
         ArgumentNullException.ThrowIfNull(app);
         if (app.ApplicationServices.GetService<IngressMarker>() is null)
             throw new InvalidOperationException("Call AddModularynIngress before UseModularynIngress.");
+        if (app.Properties.ContainsKey(AuthenticationSet) || app.Properties.ContainsKey(AuthorizationSet))
+            throw new InvalidOperationException("UseAuthentication or UseAuthorization was called before UseModularynIngress. Remove UseAuthentication, "
+                + "which the ingress places after its transport checks, and call UseAuthorization after the ingress.");
         app.UseMiddleware<ProxyTrustMiddleware>();
         app.UseHostFiltering();
         app.UseHttpsRedirection();
         app.UseHsts();
         app.UseMiddleware<RequestBodyLimitMiddleware>();
         app.UseMiddleware<CrossOriginMiddleware>();
+        // Setting this key, as UseAuthentication does, also stops WebApplication from adding authentication ahead of this pipeline.
+        if (app.ApplicationServices.GetService<IServiceProviderIsService>()?.IsService(typeof(IAuthenticationSchemeProvider)) is true) app.UseAuthentication();
         app.UseMiddleware<AntiforgeryEnforcementMiddleware>();
         return app;
     }
+
+    // The property keys that ASP.NET Core's UseAuthentication and UseAuthorization set, and that WebApplication reads before
+    // adding either middleware ahead of the application's own pipeline. Authorization placed before the ingress would run
+    // before authentication.
+    private const string AuthenticationSet = "__AuthenticationMiddlewareSet";
+    private const string AuthorizationSet = "__AuthorizationMiddlewareSet";
 }
 
 internal sealed class IngressMarker;

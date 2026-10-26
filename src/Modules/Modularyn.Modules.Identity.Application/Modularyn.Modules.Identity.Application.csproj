@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../Modularyn.Modules.Identity.Domain/Modularyn.Modules.Identity.Domain.csproj" />
+    <ProjectReference Include="../Modularyn.Modules.Identity.Application.Contracts/Modularyn.Modules.Identity.Application.Contracts.csproj" />
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Configuration/Modularyn.Framework.Configuration.csproj" />
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Security.Abstractions/Modularyn.Framework.Security.Abstractions.csproj" />
+  </ItemGroup>
+</Project>
