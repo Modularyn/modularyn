@@ -87,6 +87,9 @@ public sealed class ToolPinTests
         var gitleaks = Assert.Single(entries, entry => (string?)entry!["id"] == "binary:gitleaks")!;
         Assert.Equal("in-use", Value(gitleaks, "status"));
         Assert.Equal(Value(gitleaks, "version"), WorkflowValue(workflow, "GITLEAKS_VERSION"));
+        var recorded = Assert.Single(gitleaks["digests"]!.AsArray(), digest => (string?)digest!["target"] == "linux-x64")!;
+        Assert.Equal(ToolPinContract.GitleaksArchiveUrl(Value(gitleaks, "version")), Value(recorded, "url"));
+        Assert.Equal("sha256:" + WorkflowValue(workflow, "GITLEAKS_SHA256"), Value(recorded, "digest"));
     }
 
     [Theory]
@@ -137,6 +140,9 @@ public sealed class ToolPinTests
     [InlineData("candidate-register-gitleaks", "needs exactly one in-use binary:gitleaks entry")]
     [InlineData("missing-global-json", "cannot read the SDK version")]
     [InlineData("missing-register", "cannot read the register entries")]
+    [InlineData("register-gitleaks-digest-mismatch", "must equal the register's binary:gitleaks linux-x64 digest")]
+    [InlineData("register-gitleaks-url-mismatch", "must equal the register's binary:gitleaks linux-x64 digest")]
+    [InlineData("missing-register-gitleaks-digest", "must equal the register's binary:gitleaks linux-x64 digest")]
     public void A_single_tool_pin_violation_is_rejected(string mutation, string expectedDiagnostic)
     {
         // Every mutation derives its values from the current files, so a later pin update cannot turn it into a no-op.
@@ -233,6 +239,15 @@ public sealed class ToolPinTests
             case "candidate-register-gitleaks": Set(gitleaks, "status", "candidate"); break;
             case "missing-global-json": Assert.True(files.Remove("global.json")); break;
             case "missing-register": Assert.True(files.Remove(RegisterPath)); break;
+            case "register-gitleaks-digest-mismatch":
+                var recorded = gitleaks["digests"]!.AsArray()[0]!;
+                Set(recorded, "digest", "sha256:" + digest[..^1] + (digest[^1] == '0' ? '1' : '0'));
+                break;
+            case "register-gitleaks-url-mismatch":
+                var archive = gitleaks["digests"]!.AsArray()[0]!;
+                Set(archive, "url", Value(archive, "url").Replace("_linux_x64.", "_linux_arm64."));
+                break;
+            case "missing-register-gitleaks-digest": Set(gitleaks, "digests", null); break;
             default: throw new ArgumentOutOfRangeException(nameof(mutation), mutation, "Unknown mutation case.");
         }
 
