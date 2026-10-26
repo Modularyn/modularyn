@@ -13,12 +13,92 @@ public sealed class DependencyRegisterTests
     private const string RegisterPath = DependencyRegister.RegisterPath;
     private const string ReadmePath = DependencyRegister.ReadmePath;
     private const string LockPath = "tests/Modularyn.Repository.Tests/packages.lock.json";
+    private const string PinPath = ToolPinContract.SdkPinPath;
 
     [Fact]
     public void Register_agrees_with_the_repository_pins()
     {
         Assert.True(RepositoryFiles.Current.TryGetValue(RegisterPath, out _), "The dependency register must exist.");
         Assert.Empty(DependencyRegister.Validate(RepositoryFiles.Current));
+    }
+
+    [Fact]
+    public void Recorded_digests_are_unique_sha256_values_on_tool_and_image_entries_only()
+    {
+        var digested = 0;
+        foreach (var entry in Entries().Where(entry => entry["digests"] is not null))
+        {
+            digested++;
+            Assert.Contains(Value(entry, "ecosystem"), new[] { "binary", "container-image" });
+            var digests = entry["digests"]!.AsArray().Select(digest => digest!).ToList();
+            Assert.NotEmpty(digests);
+            Assert.All(digests, digest => Assert.Matches("^sha256:[0-9a-f]{64}$", Value(digest, "digest")));
+            Assert.All(digests, digest => Assert.StartsWith("https://", Value(digest, "url"), StringComparison.Ordinal));
+            Assert.Equal(digests.Count, digests.Select(digest => Value(digest, "target")).Distinct(StringComparer.Ordinal).Count());
+            Assert.Equal(digests.Count, digests.Select(digest => Value(digest, "digest")).Distinct(StringComparer.Ordinal).Count());
+        }
+
+        Assert.True(digested >= 3, "The Node.js archives and both container images must record digests.");
+    }
+
+    [Fact]
+    public void G02_selection_is_registered_once_with_exact_versions_licenses_and_clearances()
+    {
+        var entries = Entries();
+        Assert.Equal(entries.Count, entries.Select(entry => Value(entry, "id")).Distinct(StringComparer.Ordinal).Count());
+        foreach (var id in DependencyRegister.G02Selection)
+        {
+            var entry = Assert.Single(entries, candidate => Value(candidate, "id") == id);
+            Assert.Matches(@"^(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){1,3}$", Value(entry, "version"));
+            Assert.Equal(Value(entry, "version"), Value(entry["maintenance"]!, "latestEligible"));
+            Assert.NotNull(DependencyRegister.Allowed(Value(entry, "license"), DependencyRegister.ReviewedAllowlist));
+            var clearance = entry["clearance"]!;
+            Assert.Contains(Value(clearance, "community"), new[] { "cleared", "flagged" });
+            Assert.Contains(Value(clearance, "paid"), new[] { "cleared", "flagged" });
+            Assert.False(string.IsNullOrWhiteSpace(Value(clearance, "note")), $"{id} needs a clearance note.");
+            var reviewed = DateOnly.ParseExact(Value(entry["maintenance"]!, "reviewedAt"), "yyyy-MM-dd", CultureInfo.InvariantCulture);
+            Assert.True(reviewed >= DependencyRegister.G02ReviewDate, $"{id} must be reviewed for G-02.");
+        }
+    }
+
+    [Fact]
+    public void Runtime_aligned_entries_match_the_runtime_that_the_sdk_pin_names()
+    {
+        var pin = JsonNode.Parse(RepositoryFiles.Current[PinPath])!;
+        var runtime = DependencyRegister.PinnedRuntime(RepositoryFiles.Current[PinPath]);
+        Assert.NotNull(runtime);
+        Assert.StartsWith(string.Join('.', runtime.Split('.')[..2]) + ".", Value(pin, "version"), StringComparison.Ordinal);
+        var aligned = Entries().Where(entry => DependencyRegister.IsRuntimeAligned(Value(entry, "ecosystem"), Value(entry, "name"))).ToList();
+        Assert.Superset(new HashSet<string>(StringComparer.Ordinal)
+        {
+            "nuget:dotnet-ef", "nuget:microsoft.aspnetcore.identity.entityframeworkcore", "nuget:microsoft.entityframeworkcore",
+            "nuget:microsoft.entityframeworkcore.design", "container-image:mcr.microsoft.com/dotnet/aspnet"
+        }, aligned.Select(entry => Value(entry, "id")).ToHashSet(StringComparer.Ordinal));
+        Assert.All(aligned.Where(entry => !DependencyRegister.RuntimeAlignmentExceptions.ContainsKey(Value(entry, "id"))),
+            entry => Assert.Equal(runtime, Value(entry, "version")));
+    }
+
+    [Fact]
+    public void Runtime_alignment_accepts_only_a_reviewed_exception_for_a_differing_version()
+    {
+        var files = RepositoryFiles.Current.ToDictionary();
+        var register = JsonNode.Parse(files[RegisterPath])!;
+        var aligned = First(register["entries"]!.AsArray(), entry => Value(entry, "ecosystem") == "nuget"
+            && DependencyRegister.IsRuntimeAligned(Value(entry, "ecosystem"), Value(entry, "name")));
+        var id = Value(aligned, "id");
+        var runtime = DependencyRegister.PinnedRuntime(files[PinPath])!;
+        var exception = new Dictionary<string, string>(StringComparer.Ordinal) { [id] = "Reviewed reason." };
+        var unknown = new Dictionary<string, string>(StringComparer.Ordinal) { ["nuget:unreviewed.package"] = "Reviewed reason." };
+        Assert.Contains(DependencyRegister.Validate(files, exception), error => error.Contains("exception is stale", StringComparison.Ordinal));
+        Assert.Contains(DependencyRegister.Validate(files, unknown), error => error.Contains("exception is stale", StringComparison.Ordinal));
+
+        Set(aligned, "version", Bump(runtime));
+        aligned["maintenance"]!["latestEligible"] = Bump(runtime);
+        files[RegisterPath] = register.ToJsonString();
+        Assert.Contains(DependencyRegister.Validate(files), error => error.Contains("must match the runtime version", StringComparison.Ordinal));
+        Assert.Empty(DependencyRegister.Validate(files, exception));
+        exception[id] = " ";
+        Assert.Contains(DependencyRegister.Validate(files, exception), error => error.Contains("exception is stale", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -99,6 +179,29 @@ public sealed class DependencyRegisterTests
     [InlineData("null-entries", "entries must be an array")]
     [InlineData("wrong-version", "version must be 1")]
     [InlineData("extra-root-field", "fields must be exactly")]
+    [InlineData("empty-digests", "digests must be null or a nonempty array")]
+    [InlineData("object-digests", "digests must be null or a nonempty array")]
+    [InlineData("extra-digest-field", "fields must be exactly target, url, digest")]
+    [InlineData("uppercase-digest", "each digest must be sha256:")]
+    [InlineData("unprefixed-digest", "each digest must be sha256:")]
+    [InlineData("short-digest", "each digest must be sha256:")]
+    [InlineData("nuget-digests", "digests must be null for nuget entries")]
+    [InlineData("duplicate-digest", "digest targets and values must be unique")]
+    [InlineData("http-digest-url", "digest url must be an https URL")]
+    [InlineData("missing-image-digests", "container-image digests must be exactly index and linux/amd64")]
+    [InlineData("extra-image-target", "container-image digests must be exactly index and linux/amd64")]
+    [InlineData("image-tag-mismatch", "of a tag that names version")]
+    [InlineData("image-manifest-mismatch", "the linux/amd64 url must be the registry manifest URL of its digest")]
+    [InlineData("image-name", "container-image name must be <registry>/<repository>")]
+    [InlineData("in-use-image", "in-use container-image entries require")]
+    [InlineData("node-missing-platform", "binary:node digests must name exactly")]
+    [InlineData("node-other-url", "binary:node digests must name exactly")]
+    [InlineData("misaligned-runtime-package", "must match the runtime version")]
+    [InlineData("misaligned-runtime-image", "must match the runtime version")]
+    [InlineData("runtime-pin-mismatch", "must match the runtime version")]
+    [InlineData("unreadable-runtime-pin", "cannot read the runtime release")]
+    [InlineData("missing-g02-entry", "the G-02 selection requires this entry")]
+    [InlineData("stale-g02-review", "G-02 entries must be reviewed on or after")]
     public void A_single_register_violation_is_rejected(string mutation, string expectedDiagnostic)
     {
         // Every mutation derives its values from the current register and files, so a later review cannot turn it into a no-op.
@@ -113,6 +216,15 @@ public sealed class DependencyRegisterTests
         var reviewedAt = Value(maintenance, "reviewedAt");
         var version = Value(nuget, "version");
         var sha = Value(action, "version");
+        var node = First(entries, entry => Value(entry, "id") == "binary:node");
+        var nodeDigests = node["digests"]!.AsArray();
+        var firstDigest = nodeDigests[0]!;
+        var image = First(entries, entry => Value(entry, "ecosystem") == "container-image");
+        var imageDigests = image["digests"]!.AsArray();
+        var index = First(imageDigests, digest => Value(digest, "target") == "index");
+        var platform = First(imageDigests, digest => Value(digest, "target") == "linux/amd64");
+        var runtime = DependencyRegister.PinnedRuntime(files[PinPath])
+            ?? throw new InvalidOperationException("The SDK pin must name its runtime release.");
         switch (mutation)
         {
             case "missing-register": Assert.True(files.Remove(RegisterPath)); break;
@@ -292,6 +404,55 @@ public sealed class DependencyRegisterTests
             case "null-entries": register["entries"] = null; break;
             case "wrong-version": Set(register, "version", 2); break;
             case "extra-root-field": Add(register, "date", reviewedAt); break;
+            case "empty-digests": Set(node, "digests", new JsonArray()); break;
+            case "object-digests": Set(node, "digests", new JsonObject()); break;
+            case "extra-digest-field": Add(firstDigest, "algorithm", "sha256"); break;
+            case "uppercase-digest": Set(firstDigest, "digest", Value(firstDigest, "digest").ToUpperInvariant()); break;
+            case "unprefixed-digest": Set(firstDigest, "digest", Value(firstDigest, "digest")["sha256:".Length..]); break;
+            case "short-digest": Set(firstDigest, "digest", Value(firstDigest, "digest")[..^1]); break;
+            case "nuget-digests": Set(nuget, "digests", nodeDigests.DeepClone()); break;
+            case "duplicate-digest": nodeDigests.Add(firstDigest.DeepClone()); break;
+            case "http-digest-url": Set(firstDigest, "url", "http://" + Value(firstDigest, "url")["https://".Length..]); break;
+            case "missing-image-digests": Set(image, "digests", null); break;
+            case "extra-image-target":
+                var extra = platform.DeepClone();
+                extra["target"] = "linux/arm64";
+                extra["digest"] = Value(platform, "digest")[..^1] + (Value(platform, "digest")[^1] == '0' ? '1' : '0');
+                imageDigests.Add(extra);
+                break;
+            case "image-tag-mismatch":
+                Set(index, "url", Value(index, "url").Replace("/manifests/" + Value(image, "version"), "/manifests/" + Bump(Value(image, "version"))));
+                break;
+            case "image-manifest-mismatch":
+                Set(platform, "url", Value(platform, "url").Replace(Value(platform, "digest"), Value(index, "digest")));
+                break;
+            case "image-name":
+                Set(image, "name", Value(image, "name").Split('/')[^1]);
+                Set(image, "id", $"container-image:{Value(image, "name")}");
+                break;
+            case "in-use-image": Set(image, "status", "in-use"); break;
+            case "node-missing-platform": nodeDigests.RemoveAt(nodeDigests.Count - 1); break;
+            case "node-other-url": Set(firstDigest, "url", Value(firstDigest, "url").Replace("nodejs.org", "mirror.example")); break;
+            case "misaligned-runtime-package":
+            case "misaligned-runtime-image":
+                var aligned = First(entries, entry => DependencyRegister.IsRuntimeAligned(Value(entry, "ecosystem"), Value(entry, "name"))
+                    && Value(entry, "ecosystem") == (mutation == "misaligned-runtime-image" ? "container-image" : "nuget"));
+                Set(aligned, "version", Bump(runtime));
+                aligned["maintenance"]!["latestEligible"] = Bump(runtime);
+                break;
+            case "runtime-pin-mismatch":
+                var sdkPin = JsonNode.Parse(files[PinPath])!;
+                Set(sdkPin, "source", Value(sdkPin, "source").Replace($"/{runtime}/", $"/{Bump(runtime)}/"));
+                files[PinPath] = sdkPin.ToJsonString();
+                break;
+            case "unreadable-runtime-pin": Assert.True(files.Remove(PinPath)); break;
+            case "missing-g02-entry":
+                Assert.True(entries.Remove(First(entries, entry => Value(entry, "id") == DependencyRegister.G02Selection[^1])));
+                break;
+            case "stale-g02-review":
+                Set(node["maintenance"]!, "reviewedAt",
+                    DependencyRegister.G02ReviewDate.AddDays(-1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+                break;
             default: throw new ArgumentOutOfRangeException(nameof(mutation), mutation, "Unknown mutation case.");
         }
 
@@ -359,6 +520,9 @@ public sealed class DependencyRegisterTests
     {
         Assert.Null(DependencyRegister.Allowed(expression, DependencyRegister.ReviewedAllowlist));
     }
+
+    private static List<JsonNode> Entries() =>
+        JsonNode.Parse(RepositoryFiles.Current[RegisterPath])!["entries"]!.AsArray().Select(entry => entry!).ToList();
 
     private static JsonNode First(JsonArray entries, Func<JsonNode, bool> predicate) =>
         entries.Select(entry => entry!).First(predicate);
@@ -437,18 +601,42 @@ internal static class DependencyRegister
         "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "MIT", "PostgreSQL"
     };
 
+    // The G-02 dependency selection (PLAN-10): every entry it reviewed, each of which must stay registered and reviewed.
+    public static readonly DateOnly G02ReviewDate = new(2026, 10, 26);
+    public static readonly string[] G02Selection =
+    [
+        "nuget:dotnet-ef", "nuget:microsoft.aspnetcore.identity.entityframeworkcore", "nuget:microsoft.entityframeworkcore",
+        "nuget:microsoft.entityframeworkcore.design", "nuget:microsoft.playwright", "nuget:npgsql",
+        "nuget:npgsql.entityframeworkcore.postgresql", "nuget:opentelemetry.exporter.opentelemetryprotocol",
+        "nuget:opentelemetry.extensions.hosting", "nuget:testcontainers", "nuget:testcontainers.postgresql",
+        "npm:lightningcss", "npm:typescript", "npm:vite", "npm:vitest", "binary:node", "binary:postgresql",
+        "container-image:docker.io/library/postgres", "container-image:mcr.microsoft.com/dotnet/aspnet"
+    ];
+
+    // Reviewed exceptions to the runtime-alignment rule, by register id, each with its reason. The G-02 review needed none.
+    public static readonly IReadOnlyDictionary<string, string> RuntimeAlignmentExceptions =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
+    // The platforms of the Node.js archives that the binary:node entry pins, named as nodejs.org names them.
+    public static readonly string[] NodeTargets = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64", "win-x64", "win-arm64"];
+    private static readonly string[] ImageTargets = ["index", "linux/amd64"];
+
     private const int MinimumAgeDays = 14;
     private const int MaximumTextLength = 600;
     public static readonly DateOnly PolicyStart = new(2026, 10, 25);
-    private static readonly string[] Ecosystems = ["dotnet-sdk", "nuget", "npm", "github-action", "binary"];
+    private static readonly string[] Ecosystems = ["dotnet-sdk", "nuget", "npm", "github-action", "binary", "container-image"];
     private static readonly string[] Statuses = ["in-use", "candidate"];
-    private static readonly string[] Areas = ["build", "ci", "persistence", "identity", "admin", "test"];
+    private static readonly string[] Areas = ["build", "ci", "persistence", "identity", "observability", "admin", "test", "deployment"];
     private static readonly string[] Clearances = ["cleared", "flagged"];
     private static readonly string[] EntryFields =
-        ["id", "name", "ecosystem", "version", "unpinned", "license", "status", "area", "purpose", "reason", "maintenance", "clearance"];
+    [
+        "id", "name", "ecosystem", "version", "unpinned", "digests", "license", "status", "area", "purpose", "reason", "maintenance",
+        "clearance"
+    ];
     private static readonly string[] MaintenanceFields =
         ["reviewedAt", "published", "latestEligible", "ageException", "maintainer", "activity", "advisories", "sources"];
     private static readonly string[] ClearanceFields = ["community", "paid", "note"];
+    private static readonly string[] DigestFields = ["target", "url", "digest"];
 
     private const string Number = "(?:0|[1-9][0-9]*)";
     private static readonly Dictionary<string, Regex> ExactVersions = new(StringComparer.Ordinal)
@@ -457,10 +645,19 @@ internal static class DependencyRegister
         ["nuget"] = new($"^{Number}\\.{Number}\\.{Number}(?:\\.{Number})?$", RegexOptions.CultureInvariant),
         ["npm"] = new($"^{Number}\\.{Number}\\.{Number}$", RegexOptions.CultureInvariant),
         ["github-action"] = new("^[0-9a-f]{40}$", RegexOptions.CultureInvariant),
-        ["binary"] = new($"^{Number}\\.{Number}(?:\\.{Number})?$", RegexOptions.CultureInvariant)
+        ["binary"] = new($"^{Number}\\.{Number}(?:\\.{Number})?$", RegexOptions.CultureInvariant),
+        ["container-image"] = new($"^{Number}\\.{Number}(?:\\.{Number})?$", RegexOptions.CultureInvariant)
     };
 
     private static readonly Regex Name = new("^[A-Za-z0-9@][A-Za-z0-9@._/-]*$", RegexOptions.CultureInvariant);
+    public static readonly Regex Sha256Digest = new("^sha256:[0-9a-f]{64}$", RegexOptions.CultureInvariant);
+    private static readonly Regex ImageName = new(
+        "^(?<registry>[a-z0-9-]+(?:\\.[a-z0-9-]+)+)/(?<repository>[a-z0-9]+(?:[._-][a-z0-9]+)*(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)*)$",
+        RegexOptions.CultureInvariant);
+    private static readonly Regex TagSuffix = new("^[a-z0-9]+(?:[.-][a-z0-9]+)*$", RegexOptions.CultureInvariant);
+    private static readonly Regex RuntimeRelease = new(
+        @"^https://github\.com/dotnet/core/blob/main/release-notes/[0-9]+\.[0-9]+/(?<release>[0-9]+\.[0-9]+\.[0-9]+)/release\.json$",
+        RegexOptions.CultureInvariant);
     private static readonly Regex LicenseId = new(
         "^(?:LicenseRef-[A-Za-z0-9.-]+|[A-Za-z0-9][A-Za-z0-9.-]*\\+?)$", RegexOptions.CultureInvariant);
     private static readonly Regex LicenseToken = new(@"\(|\)|[^\s()]+", RegexOptions.CultureInvariant);
@@ -473,9 +670,14 @@ internal static class DependencyRegister
     public static readonly Regex ToolVersion = new(
         """^\s*(?<variable>[A-Z][A-Z0-9_]*_VERSION)\s*:\s*["']?(?<version>[^"'\s#]+)""", RegexOptions.CultureInvariant);
 
-    private sealed record Dependency(string Id, string Name, string Ecosystem, string Version, string Status, bool Unpinned);
+    private sealed record Digest(string Target, string Url, string Value);
 
-    public static List<string> Validate(IReadOnlyDictionary<string, string> files)
+    private sealed record Dependency(string Id, string Name, string Ecosystem, string Version, string Status, bool Unpinned,
+        DateOnly? Reviewed);
+
+    public static List<string> Validate(IReadOnlyDictionary<string, string> files) => Validate(files, RuntimeAlignmentExceptions);
+
+    public static List<string> Validate(IReadOnlyDictionary<string, string> files, IReadOnlyDictionary<string, string> runtimeExceptions)
     {
         var errors = new List<string>();
         if (!files.TryGetValue(RegisterPath, out var text))
@@ -494,9 +696,87 @@ internal static class DependencyRegister
         if (dependencies is not null)
         {
             ValidatePins(files, dependencies, errors);
+            ValidateRuntimeAlignment(files.GetValueOrDefault(ToolPinContract.SdkPinPath, ""), dependencies, runtimeExceptions, errors);
+            ValidateSelection(dependencies, errors);
         }
 
         return errors;
+    }
+
+    // Microsoft packages and images that ship with each .NET servicing release; they must equal the runtime the SDK pin bundles.
+    public static bool IsRuntimeAligned(string ecosystem, string name) => ecosystem switch
+    {
+        "nuget" => name.Equals("dotnet-ef", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Microsoft.EntityFrameworkCore", StringComparison.OrdinalIgnoreCase)
+            || name.StartsWith("Microsoft.EntityFrameworkCore.", StringComparison.OrdinalIgnoreCase)
+            || name.StartsWith("Microsoft.AspNetCore.", StringComparison.OrdinalIgnoreCase)
+            || name.StartsWith("Microsoft.Extensions.", StringComparison.OrdinalIgnoreCase),
+        "container-image" => name.StartsWith("mcr.microsoft.com/dotnet/", StringComparison.Ordinal),
+        _ => false
+    };
+
+    // The .NET release whose record .github/dotnet-sdk.json cites is the runtime that the pinned SDK bundles.
+    public static string? PinnedRuntime(string sdkPin)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(sdkPin);
+            var source = document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty("source", out var value) && value.ValueKind == JsonValueKind.String
+                    ? value.GetString()! : "";
+            var match = RuntimeRelease.Match(source);
+            return match.Success ? match.Groups["release"].Value : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static void ValidateRuntimeAlignment(string sdkPin, List<Dependency> dependencies,
+        IReadOnlyDictionary<string, string> exceptions, List<string> errors)
+    {
+        var runtime = PinnedRuntime(sdkPin);
+        if (runtime is null)
+        {
+            errors.Add($"{ToolPinContract.SdkPinPath}: cannot read the runtime release that runtime-aligned entries must match.");
+            return;
+        }
+
+        foreach (var dependency in dependencies.Where(dependency => IsRuntimeAligned(dependency.Ecosystem, dependency.Name)
+                     && dependency.Version != runtime && !exceptions.ContainsKey(dependency.Id)))
+        {
+            errors.Add($"{dependency.Id}: runtime-aligned version {dependency.Version} must match the runtime version {runtime} "
+                + $"that {ToolPinContract.SdkPinPath} pins, or have a tested exception.");
+        }
+
+        foreach (var (id, reason) in exceptions)
+        {
+            var dependency = dependencies.FirstOrDefault(candidate => candidate.Id == id);
+            if (dependency is null || !IsRuntimeAligned(dependency.Ecosystem, dependency.Name) || dependency.Version == runtime
+                || string.IsNullOrWhiteSpace(reason))
+            {
+                errors.Add($"{id}: the runtime-alignment exception is stale; it must name a runtime-aligned entry whose version "
+                    + $"differs from {runtime}, with a reason.");
+            }
+        }
+    }
+
+    private static void ValidateSelection(List<Dependency> dependencies, List<string> errors)
+    {
+        foreach (var id in G02Selection)
+        {
+            var dependency = dependencies.FirstOrDefault(candidate => candidate.Id == id);
+            if (dependency is null)
+            {
+                errors.Add($"{id}: the G-02 selection requires this entry.");
+            }
+            else if (dependency.Reviewed is null || dependency.Reviewed < G02ReviewDate)
+            {
+                errors.Add($"{id}: G-02 entries must be reviewed on or after "
+                    + $"{G02ReviewDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}.");
+            }
+        }
     }
 
     public static bool? Allowed(string expression, IReadOnlySet<string> allowlist)
@@ -665,6 +945,22 @@ internal static class DependencyRegister
             errors.Add($"{location}: version must be exact for its ecosystem, without ranges, floats, wildcards or prerelease labels.");
         }
 
+        if (ecosystem == "container-image" && !ImageName.IsMatch(name))
+        {
+            errors.Add($"{location}: container-image name must be <registry>/<repository> in lowercase.");
+        }
+
+        var digests = ValidateDigests(entry, location, ecosystem, errors);
+        if (ecosystem == "container-image")
+        {
+            ValidateImageDigests(location, name, version, digests, errors);
+        }
+
+        if (id == "binary:node")
+        {
+            ValidateNodeDigests(location, version, digests, errors);
+        }
+
         var unpinned = entry.TryGetProperty("unpinned", out var note) && note.ValueKind != JsonValueKind.Null;
         if (unpinned)
         {
@@ -681,13 +977,14 @@ internal static class DependencyRegister
         var allowed = Allowed(license, allowlist);
         if (allowed is null) errors.Add($"{location}: license must be an SPDX license expression.");
 
+        DateOnly? reviewed = null;
         if (!entry.TryGetProperty("maintenance", out var maintenance) || maintenance.ValueKind != JsonValueKind.Object)
         {
             errors.Add($"{location}: maintenance must be an object.");
         }
         else
         {
-            ValidateMaintenance(maintenance, location, version, status, exact, errors);
+            reviewed = ValidateMaintenance(maintenance, location, version, status, exact, errors);
         }
 
         if (!entry.TryGetProperty("clearance", out var clearance) || clearance.ValueKind != JsonValueKind.Object)
@@ -711,10 +1008,111 @@ internal static class DependencyRegister
             }
         }
 
-        return new Dependency(id, name, ecosystem, version, status, unpinned);
+        return new Dependency(id, name, ecosystem, version, status, unpinned, reviewed);
     }
 
-    private static void ValidateMaintenance(JsonElement maintenance, string location, string version, string status,
+    // Digests record SHA-256 values for artifacts that no lock file, commit SHA or SDK pin file covers: tool archives and images.
+    private static List<Digest>? ValidateDigests(JsonElement entry, string location, string ecosystem, List<string> errors)
+    {
+        if (!entry.TryGetProperty("digests", out var value) || value.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+
+        if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() == 0)
+        {
+            errors.Add($"{location}: digests must be null or a nonempty array of target, url and digest objects.");
+            return null;
+        }
+
+        if (ecosystem is not ("binary" or "container-image"))
+        {
+            errors.Add($"{location}: digests must be null for {ecosystem} entries, whose integrity comes from lock files, "
+                + "commit SHAs or the SDK pin file.");
+        }
+
+        var digests = new List<Digest>();
+        var path = $"{location}.digests";
+        foreach (var item in value.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+            {
+                errors.Add($"{location}: digests must be null or a nonempty array of target, url and digest objects.");
+                continue;
+            }
+
+            Fields(item, DigestFields, path, errors);
+            var target = String(item, "target", path, errors);
+            var url = String(item, "url", path, errors);
+            var digest = String(item, "digest", path, errors);
+            if (!IsHttps(url))
+            {
+                errors.Add($"{location}: digest url must be an https URL.");
+            }
+
+            if (!Sha256Digest.IsMatch(digest))
+            {
+                errors.Add($"{location}: each digest must be sha256: followed by 64 lowercase hexadecimal characters.");
+            }
+
+            digests.Add(new Digest(target, url, digest));
+        }
+
+        if (digests.Select(digest => digest.Target).Distinct(StringComparer.Ordinal).Count() != digests.Count
+            || digests.Select(digest => digest.Value).Distinct(StringComparer.Ordinal).Count() != digests.Count)
+        {
+            errors.Add($"{location}: digest targets and values must be unique within an entry.");
+        }
+
+        return digests;
+    }
+
+    // An image records its multi-platform index, which CI pins, and the linux/amd64 image of the qualified platform.
+    private static void ValidateImageDigests(string location, string name, string version, List<Digest>? digests,
+        List<string> errors)
+    {
+        if (digests is null || digests.Count != ImageTargets.Length
+            || !digests.Select(digest => digest.Target).ToHashSet(StringComparer.Ordinal).SetEquals(ImageTargets))
+        {
+            errors.Add($"{location}: container-image digests must be exactly {string.Join(" and ", ImageTargets)}.");
+            return;
+        }
+
+        var image = ImageName.Match(name);
+        if (!image.Success)
+        {
+            return;
+        }
+
+        var registry = image.Groups["registry"].Value;
+        var manifests = $"https://{(registry == "docker.io" ? "registry-1.docker.io" : registry)}/v2/{image.Groups["repository"].Value}/manifests/";
+        var index = digests.Single(digest => digest.Target == "index");
+        var tag = index.Url.StartsWith(manifests, StringComparison.Ordinal) ? index.Url[manifests.Length..] : "";
+        if (tag != version && !(tag.StartsWith(version + "-", StringComparison.Ordinal) && TagSuffix.IsMatch(tag[(version.Length + 1)..])))
+        {
+            errors.Add($"{location}: the index url must be the registry manifest URL {manifests}<tag> of a tag that names version {version}.");
+        }
+
+        var platform = digests.Single(digest => digest.Target == "linux/amd64");
+        if (platform.Url != manifests + platform.Value)
+        {
+            errors.Add($"{location}: the linux/amd64 url must be the registry manifest URL of its digest, {manifests}{platform.Value}.");
+        }
+    }
+
+    private static void ValidateNodeDigests(string location, string version, List<Digest>? digests, List<string> errors)
+    {
+        var expected = NodeTargets.ToDictionary(target => target, target => $"https://nodejs.org/dist/v{version}/node-v{version}-{target}."
+            + (target.StartsWith("win-", StringComparison.Ordinal) ? "zip" : "tar.gz"), StringComparer.Ordinal);
+        if (digests is null || digests.Count != expected.Count
+            || digests.Any(digest => !expected.TryGetValue(digest.Target, out var url) || url != digest.Url))
+        {
+            errors.Add($"{location}: binary:node digests must name exactly {string.Join(", ", NodeTargets)}, each with its "
+                + $"official https://nodejs.org/dist/v{version}/ archive URL.");
+        }
+    }
+
+    private static DateOnly? ValidateMaintenance(JsonElement maintenance, string location, string version, string status,
         Regex? exact, List<string> errors)
     {
         var path = $"{location}.maintenance";
@@ -771,6 +1169,8 @@ internal static class DependencyRegister
         {
             errors.Add($"{location}: sources must be unique https URLs.");
         }
+
+        return reviewed;
     }
 
     private static void ValidatePins(IReadOnlyDictionary<string, string> files, List<Dependency> dependencies, List<string> errors)
@@ -817,6 +1217,12 @@ internal static class DependencyRegister
         foreach (var dependency in inUse.Where(dependency => dependency.Ecosystem == "npm"))
         {
             errors.Add($"{dependency.Id}: in-use npm entries require a lock-file check that this register does not have yet.");
+        }
+
+        foreach (var dependency in inUse.Where(dependency => dependency.Ecosystem == "container-image"))
+        {
+            errors.Add($"{dependency.Id}: in-use container-image entries require a check of the digest that CI pulls, which "
+                + "this register does not have yet.");
         }
 
         ValidateWorkflows(files, inUse, errors);

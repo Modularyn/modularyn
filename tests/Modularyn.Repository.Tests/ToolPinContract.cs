@@ -24,7 +24,11 @@ internal static class ToolPinContract
     private static readonly Regex GitleaksDigest = new(
         """^\s*GITLEAKS_SHA256\s*:\s*(?<quote>["']?)(?<value>[^"'\s#]*)\k<quote>\s*(?:#.*)?$""", RegexOptions.CultureInvariant);
 
-    private sealed record RegisterEntry(string Id, string Ecosystem, string Status, string Version, string[] Sources);
+    private sealed record RegisterEntry(string Id, string Ecosystem, string Status, string Version, string[] Sources,
+        (string Target, string Url, string Digest)[] Digests);
+
+    public static string GitleaksArchiveUrl(string version) =>
+        $"https://github.com/gitleaks/gitleaks/releases/download/v{version}/gitleaks_{version}_linux_x64.tar.gz";
 
     public static List<string> Validate(IReadOnlyDictionary<string, string> files)
     {
@@ -73,8 +77,12 @@ internal static class ToolPinContract
                         ? list.EnumerateArray().Where(source => source.ValueKind == JsonValueKind.String)
                             .Select(source => source.GetString()!).ToArray()
                         : [];
+                var digests = entry.TryGetProperty("digests", out var pinned) && pinned.ValueKind == JsonValueKind.Array
+                    ? pinned.EnumerateArray().Where(digest => digest.ValueKind == JsonValueKind.Object)
+                        .Select(digest => (Text(digest, "target") ?? "", Text(digest, "url") ?? "", Text(digest, "digest") ?? "")).ToArray()
+                    : [];
                 entries.Add(new RegisterEntry(Text(entry, "id") ?? "", Text(entry, "ecosystem") ?? "",
-                    Text(entry, "status") ?? "", Text(entry, "version") ?? "", sources));
+                    Text(entry, "status") ?? "", Text(entry, "version") ?? "", sources, digests));
             }
         }
         catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException)
@@ -235,6 +243,17 @@ internal static class ToolPinContract
         else if (versions[0].Groups["version"].Value != registered[0].Version)
         {
             errors.Add($"{SecretScanPath}: GITLEAKS_VERSION {versions[0].Groups["version"].Value} must equal the register's in-use binary:gitleaks version {registered[0].Version}.");
+        }
+
+        // The register records the same digest, so a change to either the workflow or the register alone fails.
+        if (digests.Count == 1 && registered.Count == 1)
+        {
+            var url = GitleaksArchiveUrl(registered[0].Version);
+            var recorded = registered[0].Digests.Where(digest => digest.Target == "linux-x64").ToList();
+            if (recorded.Count != 1 || recorded[0].Url != url || recorded[0].Digest != "sha256:" + digests[0].Groups["value"].Value)
+            {
+                errors.Add($"{SecretScanPath}: GITLEAKS_SHA256 must equal the register's binary:gitleaks linux-x64 digest for {url}.");
+            }
         }
     }
 

@@ -1,6 +1,6 @@
 # Dependencies and licenses
 
-[register.json](register.json) records every dependency the repository uses and every candidate planned for persistence, identity, the Admin and tests, as reviewed on 2026-10-25 for work order PLAN-06 and updated for SEC-01, which made CI verify every tool it downloads against a pinned hash. Each entry has an exact version, an SPDX license expression, a dated maintenance review with its public sources, the reason it is listed, and a license clearance for both distributions: **Community** under Apache-2.0 and the **paid modules** under PolyForm Noncommercial 1.0.0.
+[register.json](register.json) records every dependency the repository uses and every candidate planned for persistence, identity, observability, the Admin, tests and the container deployment, as reviewed on 2026-10-25 for work order PLAN-06, updated for SEC-01, which made CI verify every tool it downloads against a pinned hash, and reviewed again on 2026-10-26 for PLAN-10, which selected the exact versions G-02 uses (see [G-02 dependency selection](#g-02-dependency-selection)). Each entry has an exact version, the SHA-256 digests of any archive or image that no lock file covers, an SPDX license expression, a dated maintenance review with its public sources, the reason it is listed, and a license clearance for both distributions: **Community** under Apache-2.0 and the **paid modules** under PolyForm Noncommercial 1.0.0.
 
 Candidates are recorded, not adopted. Adopting one is a separate reviewed change that adds its pin and moves its entry to `in-use`.
 
@@ -10,7 +10,7 @@ The policy carries out the design's dependency requirements: exact SDK and depen
 
 ## Findings of the 2026-10-25 review
 
-The register has 49 entries. **In use (25):** the SDK (`build`); actions/checkout and gitleaks (`ci`); and the test project's 3 direct and 19 transitive NuGet packages (`test`). **Candidates (24):** 6 for `persistence`, 3 for `identity`, 10 for `admin` and 5 for `test`. The review recorded 51 entries; SEC-01 removed `actions/setup-dotnet` and the runtime it installed, `binary:dotnet-runtime`, when CI stopped using them (findings 7 and 8).
+After SEC-01 the register had 49 entries. **In use (25):** the SDK (`build`); actions/checkout and gitleaks (`ci`); and the test project's 3 direct and 19 transitive NuGet packages (`test`). **Candidates (24):** 6 for `persistence`, 3 for `identity`, 10 for `admin` and 5 for `test`. The review recorded 51 entries; SEC-01 removed `actions/setup-dotnet` and the runtime it installed, `binary:dotnet-runtime`, when CI stopped using them (findings 7 and 8). The [G-02 selection](#g-02-dependency-selection) brings the register to 53 entries.
 
 1. **The SDK was updated with this register.** SDK 10.0.303 (2026-08-11) bundled runtime 10.0.11, which predates three .NET security releases: 10.0.12 (2026-09-08, 6 CVEs), 10.0.13 (2026-10-13, 44 CVEs, including the critical ASP.NET Core advisories GHSA-rv87-ccxw-8ggf and GHSA-fpq8-4vhr-rcxx) and the out-of-band 10.0.14 (2026-10-25, 4 CVEs, including CVE-2026-111497 in the Brotli decoder). `global.json` now pins SDK 10.0.403, which carries runtime 10.0.14, under the security exception. See [SDK and runtime pin](#sdk-and-runtime-pin).
 2. **The pin is now exact by construction.** `latestPatch` let the .NET host and setup-dotnet use the newest SDK in the pinned feature band, so the pin was exact only while no later SDK existed in that band. `global.json` now uses `rollForward: disable`.
@@ -29,24 +29,110 @@ Findings 1 and 2 were carried out in PLAN-06, together with the convention tests
 
 The runner images cannot be pinned; their job-log versions remain the provenance for the tools CI takes from them, such as Git, curl, jq, tar, PowerShell and the hash utilities.
 
+## G-02 dependency selection
+
+Work order PLAN-10 reviewed, on 2026-10-26, every dependency that G-02 will use: persistence, identity, observability, the generated TypeScript client's toolchain, the browser test, the PostgreSQL test image and the container deployment's runtime image. The register now has 53 entries. **In use (25)**, unchanged. **Candidates (28):** 6 for `persistence`, 3 for `identity`, 2 for `observability`, 2 for `build`, 8 for `test`, 6 for `admin` and 1 for `deployment`. Nothing moved to `in-use`: no code uses these yet, and CI-01 and the code work orders adopt the pins.
+
+### Method
+
+- **Registries, read anonymously.** nuget.org's registration, catalog and package endpoints; the npm registry; nodejs.org's distribution index and release files; Docker Hub's registry API, with an anonymous pull token from auth.docker.io; and the Microsoft Artifact Registry's API, which needs no token. GitHub was read anonymously or through its API, for reads only.
+- **Versions.** For each package: its stable versions, publication dates, listing and deprecation, license metadata and dependency groups; then the selection rules under [Publication age and the security exception](#publication-age-and-the-security-exception), including the runtime-alignment and image-build rules this review added.
+- **Advisories.** The GitHub Advisory Database for each package and for its exact selected version (`affects=<package>@<version>`, checked against a version known to be affected), nuget.org's vulnerability data in each registration, the release notes of the selected and newer versions for fixes without an advisory, the .NET release notes and metadata, the Node.js release notes, and the [PostgreSQL security page](https://www.postgresql.org/support/security/).
+- **Closures.** Scratch projects outside the repository restored the NuGet candidates at their exact versions with NuGet audit in `all` mode, using nuget.org's vulnerability data of 2026-10-25. As an ASP.NET Core host the closure has 47 packages, because the SDK prunes packages that the shared framework supplies; as a class library it has 69. All are MIT, Apache-2.0 or PostgreSQL, and audit reported nothing. A lock-only npm resolution of TypeScript 7.0.2, Vitest 5.0.4 and Vite 8.3.4, with install scripts disabled and an empty npm configuration, gave 81 packages: 44 MIT, 23 Apache-2.0, 12 MPL-2.0 (Lightning CSS and its 11 platform packages), 1 ISC and 1 BSD-3-Clause. npm audit reported no advisory, and only the optional macOS package fsevents 2.3.3 declares an install script.
+
+### Selected versions
+
+| Dependency | Version | Selected by | License | Advisories affecting the version |
+| --- | --- | --- | --- | --- |
+| Microsoft.EntityFrameworkCore, its Design package and `dotnet-ef` | 10.0.14 | Runtime alignment | MIT | None |
+| Microsoft.AspNetCore.Identity.EntityFrameworkCore | 10.0.14 | Runtime alignment | MIT | None |
+| Npgsql and Npgsql.EntityFrameworkCore.PostgreSQL | 10.0.3 | Newest stable releases for EF Core 10 | PostgreSQL | None |
+| OpenTelemetry.Exporter.OpenTelemetryProtocol and OpenTelemetry.Extensions.Hosting | 1.19.1 | Age rule | Apache-2.0 | None |
+| Microsoft.Playwright | 1.64.1 | Security exception, for its bundled Node.js | MIT | None |
+| Testcontainers and Testcontainers.PostgreSql | 4.16.0 | Age rule, unchanged | MIT | None |
+| TypeScript | 7.0.2 | Age rule, unchanged | Apache-2.0 | None |
+| Vitest | 5.0.4 | Age rule | MIT | None |
+| Vite, which Vitest requires | 8.3.4 | Age rule, unchanged | MIT | None |
+| Lightning CSS, which Vite requires | 1.33.0 | Age rule, unchanged | MPL-2.0, flagged | None |
+| Node.js | 24.22.1 | Security exception, unchanged | MIT | None known; it is the October 2026 security release |
+| PostgreSQL server | 18.6 | Current minor release | PostgreSQL | None on the PostgreSQL security page |
+| `docker.io/library/postgres` | 18.6, tag `18.6-trixie`, built 2026-10-21 | Newest build of the reviewed tag | PostgreSQL with Debian packages, flagged | None for the server; the Debian packages were not scanned |
+| `mcr.microsoft.com/dotnet/aspnet` | 10.0.14, tag `10.0.14-noble`, built 2026-10-26 | Runtime alignment and the security exception | MIT with Ubuntu packages, flagged | None known for runtime 10.0.14; the Ubuntu packages were not scanned |
+
+Compared with the 2026-10-25 review: the four Microsoft packages move from 10.0.12 to 10.0.14, Microsoft.Playwright from 1.63.0 to 1.64.1 and Vitest from 5.0.3 to 5.0.4; the two OpenTelemetry packages and the two images are new; TypeScript and Node.js move to the `build` area, and Vite and Lightning CSS to `test`, because G-02 uses them before the Admin does; the PostgreSQL server's publication date is now its release announcement, 2026-08-13, rather than its tag commit; and the gitleaks entry records the digest that the secret-scan workflow pins. The Npgsql packages, Testcontainers, TypeScript, Vite, Lightning CSS and Node.js keep their versions, which are still the newest eligible ones.
+
+### Runtime alignment
+
+EF Core, its Design package, `dotnet-ef` and the Identity EF Core stores ship in every .NET servicing release; the [10.0.14 release notes](https://github.com/dotnet/core/blob/main/release-notes/10.0/10.0.14/10.0.14.md) list all four at 10.0.14 among the packages updated in that release. Their nuspecs name dotnet/dotnet commit `0427b9abbead3fa64c6655eb4290c537397131fa`, and the shared frameworks that SDK 10.0.403 installs record the same commit in their `.version` files. Selecting them at the runtime version keeps EF Core, its tool and the ASP.NET Core shared framework on one tested release, and their transitive Microsoft.Extensions packages on its servicing fixes. All four were published on 2026-10-25, so each records an `ageException`. No advisory names them, so the security exception alone would not have selected them; the age rule alone would have kept 10.0.12, which belongs to an older servicing release than the runtime the SDK pin bundles.
+
+The test applies the rule to `dotnet-ef` and to NuGet packages named `Microsoft.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore.*`, `Microsoft.AspNetCore.*` or `Microsoft.Extensions.*`, and to container images under `mcr.microsoft.com/dotnet/`; the 10.0.14 release notes list 157 packages with those prefixes, all at 10.0.14. A package under those prefixes from another release train, such as dotnet/extensions, needs a reviewed exception in the test's `RuntimeAlignmentExceptions`, with its reason.
+
+### Entries left as Admin candidates
+
+G-02 has no React Admin. React, react-dom, React Router, @types/react, @types/react-dom, @vitejs/plugin-react and @playwright/test stay candidates exactly as the 2026-10-25 review recorded them, and this review did not advance them. Vite and Lightning CSS are not Admin-only: Vitest 5 requires Vite as a peer dependency, and Vite 8 depends on Lightning CSS, so the TypeScript client toolchain needs both. They were reviewed again and keep their versions. G-02's browser case uses Microsoft.Playwright, so @playwright/test, the Admin's TypeScript test runner, is not needed yet.
+
+### How each hash and digest was obtained and verified
+
+- **Node.js 24.22.1.** The six archive hashes are the values in [SHASUMS256.txt](https://nodejs.org/dist/v24.22.1/SHASUMS256.txt) for the `.tar.gz` archives of linux-x64, linux-arm64, darwin-x64 and darwin-arm64 and the `.zip` archives of win-x64 and win-arm64, the same six platforms that `.github/dotnet-sdk.json` covers for the SDK. The detached signature `SHASUMS256.txt.sig` verified with GnuPG in an empty keyring as a good EdDSA signature, made 2026-10-21, by key `5BE8A3F6C8A5C01D106C0AD820B1A390B168D356`. The [nodejs/node README at v24.22.1](https://github.com/nodejs/node/blob/v24.22.1/README.md#release-keys) lists that key as Antoine du Hamel's primary release key, and the key came from [nodejs/release-keys](https://github.com/nodejs/release-keys/blob/main/keys/5BE8A3F6C8A5C01D106C0AD820B1A390B168D356.asc). The clear-signed `SHASUMS256.txt.asc` verified with the same key and carries the same lines. All six archives were downloaded and each matched its hash. GnuPG reports the key as not certified by a trusted signature; its authenticity rests on those two GitHub sources, not on a web of trust.
+- **Container images.** For each tag, the image index came from the registry's manifest endpoint; the SHA-256 of the body it returned equaled its `Docker-Content-Digest` header. The linux/amd64 manifest listed in the index was then fetched by its digest, and its body hashed to that digest; its configuration blob hashed to the digest the manifest names. The configuration sets `PG_VERSION=18.6-1.pgdg13+2` for PostgreSQL, and `DOTNET_VERSION=10.0.14` and `ASPNET_VERSION=10.0.14` on Ubuntu 24.04 for ASP.NET Core. Tags `18.6` and `10.0.14` resolved to the same indexes as `18.6-trixie` and `10.0.14-noble`. Each pair was cross-checked against the publisher's own record: [docker-library/repo-info](https://github.com/docker-library/repo-info/blob/bcf8a9234d4abbdc9929a0a5a478e0584a09b95d/repos/postgres/remote/18.6-trixie.md) for PostgreSQL, and [dotnet/versions](https://github.com/dotnet/versions/blob/18f2104ed862edcda93b75415f2c5c027bcefd2e/build-info/docker/image-info.dotnet-dotnet-docker-main.json) for ASP.NET Core, which also names the dotnet-docker commit the image was built from.
+- **gitleaks 8.30.1.** The register now records the SHA-256 that the secret-scan workflow pins. A fresh download of the Linux x64 archive matched it, and so did the release's checksum file.
+- **`dotnet-ef` 10.0.14.** A local tool manifest has no lock file, so no content hash pins the tool. Its Microsoft author signature and nuget.org repository countersignature verified with `dotnet nuget verify`, and a fresh download's SHA-512 matched nuget.org's catalog: `Z0peTXsBCnJe2r1JOQW39qIZYs9whCazG/tRNuuIcRYr2tCh9HczKDuBVryeX3+X9HrbBfz2+iqlorHXAeEQYg==`, the value a restore writes to `dotnet-ef.10.0.14.nupkg.sha512`. The change that adopts the tool checks it.
+
+### Which image digest CI pins
+
+CI pins the **multi-platform index digest** and records the linux/amd64 manifest digest beside it. The index is content-addressed and lists each platform's manifest by digest, so pinning it fixes the linux/amd64 image as firmly as the manifest digest would; it also fixes the build attestations that the PostgreSQL index lists, which a platform manifest reference would drop. The same reference serves developers on arm64 machines without emulation, while CI and the qualified deployment run linux/amd64. The recorded linux/amd64 digest lets CI and each release record show exactly which image the qualified platform ran. A build of the deployment image should name the platform `linux/amd64` explicitly. A pull by digest that fails, for example because a registry removed an old manifest, is a reason to review again, never to fall back to the tag.
+
+### Exceptions and open decisions
+
+1. **Runtime alignment over the age rule.** The four Microsoft packages and the ASP.NET Core image are one day old or younger; see [Runtime alignment](#runtime-alignment).
+2. **Microsoft.Playwright 1.64.1** is 4 days old. Versions 1.63.0 and 1.64.0 bundle Node.js 24.21.0, and the Node.js project's October 2026 security release post says its fixes, the most severe rated high, cover all of line 24; 1.64.1 bundles 24.22.1, as its `Version.props` and the release URL in its linux-x64 `node` binary show. That runtime is what the security exception covers. The post also lists CVE-2026-106072 for 24.x, which the 24.22.1 release notes do not name.
+3. **Image builds younger than 14 days.** Docker Official Images and the .NET images rebuild a tag whenever its base image changes, so the newest build at review is pinned and its creation date recorded as `published`: 5 days for PostgreSQL, rebuilt after the Debian base update of 2026-10-20, and 0 days for ASP.NET Core. An older build would lack those updates. The 14-day rule still applies to the version each image packages.
+4. **OpenTelemetry 1.19.1, not 1.20.1.** 1.20.1 (2026-10-20) hardens the exporter: it no longer follows redirects, keeps inline certificate material and invalid endpoint values out of its diagnostics, and bounds how much of a failed response it reads. None of this has an advisory, so the policy selects 1.19.1. 1.20.1 meets the 14-day age on 2026-11-03; the adopting change re-selects, and G-02 should not enable the exporter's experimental disk retry.
+5. **Vitest brings Vite and Lightning CSS.** The toolchain closure has 81 npm packages, including Lightning CSS under MPL-2.0, flagged and used unmodified at build and test time. Node.js's built-in test runner with TypeScript alone would avoid about 60 of them; choosing it is a G-02 design decision this review does not make.
+6. **Playwright's browsers are not hash-pinned.** `playwright install` downloads the browser builds that 1.64.1 names (Chromium 156.0.8078.4, Firefox 157.0 and WebKit 27.2) from Playwright's own servers. This review did not establish whether Playwright verifies those archives against a hash, and the repository pins none. CI-01 must take the browsers from a digest-pinned image, use a browser that the runner image provides, or record the download as an exception.
+7. **`dotnet-ef` has no lock-file hash.** See its SHA-512 above.
+8. **Transitive Microsoft.Extensions packages.** In an ASP.NET Core host the shared framework supplies them at 10.0.14. In a class library, OpenTelemetry's dependencies resolve Microsoft.Extensions.Configuration.EnvironmentVariables, Microsoft.Extensions.FileProviders.Abstractions, Microsoft.Extensions.Hosting.Abstractions and Microsoft.Extensions.Logging.Configuration at 10.0.0. No advisory affects 10.0.0, but once those packages are registered `in-use` the runtime-alignment test requires them at 10.0.14, for example through central transitive pinning, or a reviewed exception.
+9. **Testcontainers was not on the work order's list.** The register already planned it for G-02's real-provider tests, so this review checked it again; it stays at 4.16.0. If CI-01 starts PostgreSQL another way, Testcontainers can leave the selection.
+10. **The TypeScript client generator is not selected.** The work order names the client toolchain; the tool that generates the clients is a separate choice for the code work order.
+11. **Node.js 26** becomes active LTS on 2026-10-28; the next monthly review decides between lines 24 and 26.
+
+### What CI-01 must pin
+
+- **PostgreSQL test image:** `docker.io/library/postgres:18.6-trixie@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6`. Its linux/amd64 image is `sha256:9770878138a2e83abcb10856d30cc3f24dae0d317bb956db6ab9159de6c3c80d`.
+- **Node.js 24.22.1 archives,** each downloaded from `https://nodejs.org/dist/v24.22.1/` and verified by SHA-256 before extraction:
+
+  | Archive | SHA-256 |
+  | --- | --- |
+  | `node-v24.22.1-linux-x64.tar.gz` | `eb6728e77c576a35162c122c45ccadf224d89ff00abc8dae46cc2897c6002d7c` |
+  | `node-v24.22.1-linux-arm64.tar.gz` | `33c37be234ba8bee041961047b19160f4d7d0f164e8e246f78bdd10feff148b3` |
+  | `node-v24.22.1-darwin-x64.tar.gz` | `d132557e7ee2b85af08b0c8c34338e65c6430f2238d01f727728ef42dc83b035` |
+  | `node-v24.22.1-darwin-arm64.tar.gz` | `89c682593d76cd44233fa53b1563264e7de9cbb189cad169135c5b4fadfbc0a7` |
+  | `node-v24.22.1-win-x64.zip` | `d2046d28c2c3dcd211ac5145c0bf30e2047ef9dfb306693c8c6e2eccd8b95fa5` |
+  | `node-v24.22.1-win-arm64.zip` | `a0c807319fede24c4a0d8f84564c82a619bd313b16b10c007c383c2609e99171` |
+
+- **ASP.NET Core runtime image:** `mcr.microsoft.com/dotnet/aspnet:10.0.14-noble@sha256:de0ee358cdd672f7017a003bed21e9ac9ed48a27c922a59b18175b6e82fa7fee`. Its linux/amd64 image is `sha256:43cbcf11fd6f88c0375c9c0f7fe59af619abeb323befe5f57dc1502b5a05d8c3`.
+
+The register's `digests` hold the same values. Adopting a pin moves its entry to `in-use`. The tests already require an in-use binary to match a workflow `<NAME>_VERSION` variable; CI-01 must also add a test that each workflow digest equals the register's, as the gitleaks check does, because the register tests reject an in-use container image until such a check exists.
+
 ## Register format
 
-The root has exactly `version` (the integer `1`) and `entries`. Entries are sorted by status (`in-use` first), then ecosystem in the order `dotnet-sdk`, `nuget`, `npm`, `github-action`, `binary`, then id.
+The root has exactly `version` (the integer `1`) and `entries`. Entries are sorted by status (`in-use` first), then ecosystem in the order `dotnet-sdk`, `nuget`, `npm`, `github-action`, `binary`, `container-image`, then id.
 
 | Field | Meaning |
 | --- | --- |
 | `id` | `<ecosystem>:<name>` in lowercase; unique. |
-| `name` | The NuGet package ID, npm package name, `owner/repository` of an action, or the tool name. |
-| `ecosystem` | `dotnet-sdk`, `nuget`, `npm`, `github-action` or `binary`. |
-| `version` | The exact version: a full SDK version, an exact stable NuGet or npm version, a full 40-character commit SHA for an action, or a stable release number for a binary. Ranges, floating versions, wildcards and prerelease labels are rejected. |
+| `name` | The NuGet package ID, npm package name, `owner/repository` of an action, the tool name, or an image's `<registry>/<repository>` in lowercase, such as `docker.io/library/postgres`. |
+| `ecosystem` | `dotnet-sdk`, `nuget`, `npm`, `github-action`, `binary` or `container-image`. |
+| `version` | The exact version: a full SDK version, an exact stable NuGet or npm version, a full 40-character commit SHA for an action, or a stable release number for a binary or for the software an image packages. Ranges, floating versions, wildcards and prerelease labels are rejected. |
 | `unpinned` | `null` when a repository file fixes the version, and for every candidate. Otherwise, a note on what selects the version at run time; only an in-use binary without a workflow version pin may have one, and its `version` records the version observed at review. |
+| `digests` | `null`, or the SHA-256 digests of artifacts that no lock file, commit SHA or SDK pin file covers, each an object with exactly `target`, an https `url` and `digest` in the form `sha256:<64 lowercase hexadecimal characters>`. Only `binary` and `container-image` entries may have them. A container image records exactly `index`, its multi-platform index fetched by tag, and `linux/amd64`, that platform's manifest fetched by digest, both at the registry's `/v2/<repository>/manifests/` URL; the tag names the version, optionally followed by a variant such as `-trixie`. `binary:node` records the six official archives. Targets and digests are unique within an entry. |
 | `license` | An SPDX license expression. `LicenseRef-` identifiers name licenses outside the SPDX list. |
 | `status` | `in-use` when the repository uses it, through a pin or, for an `unpinned` entry, through a CI step; `candidate` when it is planned but not used. |
-| `area` | `build`, `ci`, `persistence`, `identity`, `admin` or `test`. |
+| `area` | `build`, `ci`, `persistence`, `identity`, `observability`, `admin`, `test` or `deployment`. |
 | `purpose` | What the dependency does here. |
 | `reason` | Why it is listed and why this version, with design identifiers where they apply. |
 | `maintenance.reviewedAt` | The review date. |
-| `maintenance.published` | When the recorded version was published, from its registry or release. |
+| `maintenance.published` | When the recorded version was published, from its registry or release; for a container image, when the pinned build was created. |
 | `maintenance.latestEligible` | The version the publication-age rule selects at review. A candidate records exactly this version; an in-use entry that differs is a finding. |
 | `maintenance.ageException` | `null`, or why a version younger than 14 days at review is recorded. |
 | `maintenance.maintainer` | The maintaining organization or people. |
@@ -62,10 +148,10 @@ The root has exactly `version` (the integer `1`) and `entries`. Entries are sort
 
 Every dependency is pinned to one exact version, never a range, floating version, wildcard or prerelease.
 
-- **NuGet:** versions live only in [Directory.Packages.props](../../Directory.Packages.props) under central package management, with version overrides disabled; project files carry no versions. .NET tools, such as `dotnet-ef`, are pinned in a local tool manifest.
+- **NuGet:** versions live only in [Directory.Packages.props](../../Directory.Packages.props) under central package management, with version overrides disabled; project files carry no versions. .NET tools, such as `dotnet-ef`, are pinned in a local tool manifest, which has no lock file, so the change that adopts a tool also checks the restored package's SHA-512 against the value this document records.
 - **npm:** when the Admin is added, `package.json` uses exact versions without `^` or `~`, the committed `package-lock.json` is installed with `npm ci`, and install scripts run only for reviewed packages.
 - **Actions:** each `uses` names a full 40-character commit SHA, and [actions.allow](../../.github/workflows/actions.allow) lists the same SHAs with their release tags, as [the CI guide](../ci.md) describes.
-- **Binaries and images:** CI must download each tool by exact version and verify it against a cryptographic hash pinned in the repository before extraction or use, and container images are referenced by digest. A checksum published beside the download may add a check but never replaces the pinned hash, and no step installs a tool or runtime from a channel or an unpinned version. The .NET SDK archive for each runner is verified by SHA-512 against [.github/dotnet-sdk.json](../../.github/dotnet-sdk.json), and gitleaks by SHA-256 against `GITLEAKS_SHA256` in the secret-scan workflow and against its release's checksum file, which must agree.
+- **Binaries and images:** CI must download each tool by exact version and verify it against a cryptographic hash pinned in the repository before extraction or use, and container images are referenced by digest. A checksum published beside the download may add a check but never replaces the pinned hash, and no step installs a tool or runtime from a channel or an unpinned version. The .NET SDK archive for each runner is verified by SHA-512 against [.github/dotnet-sdk.json](../../.github/dotnet-sdk.json), and gitleaks by SHA-256 against `GITLEAKS_SHA256` in the secret-scan workflow and against its release's checksum file, which must agree. Every other archive and image records its reviewed digests in the register's `digests`; the workflow pin that adopts one must equal the register, as `GITLEAKS_SHA256` must equal the gitleaks entry. An image reference names the multi-platform index digest; see [Which image digest CI pins](#which-image-digest-ci-pins).
 
 ### Locked restore and the advisory gate
 
@@ -78,6 +164,10 @@ NuGet audit runs during restore by default; for projects targeting .NET 10 it ch
 Select the newest stable version published at least 14 days before the review date. The delay gives registries and maintainers time to withdraw a compromised or broken release before Modularyn depends on it.
 
 **Security exception:** when a newer release fixes an advisory that affects the selected version, or the runtime it ships, select the newest release with the fix, however recent, and record the reason in `ageException`. A version younger than 14 days that a pin already references also records an `ageException`. Prereleases are never selected.
+
+**Runtime alignment:** a Microsoft package or image released with each .NET servicing release, such as EF Core, `dotnet-ef`, the ASP.NET Core and Microsoft.Extensions packages and the `mcr.microsoft.com/dotnet` images, is selected at the servicing version of the runtime that the SDK pin bundles, which `.github/dotnet-sdk.json` names through its release record, when nuget.org or the registry has that version. A younger version records the alignment in `ageException`. A package under those names that follows another release train needs a reviewed, tested exception. See [Runtime alignment](#runtime-alignment).
+
+**Image builds:** official images are rebuilt under the same tag when their base image changes. The 14-day age applies to the version an image packages; the digest pins the newest build of the reviewed tag at review, because an older build lacks the base image's updates, and the entry records that build's creation date and an `ageException` while it is younger than 14 days.
 
 ### Maintenance criteria
 
@@ -94,7 +184,7 @@ An entry that fails a criterion is flagged in its maintenance text and gets a re
 
 ### Advisory monitoring
 
-The review consults the GitHub Advisory Database for each ecosystem (`nuget`, `npm`, `actions` and `go`), the .NET release metadata and release notes for the SDK and runtimes, and the Node.js release notes. Release notes can precede the advisory record: CVE-2026-111497 was in the .NET release notes but not yet in the GitHub Advisory Database during this review. Before the PostgreSQL server is adopted, its security announcements must be added to the review's sources.
+The review consults the GitHub Advisory Database for each ecosystem (`nuget`, `npm`, `actions` and `go`), the .NET release metadata and release notes for the SDK and runtimes, and the Node.js release notes. Release notes can precede the advisory record: CVE-2026-111497 was in the .NET release notes but not yet in the GitHub Advisory Database during this review. Since PLAN-10 the review also consults nuget.org's vulnerability data, npm audit for resolved npm closures, the [PostgreSQL security page](https://www.postgresql.org/support/security/) for the server, and the release notes of each selected and newer version for security fixes that have no advisory.
 
 An advisory that affects an in-use version is fixed through the security exception without waiting 14 days. The fix is a reviewed change that updates the pin, the lock and the register together.
 
@@ -116,10 +206,10 @@ Supply-chain review is security work, done by the Builder's own sessions.
 ### Adding or changing a dependency
 
 1. Record the dependency as a `candidate` with its full review and clearance. A license outside the allowlist needs a recorded decision before adoption.
-2. In the adoption change, add the exact pin and, for a tool that CI downloads, its pinned hash; regenerate the lock as the [CI guide](../ci.md) describes, review the lock diff, add every new transitive package to the register as `in-use`, and move the entry to `in-use`.
+2. In the adoption change, add the exact pin and, for a tool that CI downloads or an image it pulls, its pinned hash or digest from the register's `digests`; regenerate the lock as the [CI guide](../ci.md) describes, review the lock diff, add every new transitive package to the register as `in-use`, and move the entry to `in-use`.
 3. Run locked restore, the Release build and the tests, require CI on all three platforms at the exact head, and run gitleaks.
 
-The tests fail when a `PackageVersion`, a locked package, an action SHA or a workflow tool version has no matching `in-use` entry, and when a tool's pinned hash is missing, malformed or disagrees with `global.json` or the register.
+The tests fail when a `PackageVersion`, a locked package, an action SHA or a workflow tool version has no matching `in-use` entry, when a tool's pinned hash is missing, malformed or disagrees with `global.json` or the register, and when an image entry is `in-use` before a test checks the digest CI pulls.
 
 ## SDK and runtime pin
 
@@ -190,37 +280,43 @@ All licenses on the allowlist meet these conditions. Inside a paid distribution,
 | Source-available | `BUSL-1.1`, `SSPL-1.0`, `Elastic-2.0`, vendor commercial terms | Rejected | Rejected | They restrict production, competing or commercial use, or require a fee or key. Community would lose free commercial use, and every paid-module licensee would inherit third-party terms. |
 | Noncommercial third-party | `PolyForm-Noncommercial-1.0.0`, `CC-BY-NC-4.0` | Rejected | Rejected | Community permits commercial use, and a commercial license for the paid modules could not cover a component reserved for noncommercial use. |
 | Platform licenses for tools | .NET Library License, Windows SDK License | Flagged | Flagged | Acceptable for building and testing. Redistributing the covered binaries needs a review against those terms. |
+| Operating-system packages in images | The Debian and Ubuntu packages in a container image, among them GPL and LGPL programs | Flagged | Flagged | The packages are separate programs aggregated in the image, not combined with Modularyn's code, so they place no terms on it. Running an image imposes no obligation. Distributing an image, or one built on it, redistributes the packages: its notices must cover them and source must be available for the copyleft ones, so a release that publishes an image needs this review first. |
 | Unknown or missing | No license metadata, or a license file that points elsewhere | Flagged | Flagged | Not cleared until the license text is identified and reviewed. |
 
 ### Flagged entries in this register
 
 - **`dotnet-sdk:dotnet`** is `MIT AND LicenseRef-dotnet-library-license AND LicenseRef-windows-sdk-license`. Linux and macOS distributions are MIT. On Windows, `coreclr.dll`, the native symbol reader and WPF native binaries use the .NET Library License, and the WPF shader compiler uses the Windows SDK License. Modularyn builds with the SDK and does not redistribute it, and compiler output carries no SDK restriction. Review before a release redistributes Windows runtime binaries, such as a Windows self-contained or single-file build.
-- **`npm:lightningcss`** is `MPL-2.0`. Vite 8 runs it at build time; the CSS it produces is not covered, and as an unmodified tool that Modularyn does not redistribute it imposes no obligation. Modifying its files, or shipping them in any distribution, needs a review and source availability for those files under MPL-2.0.
+- **`npm:lightningcss`** is `MPL-2.0`. Vite 8 runs it at build time, and Vitest runs on Vite; the CSS it produces is not covered, and as an unmodified tool that Modularyn does not redistribute it imposes no obligation. Modifying its files, or shipping them in any distribution, needs a review and source availability for those files under MPL-2.0.
+- **`container-image:docker.io/library/postgres`** is `PostgreSQL AND LicenseRef-debian-packages`: PostgreSQL with the Debian 13 packages of the image. It runs only in tests and is never redistributed.
+- **`container-image:mcr.microsoft.com/dotnet/aspnet`** is `MIT AND LicenseRef-ubuntu-packages`: the .NET runtime, MIT on Linux, with the Ubuntu 24.04 packages of the image. A release that publishes a Modularyn image built on it redistributes those packages, so it needs the operating-system package review first.
 
-The other 47 entries are cleared for both distributions.
+The other 49 entries are cleared for both distributions.
 
 ### THIRD-PARTY-NOTICES
 
 Nothing is distributed yet, so the repository has no THIRD-PARTY-NOTICES file. Each distributed artifact will carry one, generated from the register and that artifact's lock files at release time: Community packages that bundle third-party files, the Admin bundle, container images, self-contained builds and each paid-module distribution. It lists every bundled component with its version, its license text and any NOTICE content, including notices the component itself carries, such as the .NET runtime's. Build, CI and test dependencies are not redistributed and are not listed, but their licenses are still reviewed here.
 
-Among the current candidates, the Admin's runtime closure would enter the Admin bundle's notices: `react`, `react-dom`, `scheduler`, `react-router`, `cookie-es` and `@remix-run/route-pattern`, all MIT. A container image or self-contained build would also list the .NET runtime, EF Core, Npgsql, ASP.NET Core Identity's EF Core stores and OpenIddict.
+Among the current candidates, the Admin's runtime closure would enter the Admin bundle's notices: `react`, `react-dom`, `scheduler`, `react-router`, `cookie-es` and `@remix-run/route-pattern`, all MIT. A container image or self-contained build would also list the .NET runtime, EF Core, Npgsql, ASP.NET Core Identity's EF Core stores, OpenTelemetry with the third-party notices its packages carry for code from .NET and gRPC for .NET, and OpenIddict; an image would also list the operating-system packages of its base image.
 
 ## Candidates
 
 | Area | Candidates | Design basis |
 | --- | --- | --- |
-| Persistence | EF Core 10.0.12, its design-time package 10.0.12 and `dotnet-ef` 10.0.12; Npgsql.EntityFrameworkCore.PostgreSQL 10.0.3 and Npgsql 10.0.3; PostgreSQL 18.6 | D-05, DEV-004, ARC-007, ARC-008; migration bundles for OPS-009 |
-| Identity | ASP.NET Core Identity from the shared framework with its EF Core stores 10.0.12; OpenIddict.AspNetCore 7.7.2 and OpenIddict.EntityFrameworkCore 7.7.2 | D-08, MOD-001, MOD-002, MOD-023, OPS-003 |
-| Admin | Node.js 24.22.1; React and react-dom 19.3.0; React Router 8.4.0; TypeScript 7.0.2; Vite 8.3.4 with @vitejs/plugin-react 6.1.2; @types/react and @types/react-dom 19.3.0; Lightning CSS 1.33.0 | D-06, T-015 |
-| Tests | Testcontainers and Testcontainers.PostgreSql 4.16.0; Microsoft.Playwright 1.63.0; Vitest 5.0.3; @playwright/test 1.64.0 | DEV-023, T-058; real-provider tests for G-02 and UI tests for gate W |
+| Persistence | EF Core 10.0.14, its design-time package 10.0.14 and `dotnet-ef` 10.0.14; Npgsql.EntityFrameworkCore.PostgreSQL 10.0.3 and Npgsql 10.0.3; PostgreSQL 18.6 | D-05, DEV-004, ARC-007, ARC-008; migration bundles for OPS-009 |
+| Identity | ASP.NET Core Identity from the shared framework with its EF Core stores 10.0.14; OpenIddict.AspNetCore 7.7.2 and OpenIddict.EntityFrameworkCore 7.7.2 | D-08, MOD-001, MOD-002, MOD-023, OPS-003 |
+| Observability | OpenTelemetry.Exporter.OpenTelemetryProtocol and OpenTelemetry.Extensions.Hosting 1.19.1, beside the built-in .NET diagnostics | Decision D4; AC-025's local diagnostics |
+| Build | Node.js 24.22.1; TypeScript 7.0.2 | AC-008 for G-02's TypeScript client; D-06 |
+| Tests | Testcontainers and Testcontainers.PostgreSql 4.16.0; the `postgres:18.6-trixie` image pinned by digest; Microsoft.Playwright 1.64.1; Vitest 5.0.4 with Vite 8.3.4 and Lightning CSS 1.33.0; @playwright/test 1.64.0 | DEV-023, T-058; real-provider tests for G-02 and UI tests for gate W |
+| Deployment | The `mcr.microsoft.com/dotnet/aspnet:10.0.14-noble` image pinned by digest | FND-001, OPS-009; the reference profile's container deployment |
+| Admin | React and react-dom 19.3.0; React Router 8.4.0; @vitejs/plugin-react 6.1.2; @types/react and @types/react-dom 19.3.0 | D-06, T-015 |
 
-Candidates are limited to what G-02 and gate W need, plus the Admin toolchain the work order names. Beyond the named packages, the list adds only what they cannot work without: EF Core's design-time package and tool for migration bundles, the PostgreSQL server the real-provider tests run against, the Node.js runtime, Vite's React plugin, React's type declarations, and Lightning CSS, which Vite 8 requires and which needs its own flag. The gate W Razor site uses the ASP.NET Core shared framework and adds no package.
+Candidates are limited to what G-02 and gate W need, plus the Admin toolchain the work order names. Beyond the named packages, the list adds only what they cannot work without: EF Core's design-time package and tool for migration bundles, the PostgreSQL server and image the real-provider tests run against, the Node.js runtime, the OpenTelemetry hosting package the exporter needs, Vite, which Vitest requires, Vite's React plugin, React's type declarations, and Lightning CSS, which Vite 8 requires and which needs its own flag. The gate W Razor site uses the ASP.NET Core shared framework and adds no package.
 
-**Admin closure.** Resolving the Admin candidates at their exact versions with lock-only npm resolution and no install scripts gave 94 packages: 54 MIT, 26 Apache-2.0, 12 MPL-2.0 (Lightning CSS and its 11 platform packages), 1 ISC and 1 BSD-3-Clause. No GitHub advisory affects any resolved version. The register records the direct candidates and Lightning CSS; the full closure is registered when the Admin's lock file is committed. The tests need an npm lock check by then, so they reject `in-use` npm entries today.
+**Admin closure.** Resolving the Admin candidates at their exact versions with lock-only npm resolution and no install scripts gave 94 packages on 2026-10-25: 54 MIT, 26 Apache-2.0, 12 MPL-2.0 (Lightning CSS and its 11 platform packages), 1 ISC and 1 BSD-3-Clause. No GitHub advisory affects any resolved version. The register records the direct candidates and Lightning CSS; the full closure is registered when the Admin's lock file is committed. The tests need an npm lock check by then, so they reject `in-use` npm entries today. G-02's TypeScript client toolchain is a separate closure of 81 packages; see [Method](#method).
 
-**NuGet candidate closures.** First-level dependencies were checked: EF Core's design-time package brings Roslyn workspaces, Mono.TextTemplating, Humanizer.Core and Newtonsoft.Json 13.0.4, and Testcontainers brings Docker.DotNet.Enhanced 4.3.3, SSH.NET 2026.0.0 and SharpZipLib 1.4.2. All are MIT, and no advisory affects those versions. The complete closures are recorded from the lock files at adoption.
+**NuGet candidate closures.** The G-02 review restored every NuGet candidate except OpenIddict at its exact version in a scratch project; see [Method](#method). EF Core's design-time package brings Roslyn workspaces 5.0.0, Microsoft.Build.Framework 18.0.2, Mono.TextTemplating 3.0.0, Humanizer.Core 2.14.1 and Newtonsoft.Json 13.0.4, and Testcontainers brings Docker.DotNet.Enhanced 4.3.3, SSH.NET 2026.0.0 with BouncyCastle.Cryptography 2.7.0, and SharpZipLib 1.4.2. All are MIT, and no advisory affects those versions. The complete closures are registered from the lock files at adoption.
 
-**Integration notes.** Testcontainers.PostgreSql's parameterless builder and its default `postgres:15.1` image are obsolete; the suite must pass the reviewed PostgreSQL image explicitly, pinned by digest. Playwright installs browser builds that carry their own licenses; they are used for tests only and never redistributed. Node.js 26 becomes active LTS on 2026-10-28, so the next monthly review decides between lines 24 and 26.
+**Integration notes.** Testcontainers.PostgreSql's parameterless builder and its default `postgres:15.1` image are obsolete; the suite must pass the reviewed PostgreSQL image explicitly, pinned by digest. Playwright installs browser builds that carry their own licenses; they are used for tests only and never redistributed, and they are not hash-pinned (see [Exceptions and open decisions](#exceptions-and-open-decisions)). Node.js 26 becomes active LTS on 2026-10-28, so the next monthly review decides between lines 24 and 26.
 
 ## Identity: trade-off and recommendation
 
@@ -230,7 +326,7 @@ The authentication requirements (OPS-003, MOD-001, MOD-002, MOD-023) need local 
 - **ASP.NET Core Identity with OpenIddict 7.7.2**, the design's recommended foundation (D-08), adds an Apache-2.0 server, validation and client with EF Core stores on the persistence baseline. It has monthly releases and no advisories. Its costs: maintenance is concentrated in one principal maintainer, Kévin Chalet, with 1,965 commits against 9 for the next human contributors; it is a lower-level framework, so Modularyn owns the endpoints, sign-in and consent UI, key management and protocol configuration, and must prove PKCE, consent, audience and scope enforcement, redirect validation, revocation and key rollover itself (MOD-023); and version 8.0 is in preview, so a major upgrade lies ahead.
 - **ASP.NET Core Identity with Duende IdentityServer** offers a commercially supported product. Its newest eligible version is 8.0.9 (2026-09-28). Its package license file points to Duende's terms on its website, which is outside this review's sources; the package depends on `Duende.Private.Licensing`, and GitHub does not identify its license. Requiring it would subject every Community user to third-party commercial terms, which Community's free commercial use excludes, and would pass those terms to every paid-module licensee. It is rejected as a dependency for both distributions. Its earlier advisories, GHSA-ff4q-64jc-gx98 and GHSA-v9xq-2mvm-x8xc, affected 6.x and 7.x releases.
 
-**Recommendation, not a final selection:** use ASP.NET Core Identity from the shared framework with Microsoft.AspNetCore.Identity.EntityFrameworkCore 10.0.12, and OpenIddict 7.7.2 through OpenIddict.AspNetCore and OpenIddict.EntityFrameworkCore, behind MOD-023's protocol adapter seam. For the Admin's backend-for-frontend session, OpenIddict's client, which OpenIddict.AspNetCore includes, avoids another dependency; Microsoft's OpenID Connect handler is the alternative and would be registered when chosen. To contain the maintainer concentration, keep protocol details behind the adapter, pin exact versions, review each release monthly, and keep the MOD-023 acceptance suite complete enough to qualify a replacement. G-02 confirms or replaces this choice with evidence.
+**Recommendation, not a final selection:** use ASP.NET Core Identity from the shared framework with Microsoft.AspNetCore.Identity.EntityFrameworkCore 10.0.14, and OpenIddict 7.7.2 through OpenIddict.AspNetCore and OpenIddict.EntityFrameworkCore, behind MOD-023's protocol adapter seam. For the Admin's backend-for-frontend session, OpenIddict's client, which OpenIddict.AspNetCore includes, avoids another dependency; Microsoft's OpenID Connect handler is the alternative and would be registered when chosen. To contain the maintainer concentration, keep protocol details behind the adapter, pin exact versions, review each release monthly, and keep the MOD-023 acceptance suite complete enough to qualify a replacement. G-02 confirms or replaces this choice with evidence.
 
 ## Checks
 
@@ -242,28 +338,34 @@ The authentication requirements (OPS-003, MOD-001, MOD-002, MOD-023) need local 
 - every workflow tool version variable, such as `GITLEAKS_VERSION`, to match an `in-use` binary entry, and every `in-use` binary entry either to match a variable or to explain in `unpinned` what selects its version, with `unpinned` set to `null` everywhere else;
 - exact versions for each ecosystem, with no ranges, floating versions, wildcards or prerelease labels;
 - each license to be an SPDX expression that the allowlist above permits, or else to be flagged for both distributions with a note, and the allowlist table to equal the test's reviewed set;
-- candidates to record their `latestEligible` version, and an `ageException` exactly when the recorded version was published fewer than 14 days before review; and
+- candidates to record their `latestEligible` version, and an `ageException` exactly when the recorded version was published fewer than 14 days before review;
+- `digests` to be `null` or unique `sha256:<64 lowercase hexadecimal characters>` values with https URLs, only on `binary` and `container-image` entries; each container image to record exactly its index, at a registry manifest URL whose tag names the version, and its linux/amd64 manifest, at the URL of that digest; and `binary:node` to record the six official archives of its version;
+- no `in-use` container image until a test checks the digest CI pulls;
+- every runtime-aligned entry to equal the runtime release that `.github/dotnet-sdk.json` names, unless the test's `RuntimeAlignmentExceptions` lists it with a reason, and every listed exception to name an entry that differs;
+- every entry of the G-02 selection to be registered and reviewed on or after 2026-10-26; and
 - exact field sets, unique ids, sorted entries, ISO dates, unique https sources, and portable single-line review text.
 
-In-memory mutations exercise each rule and assert its specific diagnostic without writing invalid files. A line-ending case checks portability across platforms. The existing CI workflow runs these tests on Linux, Windows and macOS.
+In-memory mutations exercise each rule and assert its specific diagnostic without writing invalid files. Direct checks read the register again for the digests, the G-02 selection and runtime alignment, and the exception mechanism is tested with and without a reviewed exception. A line-ending case checks portability across platforms. The existing CI workflow runs these tests on Linux, Windows and macOS.
 
 [ToolPinTests.cs](../../tests/Modularyn.Repository.Tests/ToolPinTests.cs) checks the hashes pinned for the tools CI downloads, with its own in-memory mutations and line-ending case. It requires:
 
 - `.github/dotnet-sdk.json` to name exactly linux-x64, linux-arm64, osx-x64, osx-arm64, win-x64 and win-arm64, its version to equal `global.json`, and its source to be the dotnet/core `release.json` record for that version's channel, which the register's SDK entry cites;
 - each archive URL to be the official `https://builds.dotnet.microsoft.com/dotnet/Sdk/<version>/` archive for its RID, `.zip` for Windows and `.tar.gz` otherwise, and each SHA-512 to be 128 lowercase hexadecimal characters, distinct from the others;
-- the CI workflow to read that file, and no workflow or allow-list line to name actions/setup-dotnet or the dotnet-install script; and
-- the secret-scan workflow to pin `GITLEAKS_SHA256` once, as 64 lowercase hexadecimal characters, to check the archive against it with `sha256sum --check --strict`, and to pin a `GITLEAKS_VERSION` equal to the register's in-use `binary:gitleaks` version.
+- the CI workflow to read that file, and no workflow or allow-list line to name actions/setup-dotnet or the dotnet-install script;
+- the secret-scan workflow to pin `GITLEAKS_SHA256` once, as 64 lowercase hexadecimal characters, to check the archive against it with `sha256sum --check --strict`, and to pin a `GITLEAKS_VERSION` equal to the register's in-use `binary:gitleaks` version; and
+- the register's `binary:gitleaks` entry to record that digest for the release's Linux x64 archive URL.
 
 The checks cannot establish that a version is still current, that an advisory search is complete, that a license analysis is correct or that a pinned hash is the publisher's; the monthly review and the release records provide that, and only a CI run shows that each runner's download matches its pin.
 
 ## What this review could not verify
 
-- **PostgreSQL server advisories.** The GitHub Advisory Database does not cover the server, and the PostgreSQL security page is outside this review's permitted sources. The recorded publication date of 18.6 is its `REL_18_6` tag commit date on the GitHub mirror, not the release announcement.
 - **Duende's license terms.** The package's license file refers to terms on Duende's website, which is outside the permitted sources.
-- **CVE-2026-111497 in the advisory database.** It had no GitHub advisory record yet, so the SDK finding relies on the dotnet/core release notes, and the channel release metadata still listed 10.0.13.
-- **Container images.** The PostgreSQL image and its digest are recorded when the integration suite is added, because container registries are outside the permitted sources.
-- **Browser builds.** The licenses of the browsers that Playwright installs were not reviewed; they are used for tests only.
-- **Complete candidate closures.** Only the first-level NuGet dependencies of candidates were reviewed; the npm closure was resolved but is not registered entry by entry.
+- **CVE-2026-111497 in the advisory database.** It still had no GitHub advisory record on 2026-10-26, so the SDK finding relies on the dotnet/core release notes; by then the channel release metadata listed 10.0.14 as the latest release.
+- **Operating-system packages in the images.** The Debian packages of the PostgreSQL image and the Ubuntu packages of the ASP.NET Core image were not scanned for vulnerabilities, and their licenses were not reviewed package by package. A release that ships the deployment image scans and reviews them.
+- **The Node.js release key.** The signature verifies with the key that the nodejs/node README and nodejs/release-keys publish, but GnuPG found no certification chain to it; its authenticity rests on those GitHub sources.
+- **Registry retention.** The pins assume the registries keep serving these manifests by digest; this review did not establish how long Docker Hub and the Microsoft Artifact Registry retain a manifest after its tag moves.
+- **Browser builds.** The licenses of the browsers that Playwright installs were not reviewed, nor whether Playwright verifies their downloads against a hash; they are used for tests only.
+- **Complete candidate closures.** The NuGet and npm closures of the G-02 candidates were resolved in scratch projects but are registered entry by entry only at adoption, from the committed lock files; OpenIddict's closure was not resolved, because G-02 does not use it.
 - **The runtime CI executes.** Before SEC-01, the CI logs showed runtime 10.0.13 from the LTS channel installed beside the SDK's 10.0.14, but not which of them ran the build and tests. CI now installs only the SDK archive and lists its SDKs and runtimes in each job's log.
 - **Archives that CI does not download.** The hosted runners are Linux x64, Windows x64 and macOS arm64, so no CI run checks the linux-arm64, osx-x64 and win-arm64 archives. SEC-01 downloaded all six archives on 2026-10-25 and each matched its pinned SHA-512; a runner of another platform still checks its archive on every install.
 - **Runner images.** The contents of GitHub's hosted runner images were not reviewed.
