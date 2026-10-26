@@ -17,6 +17,7 @@
     <ProjectReference Include="../../src/Modules/Modularyn.Modules.Identity.Persistence.EfCore/Modularyn.Modules.Identity.Persistence.EfCore.csproj" />
     <ProjectReference Include="../../src/Modules/Modularyn.Modules.Identity.HttpApi/Modularyn.Modules.Identity.HttpApi.csproj" />
     <Compile Include="../Modularyn.Repository.Tests/PostgreSqlProbe.cs" Link="PostgreSqlProbe.cs" />
+    <Compile Include="../Modularyn.Framework.Persistence.EfCore.Tests/PostgreSqlTestLock.cs" Link="PostgreSqlTestLock.cs" />
     <Compile Include="../Modularyn.Modules.Identity.Persistence.EfCore.Tests/IdentityDatabase.cs" Link="IdentityDatabase.cs" />
     <Compile Include="../Modularyn.Modules.Identity.HttpApi.Tests/IdentityTestServer.cs" Link="IdentityTestServer.cs" />
   </ItemGroup>

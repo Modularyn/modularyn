@@ -2,6 +2,7 @@ using Modularyn.Framework.Modularity;
 using Modularyn.Framework.Modularity.Abstractions;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
+using Modularyn.Framework.Persistence.EfCore.Tests;
 using Modularyn.Modules.Identity.Persistence.EfCore;
 using Modularyn.Repository.Tests;
 using Npgsql;
@@ -11,7 +12,7 @@ namespace Modularyn.Modules.Identity.Testing;
 
 /// <summary>
 /// The migration coordinator's advisory lock covers the whole test database, so the identity tests of one project run one
-/// at a time, and each test also holds <see cref="IdentityDatabase"/>'s session lock across projects.
+/// at a time, and each test also holds the shared test lock across projects.
 /// </summary>
 [CollectionDefinition(Name, DisableParallelization = true)]
 public sealed class IdentityPostgreSqlCollection
@@ -27,11 +28,9 @@ internal sealed class IdentityDatabase : IAsyncDisposable
 {
     public static readonly CompositionEnvironment Environment = new(SemanticVersion.Parse("10.0.14"), SemanticVersion.Parse("1.0.0"));
 
-    // Serializes real-provider tests across the test projects that share one test database: each test holds this
-    // session-level advisory lock, under a key distinct from the migration lock, on an unpooled connection that the server
-    // releases when the session ends. The key is the one the persistence and tenancy fixtures use for the same purpose.
-    private const long TestLockKey = 0x4d6f64756c746573;
-    private NpgsqlConnection? testLock;
+    // The persistence fixture's shared test lock, so real-provider tests of every project that shares the test database
+    // run one at a time.
+    private PostgreSqlTestLock? testLock;
 
     private IdentityDatabase(string connectionString, string schema)
     {
@@ -59,13 +58,7 @@ internal sealed class IdentityDatabase : IAsyncDisposable
         var database = new IdentityDatabase(System.Environment.GetEnvironmentVariable(PostgreSqlTarget.Variable)!, "identity_" + Guid.NewGuid().ToString("N"));
         try
         {
-            database.testLock = new NpgsqlConnection(new NpgsqlConnectionStringBuilder(database.ConnectionString) { Pooling = false }.ConnectionString);
-            await database.testLock.OpenAsync(Cancellation);
-            await using (var acquire = new NpgsqlCommand("SELECT pg_advisory_lock(@key)", database.testLock) { CommandTimeout = 600 })
-            {
-                acquire.Parameters.AddWithValue("key", TestLockKey);
-                await acquire.ExecuteNonQueryAsync(Cancellation);
-            }
+            database.testLock = await PostgreSqlTestLock.AcquireAsync(database.ConnectionString, Cancellation);
             await database.ExecuteAsync("CREATE SCHEMA " + Quote(database.Schema));
             if (migrate) await database.MigrateAsync();
             return database;
@@ -162,7 +155,7 @@ internal sealed class IdentityDatabase : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        // Closing the unpooled session releases the test lock, after the schema is gone.
+        // Releasing the test lock closes its unpooled session, after the schema is gone.
         await using var held = testLock;
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         await using var connection = new NpgsqlConnection(ConnectionString);
