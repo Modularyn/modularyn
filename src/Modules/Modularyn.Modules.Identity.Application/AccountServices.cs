@@ -1,4 +1,5 @@
 using Modularyn.Framework.Security.Abstractions;
+using Modularyn.Framework.Tenancy.Abstractions;
 using Modularyn.Modules.Identity.Application.Contracts;
 using Modularyn.Modules.Identity.Domain;
 
@@ -101,4 +102,18 @@ internal sealed class TenantMembershipService(ITenantMembershipStore store, Time
 
     public Task<bool> IsMemberAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken) =>
         tenantId == Guid.Empty ? Task.FromResult(false) : store.IsMemberAsync(accountId, tenantId, cancellationToken);
+}
+
+/// <summary>
+/// Tenancy's membership seam (SEC-04), answered from the current membership record of an enabled account. Only a user
+/// can be a tenant member; a service identity's tenant comes from the work it runs, never from membership.
+/// </summary>
+internal sealed class IdentityTenantMembership(ITenantMembershipStore store) : ITenantMembership
+{
+    public async ValueTask<bool> IsMemberAsync(ActorReference actor, Guid tenantId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        return actor.Kind == ActorKind.User && tenantId != Guid.Empty && Guid.TryParseExact(actor.Subject, "D", out var accountId)
+            && await store.IsMemberAsync(accountId, tenantId, cancellationToken).ConfigureAwait(false);
+    }
 }

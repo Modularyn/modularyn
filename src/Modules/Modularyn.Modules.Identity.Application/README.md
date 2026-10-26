@@ -35,6 +35,7 @@ services.AddModularynServiceIdentity("svc-items", ["item.reindex"]);
 
 app.UseModularynIngress();
 app.UseRouting();
+app.UseModularynTenancy();
 app.UseAuthorization();
 app.MapModularynIdentityEndpoints();
 ```
@@ -44,9 +45,11 @@ migration coordinator applies its migration and the activation gate checks it.
 `UseModularynIngress` places authentication after its transport checks and
 before antiforgery validation, because antiforgery tokens are bound to the
 authenticated user, and `UseModularynIngress` refuses a pipeline that already
-called `UseAuthentication` or `UseAuthorization`. Startup is refused while a
-store is missing, while the ingress policy is not registered, or after the
-session scheme was replaced.
+called `UseAuthentication` or `UseAuthorization`. A host with tenancy registers it
+with `AddModularynTenancy` and places `UseModularynTenancy` after routing and
+before authorization, as shown. Startup is refused while a store is missing,
+while the ingress policy is not registered, or after the session scheme was
+replaced.
 
 Options come from `Modularyn:Identity` and are validated before startup; a
 refusal names the setting and its range, never its value.
@@ -158,6 +161,62 @@ no other origin. `SecretText`, and a `ClientCredential` through its value,
 format and serialize only as a redaction, and `SecretText` refuses to be read
 from JSON. The module issues no tokens, and registers no provider.
 
+## Tenancy
+
+Every identity record is host-scoped: accounts, credentials, sessions, the
+verification throttle, delegations and tenant memberships. They describe global
+principals, which exist before any tenant context does. Tenancy resolves a tenant
+only after it has the request's authenticated actor and that actor's current
+membership, so sign-in must write these records, and tenancy must read them,
+before any tenant exists. An account's sessions and credentials also span every
+tenant it belongs to. Keeping them tenant-scoped would let a tenant unit change
+records that belong to every tenant. A delegation's tenant is a restriction on
+the grant, which its ceiling and its tenant claim enforce, not the row's scope.
+
+Identity supplies two of tenancy's seams:
+
+- `ITenantActorResolver`, in the HTTP adapter: the account behind the request's
+  validated session. A delegated request resolves to its actor, never to the
+  subject it acts for, so tenant membership and host authority are always the
+  actor's own.
+- `ITenantMembership`, in the application: whether an enabled user account
+  currently holds a membership record for the tenant, read afresh for each
+  request. A service identity is never a member.
+
+The session handler adds the `modularyn.tenant` claim only for a delegated request
+whose grant names a tenant. Tenancy requires every candidate to name the same
+tenant, so such a request reaches that tenant only. An undelegated session
+carries no tenant claim; its tenant comes from the request's domain, route or
+header and the membership check.
+
+Identity changes its records only in owner-bound units of work, under the scopes
+in `IdentityOwnerScopes`, whether or not the request resolved a tenant, and reads
+them in unbound units. This is consistent with TM-G02-028, which keeps host
+scope from ever being applied implicitly:
+
+- **No host scope.** An owner-bound unit is confined to identity's own schema
+  and tables. It reaches no tenant-scoped row, and it can neither read across
+  tenants nor update a named tenant's row; those still need host authority and
+  an audit record.
+- **The module's own use cases.** The writes act on the caller's own principal or
+  record an anonymous attempt. Sign-in issues a session and counts failures.
+  Validation touches or ends a session. A password change needs the current
+  password. A delegation is issued only by its subject, from the subject's own
+  session, and revoked only by its actor or subject. None of them takes authority
+  from a tenant context or grants any.
+- **Nothing from the tenant.** A request's tenant context is never bound to
+  identity's units, so it neither widens nor narrows them, and a tenant
+  administrator's membership confers nothing in identity.
+- **Administrative acts.** Disabling an account, a security-state change and
+  membership administration have no endpoint and no permission check of their
+  own. The permission that gates them is SEC-05's.
+
+`TenancyIntegrationTests` (`Identity.HttpApi.Tests`) resolves tenants through
+these seams with SEC-04's directory on PostgreSQL. A security-state change made
+from a tenant endpoint rotates the stamp and ends the member's sessions. The
+owner-bound unit's own tests are `OwnerBoundUnitTests` (`Framework.Tenancy.Tests`)
+and `HostWriteTests` and `OwnerScopeTests` (`Framework.Persistence.EfCore.Tests`).
+
 ## Threat-model controls
 
 For each control of boundary TB-G02-04, this records what the identity module
@@ -244,7 +303,8 @@ that identity's scope. A fixture stands in for authorization's grants, which
 are SEC-05's. The unit test uses in-memory stores; the isolation test runs
 through the HTTP adapter on Kestrel against PostgreSQL. Tests named
 `TM_G02_004_*`, `TM_G02_025_*` and `TM_G02_048_*` cover the identity module's
-schema confinement, its membership records and its option validation.
+schema confinement, its membership records and tenancy seams, and its option
+validation.
 
 TM-G02-013, on boundary TB-G02-03, is partly delivered here: the credential
 provider seam, bound to exact configured origins, and the redaction of its

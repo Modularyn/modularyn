@@ -40,6 +40,7 @@ public static class IdentityServiceCollectionExtensions
         services.AddSingleton<IRecoveryCodes, RecoveryCodeService>();
         services.AddSingleton<IPasskeyCredentials, PasskeyCredentialService>();
         services.AddSingleton<ITenantMemberships, TenantMembershipService>();
+        services.TryAddSingleton<Framework.Tenancy.Abstractions.ITenantMembership, IdentityTenantMembership>();
         services.TryAddSingleton<IExecutionPrincipalAccessor, AmbientExecutionPrincipalAccessor>();
         services.AddSingleton<IValidateOptions<IdentityStoresCheck>, IdentityStoresValidation>();
         services.AddOptions<IdentityStoresCheck>().ValidateOnStart();

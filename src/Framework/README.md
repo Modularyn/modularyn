@@ -410,12 +410,14 @@ seams; while one is absent or fails, every operation that needs it is refused:
 | Seam | Answers | Supplied by |
 |---|---|---|
 | `ITenantActorResolver` | The actor of an authenticated principal | Identity (SEC-03) |
-| `ITenantMembership` | Whether an actor is currently a member of a tenant | Identity or authorization (SEC-03, SEC-05) |
+| `ITenantMembership` | Whether an actor is currently a member of a tenant | Identity (SEC-03); roles within a membership are authorization's (SEC-05) |
 | `IHostAuthority` | Whether an actor currently holds host authority for one operation | Authorization (SEC-05) |
 | `IHostScopeAudit` | Records a host-scope grant before the scope exists | Audit (SEC-07) |
 
 The claim type `modularyn.tenant` is the tenant candidate that a principal may
-carry; whether identity issues it is SEC-03's decision.
+carry. Identity issues it only for a delegated request whose grant names a
+tenant, so that request reaches only that tenant; see
+[the identity module](../Modules/Modularyn.Modules.Identity.Application/README.md#tenancy).
 
 ### Directory
 
@@ -593,8 +595,8 @@ The controls of TB-G02-04, identity and sessions, are recorded in
   public origins, are resolved through `PublicOrigins` (SEC-04, under
   TM-G02-025), and the identity module's sign-in returns only a local path or a
   configured origin as its redirect (SEC-03; `Identity.HttpApi.Tests`
-  `SignInEndpointTests.TM_G02_006_*`). Remaining: membership through the seam
-  that tenancy consumes (SEC-03, SEC-05), adversarial isolation evidence (SEC-08).
+  `SignInEndpointTests.TM_G02_006_*`), and identity answers tenancy's membership
+  seam (SEC-03). Remaining: adversarial isolation evidence (SEC-08).
 - **TM-G02-007, partly.** Delivered: antiforgery on every state-changing request
   that carries cookies, and the antiforgery cookie. Tests: `AntiforgeryTests`
   (`AC_003_N02_*`, `TM_G02_007_*`). The session cookie is the identity module's
@@ -656,9 +658,11 @@ The controls of TB-G02-04, identity and sessions, are recorded in
   configured public origins, read through `PublicOrigins`; declared endpoints that
   refuse to run without a context, whatever the pipeline order. Tests:
   `Tenancy.Tests` `TenantResolutionTests` and `TenancyHttpTests` (`TM_G02_025_*`),
-  and `G02AC004Tests.AC_004_P01_*`. Remaining: the actor and membership seams
-  (SEC-03, SEC-05), which the tests replace with doubles; the permission for the
-  requested operation (SEC-05); adversarial evidence for AC-004-N01 (SEC-08); the
+  and `G02AC004Tests.AC_004_P01_*`; the tests replace the seams with doubles.
+  Identity supplies the actor and membership seams and the delegation's tenant
+  claim (SEC-03; `Identity.HttpApi.Tests`
+  `TenancyIntegrationTests.TM_G02_025_*`). Remaining: the permission for the
+  requested operation and for membership administration (SEC-05); adversarial evidence for AC-004-N01 (SEC-08); the
   website profile's equivalent host forms (AC-004-B03). An unavailable seam on a
   member endpoint answers 404, by design, and is logged as a warning.
 - **TM-G02-026, partly.** Delivered: a scoped `TenantExecution` for each request

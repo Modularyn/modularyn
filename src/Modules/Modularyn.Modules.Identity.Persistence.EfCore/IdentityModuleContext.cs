@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Modularyn.Framework.Modularity.Abstractions;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
+using Modularyn.Framework.Tenancy.Abstractions;
 
 [assembly: InternalsVisibleTo("Modularyn.Modules.Identity.Persistence.EfCore.Tests")]
 
@@ -14,12 +15,12 @@ namespace Modularyn.Modules.Identity.Persistence.EfCore;
 /// the security stamp and the concurrency stamp are mapped; e-mail, telephone, two-factor and lockout columns are not, so
 /// no plaintext token, authenticator key or recovery code path of the Identity store has anywhere to write.
 /// </summary>
-public sealed class IdentityAccount : IdentityUser<Guid>
+public sealed class IdentityAccount : IdentityUser<Guid>, IHostScoped
 {
     public bool Disabled { get; set; }
 }
 
-internal sealed class SessionRow
+internal sealed class SessionRow : IHostScoped
 {
     public Guid Id { get; set; }
     public byte[] TokenHash { get; set; } = [];
@@ -32,7 +33,7 @@ internal sealed class SessionRow
     public int? EndReason { get; set; }
 }
 
-internal sealed class ThrottleRow
+internal sealed class ThrottleRow : IHostScoped
 {
     public byte[] Key { get; set; } = [];
     public int Kind { get; set; }
@@ -43,7 +44,7 @@ internal sealed class ThrottleRow
     public DateTimeOffset UpdatedAt { get; set; }
 }
 
-internal sealed class DelegationRow : IConcurrencyTracked
+internal sealed class DelegationRow : IConcurrencyTracked, IHostScoped
 {
     public Guid Id { get; set; }
     public string ActorId { get; set; } = "";
@@ -64,7 +65,7 @@ internal sealed class DelegationRow : IConcurrencyTracked
     public Guid Version { get; set; }
 }
 
-internal sealed class AuthenticatorSeedRow
+internal sealed class AuthenticatorSeedRow : IHostScoped
 {
     public Guid AccountId { get; set; }
     public int KeyVersion { get; set; }
@@ -74,7 +75,7 @@ internal sealed class AuthenticatorSeedRow
     public DateTimeOffset CreatedAt { get; set; }
 }
 
-internal sealed class RecoveryCodeRow : IConcurrencyTracked
+internal sealed class RecoveryCodeRow : IConcurrencyTracked, IHostScoped
 {
     public Guid Id { get; set; }
     public Guid AccountId { get; set; }
@@ -89,14 +90,14 @@ internal sealed class RecoveryCodeRow : IConcurrencyTracked
 }
 
 /// <summary>A global account's membership of one tenant. It links a host-level account to a tenant; it grants nothing else.</summary>
-internal sealed class TenantMembershipRow
+internal sealed class TenantMembershipRow : IHostScoped
 {
     public Guid AccountId { get; set; }
     public Guid TenantId { get; set; }
     public DateTimeOffset AddedAt { get; set; }
 }
 
-internal sealed class PasskeyCredentialRow
+internal sealed class PasskeyCredentialRow : IHostScoped
 {
     public Guid Id { get; set; }
     public Guid AccountId { get; set; }
@@ -194,6 +195,22 @@ public sealed class IdentityModuleContext(PostgreSqlModule module) : ModuleDbCon
                 .OnDelete(DeleteBehavior.Cascade).HasConstraintName("FK_PasskeyCredentials_Accounts_AccountId");
         });
     }
+}
+
+/// <summary>
+/// The owner scopes under which the identity module changes its own host-scoped records through its own context. These
+/// records are global: accounts, their credentials, sessions and delegations, the verification throttle and tenant
+/// memberships exist apart from any tenant, so the module writes them in owner-bound units whether or not a request
+/// resolved a tenant, and reaches no tenant data through them.
+/// </summary>
+internal static class IdentityOwnerScopes
+{
+    internal static readonly ModuleOwnerScope Accounts = ModuleOwnerScope.For<IdentityModuleContext>("identity.accounts");
+    internal static readonly ModuleOwnerScope Sessions = ModuleOwnerScope.For<IdentityModuleContext>("identity.sessions");
+    internal static readonly ModuleOwnerScope VerificationThrottle = ModuleOwnerScope.For<IdentityModuleContext>("identity.verification-throttle");
+    internal static readonly ModuleOwnerScope Delegations = ModuleOwnerScope.For<IdentityModuleContext>("identity.delegations");
+    internal static readonly ModuleOwnerScope Credentials = ModuleOwnerScope.For<IdentityModuleContext>("identity.credentials");
+    internal static readonly ModuleOwnerScope Memberships = ModuleOwnerScope.For<IdentityModuleContext>("identity.memberships");
 }
 
 public static class IdentityPersistence

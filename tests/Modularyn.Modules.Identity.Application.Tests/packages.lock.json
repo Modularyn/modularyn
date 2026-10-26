@@ -202,6 +202,7 @@
           "Modularyn.Framework.Modularity": "[1.0.0, )",
           "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Persistence.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )",
           "Npgsql": "[10.0.3, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
         }
@@ -209,11 +210,15 @@
       "modularyn.framework.security.abstractions": {
         "type": "Project"
       },
+      "modularyn.framework.tenancy.abstractions": {
+        "type": "Project"
+      },
       "modularyn.modules.identity.application": {
         "type": "Project",
         "dependencies": {
           "Modularyn.Framework.Configuration": "[1.0.0, )",
           "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )",
           "Modularyn.Modules.Identity.Application.Contracts": "[1.0.0, )",
           "Modularyn.Modules.Identity.Domain": "[1.0.0, )"
         }
@@ -236,6 +241,7 @@
           "Modularyn.Framework.Ingress": "[1.0.0, )",
           "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )",
           "Modularyn.Modules.Identity.Application.Contracts": "[1.0.0, )"
         }
       },
@@ -245,6 +251,7 @@
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.0.14, )",
           "Modularyn.Framework.Persistence.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Persistence.EfCore": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )",
           "Modularyn.Modules.Identity.Domain": "[1.0.0, )"
         }
       },

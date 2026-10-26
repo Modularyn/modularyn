@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 using Modularyn.Framework.Security.Abstractions;
+using Modularyn.Framework.Tenancy.Abstractions;
 using Modularyn.Modules.Identity.Application.Contracts;
 
 [assembly: InternalsVisibleTo("Modularyn.Modules.Identity.HttpApi.Tests")]
@@ -117,6 +118,8 @@ internal sealed class SessionAuthenticationHandler(IOptionsMonitor<SessionAuthen
         {
             claims.Add(new(SubjectClaim, principal.EffectiveSubject.Id));
             claims.Add(new(DelegationClaim, delegation.GrantId.ToString("D")));
+            // Tenancy requires every candidate to name this tenant, so a delegated request reaches no other tenant.
+            if (delegation.Tenant is { } tenant) claims.Add(new(TenantClaimTypes.Tenant, TenantIdentifier.Format(tenant)));
         }
         return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, Scheme.Name)), Scheme.Name));
     }
@@ -145,5 +148,22 @@ internal static class ClientSourceAddress
         var bytes = address.GetAddressBytes();
         Array.Clear(bytes, 8, 8);
         return new IPAddress(bytes) + "/64";
+    }
+}
+
+/// <summary>
+/// Tenancy's actor seam (SEC-04): the account behind a request's validated session. A delegated request resolves to its
+/// actor, never to the subject it acts for, so tenant membership and host authority are always the actor's own; the
+/// delegation adds only its tenant claim and its ceiling.
+/// </summary>
+internal sealed class SessionTenantActorResolver : ITenantActorResolver
+{
+    public ActorReference? Resolve(ClaimsPrincipal principal)
+    {
+        ArgumentNullException.ThrowIfNull(principal);
+        var identity = principal.Identities.FirstOrDefault(item => item.IsAuthenticated
+            && string.Equals(item.AuthenticationType, IdentityHttpServiceCollectionExtensions.AuthenticationScheme, StringComparison.Ordinal));
+        return identity?.FindFirst(ClaimTypes.NameIdentifier)?.Value is { } account && Guid.TryParseExact(account, "D", out _)
+            ? new ActorReference(ActorKind.User, account) : null;
     }
 }

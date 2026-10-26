@@ -26,6 +26,7 @@ public static class IdentityHttpServiceCollectionExtensions
         services.AddAuthentication(AuthenticationScheme)
             .AddScheme<SessionAuthenticationOptions, SessionAuthenticationHandler>(AuthenticationScheme, _ => { });
         services.Replace(ServiceDescriptor.Singleton<IExecutionPrincipalAccessor, HttpExecutionPrincipalAccessor>());
+        services.TryAddSingleton<Framework.Tenancy.Abstractions.ITenantActorResolver, SessionTenantActorResolver>();
         services.AddSingleton<IdentityHttpCheck>();
         services.AddSingleton<IValidateOptions<IdentityHttpCheck>, IdentityHttpValidation>();
         services.AddOptions<IdentityHttpCheck>().ValidateOnStart();

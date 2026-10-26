@@ -83,7 +83,7 @@ internal sealed class IdentityAccountDirectory : IAccountDirectory
     public async Task<AccountCreation> CreateAsync(string userName, SecretText password, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(password);
-        await using var work = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: cancellationToken).ConfigureAwait(false);
+        await using var work = await EfCoreUnitOfWork.BeginOwnedAsync(module, IdentityOwnerScopes.Accounts, cancellationToken: cancellationToken).ConfigureAwait(false);
         using var manager = Manager(work);
         var account = new IdentityAccount { Id = Guid.NewGuid(), UserName = userName };
         IdentityResult result;
@@ -104,7 +104,7 @@ internal sealed class IdentityAccountDirectory : IAccountDirectory
     public async Task<PasswordCheck> CheckPasswordAsync(string userName, SecretText password, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(password);
-        await using var work = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: cancellationToken).ConfigureAwait(false);
+        await using var work = await EfCoreUnitOfWork.BeginOwnedAsync(module, IdentityOwnerScopes.Accounts, cancellationToken: cancellationToken).ConfigureAwait(false);
         using var manager = Manager(work);
         var account = await manager.FindByNameAsync(userName).ConfigureAwait(false);
         if (account?.PasswordHash is not { } verifier)
@@ -137,7 +137,7 @@ internal sealed class IdentityAccountDirectory : IAccountDirectory
     {
         ArgumentNullException.ThrowIfNull(currentPassword);
         ArgumentNullException.ThrowIfNull(newPassword);
-        await using var work = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: cancellationToken).ConfigureAwait(false);
+        await using var work = await EfCoreUnitOfWork.BeginOwnedAsync(module, IdentityOwnerScopes.Accounts, cancellationToken: cancellationToken).ConfigureAwait(false);
         using var manager = Manager(work);
         var account = await manager.FindByIdAsync(accountId.ToString("D")).ConfigureAwait(false);
         if (account is null || account.Disabled) return PasswordChangeOutcome.AccountUnavailable;
@@ -160,7 +160,7 @@ internal sealed class IdentityAccountDirectory : IAccountDirectory
 
     private async Task<bool> RotateAsync(Guid accountId, Action<IdentityAccount> change, CancellationToken cancellationToken)
     {
-        await using var work = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: cancellationToken).ConfigureAwait(false);
+        await using var work = await EfCoreUnitOfWork.BeginOwnedAsync(module, IdentityOwnerScopes.Accounts, cancellationToken: cancellationToken).ConfigureAwait(false);
         using var manager = Manager(work);
         var account = await manager.FindByIdAsync(accountId.ToString("D")).ConfigureAwait(false);
         if (account is null) return false;

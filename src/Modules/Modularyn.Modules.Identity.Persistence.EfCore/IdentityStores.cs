@@ -7,10 +7,11 @@ using Modularyn.Modules.Identity.Domain;
 namespace Modularyn.Modules.Identity.Persistence.EfCore;
 
 /// <summary>
-/// Opens the module's units of work: a transaction for every change, an autocommitted connection for reads. Every query
-/// is ordinary LINQ over the module context and every change a tracked write; there is no raw SQL and no bulk write.
+/// Opens the module's units of work: an owner-bound transaction for every change, under the store's own owner scope, and
+/// an unbound autocommitted connection for reads. Every query is ordinary LINQ over the module context and every change
+/// a tracked write; there is no raw SQL and no bulk write.
 /// </summary>
-internal abstract class IdentityStore(PostgreSqlModule module)
+internal abstract class IdentityStore(PostgreSqlModule module, ModuleOwnerScope owner)
 {
     // A concurrent writer can win a race a bounded number of times before an operation that retries gives up.
     protected const int Attempts = 4;
@@ -29,7 +30,7 @@ internal abstract class IdentityStore(PostgreSqlModule module)
     /// </summary>
     protected async Task<T> WriteAsync<T>(Func<IdentityModuleContext, Task<T>> write, T conflicted, CancellationToken cancellationToken)
     {
-        await using var work = await EfCoreUnitOfWork.BeginAsync(Module, cancellationToken: cancellationToken).ConfigureAwait(false);
+        await using var work = await EfCoreUnitOfWork.BeginOwnedAsync(Module, owner, cancellationToken: cancellationToken).ConfigureAwait(false);
         var result = await write((IdentityModuleContext)work.Context).ConfigureAwait(false);
         var outcome = await work.CompleteAsync(cancellationToken).ConfigureAwait(false);
         if (outcome.State == UnitOfWorkState.Committed) return result;
@@ -42,7 +43,7 @@ internal abstract class IdentityStore(PostgreSqlModule module)
 /// Session records. The record has no concurrency token, so parallel requests of one session never conflict; each write
 /// changes only its own columns, so recording activity never undoes an end that committed meanwhile.
 /// </summary>
-internal sealed class SessionStore(PostgreSqlModule module) : IdentityStore(module), ISessionStore
+internal sealed class SessionStore(PostgreSqlModule module) : IdentityStore(module, IdentityOwnerScopes.Sessions), ISessionStore
 {
     public Task CreateAsync(SessionRecord session, CancellationToken cancellationToken)
     {
@@ -145,7 +146,8 @@ internal sealed class VerificationLedger(PostgreSqlModule module) : IVerificatio
         var at = now.ToUniversalTime();
         for (var attempt = 1; ; attempt++)
         {
-            var work = await EfCoreUnitOfWork.BeginAsync(module, UnitOfWorkMode.New, cancellationToken: cancellationToken).ConfigureAwait(false);
+            var work = await EfCoreUnitOfWork.BeginOwnedAsync(module, IdentityOwnerScopes.VerificationThrottle, UnitOfWorkMode.New,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
             try
             {
                 var rows = new Dictionary<ThrottleKey, ThrottleRow>();
@@ -217,7 +219,7 @@ internal sealed class VerificationLedger(PostgreSqlModule module) : IVerificatio
 }
 
 /// <summary>Delegation records. Revocation is a tracked write under the row's concurrency token, so it happens once.</summary>
-internal sealed class DelegationStore(PostgreSqlModule module) : IdentityStore(module), IDelegationStore
+internal sealed class DelegationStore(PostgreSqlModule module) : IdentityStore(module, IdentityOwnerScopes.Delegations), IDelegationStore
 {
     public Task CreateAsync(DelegationGrant grant, CancellationToken cancellationToken)
     {
@@ -267,7 +269,7 @@ internal sealed class DelegationStore(PostgreSqlModule module) : IdentityStore(m
     }
 }
 
-internal sealed class AuthenticatorSeedStore(PostgreSqlModule module) : IdentityStore(module), IAuthenticatorSeedStore
+internal sealed class AuthenticatorSeedStore(PostgreSqlModule module) : IdentityStore(module, IdentityOwnerScopes.Credentials), IAuthenticatorSeedStore
 {
     public async Task SaveAsync(ProtectedSeed seed, CancellationToken cancellationToken)
     {
@@ -316,7 +318,7 @@ internal sealed class AuthenticatorSeedStore(PostgreSqlModule module) : Identity
 /// Recovery-code verifiers. Each row has a concurrency token, so of any number of concurrent consumptions of one code,
 /// and of a consumption racing a replacement of its set, exactly one write commits.
 /// </summary>
-internal sealed class RecoveryCodeStore(PostgreSqlModule module) : IdentityStore(module), IRecoveryCodeStore
+internal sealed class RecoveryCodeStore(PostgreSqlModule module) : IdentityStore(module, IdentityOwnerScopes.Credentials), IRecoveryCodeStore
 {
     public async Task ReplaceAsync(Guid accountId, IReadOnlyList<RecoveryCodeVerifier> verifiers, DateTimeOffset now, CancellationToken cancellationToken)
     {
@@ -364,7 +366,7 @@ internal sealed class RecoveryCodeStore(PostgreSqlModule module) : IdentityStore
     }
 }
 
-internal sealed class PasskeyCredentialStore(PostgreSqlModule module) : IdentityStore(module), IPasskeyCredentialStore
+internal sealed class PasskeyCredentialStore(PostgreSqlModule module) : IdentityStore(module, IdentityOwnerScopes.Credentials), IPasskeyCredentialStore
 {
     public async Task<bool> AddAsync(PasskeyCredentialRecord record, CancellationToken cancellationToken)
     {
@@ -418,7 +420,7 @@ internal sealed class PasskeyCredentialStore(PostgreSqlModule module) : Identity
 }
 
 /// <summary>Global accounts' tenant memberships, read afresh for every check.</summary>
-internal sealed class TenantMembershipStore(PostgreSqlModule module) : IdentityStore(module), ITenantMembershipStore
+internal sealed class TenantMembershipStore(PostgreSqlModule module) : IdentityStore(module, IdentityOwnerScopes.Memberships), ITenantMembershipStore
 {
     public async Task<bool> AddAsync(Guid accountId, Guid tenantId, DateTimeOffset now, CancellationToken cancellationToken)
     {

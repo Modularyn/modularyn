@@ -17,6 +17,9 @@
       "modularyn.framework.security.abstractions": {
         "type": "Project"
       },
+      "modularyn.framework.tenancy.abstractions": {
+        "type": "Project"
+      },
       "modularyn.modules.identity.application.contracts": {
         "type": "Project",
         "dependencies": {
