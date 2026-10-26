@@ -1257,7 +1257,7 @@
       "status": "candidate",
       "area": "test",
       "purpose": "Container lifecycle library for integration tests against real backing services.",
-      "reason": "DEV-023 and G-02 require tests against actual providers. On net10.0 its dependencies Docker.DotNet.Enhanced 4.3.3, SSH.NET 2026.0.0, which brings BouncyCastle.Cryptography 2.7.0, and SharpZipLib 1.4.2 are MIT, and no advisory affects those versions.",
+      "reason": "Reviewed for real-provider tests; not used by G-02, whose tests read a connection string and run against a CI PostgreSQL service (decision D2). If adopted, it starts the Ryuk sidecar docker.io/testcontainers/ryuk:0.14.0 by default, which must be registered and pinned or disabled first. Its net10.0 dependencies Docker.DotNet.Enhanced 4.3.3, SSH.NET 2026.0.0 with BouncyCastle.Cryptography 2.7.0, and SharpZipLib 1.4.2 are MIT, and no advisory affects those versions.",
       "maintenance": {
         "reviewedAt": "2026-10-26",
         "published": "2026-10-08",
@@ -1294,7 +1294,7 @@
       "status": "candidate",
       "area": "test",
       "purpose": "Testcontainers module that starts PostgreSQL for the persistence suite.",
-      "reason": "G-02 needs real PostgreSQL tests. Its parameterless builder and default postgres:15.1 image are obsolete; the suite must pass the image that the container-image:docker.io/library/postgres entry pins, by digest.",
+      "reason": "Reviewed for PostgreSQL tests; not used by G-02 (decision D2). If adopted, its parameterless builder and default postgres:15.1 image are obsolete: the suite must pass the image that the container-image:docker.io/library/postgres entry pins, by digest, and the Ryuk sidecar must be registered or disabled first.",
       "maintenance": {
         "reviewedAt": "2026-10-26",
         "published": "2026-10-08",
