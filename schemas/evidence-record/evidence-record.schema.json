@@ -1,0 +1,628 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:modularyn:evidence-record:1",
+  "title": "Modularyn evidence record version 1",
+  "description": "REL-001 traceability for a planned case or a measured verification. A plan is not execution evidence. Repository semantic checks enforce corpus agreement, calendar dates, exact measured version pins and dependency consistency.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "formatVersion",
+    "recordId",
+    "kind",
+    "gate",
+    "subjects",
+    "caseId",
+    "family",
+    "profile",
+    "workOrder",
+    "sourceCommit",
+    "corpus",
+    "tuple",
+    "implementationArtifacts",
+    "tests",
+    "fixtureInputs",
+    "expectedOutcomes",
+    "observedOutcomes",
+    "verification",
+    "documentation",
+    "knownLimitations",
+    "securityDependencies"
+  ],
+  "properties": {
+    "format": {
+      "const": "modularyn.evidence-record"
+    },
+    "formatVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "recordId": {
+      "$ref": "#/$defs/location"
+    },
+    "kind": {
+      "enum": [
+        "plan",
+        "verification"
+      ]
+    },
+    "gate": {
+      "$ref": "#/$defs/text"
+    },
+    "subjects": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "owner"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/text"
+          },
+          "kind": {
+            "enum": [
+              "requirement",
+              "module-contract",
+              "benchmark-row"
+            ]
+          },
+          "owner": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      }
+    },
+    "caseId": {
+      "type": "string",
+      "pattern": "^AC-[0-9]{3}-[PNBR](?:0[1-9]|[1-9][0-9])(?![\\s\\S])"
+    },
+    "family": {
+      "$ref": "#/$defs/family"
+    },
+    "profile": {
+      "enum": [
+        "reference",
+        "website"
+      ]
+    },
+    "workOrder": {
+      "$ref": "#/$defs/text"
+    },
+    "sourceCommit": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/commit"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "corpus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "location",
+        "sha256"
+      ],
+      "properties": {
+        "location": {
+          "const": "docs/acceptance/corpus.json"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "tuple": {
+      "$ref": "#/$defs/tuple"
+    },
+    "implementationArtifacts": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/artifact"
+      }
+    },
+    "tests": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/test"
+      }
+    },
+    "fixtureInputs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/text"
+      }
+    },
+    "expectedOutcomes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/text"
+      }
+    },
+    "observedOutcomes": {
+      "type": "array",
+      "minItems": 0,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/text"
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "date",
+        "results"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "not-run",
+            "passed",
+            "failed",
+            "blocked"
+          ]
+        },
+        "date": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "results": {
+          "type": "array",
+          "minItems": 0,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/result"
+          }
+        }
+      }
+    },
+    "documentation": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/location"
+      }
+    },
+    "knownLimitations": {
+      "type": "array",
+      "minItems": 0,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/text"
+      }
+    },
+    "securityDependencies": {
+      "type": "array",
+      "minItems": 0,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/dependency"
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "kind": {
+          "const": "plan"
+        },
+        "sourceCommit": {
+          "type": "null"
+        },
+        "observedOutcomes": {
+          "maxItems": 0
+        },
+        "knownLimitations": {
+          "minItems": 1
+        },
+        "verification": {
+          "properties": {
+            "status": {
+              "const": "not-run"
+            },
+            "date": {
+              "type": "null"
+            },
+            "results": {
+              "maxItems": 0
+            }
+          }
+        },
+        "securityDependencies": {
+          "items": {
+            "properties": {
+              "status": {
+                "const": "unmet"
+              },
+              "evidenceRecords": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "verification"
+        },
+        "sourceCommit": {
+          "$ref": "#/$defs/commit"
+        },
+        "observedOutcomes": {
+          "minItems": 1
+        },
+        "implementationArtifacts": {
+          "items": {
+            "properties": {
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              }
+            }
+          }
+        },
+        "verification": {
+          "properties": {
+            "status": {
+              "enum": [
+                "passed",
+                "failed",
+                "blocked"
+              ]
+            },
+            "date": {
+              "$ref": "#/$defs/date"
+            },
+            "results": {
+              "minItems": 1
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?=.*\\S)[^\\r\\n]+(?![\\s\\S])"
+    },
+    "location": {
+      "type": "string",
+      "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9._-]*(?:/[A-Za-z0-9][A-Za-z0-9._-]*)*|urn:modularyn:[a-z0-9][a-z0-9:._-]*)(?:#[A-Za-z0-9._/-]+)?(?![\\s\\S])"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}(?![\\s\\S])"
+    },
+    "commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}(?![\\s\\S])"
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}(?![\\s\\S])"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+(?:\\.[0-9]+){1,3}(?![\\s\\S])"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-((?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\\+([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?(?![\\s\\S])"
+    },
+    "packageId": {
+      "type": "string",
+      "pattern": "^(?:Modularyn|dotnet-modularyn|Modularyn\\.(?:Framework|Modules|Cms|UI|Connectors|Pro|Tooling)(?:\\.(?:UI|(?:[A-Z][a-z0-9]+)+))+)(?![\\s\\S])"
+    },
+    "family": {
+      "type": "string",
+      "pattern": "^AC-[0-9]{3}(?![\\s\\S])"
+    },
+    "layer": {
+      "enum": [
+        "unit",
+        "real-provider-integration",
+        "api-contract",
+        "isolation",
+        "ui",
+        "migration",
+        "operational-recovery"
+      ]
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "location",
+        "sha256"
+      ],
+      "properties": {
+        "location": {
+          "$ref": "#/$defs/location"
+        },
+        "sha256": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "location",
+        "sha256"
+      ],
+      "properties": {
+        "location": {
+          "$ref": "#/$defs/location"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "module": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/packageId"
+        },
+        "version": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/semver"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/text"
+        },
+        "version": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/version"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version",
+        "mode"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/text"
+        },
+        "version": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/semver"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mode": {
+          "const": "real"
+        }
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "family",
+        "status",
+        "evidenceRecords"
+      ],
+      "properties": {
+        "family": {
+          "$ref": "#/$defs/family"
+        },
+        "status": {
+          "enum": [
+            "unmet",
+            "satisfied"
+          ]
+        },
+        "evidenceRecords": {
+          "type": "array",
+          "minItems": 0,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/location"
+          }
+        }
+      }
+    },
+    "test": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "project",
+        "name",
+        "layer"
+      ],
+      "properties": {
+        "project": {
+          "$ref": "#/$defs/location"
+        },
+        "name": {
+          "$ref": "#/$defs/text"
+        },
+        "layer": {
+          "$ref": "#/$defs/layer"
+        }
+      }
+    },
+    "tuple": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "moduleVersions",
+        "runtime",
+        "database",
+        "ui",
+        "tenancyMode",
+        "deployment",
+        "providers"
+      ],
+      "properties": {
+        "moduleVersions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/module"
+          }
+        },
+        "runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sdkVersion",
+            "runtimeVersion",
+            "aspNetCoreVersion",
+            "languageVersion"
+          ],
+          "properties": {
+            "sdkVersion": {
+              "$ref": "#/$defs/semver"
+            },
+            "runtimeVersion": {
+              "$ref": "#/$defs/semver"
+            },
+            "aspNetCoreVersion": {
+              "$ref": "#/$defs/semver"
+            },
+            "languageVersion": {
+              "$ref": "#/$defs/version"
+            }
+          }
+        },
+        "database": {
+          "$ref": "#/$defs/component"
+        },
+        "ui": {
+          "type": "array",
+          "minItems": 0,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/component"
+          }
+        },
+        "tenancyMode": {
+          "enum": [
+            "shared-database",
+            "database-per-tenant",
+            "hybrid"
+          ]
+        },
+        "deployment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operatingSystem",
+            "architecture",
+            "topology",
+            "containerImageDigest"
+          ],
+          "properties": {
+            "operatingSystem": {
+              "$ref": "#/$defs/component"
+            },
+            "architecture": {
+              "$ref": "#/$defs/text"
+            },
+            "topology": {
+              "enum": [
+                "single-host",
+                "single-host-container"
+              ]
+            },
+            "containerImageDigest": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}(?![\\s\\S])"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "providers": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/provider"
+          }
+        }
+      }
+    }
+  }
+}

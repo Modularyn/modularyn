@@ -1,0 +1,133 @@
+{
+  "format": "modularyn.evidence-record",
+  "formatVersion": 1,
+  "recordId": "urn:modularyn:evidence:g02:ac-009-r01:single-host-container:plan",
+  "kind": "plan",
+  "gate": "G-02",
+  "subjects": [
+    {
+      "id": "FND-030",
+      "kind": "requirement",
+      "owner": "Files"
+    },
+    {
+      "id": "FND-031",
+      "kind": "requirement",
+      "owner": "Files"
+    },
+    {
+      "id": "MOD-014",
+      "kind": "requirement",
+      "owner": "Files"
+    }
+  ],
+  "caseId": "AC-009-R01",
+  "family": "AC-009",
+  "profile": "reference",
+  "workOrder": "CODE-07",
+  "sourceCommit": null,
+  "corpus": {
+    "location": "docs/acceptance/corpus.json",
+    "sha256": "342d1ddd757cc47129aaea3fc255cb25222f37b07a76a657cbf1a82c764265f8"
+  },
+  "tuple": {
+    "moduleVersions": [
+      {
+        "id": "Modularyn.Modules.Files.Persistence.FileSystem",
+        "version": null
+      }
+    ],
+    "runtime": {
+      "sdkVersion": "10.0.403",
+      "runtimeVersion": "10.0.14",
+      "aspNetCoreVersion": "10.0.14",
+      "languageVersion": "14.0"
+    },
+    "database": {
+      "name": "PostgreSQL",
+      "version": "18.6"
+    },
+    "ui": [],
+    "tenancyMode": "shared-database",
+    "deployment": {
+      "operatingSystem": {
+        "name": "Linux",
+        "version": null
+      },
+      "architecture": "x64",
+      "topology": "single-host-container",
+      "containerImageDigest": null
+    },
+    "providers": [
+      {
+        "name": "EF Core PostgreSQL",
+        "version": null,
+        "mode": "real"
+      },
+      {
+        "name": "filesystem BLOB storage",
+        "version": null,
+        "mode": "real"
+      }
+    ]
+  },
+  "implementationArtifacts": [
+    {
+      "location": "src/Modules/Modularyn.Modules.Files.Persistence.FileSystem/Modularyn.Modules.Files.Persistence.FileSystem.csproj",
+      "sha256": null
+    }
+  ],
+  "tests": [
+    {
+      "project": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
+      "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.G02AC009Tests.AC009R01_InterruptedWritesAndRestorePreserveVersionIntegrity_Integration",
+      "layer": "real-provider-integration"
+    },
+    {
+      "project": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
+      "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.G02AC009Tests.AC009R01_InterruptedWritesAndRestorePreserveVersionIntegrity_Recovery",
+      "layer": "operational-recovery"
+    }
+  ],
+  "fixtureInputs": [
+    "asset-1 has two complete versions with captured digests in a coordinated backup. A third upload can stop midstream or after bytes are staged but before metadata commit."
+  ],
+  "expectedOutcomes": [
+    "No partial upload becomes a completed version; retry or cleanup accounts for staged bytes without deleting referenced versions.",
+    "Restored versions match the backup's identities, lengths and digests."
+  ],
+  "observedOutcomes": [],
+  "verification": {
+    "status": "not-run",
+    "date": null,
+    "results": []
+  },
+  "documentation": [
+    "docs/acceptance/AC-009.md",
+    "docs/profiles/reference.md",
+    "docs/evidence/README.md"
+  ],
+  "knownLimitations": [
+    "This is a plan with no executed case or qualification evidence.",
+    "The implementation, module and provider pins, operating-system version and measured artifact hashes are not yet available.",
+    "Security prerequisites on this exact tuple remain unmet.",
+    "The container image digest must be measured before verification."
+  ],
+  "securityDependencies": [
+    {
+      "family": "AC-003",
+      "status": "unmet",
+      "evidenceRecords": []
+    },
+    {
+      "family": "AC-004",
+      "status": "unmet",
+      "evidenceRecords": []
+    },
+    {
+      "family": "AC-031",
+      "status": "unmet",
+      "evidenceRecords": []
+    }
+  ]
+}
