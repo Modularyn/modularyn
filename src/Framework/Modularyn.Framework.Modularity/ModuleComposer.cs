@@ -21,6 +21,8 @@ public sealed class ModuleComposer
     /// <summary>True when at least one <see cref="ICompositionTrustValidator"/> decides whether the selection is trusted.</summary>
     public bool VerifiesTrust => trustValidators.Length > 0;
 
+    public bool VerifiesMigrations => validators.Any(validator => validator is ICompositionMigrationValidator);
+
     public async Task<CompositionResult> ComposeAsync(CompositionSelection selection, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(selection);
