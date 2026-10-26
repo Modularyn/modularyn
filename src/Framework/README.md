@@ -1,17 +1,22 @@
-# Module composition and hosting
+# Framework composition, hosting, configuration and ingress
 
 `Modularyn.Framework.Modularity.Abstractions` contains immutable manifests,
 SemVer values, explicit version intervals, composition validators and lifecycle
 contracts. It uses only the .NET shared framework and can be referenced by
 domain and application contract projects under the existing dependency rules.
 
-`Modularyn.Framework.Modularity` validates an exact selection and produces a
-dependency-ordered activation plan. It does no installation or module discovery.
+`Modularyn.Framework.Modularity` validates an exact selection, verifies it
+against the release's deployment lock and produces a dependency-ordered
+activation plan. It does no installation or module discovery.
 `Modularyn.Framework.Hosting` connects that plan to the standard .NET host used
 by ASP.NET Core, using a `Microsoft.AspNetCore.App` framework reference.
 `Modularyn.Framework.Observability` supplies structured logging, W3C correlation,
 traces and metrics through the shared frameworks. Hosting references this package;
 the modularity contracts remain independent of logging and HTTP adapters.
+`Modularyn.Framework.Configuration` binds and validates deployment options,
+resolves secret references and declares the data-protection key ring.
+`Modularyn.Framework.Ingress` applies the HTTP ingress policy. Configuration and
+Ingress use only the `Microsoft.AspNetCore.App` shared framework.
 
 ## Selection and validation
 
@@ -79,7 +84,8 @@ deployment lock manifest on every validation and refuses the selection unless
 each selected module is listed at its exact version, including build metadata,
 with the same manifest digest and migrations, every listed module is selected,
 and every package file the lock lists for a module exists under the content
-root as a regular file, reached without links, with the recorded SHA-256 hash.
+root as a regular file, reached through no link below the content root, with
+the recorded SHA-256 hash.
 A later activation attempt therefore observes the files as they are then.
 
 `ModuleManifestDigest` is the SHA-256 of a manifest's canonical form: every
@@ -253,18 +259,143 @@ retained instances and the outstanding work count. Startup cannot resume while
 old leases or instances remain. Modules own durable checkpoints and resource
 release; the gate does not implement job or lease-provider semantics.
 
+## Deployment options and secrets
+
+`services.AddModularynDeploymentOptions<TOptions>(configuration, sectionPath)`
+binds one section and validates it with data annotations and any registered
+`IValidateOptions<TOptions>` before the host starts a hosted service, so an
+invalid section refuses startup before module activation. Binding is strict:
+a key the options do not declare, or a value that cannot be converted, fails
+validation. Binder messages can quote the configured value, so the failure
+names only the section, key path and type. Binding reads a copy of the section
+taken at first use, which is startup, and no change-token source is registered,
+so neither `IOptions`, `IOptionsMonitor` nor `IOptionsSnapshot` observes a later
+reload: deployment options change only on restart. Application and tenant
+settings, and their reload, are outside this contract.
+
+A secret setting is a `SecretReference` property, configured as
+`secret:<name>`. A name has ASCII letters, digits, `.`, `_` and `-`, at most 128
+characters, and neither starts nor ends with `.`. A literal value bound to such
+a property is discarded during conversion, never retained, and refused at
+startup with the property's key path. `ISecretStore` resolves references;
+`services.AddModularynSecrets(configuration)` registers `FileSecretStore` over
+the fully qualified, existing directory in `Modularyn:Secrets:Directory`, where
+the deployment mounts one file per secret. A link is followed only when its
+final target stays inside that directory. Empty files and files over 64 KiB are
+refused, and the bytes are returned exactly. A `SecretResolutionException`
+names the reference only and carries no inner exception. `SecretValue` formats,
+logs, debugs and serializes as `[secret]`, cannot be deserialized, reveals its
+value only through `RevealBytes` and `RevealString`, and clears its bytes on
+disposal.
+
+These types keep secrets out of what the framework itself formats, logs and
+reports. They cannot stop module code from logging a value it revealed, or from
+placing one in an exception message, which a lifecycle diagnostic would then
+include. Masked settings that accept only replacement belong to the settings
+contract, and repository secret scanning runs in CI.
+
+## Data-protection key ring
+
+`services.AddModularynDataProtection(configuration)` adds ASP.NET Core data
+protection with a declared key ring in `Modularyn:DataProtection`:
+`ApplicationName`, the boundary that may read protected payloads; `KeyLifetime`,
+from 7 to 90 days with 90 by default; and `Directory`, a fully qualified,
+existing directory that is not a link and has owner-only access. Startup is
+refused while any of these is missing or invalid, so keys are never generated
+in an undeclared or shared location. The application name, lifetime and store
+are applied after other data-protection configuration.
+
+The directory store reads only regular `.xml` files, never follows links,
+prohibits DTDs, writes each key with mode 0600 on Unix through a temporary file
+moved into place, and refuses to read or write while the directory has group or
+other access. On Windows, owner-only means a protected access list whose allow
+rules name only the current account, LocalSystem or Administrators.
+`KeyRingDirectory.Create` makes such a directory with mode 0700 or that access
+list. Keys are stored unencrypted at rest; the directory's access control is the
+protection, and the deployment may add a key encryptor.
+
+ASP.NET Core rotates keys: it creates the next key before the current one
+expires, and older keys keep unprotecting their payloads. `IKeyManager.RevokeKey`
+or `RevokeAllKeys` revokes keys; the revocation is stored at once, a running host
+honors it when its cached key ring refreshes, and a restarted host honors it
+immediately. Operators back the directory up separately from data exports, with
+access limited to security operations. A store in another provider is supplied
+through the `keyStore` argument, in which case `Directory` must be absent. The
+PostgreSQL key store depends on the persistence package and is not part of this
+package.
+
+## HTTP ingress
+
+`services.AddModularynIngress(configuration)` reads `Modularyn:Ingress` and
+`app.UseModularynIngress()` applies it first in the pipeline:
+
+1. Forwarded headers are applied only when the immediate peer is one of the
+   exact `Proxies` addresses, processing `ForwardLimit` entries from the nearest,
+   and only forwarded hosts among the public origins' hosts. With no proxies,
+   none are applied. Every forwarded header that was not applied is removed, as
+   are client-supplied `X-Original-*` headers.
+2. Host filtering accepts only the hosts of `PublicOrigins` and refuses an empty
+   host, with 400 and no detail.
+3. Plain HTTP is redirected with 308 to `HttpsPort` on the same configured host,
+   with no body, before any later processing, so it carries no content or cookies.
+4. Every HTTPS response for a configured host carries Strict-Transport-Security
+   with `HstsMaxAge`, from one day to two years; `HstsIncludeSubDomains` and
+   `HstsPreload` are deployment choices, and preload requires both subdomains and
+   at least a year. Responses that Kestrel produces itself, such as 431, and the
+   400 for an unconfigured host do not carry it.
+5. A declared body larger than `Limits:MaxRequestBodyBytes` is refused with 413
+   before any handler, and an undeclared one is capped at the same size. Kestrel's
+   header, header-count, request-line and header-timeout limits, the form limits
+   and the JSON nesting depth come from `Limits`.
+6. Cross-origin access is granted only to exactly listed HTTPS `CrossOrigin:Origins`,
+   with credentials, the exact origin value and the listed methods and headers.
+   Other origins, including `null`, receive no grant and their preflights are
+   refused with 403. Every response from this step on varies by `Origin`, and
+   cross-origin headers set later in the pipeline are replaced or removed. With no
+   listed origins the application is same-origin only.
+7. Every request with a method other than GET, HEAD, OPTIONS or TRACE that carries
+   cookies needs a valid antiforgery token, in the `RequestVerificationToken`
+   header or the form. A request without cookies is exempt only when its endpoint
+   disables antiforgery, as an endpoint for bearer-token clients does. The
+   antiforgery cookie is `__Host-Modularyn-Antiforgery`, Secure, HttpOnly and
+   SameSite=Strict.
+
+The options are validated before startup: public and cross-origin origins are
+exact HTTPS origins with ASCII hosts and no wildcard, path, query or user
+information; proxies are canonical single addresses; methods and headers are
+single names, never `*`. After other configuration has run, startup is also
+refused if the effective host filtering, forwarded-header trust, HTTPS and HSTS,
+antiforgery cookie, Kestrel, form or JSON options differ from the policy, or if
+the key ring was not declared with `AddModularynDataProtection`, because
+antiforgery tokens are data-protected. `PublicOrigins` builds absolute links from
+configuration rather than from request headers and accepts a redirect only to a
+local path or a configured origin.
+
+Endpoints must not change state on safe methods; the ingress cannot observe
+that. Operation-specific input contracts, paging and query bounds, public error
+contracts, session cookies and tenant resolution are not part of the ingress.
+
 ## Coverage and verification
 
-The three matching test projects cover manifest semantics, resolution and host
-lifecycle behavior. Test display names beginning AC-001-P01, AC-001-N01,
-AC-001-B01 and AC-001-R01 correspond to the reference corpus's valid graph,
-independent invalid graph mutations, inclusive version boundaries and interrupted
-initialization recovery. Additional cases cover exclusive capabilities, routes,
-extension ordering, cancellation, cleanup errors, clock and trace propagation,
-concurrent starts and standard .NET host integration.
+The matching test projects cover manifest semantics, resolution, trust, host
+lifecycle, configuration and ingress behavior. Test display names beginning
+AC-001-P01, AC-001-N01, AC-001-B01 and AC-001-R01 correspond to the reference
+corpus's valid graph, independent invalid graph mutations, inclusive version
+boundaries and interrupted initialization recovery. Additional cases cover
+exclusive capabilities, routes, extension ordering, cancellation, cleanup errors,
+clock and trace propagation, concurrent starts and standard .NET host
+integration.
 Hosting tests also exercise the shared-framework diagnostic listeners and console
 logger, status-only health responses over loopback HTTP, readiness transitions,
 request admission, work draining and callbacks that outlive their shutdown deadline.
+
+The corpus has no reference-profile trust, secret or key-ring case, so those
+tests are named for the threat-model control they exercise, such as
+`TM_G02_001_`. Ingress tests named for AC-003-N02, AC-004-N01 and AC-031-P01, and
+key-ring tests named for AC-031-R04, exercise the rows their display names cite,
+at the framework layer, against a real Kestrel server on loopback and the real
+filesystem. They do not cover the tenant, identity, session or container parts
+of those cases.
 
 These are unit and local host tests. Reference-profile qualification requires
 the separately executed real-provider, host and container evidence specified by
