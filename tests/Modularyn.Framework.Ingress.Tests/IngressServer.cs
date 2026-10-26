@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -42,6 +43,7 @@ internal sealed class IngressServer : IAsyncDisposable
     private readonly WebApplication application;
     private int changes;
     private int handled;
+    private int uploadsCompleted;
 
     private IngressServer(WebApplication application, Uri http, Uri https)
     {
@@ -55,9 +57,7 @@ internal sealed class IngressServer : IAsyncDisposable
             UseProxy = false,
             SslOptions = new SslClientAuthenticationOptions
             {
-                // Pin this run's certificate instead of disabling validation.
-                RemoteCertificateValidationCallback = (_, certificate, _, _) =>
-                    certificate is not null && certificate.GetCertHashString(HashAlgorithmName.SHA256) == Certificate.Value.GetCertHashString(HashAlgorithmName.SHA256)
+                RemoteCertificateValidationCallback = Pinned
             }
         };
         Client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
@@ -68,6 +68,9 @@ internal sealed class IngressServer : IAsyncDisposable
     internal HttpClient Client { get; }
     internal int Changes => Volatile.Read(ref changes);
     internal int Handled => Volatile.Read(ref handled);
+    internal int UploadsCompleted => Volatile.Read(ref uploadsCompleted);
+    /// <summary>The status and bytes received for each upload whose body read the server refused.</summary>
+    internal ConcurrentQueue<(int Status, long Received)> UploadRefusals { get; } = new();
     internal IServiceProvider Services => application.Services;
 
     internal static Dictionary<string, string?> Settings(params (string Key, string? Value)[] values)
@@ -135,7 +138,17 @@ internal sealed class IngressServer : IAsyncDisposable
             var length = 0L;
             var buffer = new byte[8192];
             int read;
-            while ((read = await context.Request.Body.ReadAsync(buffer, context.RequestAborted)) > 0) length += read;
+            try
+            {
+                while ((read = await context.Request.Body.ReadAsync(buffer, context.RequestAborted)) > 0) length += read;
+            }
+            catch (BadHttpRequestException exception)
+            {
+                // Recorded before the server writes its refusal, so a client that reads the response can rely on it.
+                server.UploadRefusals.Enqueue((exception.StatusCode, length));
+                throw;
+            }
+            Interlocked.Increment(ref server.uploadsCompleted);
             return Results.Text(length.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }).DisableAntiforgery();
         application.MapPost("/json", (JsonElement body) => Results.Text(body.ValueKind.ToString())).DisableAntiforgery();
@@ -165,6 +178,56 @@ internal sealed class IngressServer : IAsyncDisposable
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return JsonSerializer.Deserialize<Echo>(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken), JsonSerializerOptions.Web)!;
     }
+
+    /// <summary>
+    /// Sends one request over TLS in a single write, smaller than one TLS record, and reads the response head before
+    /// sending anything else. The server therefore holds every byte the client sent before it can refuse, so closing the
+    /// connection after a refusal cannot reset it with request bytes still in flight.
+    /// </summary>
+    internal async Task<RawResponse> RawHttpsAsync(string head, byte[]? body = null)
+    {
+        var request = Encoding.ASCII.GetBytes(head).Concat(body ?? []).ToArray();
+        Assert.True(request.Length <= 12 * 1024, "A raw request must fit in one TLS record.");
+        var cancellation = TestContext.Current.CancellationToken;
+        using var client = new TcpClient();
+        await client.ConnectAsync(Https.Host, Https.Port, cancellation);
+        await using var tls = new SslStream(client.GetStream(), leaveInnerStreamOpen: false);
+        await tls.AuthenticateAsClientAsync(new SslClientAuthenticationOptions { TargetHost = PublicHost, RemoteCertificateValidationCallback = Pinned }, cancellation);
+        await tls.WriteAsync(request, cancellation);
+        await tls.FlushAsync(cancellation);
+        var received = new List<byte>();
+        var buffer = new byte[4096];
+        int end;
+        while ((end = HeadEnd(received)) < 0)
+        {
+            var read = await tls.ReadAsync(buffer, cancellation);
+            Assert.True(read > 0, "The connection closed before the response head arrived.");
+            received.AddRange(buffer.AsSpan(0, read).ToArray());
+        }
+        var lines = Encoding.ASCII.GetString(received.Take(end).ToArray()).Split("\r\n");
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var line in lines.Skip(1))
+        {
+            var separator = line.IndexOf(':');
+            var name = line[..separator];
+            var value = line[(separator + 1)..].Trim();
+            headers[name] = headers.TryGetValue(name, out var existing) ? existing + ", " + value : value;
+        }
+        return new RawResponse(int.Parse(lines[0].Split(' ')[1], System.Globalization.CultureInfo.InvariantCulture), headers);
+    }
+
+    private static int HeadEnd(List<byte> received)
+    {
+        for (var index = 3; index < received.Count; index++)
+            if (received[index - 3] == '\r' && received[index - 2] == '\n' && received[index - 1] == '\r' && received[index] == '\n') return index - 3;
+        return -1;
+    }
+
+    // Pin this run's certificate instead of disabling validation.
+    private static bool Pinned(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors errors) =>
+        certificate is not null && certificate.GetCertHashString(HashAlgorithmName.SHA256) == Certificate.Value.GetCertHashString(HashAlgorithmName.SHA256);
+
+    internal sealed record RawResponse(int Status, IReadOnlyDictionary<string, string> Headers);
 
     /// <summary>Sends raw bytes over plain HTTP and returns the status line, for requests HttpClient will not form.</summary>
     internal async Task<string> RawAsync(string request)

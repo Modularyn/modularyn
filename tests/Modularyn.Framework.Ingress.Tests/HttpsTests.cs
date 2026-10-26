@@ -44,11 +44,14 @@ public sealed class HttpsTests
                 request.Headers.Add("Origin", "https://attacker.example.net");
                 request.Headers.Add("Access-Control-Request-Method", "POST");
             }),
-            await server.SendAsync(true, HttpMethod.Post, "/upload", request => request.Content = new ByteArrayContent(new byte[64]))
         };
-        Assert.Equal(new[] { HttpStatusCode.OK, HttpStatusCode.NotFound, HttpStatusCode.BadRequest, HttpStatusCode.Forbidden, HttpStatusCode.RequestEntityTooLarge },
+        Assert.Equal(new[] { HttpStatusCode.OK, HttpStatusCode.NotFound, HttpStatusCode.BadRequest, HttpStatusCode.Forbidden },
             responses.Select(response => response.StatusCode));
         Assert.All(responses, response => Assert.Equal("max-age=31536000", Assert.Single(response.Headers.GetValues("Strict-Transport-Security"))));
+        // The refused upload is sent whole before its response is read; see RequestLimitTests.
+        var oversized = await server.RawHttpsAsync(RequestLimitTests.Head("POST /upload", "Content-Length: 64"), new byte[64]);
+        Assert.Equal(413, oversized.Status);
+        Assert.Equal("max-age=31536000", oversized.Headers["Strict-Transport-Security"]);
 
         await using var preload = await StartAsync(Settings(("HstsMaxAge", "730.00:00:00"), ("HstsIncludeSubDomains", "true"), ("HstsPreload", "true")));
         Assert.Equal("max-age=63072000; includeSubDomains; preload",
