@@ -14,6 +14,8 @@ public sealed class ModuleContext
     public ModuleManifest Manifest { get; }
     public TimeProvider TimeProvider { get; }
     public ActivityContext TraceContext { get; }
+    /// <summary>The activation's W3C trace identifier; correlation carries no authority.</summary>
+    public string CorrelationId => TraceContext.TraceId.ToHexString();
 }
 
 public interface IModule

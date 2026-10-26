@@ -10,6 +10,9 @@
       },
       "modularyn.framework.modularity.abstractions": {
         "type": "Project"
+      },
+      "modularyn.framework.observability": {
+        "type": "Project"
       }
     }
   }

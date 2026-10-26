@@ -9,16 +9,24 @@ namespace Modularyn.Framework.Hosting;
 /// </summary>
 public sealed class ModuleRegistration
 {
-    public ModuleRegistration(ModuleManifest manifest, Func<IServiceProvider, IModule> factory)
+    public ModuleRegistration(ModuleManifest manifest, Func<IServiceProvider, IModule> factory,
+        IEnumerable<ModuleHealthCheckRegistration>? healthChecks = null)
     {
         Manifest = manifest ?? throw new ArgumentNullException(nameof(manifest));
         Factory = factory ?? throw new ArgumentNullException(nameof(factory));
+        var checks = healthChecks?.ToArray() ?? [];
+        if (checks.Any(check => check is null)) throw new ArgumentException("Health checks cannot contain null entries.", nameof(healthChecks));
+        if (checks.Select(check => check.Name).Distinct(StringComparer.Ordinal).Count() != checks.Length)
+            throw new ArgumentException("Bind each module health check at most once.", nameof(healthChecks));
+        HealthChecks = Array.AsReadOnly(checks);
     }
     public ModuleManifest Manifest { get; }
     public Func<IServiceProvider, IModule> Factory { get; }
+    public IReadOnlyList<ModuleHealthCheckRegistration> HealthChecks { get; }
 
-    public static ModuleRegistration Create<TModule>(ModuleManifest manifest) where TModule : class, IModule =>
-        new(manifest, services => ActivatorUtilities.CreateInstance<TModule>(services));
+    public static ModuleRegistration Create<TModule>(ModuleManifest manifest,
+        IEnumerable<ModuleHealthCheckRegistration>? healthChecks = null) where TModule : class, IModule =>
+        new(manifest, services => ActivatorUtilities.CreateInstance<TModule>(services), healthChecks);
 }
 
 public sealed class ModuleHostOptions

@@ -19,6 +19,8 @@ public sealed class ArchitectureTests
         graph.ProjectReference("Modularyn.Modules.Files.Domain", "Modularyn.Framework.Modularity.Abstractions");
         graph.ProjectReference("Modularyn.Modules.Files.Application.Contracts", "Modularyn.Framework.Modularity.Abstractions");
         graph.ProjectReference("Modularyn.Framework.Hosting", "Modularyn.Framework.Modularity");
+        graph.ProjectReference("Modularyn.Framework.Hosting", "Modularyn.Framework.Observability");
+        graph.AddReference("Modularyn.Framework.Observability", new XElement("FrameworkReference", new XAttribute("Include", "Microsoft.AspNetCore.App")));
         graph.ProjectReference("Modularyn.Framework.Modularity", "Modularyn.Framework.Modularity.Abstractions");
         graph.ProjectReference("Modularyn.Modules.Files.Application.Contracts", "Modularyn.Framework.Sdk.Contracts");
         graph.ProjectReference("Modularyn.Modules.Files.Application", "Modularyn.Modules.Files.Domain");
@@ -48,6 +50,7 @@ public sealed class ArchitectureTests
     [InlineData("Modularyn.Framework.Modularity.Abstractions", "Framework", "", "", "community")]
     [InlineData("Modularyn.Framework.Modularity", "Framework", "", "", "community")]
     [InlineData("Modularyn.Framework.Hosting", "Framework", "", "", "community")]
+    [InlineData("Modularyn.Framework.Observability", "Framework", "", "", "community")]
     [InlineData("Modularyn.UI.Admin.Shell", "UI", "", "", "community")]
     [InlineData("Modularyn", "FrontDoor", "", "", "community")]
     [InlineData("dotnet-modularyn", "Tooling", "", "", "community")]
@@ -59,6 +62,18 @@ public sealed class ArchitectureTests
         var fixture = new ArchitectureFixture(node.Repository);
         Assert.Equal(policy.SourcePath(node), fixture.Add(id));
         Assert.Empty(fixture.Validate());
+    }
+
+    [Theory]
+    [InlineData("Modularyn.Modules.Files.Domain")]
+    [InlineData("Modularyn.Modules.Files.Application.Contracts")]
+    public void Domain_and_contracts_cannot_acquire_the_observability_adapter(string source)
+    {
+        var graph = new ArchitectureFixture();
+        graph.Add(source);
+        Assert.Empty(graph.Validate());
+        graph.ProjectReference(source, "Modularyn.Framework.Observability");
+        Assert.Contains(graph.Validate(), error => error.StartsWith("DEP010:", StringComparison.Ordinal));
     }
 
     [Theory]

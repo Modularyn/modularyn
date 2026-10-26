@@ -167,7 +167,8 @@
         "type": "Project",
         "dependencies": {
           "Modularyn.Framework.Modularity": "[1.0.0, )",
-          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )"
+          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Observability": "[1.0.0, )"
         }
       },
       "modularyn.framework.modularity": {
@@ -177,6 +178,9 @@
         }
       },
       "modularyn.framework.modularity.abstractions": {
+        "type": "Project"
+      },
+      "modularyn.framework.observability": {
         "type": "Project"
       }
     }

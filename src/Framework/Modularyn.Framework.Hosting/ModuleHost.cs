@@ -1,12 +1,14 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 using Modularyn.Framework.Modularity;
 using Modularyn.Framework.Modularity.Abstractions;
+using Modularyn.Framework.Observability;
 
 namespace Modularyn.Framework.Hosting;
 
 /// <summary>Serializes lifecycle transitions for one fixed selection of installed modules.</summary>
-public sealed class ModuleHost : IHostedService
+public sealed class ModuleHost : IHostedLifecycleService, IDisposable
 {
     private readonly ModuleRegistration[] registrations;
     private readonly CompositionSelection selection;
@@ -14,6 +16,11 @@ public sealed class ModuleHost : IHostedService
     private readonly IServiceProvider services;
     private readonly TimeProvider timeProvider;
     private readonly TimeSpan cleanupTimeout;
+    private readonly TimeSpan? shutdownTimeout;
+    private readonly ModularynDiagnostics telemetry;
+    private readonly bool ownsTelemetry;
+    private readonly bool ownsWorkGate;
+    private readonly CancellationTokenRegistration applicationStopping;
     private readonly SemaphoreSlim transition = new(1, 1);
     private readonly List<Instance> instances = [];
     private readonly List<ModuleLifecycleEvent> events = [];
@@ -23,9 +30,12 @@ public sealed class ModuleHost : IHostedService
     private ModuleHostState hostState = ModuleHostState.Stopped;
     private ActivationPlan? plan;
     private int attempt;
+    private ActivityContext activationContext;
 
     public ModuleHost(IEnumerable<ModuleRegistration> registrations, CompositionEnvironment environment,
-        ModuleComposer composer, IServiceProvider services, TimeProvider timeProvider, ModuleHostOptions? options = null)
+        ModuleComposer composer, IServiceProvider services, TimeProvider timeProvider, ModuleHostOptions? options = null,
+        ModularynDiagnostics? telemetry = null, ModuleWorkGate? workGate = null,
+        IHostApplicationLifetime? lifetime = null, TimeSpan? shutdownTimeout = null)
     {
         ArgumentNullException.ThrowIfNull(registrations);
         this.registrations = registrations.ToArray();
@@ -37,23 +47,48 @@ public sealed class ModuleHost : IHostedService
         cleanupTimeout = (options ?? new()).FailedStartCleanupTimeout;
         if (cleanupTimeout <= TimeSpan.Zero || cleanupTimeout.TotalMilliseconds > uint.MaxValue - 1)
             throw new ArgumentOutOfRangeException(nameof(options), "Failed-start cleanup requires a positive, finite timer deadline.");
+        if (shutdownTimeout is { } timeout && timeout != Timeout.InfiniteTimeSpan
+            && (timeout < TimeSpan.Zero || timeout.TotalMilliseconds > uint.MaxValue - 1))
+            throw new ArgumentOutOfRangeException(nameof(shutdownTimeout));
+        this.shutdownTimeout = shutdownTimeout;
+        ownsTelemetry = telemetry is null;
+        this.telemetry = telemetry ?? new ModularynDiagnostics(NullLoggerFactory.Instance, timeProvider);
+        ownsWorkGate = workGate is null;
+        Work = workGate ?? new();
+        if (lifetime is not null)
+            applicationStopping = lifetime.ApplicationStopping.Register(Work.StopAccepting);
         foreach (var registration in this.registrations) states[registration.Manifest.Id] = ModuleState.Selected;
         report = Snapshot();
     }
 
     public ModuleHostReport Report => Volatile.Read(ref report);
+    public ModuleWorkGate Work { get; }
+
+    public Task StartingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StartedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StoppingAsync(CancellationToken cancellationToken)
+    {
+        Work.StopAccepting();
+        return Task.CompletedTask;
+    }
+    public Task StoppedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         await transition.WaitAsync(cancellationToken).ConfigureAwait(false);
+        DiagnosticScope? operation = null;
         try
         {
+            operation = telemetry.BeginOperation(DiagnosticOperation.HostStart);
             cancellationToken.ThrowIfCancellationRequested();
-            if (hostState == ModuleHostState.Ready) return;
+            if (hostState == ModuleHostState.Ready) { operation.Succeed(); return; }
             if (instances.Count != 0)
                 throw new InvalidOperationException($"Cleanup is still required for {string.Join(", ", instances.Select(item => item.Manifest.Id))}. Call StopAsync successfully before restarting.");
+            if (Work.ActiveCount != 0)
+                throw new InvalidOperationException("Work from the previous activation still requires cleanup before restarting.");
 
             attempt++;
+            activationContext = operation.Activity.Context;
             diagnostics.Clear();
             plan = null;
             foreach (var id in states.Keys.ToArray()) states[id] = ModuleState.Selected;
@@ -67,6 +102,7 @@ public sealed class ModuleHost : IHostedService
             {
                 foreach (var id in states.Keys.ToArray()) states[id] = ModuleState.Refused;
                 var cancelled = exception is OperationCanceledException && cancellationToken.IsCancellationRequested;
+                if (cancelled) operation.Cancel();
                 diagnostics.Add(new(cancelled ? ModuleHostDiagnosticCodes.StartupCancelled : ModuleHostDiagnosticCodes.ValidationFailed,
                     cancelled ? "Composition validation was cancelled. Retry startup with an active cancellation token."
                         : $"Composition validation did not complete: {exception.GetType().Name}: {exception.Message}. Resolve the validation failure before retrying.", states.Keys));
@@ -82,10 +118,24 @@ public sealed class ModuleHost : IHostedService
                 throw new ModuleCompositionException(composition.Diagnostics);
             }
 
+            foreach (var registration in registrations)
+            {
+                if (!registration.Manifest.HealthChecks.Select(check => check.Name).ToHashSet(StringComparer.Ordinal)
+                    .SetEquals(registration.HealthChecks.Select(check => check.Name)))
+                    diagnostics.Add(new(ModuleHostDiagnosticCodes.HealthCheckBindingFailed,
+                        "Bind each declared module health check exactly once, with no undeclared checks.", [registration.Manifest.Id]));
+            }
+            if (diagnostics.Count != 0)
+            {
+                foreach (var id in states.Keys.ToArray()) states[id] = ModuleState.Refused;
+                SetHostState(ModuleHostState.Failed);
+                throw new ModuleCompositionException(diagnostics);
+            }
+
             plan = validatedPlan;
             SetHostState(ModuleHostState.Starting);
             var factories = registrations.ToDictionary(item => item.Manifest.Id, StringComparer.Ordinal);
-            var traceContext = Activity.Current?.Context ?? default;
+            var traceContext = activationContext;
             string? currentId = null;
             var stage = ModuleStage.Construction;
             try
@@ -123,10 +173,13 @@ public sealed class ModuleHost : IHostedService
                 }
                 cancellationToken.ThrowIfCancellationRequested();
                 SetHostState(ModuleHostState.Ready);
+                Work.Open(applicationStopping.Token);
+                operation.Succeed();
             }
             catch (Exception exception)
             {
                 var cancelled = exception is OperationCanceledException && cancellationToken.IsCancellationRequested;
+                if (cancelled) operation.Cancel();
                 if (currentId is not null)
                 {
                     states[currentId] = ModuleState.Failed;
@@ -140,10 +193,11 @@ public sealed class ModuleHost : IHostedService
                     ModuleStage.Initialization => ModuleHostDiagnosticCodes.InitializationFailed,
                     _ => ModuleHostDiagnosticCodes.StartFailed
                 };
-                var operation = currentId is null ? "Module selection startup" : $"Module '{currentId}' {stage}";
-                var message = $"{operation} {(cancelled ? "was cancelled" : "failed")}: {exception.GetType().Name}: {exception.Message}. Complete cleanup and resolve the cause before restarting.";
+                var failedOperation = currentId is null ? "Module selection startup" : $"Module '{currentId}' {stage}";
+                var message = $"{failedOperation} {(cancelled ? "was cancelled" : "failed")}: {exception.GetType().Name}: {exception.Message}. Complete cleanup and resolve the cause before restarting.";
                 diagnostics.Add(new(code, message, currentId is null ? [] : [currentId]));
                 SetHostState(ModuleHostState.Stopping);
+                Work.StopAccepting();
                 // Startup cancellation must not prevent release of resources already acquired.
                 using var cleanup = new CancellationTokenSource(cleanupTimeout, timeProvider);
                 await CleanupAsync(cleanup.Token).ConfigureAwait(false);
@@ -152,25 +206,50 @@ public sealed class ModuleHost : IHostedService
                 throw new ModuleLifecycleException(message, Report, exception);
             }
         }
-        finally { transition.Release(); }
+        finally
+        {
+            try { operation?.Dispose(); }
+            finally { transition.Release(); }
+        }
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
+        using var deadline = shutdownTimeout is { } timeout ? new CancellationTokenSource(timeout, timeProvider) : null;
+        using var combined = deadline is null ? null : CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token);
+        var shutdownToken = combined?.Token ?? cancellationToken;
         // An idle host can notify every owned module even with an already-cancelled token.
         // Waiting behind another lifecycle transition must still honor cancellation.
-        if (!transition.Wait(0)) await transition.WaitAsync(cancellationToken).ConfigureAwait(false);
+        if (!transition.Wait(0)) await transition.WaitAsync(shutdownToken).ConfigureAwait(false);
+        DiagnosticScope? operation = null;
         try
         {
+            operation = telemetry.BeginOperation(DiagnosticOperation.HostStop, activationContext);
+            Work.StopAccepting();
             SetHostState(ModuleHostState.Stopping);
-            var failures = await CleanupAsync(cancellationToken).ConfigureAwait(false);
-            SetHostState(instances.Count == 0 ? ModuleHostState.Stopped : ModuleHostState.Failed);
-            cancellationToken.ThrowIfCancellationRequested();
+            try { await Work.DrainAsync(shutdownToken).ConfigureAwait(false); }
+            catch (OperationCanceledException) when (shutdownToken.IsCancellationRequested)
+            {
+                Work.CancelRemaining();
+                if (Work.ActiveCount != 0)
+                    diagnostics.Add(new(ModuleHostDiagnosticCodes.WorkDrainIncomplete,
+                        "Work did not drain before the shutdown deadline. Complete the retained work before restarting.", []));
+                Publish();
+            }
+            var failures = await CleanupAsync(shutdownToken).ConfigureAwait(false);
+            SetHostState(instances.Count == 0 && Work.ActiveCount == 0 ? ModuleHostState.Stopped : ModuleHostState.Failed);
+            shutdownToken.ThrowIfCancellationRequested();
             if (failures.Count != 0)
                 throw new ModuleLifecycleException("Module shutdown failed. Inspect the cleanup diagnostics and retry StopAsync before starting again.",
                     Report, new AggregateException(failures));
+            operation.Succeed();
         }
-        finally { transition.Release(); }
+        catch (OperationCanceledException) when (shutdownToken.IsCancellationRequested) { operation?.Cancel(); throw; }
+        finally
+        {
+            try { operation?.Dispose(); }
+            finally { transition.Release(); }
+        }
     }
 
     private async Task<List<Exception>> CleanupAsync(CancellationToken cancellationToken)
@@ -184,7 +263,11 @@ public sealed class ModuleHost : IHostedService
             Record(id, ModuleStage.Shutdown, ModuleStageOutcome.Began);
             try
             {
-                await instance.Module.StopAsync(instance.Context, cancellationToken).ConfigureAwait(false);
+                // Retain the actual callback task if it outlives the deadline. A retry observes
+                // that same task instead of invoking StopAsync concurrently on the instance.
+                instance.PendingStop ??= instance.Module.StopAsync(instance.Context, cancellationToken);
+                ObserveFailure(instance.PendingStop);
+                await instance.PendingStop.WaitAsync(cancellationToken).ConfigureAwait(false);
                 instances.Remove(instance);
                 SetModuleState(id, failedStart ? ModuleState.Failed : ModuleState.Stopped);
                 Record(id, ModuleStage.Shutdown, ModuleStageOutcome.Succeeded);
@@ -192,6 +275,7 @@ public sealed class ModuleHost : IHostedService
             catch (Exception exception)
             {
                 failures.Add(exception);
+                if (instance.PendingStop is { IsFaulted: true } or { IsCanceled: true }) instance.PendingStop = null;
                 SetModuleState(id, ModuleState.CleanupFailed);
                 Record(id, ModuleStage.Shutdown, exception is OperationCanceledException && cancellationToken.IsCancellationRequested
                     ? ModuleStageOutcome.Cancelled : ModuleStageOutcome.Failed);
@@ -207,13 +291,47 @@ public sealed class ModuleHost : IHostedService
     private void SetModuleState(string id, ModuleState state) { states[id] = state; Publish(); }
     private void Record(string id, ModuleStage stage, ModuleStageOutcome outcome)
     {
-        events.Add(new(attempt, id, stage, outcome, timeProvider.GetUtcNow()));
+        var activity = Activity.Current;
+        events.Add(new(attempt, id, stage, outcome, timeProvider.GetUtcNow())
+        {
+            CorrelationId = activity?.TraceId.ToHexString() ?? string.Empty,
+            TraceId = activity?.TraceId.ToHexString() ?? string.Empty,
+            SpanId = activity?.SpanId.ToHexString() ?? string.Empty
+        });
         Publish();
+        var operation = stage switch
+        {
+            ModuleStage.Construction => DiagnosticOperation.ModuleConstruction,
+            ModuleStage.Initialization => DiagnosticOperation.ModuleInitialization,
+            ModuleStage.Start => DiagnosticOperation.ModuleStart,
+            _ => DiagnosticOperation.ModuleStop
+        };
+        var result = outcome switch
+        {
+            ModuleStageOutcome.Began => DiagnosticOutcome.Began,
+            ModuleStageOutcome.Succeeded => DiagnosticOutcome.Succeeded,
+            ModuleStageOutcome.Cancelled => DiagnosticOutcome.Cancelled,
+            _ => DiagnosticOutcome.Failed
+        };
+        telemetry.RecordLifecycle(operation, result, id, registrations.First(item => item.Manifest.Id == id).Manifest.Version.ToString());
     }
     private void Publish() => Volatile.Write(ref report, Snapshot());
     private ModuleHostReport Snapshot() => new(hostState, plan,
         states.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => new ModuleStatus(pair.Key, pair.Value)),
-        events, diagnostics, instances.Select(item => item.Manifest.Id));
+        events, diagnostics, instances.Select(item => item.Manifest.Id), Work.ActiveCount);
 
-    private sealed record Instance(ModuleManifest Manifest, IModule Module, ModuleContext Context);
+    private static void ObserveFailure(Task task) => _ = task.ContinueWith(completed => _ = completed.Exception,
+        CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+
+    public void Dispose()
+    {
+        applicationStopping.Dispose();
+        if (ownsTelemetry) telemetry.Dispose();
+        if (ownsWorkGate) Work.Dispose();
+    }
+
+    private sealed record Instance(ModuleManifest Manifest, IModule Module, ModuleContext Context)
+    {
+        internal Task? PendingStop { get; set; }
+    }
 }

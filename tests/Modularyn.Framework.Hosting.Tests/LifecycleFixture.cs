@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Modularyn.Framework.Modularity;
 using Modularyn.Framework.Modularity.Abstractions;
+using Modularyn.Framework.Observability;
 
 namespace Modularyn.Framework.Hosting.Tests;
 
@@ -12,6 +13,7 @@ internal sealed class LifecycleFixture : IDisposable
     internal static readonly CompositionEnvironment Environment = new(SemanticVersion.Parse("10.0.0"), One);
     private readonly string directory = Path.Combine(Path.GetTempPath(), "modularyn-lifecycle-" + Guid.NewGuid().ToString("N"));
     private readonly ServiceProvider services = new ServiceCollection().BuildServiceProvider();
+    private readonly List<ModuleHost> hosts = [];
 
     internal LifecycleFixture() => Directory.CreateDirectory(directory);
     internal List<string> Calls { get; } = [];
@@ -19,6 +21,7 @@ internal sealed class LifecycleFixture : IDisposable
     internal HashSet<string> FailInitialization { get; } = new(StringComparer.Ordinal);
     internal HashSet<string> FailStart { get; } = new(StringComparer.Ordinal);
     internal HashSet<string> FailShutdown { get; } = new(StringComparer.Ordinal);
+    internal HashSet<string> IgnoreShutdownCancellation { get; } = new(StringComparer.Ordinal);
     internal Func<string, ModuleStage, CancellationToken, Task>? DuringStage { get; set; }
     internal int Constructed { get; private set; }
 
@@ -41,8 +44,14 @@ internal sealed class LifecycleFixture : IDisposable
         })).ToArray();
 
     internal ModuleHost Host(IEnumerable<ModuleManifest>? manifests = null, IEnumerable<ICompositionValidator>? validators = null,
-        TimeProvider? clock = null, ModuleHostOptions? options = null) =>
-        new(Registrations(manifests ?? Graph()), Environment, new ModuleComposer(validators), services, clock ?? TimeProvider.System, options);
+        TimeProvider? clock = null, ModuleHostOptions? options = null, ModularynDiagnostics? telemetry = null,
+        TimeSpan? shutdownTimeout = null)
+    {
+        var host = new ModuleHost(Registrations(manifests ?? Graph()), Environment, new ModuleComposer(validators), services,
+            clock ?? TimeProvider.System, options, telemetry, shutdownTimeout: shutdownTimeout);
+        hosts.Add(host);
+        return host;
+    }
 
     internal string[] ActiveResources => Directory.GetFiles(directory, "*.active").Select(Path.GetFileNameWithoutExtension).OfType<string>().Order(StringComparer.Ordinal).ToArray();
     internal string[] DurableEffects(string id) => File.ReadAllLines(Path.Combine(directory, id + ".effect"));
@@ -50,6 +59,7 @@ internal sealed class LifecycleFixture : IDisposable
 
     public void Dispose()
     {
+        foreach (var host in hosts) host.Dispose();
         services.Dispose();
         Directory.Delete(directory, recursive: true);
     }
@@ -86,9 +96,9 @@ internal sealed class LifecycleFixture : IDisposable
         public async Task StopAsync(ModuleContext context, CancellationToken cancellationToken)
         {
             Observe(ModuleStage.Shutdown, context, cancellationToken, "stop");
-            cancellationToken.ThrowIfCancellationRequested();
+            if (!fixture.IgnoreShutdownCancellation.Contains(id)) cancellationToken.ThrowIfCancellationRequested();
             if (fixture.DuringStage is not null) await fixture.DuringStage(id, ModuleStage.Shutdown, cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
+            if (!fixture.IgnoreShutdownCancellation.Contains(id)) cancellationToken.ThrowIfCancellationRequested();
             if (fixture.FailShutdown.Contains(id)) throw new InvalidOperationException($"Shutdown fault in {id}.");
             File.Delete(active);
         }
