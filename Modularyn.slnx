@@ -5,6 +5,7 @@
     <Project Path="src/Framework/Modularyn.Framework.Hosting/Modularyn.Framework.Hosting.csproj" />
     <Project Path="src/Framework/Modularyn.Framework.Observability/Modularyn.Framework.Observability.csproj" />
     <Project Path="src/Framework/Modularyn.Framework.Configuration/Modularyn.Framework.Configuration.csproj" />
+    <Project Path="src/Framework/Modularyn.Framework.Ingress/Modularyn.Framework.Ingress.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Modularyn.Framework.Modularity.Abstractions.Tests/Modularyn.Framework.Modularity.Abstractions.Tests.csproj" />
@@ -12,6 +13,7 @@
     <Project Path="tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj" />
     <Project Path="tests/Modularyn.Framework.Observability.Tests/Modularyn.Framework.Observability.Tests.csproj" />
     <Project Path="tests/Modularyn.Framework.Configuration.Tests/Modularyn.Framework.Configuration.Tests.csproj" />
+    <Project Path="tests/Modularyn.Framework.Ingress.Tests/Modularyn.Framework.Ingress.Tests.csproj" />
     <Project Path="tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj" />
   </Folder>
 </Solution>
