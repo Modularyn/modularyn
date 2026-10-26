@@ -145,6 +145,462 @@
       }
     },
     {
+      "id": "nuget:microsoft.entityframeworkcore",
+      "name": "Microsoft.EntityFrameworkCore",
+      "ecosystem": "nuget",
+      "version": "10.0.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "persistence",
+      "purpose": "Object-relational mapper for module persistence, transactions, concurrency tokens and migrations.",
+      "reason": "D-05 names EF Core with PostgreSQL as the first production qualification target, and ARC-007 and ARC-008 need provider evidence for transactions, concurrency and migrations. Runtime alignment selects 10.0.14. Modularyn.Framework.Persistence.EfCore references it directly. On net10.0 it requires its Abstractions and Analyzers packages, Microsoft.Extensions.Caching.Memory and Microsoft.Extensions.Logging, all 10.0.14 or later and MIT.",
+      "maintenance": {
+        "reviewedAt": "2026-10-26",
+        "published": "2026-10-25",
+        "latestEligible": "10.0.14",
+        "ageException": "Published 2026-10-25, 1 day before review, in the .NET 10.0.14 release. Runtime alignment selects it, with both corroborations: the dotnet/core 10.0.14 release notes list it at 10.0.14, and its nuspec names dotnet/dotnet commit 0427b9abbead3fa64c6655eb4290c537397131fa, which the .version files of both shared frameworks in the pinned SDK 10.0.403 archive record. No advisory affects 10.0.12, the version the age rule alone selects, so the security exception would not select 10.0.14.",
+        "maintainer": "Microsoft; built from the dotnet/dotnet repository",
+        "activity": "dotnet/efcore was pushed 2026-10-26. Servicing releases follow the .NET patch schedule: 10.0.12 (2026-09-08), 10.0.13 (2026-10-13) and 10.0.14 (2026-10-25). The 10.0.14 release notes list Microsoft.EntityFrameworkCore 10.0.14 among the packages updated in that release.",
+        "advisories": "No GitHub advisory names Microsoft.EntityFrameworkCore or affects 10.0.14, nuget.org's vulnerability data lists none for it, and dotnet list package --vulnerable --include-transitive reported no vulnerable package.",
+        "sources": [
+          "https://api.nuget.org/v3/registration5-gz-semver2/microsoft.entityframeworkcore/index.json",
+          "https://api.nuget.org/v3-flatcontainer/microsoft.entityframeworkcore/10.0.14/microsoft.entityframeworkcore.nuspec",
+          "https://github.com/dotnet/efcore",
+          "https://github.com/dotnet/core/blob/main/release-notes/10.0/10.0.14/10.0.14.md",
+          "https://api.github.com/advisories?ecosystem=nuget&affects=Microsoft.EntityFrameworkCore",
+          "https://api.nuget.org/v3/vulnerabilities/index.json"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A redistributed copy, such as a container image or self-contained release, lists it in THIRD-PARTY-NOTICES with its copyright and permission notice."
+      }
+    },
+    {
+      "id": "nuget:microsoft.entityframeworkcore.abstractions",
+      "name": "Microsoft.EntityFrameworkCore.Abstractions",
+      "ecosystem": "nuget",
+      "version": "10.0.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "persistence",
+      "purpose": "EF Core attributes and abstractions that Microsoft.EntityFrameworkCore requires; transitive.",
+      "reason": "Microsoft.EntityFrameworkCore 10.0.14 requires 10.0.14 or later. The locks of the persistence library and its test project resolve 10.0.14, and no project references it directly. Runtime alignment selects 10.0.14.",
+      "maintenance": {
+        "reviewedAt": "2026-10-26",
+        "published": "2026-10-25",
+        "latestEligible": "10.0.14",
+        "ageException": "Published 2026-10-25, 1 day before review, in the .NET 10.0.14 release. Runtime alignment selects it, with both corroborations: the dotnet/core 10.0.14 release notes list it at 10.0.14, and its nuspec names dotnet/dotnet commit 0427b9abbead3fa64c6655eb4290c537397131fa, which the .version files of both shared frameworks in the pinned SDK 10.0.403 archive record. No advisory affects 10.0.12, the version the age rule alone selects, so the security exception would not select 10.0.14.",
+        "maintainer": "Microsoft; built from the dotnet/dotnet repository",
+        "activity": "dotnet/efcore was pushed 2026-10-26. Servicing releases follow the .NET patch schedule: 10.0.12 (2026-09-08), 10.0.13 (2026-10-13) and 10.0.14 (2026-10-25). The 10.0.14 release notes list Microsoft.EntityFrameworkCore.Abstractions 10.0.14 among the packages updated in that release.",
+        "advisories": "No GitHub advisory names Microsoft.EntityFrameworkCore.Abstractions or affects 10.0.14, nuget.org's vulnerability data lists none for it, and dotnet list package --vulnerable --include-transitive reported no vulnerable package.",
+        "sources": [
+          "https://api.nuget.org/v3/registration5-gz-semver2/microsoft.entityframeworkcore.abstractions/index.json",
+          "https://api.nuget.org/v3-flatcontainer/microsoft.entityframeworkcore.abstractions/10.0.14/microsoft.entityframeworkcore.abstractions.nuspec",
+          "https://github.com/dotnet/efcore",
+          "https://github.com/dotnet/core/blob/main/release-notes/10.0/10.0.14/10.0.14.md",
+          "https://api.github.com/advisories?ecosystem=nuget&affects=Microsoft.EntityFrameworkCore.Abstractions",
+          "https://api.nuget.org/v3/vulnerabilities/index.json"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A redistributed copy, such as a container image or self-contained release, lists it in THIRD-PARTY-NOTICES with its copyright and permission notice."
+      }
+    },
+    {
+      "id": "nuget:microsoft.entityframeworkcore.analyzers",
+      "name": "Microsoft.EntityFrameworkCore.Analyzers",
+      "ecosystem": "nuget",
+      "version": "10.0.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "persistence",
+      "purpose": "Roslyn analyzers for EF Core usage that Microsoft.EntityFrameworkCore passes to the compiler; transitive.",
+      "reason": "Microsoft.EntityFrameworkCore 10.0.14 requires 10.0.14 or later and includes its analyzer assets. The locks of the persistence library and its test project resolve 10.0.14, and no project references it directly. Runtime alignment selects 10.0.14.",
+      "maintenance": {
+        "reviewedAt": "2026-10-26",
+        "published": "2026-10-25",
+        "latestEligible": "10.0.14",
+        "ageException": "Published 2026-10-25, 1 day before review, in the .NET 10.0.14 release. Runtime alignment selects it, with both corroborations: the dotnet/core 10.0.14 release notes list it at 10.0.14, and its nuspec names dotnet/dotnet commit 0427b9abbead3fa64c6655eb4290c537397131fa, which the .version files of both shared frameworks in the pinned SDK 10.0.403 archive record. No advisory affects 10.0.12, the version the age rule alone selects, so the security exception would not select 10.0.14.",
+        "maintainer": "Microsoft; built from the dotnet/dotnet repository",
+        "activity": "dotnet/efcore was pushed 2026-10-26. Servicing releases follow the .NET patch schedule: 10.0.12 (2026-09-08), 10.0.13 (2026-10-13) and 10.0.14 (2026-10-25). The 10.0.14 release notes list Microsoft.EntityFrameworkCore.Analyzers 10.0.14 among the packages updated in that release.",
+        "advisories": "No GitHub advisory names Microsoft.EntityFrameworkCore.Analyzers or affects 10.0.14, nuget.org's vulnerability data lists none for it, and dotnet list package --vulnerable --include-transitive reported no vulnerable package.",
+        "sources": [
+          "https://api.nuget.org/v3/registration5-gz-semver2/microsoft.entityframeworkcore.analyzers/index.json",
+          "https://api.nuget.org/v3-flatcontainer/microsoft.entityframeworkcore.analyzers/10.0.14/microsoft.entityframeworkcore.analyzers.nuspec",
+          "https://github.com/dotnet/efcore",
+          "https://github.com/dotnet/core/blob/main/release-notes/10.0/10.0.14/10.0.14.md",
+          "https://api.github.com/advisories?ecosystem=nuget&affects=Microsoft.EntityFrameworkCore.Analyzers",
+          "https://api.nuget.org/v3/vulnerabilities/index.json"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. The package holds only a compiler analyzer, which applications do not ship, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "nuget:microsoft.entityframeworkcore.relational",
+      "name": "Microsoft.EntityFrameworkCore.Relational",
+      "ecosystem": "nuget",
+      "version": "10.0.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "persistence",
+      "purpose": "Relational layer of EF Core, for migrations, relational transactions and connections, that Modularyn.Framework.Persistence.EfCore references directly.",
+      "reason": "Modularyn.Framework.Persistence.EfCore uses its migration services, migration history, isolation-level transactions and underlying connection directly; Npgsql.EntityFrameworkCore.PostgreSQL 10.0.3 also requires it from 10.0.4 up to but excluding 11.0.0. Runtime alignment selects 10.0.14. It requires EF Core, Microsoft.Extensions.Caching.Memory, Microsoft.Extensions.Configuration.Abstractions and Microsoft.Extensions.Logging, all 10.0.14 or later.",
+      "maintenance": {
+        "reviewedAt": "2026-10-26",
+        "published": "2026-10-25",
+        "latestEligible": "10.0.14",
+        "ageException": "Published 2026-10-25, 1 day before review, in the .NET 10.0.14 release. Runtime alignment selects it, with both corroborations: the dotnet/core 10.0.14 release notes list it at 10.0.14, and its nuspec names dotnet/dotnet commit 0427b9abbead3fa64c6655eb4290c537397131fa, which the .version files of both shared frameworks in the pinned SDK 10.0.403 archive record. No advisory affects 10.0.12, the version the age rule alone selects, so the security exception would not select 10.0.14.",
+        "maintainer": "Microsoft; built from the dotnet/dotnet repository",
+        "activity": "dotnet/efcore was pushed 2026-10-26. Servicing releases follow the .NET patch schedule: 10.0.12 (2026-09-08), 10.0.13 (2026-10-13) and 10.0.14 (2026-10-25). The 10.0.14 release notes list Microsoft.EntityFrameworkCore.Relational 10.0.14 among the packages updated in that release.",
+        "advisories": "No GitHub advisory names Microsoft.EntityFrameworkCore.Relational or affects 10.0.14, nuget.org's vulnerability data lists none for it, and dotnet list package --vulnerable --include-transitive reported no vulnerable package.",
+        "sources": [
+          "https://api.nuget.org/v3/registration5-gz-semver2/microsoft.entityframeworkcore.relational/index.json",
+          "https://api.nuget.org/v3-flatcontainer/microsoft.entityframeworkcore.relational/10.0.14/microsoft.entityframeworkcore.relational.nuspec",
+          "https://github.com/dotnet/efcore",
+          "https://github.com/dotnet/core/blob/main/release-notes/10.0/10.0.14/10.0.14.md",
+          "https://api.github.com/advisories?ecosystem=nuget&affects=Microsoft.EntityFrameworkCore.Relational",
+          "https://api.nuget.org/v3/vulnerabilities/index.json"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A redistributed copy, such as a container image or self-contained release, lists it in THIRD-PARTY-NOTICES with its copyright and permission notice."
+      }
+    },
+    {
+      "id": "nuget:microsoft.extensions.caching.abstractions",
+      "name": "Microsoft.Extensions.Caching.Abstractions",
+      "ecosystem": "nuget",
+      "version": "10.0.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "persistence",
+      "purpose": "Caching interfaces that Microsoft.Extensions.Caching.Memory requires; transitive.",
+      "reason": "Microsoft.Extensions.Caching.Memory 10.0.14 requires 10.0.14 or later. The persistence library's lock resolves 10.0.14, and no project references it directly; the persistence test project's lock omits it because the ASP.NET Core shared framework supplies it. Runtime alignment selects 10.0.14.",
+      "maintenance": {
+        "reviewedAt": "2026-10-26",
+        "published": "2026-10-25",
+        "latestEligible": "10.0.14",
+        "ageException": "Published 2026-10-25, 1 day before review, in the .NET 10.0.14 release. Runtime alignment selects it, with both corroborations: the dotnet/core 10.0.14 release notes list it at 10.0.14, and its nuspec names dotnet/dotnet commit 0427b9abbead3fa64c6655eb4290c537397131fa, which the .version files of both shared frameworks in the pinned SDK 10.0.403 archive record. No advisory affects 10.0.12, the version the age rule alone selects, so the security exception would not select 10.0.14.",
+        "maintainer": "Microsoft; built from the dotnet/dotnet repository",
+        "activity": "dotnet/runtime was pushed 2026-10-26. Servicing releases follow the .NET patch schedule: 10.0.12 (2026-09-08), 10.0.13 (2026-10-13) and 10.0.14 (2026-10-25). The 10.0.14 release notes list Microsoft.Extensions.Caching.Abstractions 10.0.14 among the packages updated in that release.",
+        "advisories": "No GitHub advisory names Microsoft.Extensions.Caching.Abstractions or affects 10.0.14, nuget.org's vulnerability data lists none for it, and dotnet list package --vulnerable --include-transitive reported no vulnerable package.",
+        "sources": [
+          "https://api.nuget.org/v3/registration5-gz-semver2/microsoft.extensions.caching.abstractions/index.json",
+          "https://api.nuget.org/v3-flatcontainer/microsoft.extensions.caching.abstractions/10.0.14/microsoft.extensions.caching.abstractions.nuspec",
+          "https://github.com/dotnet/runtime",
+          "https://github.com/dotnet/core/blob/main/release-notes/10.0/10.0.14/10.0.14.md",
+          "https://api.github.com/advisories?ecosystem=nuget&affects=Microsoft.Extensions.Caching.Abstractions",
+          "https://api.nuget.org/v3/vulnerabilities/index.json"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A redistributed copy, such as a container image or self-contained release, lists it in THIRD-PARTY-NOTICES with its copyright and permission notice."
+      }
+    },
+    {
+      "id": "nuget:microsoft.extensions.caching.memory",
+      "name": "Microsoft.Extensions.Caching.Memory",
+      "ecosystem": "nuget",
+      "version": "10.0.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "persistence",
+      "purpose": "In-memory cache that EF Core uses internally, for example for compiled queries; transitive.",
+      "reason": "Microsoft.EntityFrameworkCore and Microsoft.EntityFrameworkCore.Relational 10.0.14 require 10.0.14 or later. The persistence library's lock resolves 10.0.14, and no project references it directly; the persistence test project's lock omits it because the ASP.NET Core shared framework supplies it. Runtime alignment selects 10.0.14.",
+      "maintenance": {
+        "reviewedAt": "2026-10-26",
+        "published": "2026-10-25",
+        "latestEligible": "10.0.14",
+        "ageException": "Published 2026-10-25, 1 day before review, in the .NET 10.0.14 release. Runtime alignment selects it, with both corroborations: the dotnet/core 10.0.14 release notes list it at 10.0.14, and its nuspec names dotnet/dotnet commit 0427b9abbead3fa64c6655eb4290c537397131fa, which the .version files of both shared frameworks in the pinned SDK 10.0.403 archive record. No advisory affects 10.0.12, the version the age rule alone selects, so the security exception would not select 10.0.14.",
+        "maintainer": "Microsoft; built from the dotnet/dotnet repository",
+        "activity": "dotnet/runtime was pushed 2026-10-26. Servicing releases follow the .NET patch schedule: 10.0.12 (2026-09-08), 10.0.13 (2026-10-13) and 10.0.14 (2026-10-25). The 10.0.14 release notes list Microsoft.Extensions.Caching.Memory 10.0.14 among the packages updated in that release.",
+        "advisories": "GHSA-qj66-m88j-hmgj (high, CVE-2024-43483, denial of service) affects 6.0 releases through 6.0.1, 8.0 releases through 8.0.0 and 9.0 prereleases through 9.0.0-rc.1; none affects 10.0.14, nuget.org's vulnerability data agrees, and dotnet list package --vulnerable --include-transitive reported no vulnerable package.",
+        "sources": [
+          "https://api.nuget.org/v3/registration5-gz-semver2/microsoft.extensions.caching.memory/index.json",
+          "https://api.nuget.org/v3-flatcontainer/microsoft.extensions.caching.memory/10.0.14/microsoft.extensions.caching.memory.nuspec",
+          "https://github.com/dotnet/runtime",
+          "https://github.com/dotnet/core/blob/main/release-notes/10.0/10.0.14/10.0.14.md",
+          "https://github.com/advisories/GHSA-qj66-m88j-hmgj",
+          "https://api.github.com/advisories?ecosystem=nuget&affects=Microsoft.Extensions.Caching.Memory",
+          "https://api.nuget.org/v3/vulnerabilities/index.json"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A redistributed copy, such as a container image or self-contained release, lists it in THIRD-PARTY-NOTICES with its copyright and permission notice."
+      }
+    },
+    {
+      "id": "nuget:microsoft.extensions.configuration.abstractions",
+      "name": "Microsoft.Extensions.Configuration.Abstractions",
+      "ecosystem": "nuget",
+      "version": "10.0.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "persistence",
+      "purpose": "Configuration interfaces that EF Core Relational requires; transitive.",
+      "reason": "Microsoft.EntityFrameworkCore.Relational 10.0.14 requires 10.0.14 or later. The persistence library's lock resolves 10.0.14, and no project references it directly; the persistence test project's lock omits it because the ASP.NET Core shared framework supplies it. Runtime alignment selects 10.0.14.",
+      "maintenance": {
+        "reviewedAt": "2026-10-26",
+        "published": "2026-10-25",
+        "latestEligible": "10.0.14",
+        "ageException": "Published 2026-10-25, 1 day before review, in the .NET 10.0.14 release. Runtime alignment selects it, with both corroborations: the dotnet/core 10.0.14 release notes list it at 10.0.14, and its nuspec names dotnet/dotnet commit 0427b9abbead3fa64c6655eb4290c537397131fa, which the .version files of both shared frameworks in the pinned SDK 10.0.403 archive record. No advisory affects 10.0.12, the version the age rule alone selects, so the security exception would not select 10.0.14.",
+        "maintainer": "Microsoft; built from the dotnet/dotnet repository",
+        "activity": "dotnet/runtime was pushed 2026-10-26. Servicing releases follow the .NET patch schedule: 10.0.12 (2026-09-08), 10.0.13 (2026-10-13) and 10.0.14 (2026-10-25). The 10.0.14 release notes list Microsoft.Extensions.Configuration.Abstractions 10.0.14 among the packages updated in that release.",
+        "advisories": "No GitHub advisory names Microsoft.Extensions.Configuration.Abstractions or affects 10.0.14, nuget.org's vulnerability data lists none for it, and dotnet list package --vulnerable --include-transitive reported no vulnerable package.",
+        "sources": [
+          "https://api.nuget.org/v3/registration5-gz-semver2/microsoft.extensions.configuration.abstractions/index.json",
+          "https://api.nuget.org/v3-flatcontainer/microsoft.extensions.configuration.abstractions/10.0.14/microsoft.extensions.configuration.abstractions.nuspec",
+          "https://github.com/dotnet/runtime",
+          "https://github.com/dotnet/core/blob/main/release-notes/10.0/10.0.14/10.0.14.md",
+          "https://api.github.com/advisories?ecosystem=nuget&affects=Microsoft.Extensions.Configuration.Abstractions",
+          "https://api.nuget.org/v3/vulnerabilities/index.json"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A redistributed copy, such as a container image or self-contained release, lists it in THIRD-PARTY-NOTICES with its copyright and permission notice."
+      }
+    },
+    {
+      "id": "nuget:microsoft.extensions.dependencyinjection",
+      "name": "Microsoft.Extensions.DependencyInjection",
+      "ecosystem": "nuget",
+      "version": "10.0.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "persistence",
+      "purpose": "Default dependency-injection container, which EF Core uses for its internal service provider; transitive.",
+      "reason": "Microsoft.Extensions.Logging 10.0.14 requires 10.0.14 or later. The persistence library's lock resolves 10.0.14, and no project references it directly; the persistence test project's lock omits it because the ASP.NET Core shared framework supplies it. Runtime alignment selects 10.0.14.",
+      "maintenance": {
+        "reviewedAt": "2026-10-26",
+        "published": "2026-10-25",
+        "latestEligible": "10.0.14",
+        "ageException": "Published 2026-10-25, 1 day before review, in the .NET 10.0.14 release. Runtime alignment selects it, with both corroborations: the dotnet/core 10.0.14 release notes list it at 10.0.14, and its nuspec names dotnet/dotnet commit 0427b9abbead3fa64c6655eb4290c537397131fa, which the .version files of both shared frameworks in the pinned SDK 10.0.403 archive record. No advisory affects 10.0.12, the version the age rule alone selects, so the security exception would not select 10.0.14.",
+        "maintainer": "Microsoft; built from the dotnet/dotnet repository",
+        "activity": "dotnet/runtime was pushed 2026-10-26. Servicing releases follow the .NET patch schedule: 10.0.12 (2026-09-08), 10.0.13 (2026-10-13) and 10.0.14 (2026-10-25). The 10.0.14 release notes list Microsoft.Extensions.DependencyInjection 10.0.14 among the packages updated in that release.",
+        "advisories": "No GitHub advisory names Microsoft.Extensions.DependencyInjection or affects 10.0.14, nuget.org's vulnerability data lists none for it, and dotnet list package --vulnerable --include-transitive reported no vulnerable package.",
+        "sources": [
+          "https://api.nuget.org/v3/registration5-gz-semver2/microsoft.extensions.dependencyinjection/index.json",
+          "https://api.nuget.org/v3-flatcontainer/microsoft.extensions.dependencyinjection/10.0.14/microsoft.extensions.dependencyinjection.nuspec",
+          "https://github.com/dotnet/runtime",
+          "https://github.com/dotnet/core/blob/main/release-notes/10.0/10.0.14/10.0.14.md",
+          "https://api.github.com/advisories?ecosystem=nuget&affects=Microsoft.Extensions.DependencyInjection",
+          "https://api.nuget.org/v3/vulnerabilities/index.json"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A redistributed copy, such as a container image or self-contained release, lists it in THIRD-PARTY-NOTICES with its copyright and permission notice."
+      }
+    },
+    {
+      "id": "nuget:microsoft.extensions.dependencyinjection.abstractions",
+      "name": "Microsoft.Extensions.DependencyInjection.Abstractions",
+      "ecosystem": "nuget",
+      "version": "10.0.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "persistence",
+      "purpose": "Dependency-injection interfaces that the other Microsoft.Extensions packages require; transitive.",
+      "reason": "Microsoft.Extensions.Caching.Memory, DependencyInjection, Logging.Abstractions and Options 10.0.14 require 10.0.14 or later. The persistence library's lock resolves 10.0.14, and no project references it directly; the persistence test project's lock omits it because the ASP.NET Core shared framework supplies it. Runtime alignment selects 10.0.14.",
+      "maintenance": {
+        "reviewedAt": "2026-10-26",
+        "published": "2026-10-25",
+        "latestEligible": "10.0.14",
+        "ageException": "Published 2026-10-25, 1 day before review, in the .NET 10.0.14 release. Runtime alignment selects it, with both corroborations: the dotnet/core 10.0.14 release notes list it at 10.0.14, and its nuspec names dotnet/dotnet commit 0427b9abbead3fa64c6655eb4290c537397131fa, which the .version files of both shared frameworks in the pinned SDK 10.0.403 archive record. No advisory affects 10.0.12, the version the age rule alone selects, so the security exception would not select 10.0.14.",
+        "maintainer": "Microsoft; built from the dotnet/dotnet repository",
+        "activity": "dotnet/runtime was pushed 2026-10-26. Servicing releases follow the .NET patch schedule: 10.0.12 (2026-09-08), 10.0.13 (2026-10-13) and 10.0.14 (2026-10-25). The 10.0.14 release notes list Microsoft.Extensions.DependencyInjection.Abstractions 10.0.14 among the packages updated in that release.",
+        "advisories": "No GitHub advisory names Microsoft.Extensions.DependencyInjection.Abstractions or affects 10.0.14, nuget.org's vulnerability data lists none for it, and dotnet list package --vulnerable --include-transitive reported no vulnerable package.",
+        "sources": [
+          "https://api.nuget.org/v3/registration5-gz-semver2/microsoft.extensions.dependencyinjection.abstractions/index.json",
+          "https://api.nuget.org/v3-flatcontainer/microsoft.extensions.dependencyinjection.abstractions/10.0.14/microsoft.extensions.dependencyinjection.abstractions.nuspec",
+          "https://github.com/dotnet/runtime",
+          "https://github.com/dotnet/core/blob/main/release-notes/10.0/10.0.14/10.0.14.md",
+          "https://api.github.com/advisories?ecosystem=nuget&affects=Microsoft.Extensions.DependencyInjection.Abstractions",
+          "https://api.nuget.org/v3/vulnerabilities/index.json"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A redistributed copy, such as a container image or self-contained release, lists it in THIRD-PARTY-NOTICES with its copyright and permission notice."
+      }
+    },
+    {
+      "id": "nuget:microsoft.extensions.logging",
+      "name": "Microsoft.Extensions.Logging",
+      "ecosystem": "nuget",
+      "version": "10.0.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "persistence",
+      "purpose": "Logging infrastructure that EF Core requires; transitive.",
+      "reason": "Microsoft.EntityFrameworkCore and Microsoft.EntityFrameworkCore.Relational 10.0.14 require 10.0.14 or later. The persistence library's lock resolves 10.0.14, and no project references it directly; the persistence test project's lock omits it because the ASP.NET Core shared framework supplies it. Runtime alignment selects 10.0.14.",
+      "maintenance": {
+        "reviewedAt": "2026-10-26",
+        "published": "2026-10-25",
+        "latestEligible": "10.0.14",
+        "ageException": "Published 2026-10-25, 1 day before review, in the .NET 10.0.14 release. Runtime alignment selects it, with both corroborations: the dotnet/core 10.0.14 release notes list it at 10.0.14, and its nuspec names dotnet/dotnet commit 0427b9abbead3fa64c6655eb4290c537397131fa, which the .version files of both shared frameworks in the pinned SDK 10.0.403 archive record. No advisory affects 10.0.12, the version the age rule alone selects, so the security exception would not select 10.0.14.",
+        "maintainer": "Microsoft; built from the dotnet/dotnet repository",
+        "activity": "dotnet/runtime was pushed 2026-10-26. Servicing releases follow the .NET patch schedule: 10.0.12 (2026-09-08), 10.0.13 (2026-10-13) and 10.0.14 (2026-10-25). The 10.0.14 release notes list Microsoft.Extensions.Logging 10.0.14 among the packages updated in that release.",
+        "advisories": "No GitHub advisory names Microsoft.Extensions.Logging or affects 10.0.14, nuget.org's vulnerability data lists none for it, and dotnet list package --vulnerable --include-transitive reported no vulnerable package.",
+        "sources": [
+          "https://api.nuget.org/v3/registration5-gz-semver2/microsoft.extensions.logging/index.json",
+          "https://api.nuget.org/v3-flatcontainer/microsoft.extensions.logging/10.0.14/microsoft.extensions.logging.nuspec",
+          "https://github.com/dotnet/runtime",
+          "https://github.com/dotnet/core/blob/main/release-notes/10.0/10.0.14/10.0.14.md",
+          "https://api.github.com/advisories?ecosystem=nuget&affects=Microsoft.Extensions.Logging",
+          "https://api.nuget.org/v3/vulnerabilities/index.json"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A redistributed copy, such as a container image or self-contained release, lists it in THIRD-PARTY-NOTICES with its copyright and permission notice."
+      }
+    },
+    {
+      "id": "nuget:microsoft.extensions.logging.abstractions",
+      "name": "Microsoft.Extensions.Logging.Abstractions",
+      "ecosystem": "nuget",
+      "version": "10.0.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "persistence",
+      "purpose": "Logging interfaces through which EF Core and Npgsql log; transitive.",
+      "reason": "Npgsql 10.0.3 requires 10.0.0 or later, and Microsoft.Extensions.Caching.Memory and Logging 10.0.14 require 10.0.14 or later. The persistence library's lock resolves 10.0.14, and no project references it directly; the persistence test project's lock omits it because the ASP.NET Core shared framework supplies it. Runtime alignment selects 10.0.14.",
+      "maintenance": {
+        "reviewedAt": "2026-10-26",
+        "published": "2026-10-25",
+        "latestEligible": "10.0.14",
+        "ageException": "Published 2026-10-25, 1 day before review, in the .NET 10.0.14 release. Runtime alignment selects it, with both corroborations: the dotnet/core 10.0.14 release notes list it at 10.0.14, and its nuspec names dotnet/dotnet commit 0427b9abbead3fa64c6655eb4290c537397131fa, which the .version files of both shared frameworks in the pinned SDK 10.0.403 archive record. No advisory affects 10.0.12, the version the age rule alone selects, so the security exception would not select 10.0.14.",
+        "maintainer": "Microsoft; built from the dotnet/dotnet repository",
+        "activity": "dotnet/runtime was pushed 2026-10-26. Servicing releases follow the .NET patch schedule: 10.0.12 (2026-09-08), 10.0.13 (2026-10-13) and 10.0.14 (2026-10-25). The 10.0.14 release notes list Microsoft.Extensions.Logging.Abstractions 10.0.14 among the packages updated in that release.",
+        "advisories": "No GitHub advisory names Microsoft.Extensions.Logging.Abstractions or affects 10.0.14, nuget.org's vulnerability data lists none for it, and dotnet list package --vulnerable --include-transitive reported no vulnerable package.",
+        "sources": [
+          "https://api.nuget.org/v3/registration5-gz-semver2/microsoft.extensions.logging.abstractions/index.json",
+          "https://api.nuget.org/v3-flatcontainer/microsoft.extensions.logging.abstractions/10.0.14/microsoft.extensions.logging.abstractions.nuspec",
+          "https://github.com/dotnet/runtime",
+          "https://github.com/dotnet/core/blob/main/release-notes/10.0/10.0.14/10.0.14.md",
+          "https://api.github.com/advisories?ecosystem=nuget&affects=Microsoft.Extensions.Logging.Abstractions",
+          "https://api.nuget.org/v3/vulnerabilities/index.json"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A redistributed copy, such as a container image or self-contained release, lists it in THIRD-PARTY-NOTICES with its copyright and permission notice."
+      }
+    },
+    {
+      "id": "nuget:microsoft.extensions.options",
+      "name": "Microsoft.Extensions.Options",
+      "ecosystem": "nuget",
+      "version": "10.0.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "persistence",
+      "purpose": "Options pattern that Microsoft.Extensions.Logging and Caching.Memory require; transitive.",
+      "reason": "Microsoft.Extensions.Caching.Memory and Logging 10.0.14 require 10.0.14 or later. The persistence library's lock resolves 10.0.14, and no project references it directly; the persistence test project's lock omits it because the ASP.NET Core shared framework supplies it. Runtime alignment selects 10.0.14.",
+      "maintenance": {
+        "reviewedAt": "2026-10-26",
+        "published": "2026-10-25",
+        "latestEligible": "10.0.14",
+        "ageException": "Published 2026-10-25, 1 day before review, in the .NET 10.0.14 release. Runtime alignment selects it, with both corroborations: the dotnet/core 10.0.14 release notes list it at 10.0.14, and its nuspec names dotnet/dotnet commit 0427b9abbead3fa64c6655eb4290c537397131fa, which the .version files of both shared frameworks in the pinned SDK 10.0.403 archive record. No advisory affects 10.0.12, the version the age rule alone selects, so the security exception would not select 10.0.14.",
+        "maintainer": "Microsoft; built from the dotnet/dotnet repository",
+        "activity": "dotnet/runtime was pushed 2026-10-26. Servicing releases follow the .NET patch schedule: 10.0.12 (2026-09-08), 10.0.13 (2026-10-13) and 10.0.14 (2026-10-25). The 10.0.14 release notes list Microsoft.Extensions.Options 10.0.14 among the packages updated in that release.",
+        "advisories": "No GitHub advisory names Microsoft.Extensions.Options or affects 10.0.14, nuget.org's vulnerability data lists none for it, and dotnet list package --vulnerable --include-transitive reported no vulnerable package.",
+        "sources": [
+          "https://api.nuget.org/v3/registration5-gz-semver2/microsoft.extensions.options/index.json",
+          "https://api.nuget.org/v3-flatcontainer/microsoft.extensions.options/10.0.14/microsoft.extensions.options.nuspec",
+          "https://github.com/dotnet/runtime",
+          "https://github.com/dotnet/core/blob/main/release-notes/10.0/10.0.14/10.0.14.md",
+          "https://api.github.com/advisories?ecosystem=nuget&affects=Microsoft.Extensions.Options",
+          "https://api.nuget.org/v3/vulnerabilities/index.json"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A redistributed copy, such as a container image or self-contained release, lists it in THIRD-PARTY-NOTICES with its copyright and permission notice."
+      }
+    },
+    {
+      "id": "nuget:microsoft.extensions.primitives",
+      "name": "Microsoft.Extensions.Primitives",
+      "ecosystem": "nuget",
+      "version": "10.0.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "persistence",
+      "purpose": "Change tokens and string primitives that the caching, configuration and options packages require; transitive.",
+      "reason": "Microsoft.Extensions.Caching.Abstractions, Caching.Memory, Configuration.Abstractions and Options 10.0.14 require 10.0.14 or later. The persistence library's lock resolves 10.0.14, and no project references it directly; the persistence test project's lock omits it because the ASP.NET Core shared framework supplies it. Runtime alignment selects 10.0.14.",
+      "maintenance": {
+        "reviewedAt": "2026-10-26",
+        "published": "2026-10-25",
+        "latestEligible": "10.0.14",
+        "ageException": "Published 2026-10-25, 1 day before review, in the .NET 10.0.14 release. Runtime alignment selects it, with both corroborations: the dotnet/core 10.0.14 release notes list it at 10.0.14, and its nuspec names dotnet/dotnet commit 0427b9abbead3fa64c6655eb4290c537397131fa, which the .version files of both shared frameworks in the pinned SDK 10.0.403 archive record. No advisory affects 10.0.12, the version the age rule alone selects, so the security exception would not select 10.0.14.",
+        "maintainer": "Microsoft; built from the dotnet/dotnet repository",
+        "activity": "dotnet/runtime was pushed 2026-10-26. Servicing releases follow the .NET patch schedule: 10.0.12 (2026-09-08), 10.0.13 (2026-10-13) and 10.0.14 (2026-10-25). The 10.0.14 release notes list Microsoft.Extensions.Primitives 10.0.14 among the packages updated in that release.",
+        "advisories": "No GitHub advisory names Microsoft.Extensions.Primitives or affects 10.0.14, nuget.org's vulnerability data lists none for it, and dotnet list package --vulnerable --include-transitive reported no vulnerable package.",
+        "sources": [
+          "https://api.nuget.org/v3/registration5-gz-semver2/microsoft.extensions.primitives/index.json",
+          "https://api.nuget.org/v3-flatcontainer/microsoft.extensions.primitives/10.0.14/microsoft.extensions.primitives.nuspec",
+          "https://github.com/dotnet/runtime",
+          "https://github.com/dotnet/core/blob/main/release-notes/10.0/10.0.14/10.0.14.md",
+          "https://api.github.com/advisories?ecosystem=nuget&affects=Microsoft.Extensions.Primitives",
+          "https://api.nuget.org/v3/vulnerabilities/index.json"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A redistributed copy, such as a container image or self-contained release, lists it in THIRD-PARTY-NOTICES with its copyright and permission notice."
+      }
+    },
+    {
       "id": "nuget:microsoft.net.test.sdk",
       "name": "Microsoft.NET.Test.Sdk",
       "ecosystem": "nuget",
@@ -410,6 +866,77 @@
         "community": "cleared",
         "paid": "cleared",
         "note": "MIT. Test-only and not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "nuget:npgsql",
+      "name": "Npgsql",
+      "ecosystem": "nuget",
+      "version": "10.0.3",
+      "unpinned": null,
+      "digests": null,
+      "license": "PostgreSQL",
+      "status": "in-use",
+      "area": "persistence",
+      "purpose": "ADO.NET data provider for PostgreSQL that the EF Core provider uses and that Modularyn.Framework.Persistence.EfCore references directly.",
+      "reason": "DEV-004 prioritizes PostgreSQL; Npgsql.EntityFrameworkCore.PostgreSQL 10.0.3 requires Npgsql 10.0.3 or later. Npgsql versions independently of .NET, and the age rule selects 10.0.3, its newest stable release. On net10.0 it depends only on Microsoft.Extensions.Logging.Abstractions 10.0.0 or later, which EF Core raises to 10.0.14.",
+      "maintenance": {
+        "reviewedAt": "2026-10-26",
+        "published": "2026-05-27",
+        "latestEligible": "10.0.3",
+        "ageException": null,
+        "maintainer": "Npgsql organization; package authors include Shay Rojansky, Nikita Kazmin and Brar Piening",
+        "activity": "npgsql/npgsql was pushed 2026-10-26. Releases: 10.0.0 (2025-11-22), 10.0.1 (2025-12-19), 10.0.2 (2026-03-12) and 10.0.3 (2026-05-27); no later stable release exists.",
+        "advisories": "GHSA-x9vc-6hfv-hg8c (high, CVE-2024-32655, SQL injection through protocol message size overflow) affects versions before 8.0.3 and older lines; no advisory affects 10.0.3, nuget.org's vulnerability data agrees, and dotnet list package --vulnerable --include-transitive reported no vulnerable package.",
+        "sources": [
+          "https://api.nuget.org/v3/registration5-gz-semver2/npgsql/index.json",
+          "https://api.nuget.org/v3-flatcontainer/npgsql/10.0.3/npgsql.nuspec",
+          "https://github.com/npgsql/npgsql",
+          "https://github.com/npgsql/npgsql/releases/tag/v10.0.3",
+          "https://github.com/advisories/GHSA-x9vc-6hfv-hg8c",
+          "https://api.github.com/advisories?ecosystem=nuget&affects=Npgsql",
+          "https://api.nuget.org/v3/vulnerabilities/index.json"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "PostgreSQL License, a permissive license. A redistributed copy lists it in THIRD-PARTY-NOTICES with its copyright notice and license paragraphs."
+      }
+    },
+    {
+      "id": "nuget:npgsql.entityframeworkcore.postgresql",
+      "name": "Npgsql.EntityFrameworkCore.PostgreSQL",
+      "ecosystem": "nuget",
+      "version": "10.0.3",
+      "unpinned": null,
+      "digests": null,
+      "license": "PostgreSQL",
+      "status": "in-use",
+      "area": "persistence",
+      "purpose": "EF Core provider for PostgreSQL that Modularyn.Framework.Persistence.EfCore references directly.",
+      "reason": "D-05 and DEV-004 make PostgreSQL the first relational qualification target. The age rule selects 10.0.3, the newest stable provider for EF Core 10: it requires EF Core and EF Core Relational from 10.0.4 up to but excluding 11.0.0, which 10.0.14 satisfies, and Npgsql 10.0.3 or later. Its 11.0 line targets EF Core 11 and is a release candidate.",
+      "maintenance": {
+        "reviewedAt": "2026-10-26",
+        "published": "2026-07-10",
+        "latestEligible": "10.0.3",
+        "ageException": null,
+        "maintainer": "Npgsql organization; package authors Shay Rojansky, Austin Drenski and Yoh Deadfall",
+        "activity": "npgsql/efcore.pg was pushed 2026-10-26. Packages: 10.0.0 (2025-11-22), 10.0.1 (2026-03-12), 10.0.2 (2026-05-27) and 10.0.3 (2026-07-10); the GitHub release for 10.0.3 is dated 2026-09-14, and 11.0.0-rc.2 appeared 2026-10-19.",
+        "advisories": "The GitHub Advisory Database lists no advisory for Npgsql.EntityFrameworkCore.PostgreSQL, nuget.org's vulnerability data lists none, and dotnet list package --vulnerable --include-transitive reported no vulnerable package.",
+        "sources": [
+          "https://api.nuget.org/v3/registration5-gz-semver2/npgsql.entityframeworkcore.postgresql/index.json",
+          "https://api.nuget.org/v3-flatcontainer/npgsql.entityframeworkcore.postgresql/10.0.3/npgsql.entityframeworkcore.postgresql.nuspec",
+          "https://github.com/npgsql/efcore.pg",
+          "https://github.com/npgsql/efcore.pg/releases/tag/v10.0.3",
+          "https://api.github.com/advisories?ecosystem=nuget&affects=Npgsql.EntityFrameworkCore.PostgreSQL",
+          "https://api.nuget.org/v3/vulnerabilities/index.json"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "PostgreSQL License, a permissive license. A redistributed copy lists it in THIRD-PARTY-NOTICES with its copyright notice and license paragraphs."
       }
     },
     {
@@ -1125,41 +1652,6 @@
       }
     },
     {
-      "id": "nuget:microsoft.entityframeworkcore",
-      "name": "Microsoft.EntityFrameworkCore",
-      "ecosystem": "nuget",
-      "version": "10.0.14",
-      "unpinned": null,
-      "digests": null,
-      "license": "MIT",
-      "status": "candidate",
-      "area": "persistence",
-      "purpose": "Object-relational mapper for module persistence, transactions, concurrency tokens and migrations.",
-      "reason": "D-05 names EF Core with PostgreSQL as the first production qualification target, and ARC-007 and ARC-008 need provider evidence for transactions, concurrency and migrations. The runtime-alignment rule selects 10.0.14. On net10.0 it requires its Abstractions and Analyzers packages, Microsoft.Extensions.Caching.Memory and Microsoft.Extensions.Logging, all 10.0.14 and MIT.",
-      "maintenance": {
-        "reviewedAt": "2026-10-26",
-        "published": "2026-10-25",
-        "latestEligible": "10.0.14",
-        "ageException": "Published 2026-10-25, 1 day before review, in the .NET 10.0.14 release. The runtime-alignment rule selects the servicing version of the runtime that the SDK pin bundles, so the package and the shared framework come from one release, built from dotnet/dotnet commit 0427b9abbead3fa64c6655eb4290c537397131fa. No advisory names the package, so the security exception alone would not select it.",
-        "maintainer": "Microsoft; built from the dotnet/dotnet repository",
-        "activity": "dotnet/efcore was pushed 2026-10-26. Servicing releases follow the .NET patch schedule: 10.0.12 (2026-09-08), 10.0.13 (2026-10-13) and 10.0.14 (2026-10-25). The 10.0.14 release notes list Microsoft.EntityFrameworkCore 10.0.14 among the packages updated in that release.",
-        "advisories": "No GitHub advisory names Microsoft.EntityFrameworkCore or affects its 10.0.14 dependencies, and nuget.org reports no vulnerability for 10.0.14. NuGet audit of the resolved G-02 closure reported no advisory.",
-        "sources": [
-          "https://api.nuget.org/v3/registration5-gz-semver2/microsoft.entityframeworkcore/index.json",
-          "https://api.nuget.org/v3-flatcontainer/microsoft.entityframeworkcore/10.0.14/microsoft.entityframeworkcore.nuspec",
-          "https://github.com/dotnet/efcore",
-          "https://github.com/dotnet/core/blob/main/release-notes/10.0/10.0.14/10.0.14.md",
-          "https://api.github.com/advisories?ecosystem=nuget&affects=Microsoft.Extensions.Caching.Memory",
-          "https://api.github.com/advisories?ecosystem=nuget&affects=Microsoft.EntityFrameworkCore"
-        ]
-      },
-      "clearance": {
-        "community": "cleared",
-        "paid": "cleared",
-        "note": "MIT. A redistributed copy, such as a container image or self-contained release, lists it in THIRD-PARTY-NOTICES with its copyright and permission notice."
-      }
-    },
-    {
       "id": "nuget:microsoft.entityframeworkcore.design",
       "name": "Microsoft.EntityFrameworkCore.Design",
       "ecosystem": "nuget",
@@ -1230,75 +1722,6 @@
         "community": "cleared",
         "paid": "cleared",
         "note": "MIT. Test-only. The bundled Node.js and the browser builds it installs carry their own licenses and are never redistributed."
-      }
-    },
-    {
-      "id": "nuget:npgsql",
-      "name": "Npgsql",
-      "ecosystem": "nuget",
-      "version": "10.0.3",
-      "unpinned": null,
-      "digests": null,
-      "license": "PostgreSQL",
-      "status": "candidate",
-      "area": "persistence",
-      "purpose": "ADO.NET data provider for PostgreSQL that the EF Core provider uses.",
-      "reason": "DEV-004 prioritizes PostgreSQL; Npgsql.EntityFrameworkCore.PostgreSQL 10.0.3 requires Npgsql 10.0.3 or later. Npgsql versions independently of .NET, and 10.0.3 is its newest stable release. On net10.0 it depends only on Microsoft.Extensions.Logging.Abstractions 10.0.0 or later, which EF Core raises to 10.0.14.",
-      "maintenance": {
-        "reviewedAt": "2026-10-26",
-        "published": "2026-05-27",
-        "latestEligible": "10.0.3",
-        "ageException": null,
-        "maintainer": "Npgsql organization; package authors include Shay Rojansky, Nikita Kazmin and Brar Piening",
-        "activity": "npgsql/npgsql was pushed 2026-10-25. Releases: 10.0.0 (2025-11-22), 10.0.1 (2025-12-19), 10.0.2 (2026-03-12) and 10.0.3 (2026-05-27); no later stable release exists.",
-        "advisories": "GHSA-x9vc-6hfv-hg8c (high, SQL injection through protocol message size overflow) affects versions before 8.0.3 and older lines; no advisory affects 10.0.3, and nuget.org reports no vulnerability for it.",
-        "sources": [
-          "https://api.nuget.org/v3/registration5-gz-semver2/npgsql/index.json",
-          "https://api.nuget.org/v3-flatcontainer/npgsql/10.0.3/npgsql.nuspec",
-          "https://github.com/npgsql/npgsql",
-          "https://github.com/npgsql/npgsql/releases/tag/v10.0.3",
-          "https://github.com/advisories/GHSA-x9vc-6hfv-hg8c",
-          "https://api.github.com/advisories?ecosystem=nuget&affects=Npgsql"
-        ]
-      },
-      "clearance": {
-        "community": "cleared",
-        "paid": "cleared",
-        "note": "PostgreSQL License, a permissive license. A redistributed copy lists it in THIRD-PARTY-NOTICES with its copyright notice and license paragraphs."
-      }
-    },
-    {
-      "id": "nuget:npgsql.entityframeworkcore.postgresql",
-      "name": "Npgsql.EntityFrameworkCore.PostgreSQL",
-      "ecosystem": "nuget",
-      "version": "10.0.3",
-      "unpinned": null,
-      "digests": null,
-      "license": "PostgreSQL",
-      "status": "candidate",
-      "area": "persistence",
-      "purpose": "EF Core provider for PostgreSQL.",
-      "reason": "D-05 and DEV-004 make PostgreSQL the first relational qualification target. 10.0.3 is the newest stable provider for EF Core 10: it requires EF Core and EF Core Relational from 10.0.4 up to but excluding 11.0.0, which 10.0.14 satisfies, and Npgsql 10.0.3 or later. Its 11.0 line targets EF Core 11 and is a release candidate.",
-      "maintenance": {
-        "reviewedAt": "2026-10-26",
-        "published": "2026-07-10",
-        "latestEligible": "10.0.3",
-        "ageException": null,
-        "maintainer": "Npgsql organization; package authors Shay Rojansky, Austin Drenski and Yoh Deadfall",
-        "activity": "npgsql/efcore.pg was pushed 2026-10-25. Packages: 10.0.0 (2025-11-22), 10.0.1 (2026-03-12), 10.0.2 (2026-05-27) and 10.0.3 (2026-07-10); the GitHub release for 10.0.3 is dated 2026-09-14, and 11.0.0-rc.2 appeared 2026-10-19.",
-        "advisories": "The GitHub Advisory Database lists no advisory for Npgsql.EntityFrameworkCore.PostgreSQL, and nuget.org reports no vulnerability for 10.0.3.",
-        "sources": [
-          "https://api.nuget.org/v3/registration5-gz-semver2/npgsql.entityframeworkcore.postgresql/index.json",
-          "https://api.nuget.org/v3-flatcontainer/npgsql.entityframeworkcore.postgresql/10.0.3/npgsql.entityframeworkcore.postgresql.nuspec",
-          "https://github.com/npgsql/efcore.pg",
-          "https://github.com/npgsql/efcore.pg/releases/tag/v10.0.3",
-          "https://api.github.com/advisories?ecosystem=nuget&affects=Npgsql.EntityFrameworkCore.PostgreSQL"
-        ]
-      },
-      "clearance": {
-        "community": "cleared",
-        "paid": "cleared",
-        "note": "PostgreSQL License, a permissive license. A redistributed copy lists it in THIRD-PARTY-NOTICES with its copyright notice and license paragraphs."
       }
     },
     {
