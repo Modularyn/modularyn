@@ -33,4 +33,11 @@ public sealed class ModuleHostOptions
 {
     /// <summary>Independent cleanup deadline after failed or cancelled startup.</summary>
     public TimeSpan FailedStartCleanupTimeout { get; init; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Permits activation when no composition trust validator is registered. Without it the host refuses every
+    /// selection it cannot verify. Set it only for development and test hosts; a deployed host registers its
+    /// release's deployment lock with <c>AddModularynDeploymentTrust</c>.
+    /// </summary>
+    public bool AllowUnverifiedComposition { get; init; }
 }

@@ -38,7 +38,7 @@ public sealed class HealthAndRequestTests
             }
         };
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { DisableDefaults = true });
-        builder.Services.AddModularynModules(LifecycleFixture.Environment, [Registration(fixture, dependency)]);
+        builder.Services.AddModularynModules(LifecycleFixture.Environment, [Registration(fixture, dependency)], LifecycleFixture.Unverified);
         using var application = builder.Build();
         var host = application.Services.GetRequiredService<ModuleHost>();
         var health = application.Services.GetRequiredService<HealthCheckService>();
@@ -94,7 +94,7 @@ public sealed class HealthAndRequestTests
             var registration = new ModuleRegistration(manifest, factory,
                 missing ? [] : [new ModuleHealthCheckRegistration("FileReady", _ => dependency)]);
             var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { DisableDefaults = true });
-            builder.Services.AddModularynModules(LifecycleFixture.Environment, [registration]);
+            builder.Services.AddModularynModules(LifecycleFixture.Environment, [registration], LifecycleFixture.Unverified);
             using var application = builder.Build();
             var error = await Assert.ThrowsAsync<ModuleCompositionException>(() => application.StartAsync(Cancellation));
             Assert.Equal(ModuleHostDiagnosticCodes.HealthCheckBindingFailed, Assert.Single(error.Diagnostics).Code);
@@ -121,7 +121,7 @@ public sealed class HealthAndRequestTests
             builder.Logging.SetMinimumLevel(LogLevel.Debug);
             builder.Logging.AddJsonConsole(options => options.IncludeScopes = true);
             builder.WebHost.ConfigureKestrel(server => server.Listen(IPAddress.Loopback, 0));
-            builder.Services.AddModularynModules(LifecycleFixture.Environment, [Registration(fixture, dependency)]);
+            builder.Services.AddModularynModules(LifecycleFixture.Environment, [Registration(fixture, dependency)], LifecycleFixture.Unverified);
             await using (var application = builder.Build())
             {
                 application.UseRouting();

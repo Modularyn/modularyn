@@ -79,7 +79,7 @@ public sealed class GracefulShutdownTests
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { DisableDefaults = true });
         builder.Services.AddSingleton<TimeProvider>(clock);
         builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(5));
-        builder.Services.AddModularynModules(LifecycleFixture.Environment, fixture.Registrations(LifecycleFixture.Graph()));
+        builder.Services.AddModularynModules(LifecycleFixture.Environment, fixture.Registrations(LifecycleFixture.Graph()), LifecycleFixture.Unverified);
         using var application = builder.Build();
         var modules = application.Services.GetRequiredService<ModuleHost>();
         await application.StartAsync(Cancellation);
@@ -110,7 +110,7 @@ public sealed class GracefulShutdownTests
     {
         using var fixture = new LifecycleFixture();
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { DisableDefaults = true });
-        builder.Services.AddModularynModules(LifecycleFixture.Environment, fixture.Registrations(LifecycleFixture.Graph()));
+        builder.Services.AddModularynModules(LifecycleFixture.Environment, fixture.Registrations(LifecycleFixture.Graph()), LifecycleFixture.Unverified);
         using var application = builder.Build();
         var modules = application.Services.GetRequiredService<ModuleHost>();
         await application.StartAsync(Cancellation);
@@ -143,7 +143,7 @@ public sealed class GracefulShutdownTests
                 await release.Task;
             }
         };
-        var host = fixture.Host(clock: clock, options: new() { FailedStartCleanupTimeout = TimeSpan.FromSeconds(5) });
+        var host = fixture.Host(clock: clock, options: new() { FailedStartCleanupTimeout = TimeSpan.FromSeconds(5), AllowUnverifiedComposition = true });
         var starting = host.StartAsync(Cancellation);
         await entered.Task.WaitAsync(Cancellation);
         try

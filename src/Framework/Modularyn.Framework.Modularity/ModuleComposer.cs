@@ -6,25 +6,60 @@ namespace Modularyn.Framework.Modularity;
 /// <summary>Resolves the exact selected versions; it never discovers, installs or constructs modules.</summary>
 public sealed class ModuleComposer
 {
+    private readonly ICompositionValidator[] trustValidators;
     private readonly ICompositionValidator[] validators;
 
     public ModuleComposer(IEnumerable<ICompositionValidator>? validators = null)
     {
         var supplied = validators?.ToArray() ?? [];
         if (supplied.Any(validator => validator is null)) throw new ArgumentException("Validators cannot contain null entries.", nameof(validators));
-        this.validators = supplied.OrderBy(validator => validator.Order).ToArray();
+        var ordered = supplied.OrderBy(validator => validator.Order).ToArray();
+        trustValidators = ordered.Where(validator => validator is ICompositionTrustValidator).ToArray();
+        this.validators = ordered.Where(validator => validator is not ICompositionTrustValidator).ToArray();
     }
+
+    /// <summary>True when at least one <see cref="ICompositionTrustValidator"/> decides whether the selection is trusted.</summary>
+    public bool VerifiesTrust => trustValidators.Length > 0;
 
     public async Task<CompositionResult> ComposeAsync(CompositionSelection selection, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(selection);
         cancellationToken.ThrowIfCancellationRequested();
         var diagnostics = new List<CompositionDiagnostic>();
+        // Trust is decided first and reported even when the structure is also invalid: structural diagnostics
+        // describe manifests that may themselves be the altered part, so they never stand alone.
+        await RunAsync(trustValidators, selection, diagnostics, cancellationToken).ConfigureAwait(false);
+        var structure = CheckStructure(selection, cancellationToken);
+        diagnostics.AddRange(structure.Diagnostics);
+        if (diagnostics.Count > 0) return new(null, diagnostics);
+
+        await RunAsync(validators, selection, diagnostics, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        return new(diagnostics.Count == 0 ? new ActivationPlan(selection, structure.Order!, structure.Edges!) : null, diagnostics);
+    }
+
+    private static async Task RunAsync(ICompositionValidator[] validators, CompositionSelection selection,
+        List<CompositionDiagnostic> diagnostics, CancellationToken cancellationToken)
+    {
+        foreach (var validator in validators)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var additional = await validator.ValidateAsync(selection, cancellationToken).ConfigureAwait(false);
+            if (additional is null || additional.Any(diagnostic => diagnostic is null))
+                throw new InvalidOperationException($"Composition validator '{validator.GetType().Name}' returned invalid diagnostics.");
+            diagnostics.AddRange(additional);
+        }
+    }
+
+    private static (List<CompositionDiagnostic> Diagnostics, List<ModuleManifest>? Order, Dictionary<string, SortedSet<string>>? Edges)
+        CheckStructure(CompositionSelection selection, CancellationToken cancellationToken)
+    {
+        var diagnostics = new List<CompositionDiagnostic>();
         var modules = selection.Modules.OrderBy(module => module.Id, StringComparer.Ordinal).ToArray();
         foreach (var duplicate in modules.GroupBy(module => module.Id, StringComparer.Ordinal).Where(group => group.Count() > 1))
             diagnostics.Add(new(CompositionDiagnosticCodes.DuplicateModule,
                 $"Module '{duplicate.Key}' is selected more than once ({string.Join(", ", duplicate.Select(module => module.Version))}). Select exactly one version and registration.", [duplicate.Key]));
-        if (diagnostics.Count > 0) return new(null, diagnostics);
+        if (diagnostics.Count > 0) return (diagnostics, null, null);
 
         var byId = modules.ToDictionary(module => module.Id, StringComparer.Ordinal);
         var edges = modules.ToDictionary(module => module.Id, _ => new SortedSet<string>(StringComparer.Ordinal), StringComparer.Ordinal);
@@ -56,18 +91,7 @@ public sealed class ModuleComposer
         CheckProvisions("provider", modules, module => module.ProvidedProviders, module => module.RequiredProviders, edges, diagnostics, cancellationToken);
         CheckRoutes(modules, diagnostics, cancellationToken);
         var order = OrderModules(byId, edges, diagnostics, cancellationToken);
-        if (diagnostics.Count > 0) return new(null, diagnostics);
-
-        foreach (var validator in validators)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var additional = await validator.ValidateAsync(selection, cancellationToken).ConfigureAwait(false);
-            if (additional is null || additional.Any(diagnostic => diagnostic is null))
-                throw new InvalidOperationException($"Composition validator '{validator.GetType().Name}' returned invalid diagnostics.");
-            diagnostics.AddRange(additional);
-        }
-        cancellationToken.ThrowIfCancellationRequested();
-        return new(diagnostics.Count == 0 ? new ActivationPlan(selection, order, edges) : null, diagnostics);
+        return (diagnostics, order, edges);
     }
 
     private static void CheckEnvironment(ModuleManifest module, CompositionEnvironment environment, List<CompositionDiagnostic> diagnostics)

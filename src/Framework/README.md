@@ -40,11 +40,18 @@ markers and catch-all shape. The method `*` overlaps every method. This checks
 declared route collisions; an application's endpoint adapters remain responsible
 for interpreting route constraints and endpoint selection.
 
-Built-in checks run first. After they succeed, `ICompositionValidator`
-implementations run in ascending `Order`, with registration order breaking ties.
+Validation runs in three phases. `ICompositionTrustValidator` implementations
+run first, then the built-in structural checks, and both always run, so a
+selection that is untrusted and structurally invalid reports both. Trust comes
+first because structural diagnostics describe the manifests, and a manifest
+can itself be the altered part: a widened range or a substituted version is
+reported as a departure from the lock rather than only as a graph error whose
+suggested correction would chase the altered declaration. Other
+`ICompositionValidator` implementations run only after trust and structure both
+pass, so they can assume a trusted, well-formed selection. Within each group,
+validators run in ascending `Order`, with registration order breaking ties.
 Every returned diagnostic refuses the entire selection. Validator failures and
-cancellation also prevent module construction. SEC-02 can supply its validator
-through this extension point. This implementation makes no trust decision.
+cancellation also prevent module construction.
 
 | Code | Composition refusal |
 |---|---|
@@ -64,6 +71,66 @@ Diagnostics include the affected module identifiers, the unsatisfied constraint
 or conflicting declaration, and a corrective action. A refused result has no
 activation plan. Manifests, selections, plans and report snapshots cannot be
 changed through their public collections.
+
+## Deployment trust
+
+`DeploymentLockValidator` is the trust validator for a release. It reads the
+deployment lock manifest on every validation and refuses the selection unless
+each selected module is listed at its exact version, including build metadata,
+with the same manifest digest and migrations, every listed module is selected,
+and every package file the lock lists for a module exists under the content
+root as a regular file, reached without links, with the recorded SHA-256 hash.
+A later activation attempt therefore observes the files as they are then.
+
+`ModuleManifestDigest` is the SHA-256 of a manifest's canonical form: every
+declaration in declaration order, with exact version text. A widened dependency
+range, an added route or a changed exclusive flag changes the digest. The lock
+is format `modularyn.deployment-lock`, `formatVersion` 1:
+
+| Field | Contract |
+|---|---|
+| `format`, `formatVersion` | Exactly `modularyn.deployment-lock` and the integer `1` |
+| `modules` | Nonempty; each `id` occurs once |
+| `modules[].version` | The exact SemVer 2.0.0 version selected |
+| `modules[].manifestSha256` | `ModuleManifestDigest` of the reviewed manifest, 64 lowercase hexadecimal digits |
+| `modules[].migrations` | The manifest's migrations in order, as `name` and `version` |
+| `modules[].files` | Nonempty `path` and `sha256` pairs; a path shared by modules has one spelling and hash |
+
+Paths are relative, separated by `/`, and made of segments of ASCII letters,
+digits, `.`, `_`, `+` and `-` that neither start nor end with `.`, so no segment
+is `.`, `..`, rooted, a drive, a stream or a reserved device name. The parser
+refuses unknown or missing fields, duplicate properties, comments, trailing
+commas, other format versions and locks larger than 16 MiB, and names the
+failing location without echoing values. `LockedModule.Describe` and
+`DeploymentLock.ToJson` produce the canonical form for release tooling.
+
+| Code | Trust refusal |
+|---|---|
+| MDC200 | The lock is missing, unreadable or too large; every selected module is named |
+| MDC201 | The lock is not a valid format 1 lock |
+| MDC202 | A selected module is not listed |
+| MDC203 | A listed module is not selected |
+| MDC204 | A selected version differs from the locked version |
+| MDC205 | A manifest differs from its locked digest |
+| MDC206 | Declared migrations differ from the locked migrations |
+| MDC210 | A locked package file is missing |
+| MDC211 | A locked package file's content hash differs |
+| MDC212 | A locked package file is a link, is reached through a link or is not a regular file |
+| MDC213 | A locked package file cannot be read |
+
+Trust diagnostics name modules, the lock's file name and paths relative to the
+content root. They never contain file system locations, exception text or file
+content. `services.AddModularynDeploymentTrust(lockPath, contentRoot)` registers
+the validator once; the content root defaults to the application base
+directory. The host refuses activation with MDC108 when no trust validator is
+registered, unless `ModuleHostOptions.AllowUnverifiedComposition` is set, which
+is for development and test hosts only.
+
+The lock binds module manifests and the files it lists. It does not bind the
+host application's own assemblies, files the lock omits, or composition
+switches, which this composer does not model. Its own integrity depends on the
+deployment pipeline: someone who can replace both a package and the lock acts
+as a trusted deployer, as the threat model assumes.
 
 ## Host lifecycle
 
@@ -115,7 +182,8 @@ attempt-numbered lifecycle events, timestamps from `TimeProvider`, and diagnosti
 MDC100 through MDC103 identify construction, initialization, start and shutdown
 failures; MDC104 identifies startup cancellation and MDC105 incomplete validation.
 MDC106 identifies work remaining after the drain deadline; MDC107 identifies
-missing or undeclared health-check bindings.
+missing or undeclared health-check bindings; MDC108 identifies a host with no
+trust validator.
 
 ## Correlation and diagnostic sources
 

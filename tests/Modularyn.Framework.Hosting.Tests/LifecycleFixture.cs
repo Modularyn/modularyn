@@ -43,12 +43,15 @@ internal sealed class LifecycleFixture : IDisposable
             return new FileModule(this, manifest.Id);
         })).ToArray();
 
+    // Graph and lifecycle tests compose without a deployment lock; the trust tests verify one explicitly.
+    internal static readonly ModuleHostOptions Unverified = new() { AllowUnverifiedComposition = true };
+
     internal ModuleHost Host(IEnumerable<ModuleManifest>? manifests = null, IEnumerable<ICompositionValidator>? validators = null,
         TimeProvider? clock = null, ModuleHostOptions? options = null, ModularynDiagnostics? telemetry = null,
         TimeSpan? shutdownTimeout = null)
     {
         var host = new ModuleHost(Registrations(manifests ?? Graph()), Environment, new ModuleComposer(validators), services,
-            clock ?? TimeProvider.System, options, telemetry, shutdownTimeout: shutdownTimeout);
+            clock ?? TimeProvider.System, options ?? Unverified, telemetry, shutdownTimeout: shutdownTimeout);
         hosts.Add(host);
         return host;
     }
