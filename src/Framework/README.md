@@ -134,9 +134,14 @@ is for development and test hosts only.
 
 The lock binds module manifests and the files it lists. It does not bind the
 host application's own assemblies, files the lock omits, or composition
-switches, which this composer does not model. Its own integrity depends on the
-deployment pipeline: someone who can replace both a package and the lock acts
-as a trusted deployer, as the threat model assumes.
+switches, which this composer does not model. Verification runs when the host
+composes, after the runtime has loaded any module assembly the application
+references: it refuses to construct or activate modules from an altered
+package, but it cannot stop code that runs when such an assembly loads, such as
+a module initializer. Verifying artifacts before the process starts belongs to
+deployment provenance. The lock's own integrity depends on the deployment
+pipeline: someone who can replace both a package and the lock acts as a trusted
+deployer, as the threat model assumes.
 
 ## Host lifecycle
 
