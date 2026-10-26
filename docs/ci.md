@@ -74,11 +74,11 @@ After the SDK and Node.js steps, which are the same as `build-test`'s on Linux a
 1. fails unless the runner is Linux x64 and the service runs `POSTGRES_IMAGE`, the same reference as the service image, pulled by its index digest, on linux/amd64, and reports PostgreSQL `POSTGRESQL_VERSION`, 18.6;
 2. generates a role and database name and a 64-character hexadecimal password from `/dev/urandom` and masks the password in the log;
 3. creates the role and its database through the container's Unix socket, with statement logging off for that session, and removes the bootstrap superuser password;
-4. replaces the service's `pg_hba.conf` so that the socket admits only the container's postgres user and host connections admit only the test role, to its database, with SCRAM-SHA-256, then checks that the file has no errors and reloads it;
+4. replaces the service's `pg_hba.conf` so that the socket admits only the container's postgres user and host connections admit only the test role, to its database, with SCRAM-SHA-256, then checks that the file has no errors, prints its rules to the log and reloads it;
 5. checks that the test role signs in over TCP and that the superuser cannot; and
 6. appends `MODULARYN_TEST_POSTGRESQL` for `127.0.0.1` and the service's port to `GITHUB_ENV`.
 
-The job then restores, builds and runs the PostgreSQL tests. The repository tests check the image, the server version and the test filters against the [dependency register](dependencies/README.md).
+The job then restores, builds and runs the PostgreSQL tests with detailed console output, so the log records each test's observations, such as the probe's sign-in method and server version. The repository tests check the image, the server version and the test filters against the [dependency register](dependencies/README.md).
 
 ### Local runs
 

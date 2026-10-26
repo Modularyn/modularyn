@@ -106,6 +106,9 @@ ci() {
   rules="$("${admin[@]}" --command="SELECT count(*) FILTER (WHERE error IS NOT NULL) || ' ' || count(*) FROM pg_hba_file_rules" < /dev/null)" \
     || fail "Cannot read pg_hba_file_rules."
   [ "${rules}" = "0 2" ] || fail "pg_hba_file_rules reports '${rules}' (errors, rules), not '0 2'."
+  "${admin[@]}" --command="SELECT 'pg_hba rule ' || rule_number || ': ' || type || ' ' || array_to_string(database, ',') || ' '
+    || array_to_string(user_name, ',') || ' ' || coalesce(address, 'socket') || ' ' || auth_method FROM pg_hba_file_rules
+    ORDER BY rule_number" < /dev/null || fail "Cannot read pg_hba_file_rules."
   "${admin[@]}" --command='SELECT pg_reload_conf()' < /dev/null > /dev/null || fail "Cannot reload the server configuration."
 
   # The test role signs in over TCP with its password, and the superuser cannot sign in over TCP.

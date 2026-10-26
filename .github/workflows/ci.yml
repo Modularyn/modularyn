@@ -547,8 +547,9 @@ jobs:
         run: dotnet restore --locked-mode
       - name: Build
         run: dotnet build -c Release --no-restore
+      # Detailed output records each test's observations, such as the probe's sign-in method and server version.
       - name: Test against PostgreSQL
-        run: dotnet test -c Release --no-build --filter "Requires=PostgreSQL"
+        run: dotnet test -c Release --no-build --logger "console;verbosity=detailed" --filter "Requires=PostgreSQL"
 
   # The fixture image on the digest-pinned ASP.NET Core runtime base, built for linux/amd64. Every
   # Dockerfile in the repository must use that base; CODE-09 adds the sample application's build.
