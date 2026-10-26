@@ -488,9 +488,11 @@ and a tenant administrator's membership never implies it. A host-scope unit
 reads tenant data only through `AcrossTenants`, which still requires the scope
 to be active at each execution, and changes none of it except a named tenant's
 row through `ModuleSql.UpdateForTenantAsync`. Host-scoped data, such as the
-directory, changes only in a host scope or in the persistence adapter's named
-`DeploymentScope`, which product code outside the adapter does not open; a unit
-of work with neither can only read it. A host grant names its operation, and
+directory, changes only in a host scope, in the persistence adapter's named
+`DeploymentScope`, which product code outside the adapter does not open, or in
+the owning module's owner-bound unit, which writes only that module's own
+host-scoped records and reaches no tenant data; a unit of work with none of them
+can only read it. A host grant names its operation, and
 `AcrossTenants` accepts any active grant: binding an operation to the modules and
 entities it may reach belongs to the elevated policy that SEC-05 supplies.
 
@@ -682,10 +684,14 @@ The controls of TB-G02-04, identity and sessions, are recorded in
   combined with, a tenant the request names; tenant data reached only through the
   explicit cross-tenant read, checked again at each execution, and never changed
   except a named tenant's disposition row; directory administration as a host
-  operation; host-scoped data changed only in a host scope or a named deployment
-  scope, never by a unit without either. Tests: `HostScopeTests` and
-  `HostScopeDatabaseTests` (`Tenancy.Tests`) and `HostWriteTests`
-  (`Persistence.EfCore.Tests`), all `TM_G02_028_*`. Remaining: the elevated policy
+  operation; host-scoped data changed only in a host scope, a named deployment
+  scope or the owning module's owner-bound unit, never by a unit without one; the
+  owner-bound unit confined to its own module's host-scoped data, with no tenant
+  access and no cross-tenant read or update, and opened only from that module's
+  application and persistence projects (SEC-03). Tests: `HostScopeTests`,
+  `HostScopeDatabaseTests` and `OwnerBoundUnitTests` (`Tenancy.Tests`),
+  `HostWriteTests` and `OwnerScopeTests` (`Persistence.EfCore.Tests`) and
+  `PersistenceBoundaryTests` (`Repository.Tests`), all `TM_G02_028_*`. Remaining: the elevated policy
   and host-authority grants (SEC-05), including binding a host operation to the
   modules and entities it may reach, since `AcrossTenants` accepts any active
   grant; the audit store, records in the transaction of the change and the
