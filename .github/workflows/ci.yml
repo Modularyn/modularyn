@@ -574,8 +574,7 @@ jobs:
           set -euo pipefail
           fail() { echo "::error::$*"; exit 1; }
           lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
-          [[ "${ASPNET_IMAGE}" =~ ^mcr\.microsoft\.com/dotnet/aspnet:[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}$ ]] \
-            || fail "ASPNET_IMAGE must name the ASP.NET Core runtime image by tag and index digest."
+          [[ "${ASPNET_IMAGE}" =~ ^mcr\.microsoft\.com/dotnet/aspnet:[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}$ ]] || fail "The ASP.NET Core base image must be named by tag and index digest."
           git ls-files --error-unmatch -- "${FIXTURE_DOCKERFILE}" > /dev/null || fail "${FIXTURE_DOCKERFILE} is not tracked."
           checked=0
           while IFS= read -r -d '' file; do
@@ -593,6 +592,8 @@ jobs:
             while IFS= read -r line || [ -n "${line}" ]; do
               number=$((number + 1))
               line="${line%$'\r'}"
+              # BuildKit ignores a UTF-8 byte-order mark before the first line, so the checks do too.
+              [ "${number}" -gt 1 ] || line="${line#$'\xef\xbb\xbf'}"
               location="${file}:${number}"
               # Parser directives can select a frontend image or change the continuation character, so none is allowed.
               if [[ "${line}" =~ ^[[:space:]]*#[[:space:]]*([A-Za-z][A-Za-z0-9_-]*)[[:space:]]*= ]]; then
@@ -612,13 +613,16 @@ jobs:
                 [[ "${stages}" == *" ${source} "* || "${source}" =~ ^[0-9]+$ ]] \
                   || fail "${location}: ${source} is not an earlier stage, so it would pull an unpinned image."
               done
-              # ADD of a remote source must name exactly one source and verify it with a pinned SHA-256; a variable
-              # source could hide a remote one, so it needs the checksum too.
+              # ADD of a git or ssh source is refused, since --checksum=sha256: cannot pin it. ADD of an http(s) source
+              # must name exactly one source and verify it with a pinned SHA-256; a variable source could hide a remote
+              # one, so it needs the checksum too.
               if [[ "${lowered}" =~ ^[[:space:]]*(onbuild[[:space:]]+)?add[[:space:]] ]]; then
                 [[ ! "${line}" =~ \\[[:space:]]*$ ]] || fail "${location}: keep each ADD instruction on one line."
+                [[ ! "${lowered}" =~ (git://|ssh://|[a-z0-9._-]+@[a-z0-9.-]+:) ]] \
+                  || fail "${location}: ADD of a git or ssh source is refused, because --checksum=sha256: cannot pin it."
                 remote=0
                 rest="${lowered}"
-                while [[ "${rest}" =~ (https?://|git://|ssh://|git@)(.*)$ ]]; do
+                while [[ "${rest}" =~ (https?://)(.*)$ ]]; do
                   remote=$((remote + 1))
                   rest="${BASH_REMATCH[2]}"
                 done
@@ -653,8 +657,7 @@ jobs:
                   || fail "${location}: FROM takes an image and an optional AS <stage>."
                 stage="$(lower "${words[index + 1]}")"
               fi
-              [ "${image}" = "${ASPNET_IMAGE}" ] || [[ "${stages}" == *" $(lower "${image}") "* ]] \
-                || fail "${location}: FROM ${image} must be ${ASPNET_IMAGE} or an earlier stage."
+              [ "${image}" = "${ASPNET_IMAGE}" ] || [[ "${stages}" == *" $(lower "${image}") "* ]] || fail "${location}: FROM ${image} must be ${ASPNET_IMAGE} or an earlier stage."
               [ -z "${stage}" ] || stages="${stages}${stage} "
             done < "${file}"
             [ "${bases}" -gt 0 ] || fail "${file}: a Dockerfile needs a FROM instruction."
@@ -681,7 +684,8 @@ jobs:
           fixture_layers="$(docker image inspect --format '{{json .RootFS.Layers}}' "${FIXTURE_IMAGE}")"
           [ "${fixture_layers}" = "${base_layers}" ] || fail "The fixture image's layers are not those of ${ASPNET_IMAGE}."
           # The runtime release is the version in the image tag, which the register aligns with the SDK pin.
-          tag="${ASPNET_IMAGE#*:}"
+          tag="${ASPNET_IMAGE}"
+          tag="${tag#*:}"
           runtime="${tag%%[-@]*}"
           [[ "${runtime}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "Cannot read the runtime version from ${ASPNET_IMAGE}."
           reported="$(docker run --rm --pull=never --platform=linux/amd64 --network=none "${FIXTURE_IMAGE}")" || fail "The fixture image did not run."

@@ -59,8 +59,7 @@ ci() {
     || fail "The real-provider job runs on Linux x64, not ${RUNNER_OS:-unknown} ${RUNNER_ARCH:-unknown}."
   [[ "${POSTGRES_CONTAINER:-}" =~ ^[0-9a-f]{12,64}$ ]] || fail "POSTGRES_CONTAINER must be the service container id."
   [[ "${POSTGRES_PORT:-}" =~ ^[1-9][0-9]{0,4}$ ]] || fail "POSTGRES_PORT must be the service's host port."
-  [[ "${POSTGRES_IMAGE:-}" == "docker.io/library/postgres:"* && "${POSTGRES_IMAGE}" =~ ^[^@]+:[A-Za-z0-9._-]+@(sha256:[0-9a-f]{64})$ ]] \
-    || fail "POSTGRES_IMAGE must name the PostgreSQL image by tag and index digest."
+  [[ "${POSTGRES_IMAGE}" == docker.io/library/postgres:* && "${POSTGRES_IMAGE}" =~ ^[^@]+:[A-Za-z0-9._-]+@(sha256:[0-9a-f]{64})$ ]] || fail "The PostgreSQL service image must be named by tag and index digest."
   local index_digest="${BASH_REMATCH[1]}"
   [[ "${POSTGRESQL_VERSION:-}" =~ ^[0-9]+\.[0-9]+$ ]] || fail "POSTGRESQL_VERSION must be an exact server release."
 
@@ -76,8 +75,8 @@ ci() {
     || fail "The service image was not pulled by the index digest ${index_digest}; it records ${repo_digests}."
   echo "Service ${POSTGRES_CONTAINER} runs ${POSTGRES_IMAGE}, image ${image_id}, ${platform}"
 
-  # Inside the container, the postgres OS user reaches the server over its Unix socket, and tcp signs in over TCP.
-  # Each docker command is one line that ToolPinContract allows; nothing else assigns these arrays.
+  # Inside the container, the postgres OS user reaches the server over its Unix socket; the second array signs in
+  # over TCP. ToolPinContract allows each line that names these arrays, and only those lines.
   local admin=(docker exec -i --user postgres "${POSTGRES_CONTAINER}" psql --no-psqlrc --quiet --tuples-only --no-align --set=ON_ERROR_STOP=1 --dbname=postgres)
   local tcp=(docker exec -i -e PGPASSWORD --user postgres "${POSTGRES_CONTAINER}" psql --no-psqlrc --no-password --quiet --tuples-only --no-align --set=ON_ERROR_STOP=1)
   local version
@@ -91,8 +90,7 @@ ci() {
   password="$(random_hex 32)"
   echo "::add-mask::${password}"
   create_sql "${name}" "${password}" | "${admin[@]}" || fail "Cannot create the test role and database."
-  "${admin[@]}" --command='ALTER ROLE postgres PASSWORD NULL' < /dev/null > /dev/null \
-    || fail "Cannot remove the bootstrap superuser password."
+  "${admin[@]}" --command='ALTER ROLE postgres PASSWORD NULL' < /dev/null > /dev/null || fail "Cannot remove the bootstrap superuser password."
 
   # Replace the image's rules: the socket stays for the postgres OS user, and host connections are
   # accepted only for the test role, on its database, with SCRAM-SHA-256.
@@ -103,19 +101,18 @@ ci() {
     "local all postgres peer" "host ${name} ${name} all scram-sha-256")"
   printf '%s\n' "${hba_rules}" | docker exec -i --user postgres "${POSTGRES_CONTAINER}" sh -c 'cat > "$1"' sh "${hba_file}" || fail "Cannot write ${hba_file}."
   local rules
-  rules="$("${admin[@]}" --command="SELECT count(*) FILTER (WHERE error IS NOT NULL) || ' ' || count(*) FROM pg_hba_file_rules" < /dev/null)" \
-    || fail "Cannot read pg_hba_file_rules."
+  rules="$("${admin[@]}" --command="SELECT count(*) FILTER (WHERE error IS NOT NULL) || ' ' || count(*) FROM pg_hba_file_rules" < /dev/null)" || fail "Cannot read pg_hba_file_rules."
   [ "${rules}" = "0 2" ] || fail "pg_hba_file_rules reports '${rules}' (errors, rules), not '0 2'."
-  "${admin[@]}" --command="SELECT 'pg_hba rule ' || rule_number || ': ' || type || ' ' || array_to_string(database, ',') || ' '
+  local listing="SELECT 'pg_hba rule ' || rule_number || ': ' || type || ' ' || array_to_string(database, ',') || ' '
     || array_to_string(user_name, ',') || ' ' || coalesce(address, 'socket') || ' ' || auth_method FROM pg_hba_file_rules
-    ORDER BY rule_number" < /dev/null || fail "Cannot read pg_hba_file_rules."
+    ORDER BY rule_number"
+  "${admin[@]}" --command="${listing}" < /dev/null || fail "Cannot read pg_hba_file_rules."
   "${admin[@]}" --command='SELECT pg_reload_conf()' < /dev/null > /dev/null || fail "Cannot reload the server configuration."
 
   # The test role signs in over TCP with its password, and the superuser cannot sign in over TCP.
   local signed_in="" attempt
   for attempt in 1 2 3 4 5 6 7 8 9 10; do
-    if PGPASSWORD="${password}" "${tcp[@]}" "host=127.0.0.1 port=5432 dbname=${name} user=${name}" \
-      --command='SELECT current_user' < /dev/null > /dev/null 2>&1; then
+    if PGPASSWORD="${password}" "${tcp[@]}" "host=127.0.0.1 port=5432 dbname=${name} user=${name}" --command='SELECT current_user' < /dev/null > /dev/null 2>&1; then
       signed_in="yes"
       break
     fi

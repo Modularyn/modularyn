@@ -45,7 +45,8 @@ internal static partial class ToolPinContract
     private static readonly Regex FromInstruction = new(@"^\s*from\s", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     private static readonly Regex FromOption = new(@"(?:^|[\s,=-])from=(?<source>[^,\s]+)", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     private static readonly Regex AddInstruction = new(@"^\s*(?:onbuild\s+)?add\s", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
-    private static readonly Regex RemoteSource = new("(?:https?://|git://|ssh://|git@)", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    private static readonly Regex HttpSource = new("https?://", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    private static readonly Regex GitSource = new("(?:git://|ssh://|[a-z0-9._-]+@[a-z0-9.-]+:)", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     private static readonly Regex AddChecksum = new(@"(?:^|\s)--checksum=(?<value>\S*)", RegexOptions.CultureInvariant);
     private static readonly Regex Continued = new(@"\\\s*$", RegexOptions.CultureInvariant);
 
@@ -171,7 +172,8 @@ internal static partial class ToolPinContract
         var instructions = 0;
         for (var index = 0; index < lines.Length; index++)
         {
-            var line = lines[index];
+            // BuildKit ignores a UTF-8 byte-order mark before the first line, so the checks do too.
+            var line = index == 0 && lines[index].StartsWith('\uFEFF') ? lines[index][1..] : lines[index];
             var location = $"{path}:{index + 1}";
             // Parser directives can select a frontend image or change the continuation character, so none is allowed:
             // syntax, escape and check anywhere, and any "# name=" line before the first instruction.
@@ -202,15 +204,20 @@ internal static partial class ToolPinContract
                 }
             }
 
-            // ADD of a remote source must name exactly one source and verify it with a pinned SHA-256; a variable source
-            // could hide a remote one, so it needs the checksum too.
+            // ADD of a git or ssh source is refused, since --checksum=sha256: cannot pin it. ADD of an http(s) source must
+            // name exactly one source and verify it with a pinned SHA-256; a variable source could hide a remote one, so it
+            // needs the checksum too.
             if (AddInstruction.IsMatch(line))
             {
-                var remote = RemoteSource.Matches(line).Count;
+                var remote = HttpSource.Matches(line).Count;
                 var checksums = AddChecksum.Matches(line);
                 if (Continued.IsMatch(line))
                 {
                     errors.Add($"{location}: keep each ADD instruction on one line.");
+                }
+                else if (GitSource.IsMatch(line))
+                {
+                    errors.Add($"{location}: ADD of a git or ssh source is refused, because --checksum=sha256: cannot pin it.");
                 }
                 else if ((remote > 0 || line.Contains('$', StringComparison.Ordinal)) && (remote > 1 || checksums.Count != 1
                     || !Regex.IsMatch(checksums[0].Groups["value"].Value, "^sha256:[0-9a-f]{64}$", RegexOptions.CultureInvariant)))

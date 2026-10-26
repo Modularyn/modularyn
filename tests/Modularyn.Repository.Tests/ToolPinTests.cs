@@ -315,6 +315,7 @@ public sealed class ToolPinTests
     [InlineData("FROM {0}\nADD --checksum=sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef https://example.com/tool.tar.gz /opt/tool.tar.gz\n")]
     [InlineData("FROM {0}\nADD app.tar.gz /app/\nadd --chown=1654 config /app/config\n")]
     [InlineData("# Note: a comment with key: value is not a directive.\nFROM {0}\n# setting=value after the first instruction is only a comment\n")]
+    [InlineData("\uFEFFFROM {0}\n")]
     public void Dockerfiles_on_the_pinned_base_and_its_stages_are_accepted(string dockerfile)
     {
         const string pinned = "mcr.microsoft.com/dotnet/aspnet:10.0.14-noble@sha256:de0ee358cdd672f7017a003bed21e9ac9ed48a27c922a59b18175b6e82fa7fee";
@@ -383,7 +384,13 @@ public sealed class ToolPinTests
     [InlineData("second-dockerfile-other-base", "or an earlier stage")]
     [InlineData("lowercase-dockerfile-other-base", "or an earlier stage")]
     [InlineData("dockerfile-add-url", "ADD of a remote or variable source needs exactly one source and --checksum")]
-    [InlineData("dockerfile-add-git", "ADD of a remote or variable source needs exactly one source and --checksum")]
+    [InlineData("dockerfile-add-git", "ADD of a git or ssh source is refused")]
+    [InlineData("dockerfile-add-scp-user", "ADD of a git or ssh source is refused")]
+    [InlineData("dockerfile-add-ssh-url", "ADD of a git or ssh source is refused")]
+    [InlineData("dockerfile-add-git-url", "ADD of a git or ssh source is refused")]
+    [InlineData("dockerfile-add-git-with-checksum", "ADD of a git or ssh source is refused")]
+    [InlineData("dockerfile-add-http", "ADD of a remote or variable source needs exactly one source and --checksum")]
+    [InlineData("dockerfile-bom-escape-directive", "the parser directive escape is refused")]
     [InlineData("dockerfile-add-uppercase-checksum", "ADD of a remote or variable source needs exactly one source and --checksum")]
     [InlineData("dockerfile-add-two-remote", "ADD of a remote or variable source needs exactly one source and --checksum")]
     [InlineData("dockerfile-add-variable", "ADD of a remote or variable source needs exactly one source and --checksum")]
@@ -441,17 +448,39 @@ public sealed class ToolPinTests
     [InlineData("absolute-docker", "this docker command is not on the allowlist")]
     [InlineData("docker-in-variable", "this docker command is not on the allowlist")]
     [InlineData("allowed-line-in-other-file", "this docker command is not on the allowlist")]
-    [InlineData("continuation-into-allowed", "the line before an allowed docker command continues into it")]
+    [InlineData("continuation-into-allowed", "the line before an allowed line continues into it")]
     [InlineData("split-allowed-line", "this docker command is not on the allowlist")]
     [InlineData("appended-command", "this docker command is not on the allowlist")]
     [InlineData("bash-c-docker", "this docker command is not on the allowlist")]
-    [InlineData("sh-c", "eval, bash -c and sh -c can hide a docker command")]
-    [InlineData("bash-lc", "eval, bash -c and sh -c can hide a docker command")]
-    [InlineData("eval", "eval, bash -c and sh -c can hide a docker command")]
-    [InlineData("redefined-array", "only its allowed docker line may assign admin")]
+    [InlineData("sh-c", "eval, a shell with -c and a pipe into a shell can hide a docker command")]
+    [InlineData("bash-lc", "eval, a shell with -c and a pipe into a shell can hide a docker command")]
+    [InlineData("eval", "eval, a shell with -c and a pipe into a shell can hide a docker command")]
+    [InlineData("redefined-array", "the guarded name admin appears outside its definition and the allowlisted lines")]
     [InlineData("fixture-image-registry", "FIXTURE_IMAGE must be a local tag")]
-    [InlineData("fixture-image-assigned", "FIXTURE_IMAGE may be set only by its env definition")]
-    [InlineData("image-to-github-env", "ASPNET_IMAGE may be set only by its env definition")]
+    [InlineData("fixture-image-assigned", "the guarded name FIXTURE_IMAGE appears outside its definition and the allowlisted lines")]
+    [InlineData("image-to-github-env", "the guarded name ASPNET_IMAGE appears outside its definition and the allowlisted lines")]
+    [InlineData("token-read", "the guarded name FIXTURE_IMAGE appears outside")]
+    [InlineData("token-printf-v", "the guarded name ASPNET_IMAGE appears outside")]
+    [InlineData("token-for", "the guarded name FIXTURE_IMAGE appears outside")]
+    [InlineData("token-default-assign", "the guarded name FIXTURE_IMAGE appears outside")]
+    [InlineData("token-default-value", "the guarded name POSTGRES_IMAGE appears outside")]
+    [InlineData("token-indirect", "the guarded name ASPNET_IMAGE appears outside")]
+    [InlineData("token-indirect-expansion", "the guarded name ASPNET_IMAGE appears outside")]
+    [InlineData("token-bare-dollar", "the guarded name FIXTURE_IMAGE appears outside")]
+    [InlineData("token-heredoc-github-env", "the guarded name FIXTURE_IMAGE appears outside")]
+    [InlineData("token-nameref", "the guarded name tcp appears outside")]
+    [InlineData("token-read-array", "the guarded name admin appears outside")]
+    [InlineData("token-array-element", "the guarded name admin appears outside")]
+    [InlineData("token-array-star", "the guarded name admin appears outside")]
+    [InlineData("token-expression", "the guarded name FIXTURE_DOCKERFILE appears outside")]
+    [InlineData("token-in-comment", "the guarded name POSTGRES_IMAGE appears outside")]
+    [InlineData("token-copy", "the guarded name ASPNET_IMAGE appears outside")]
+    [InlineData("hyphenated-compose", "this docker command is not on the allowlist")]
+    [InlineData("pipe-into-bash", "eval, a shell with -c and a pipe into a shell can hide a docker command")]
+    [InlineData("pipe-into-sh", "eval, a shell with -c and a pipe into a shell can hide a docker command")]
+    [InlineData("bash-options-then-c", "eval, a shell with -c and a pipe into a shell can hide a docker command")]
+    [InlineData("yaml-workflow", "this docker command is not on the allowlist")]
+    [InlineData("duplicate-allowed-line", "appears 2 times; each allowed line appears once")]
     [InlineData("second-image-definition", "FIXTURE_IMAGE must be defined exactly once, as a literal")]
     [InlineData("computed-dockerfile-env", "FIXTURE_DOCKERFILE must be defined exactly once, as a literal")]
     [InlineData("unused-allowlist-entry", "is not used; remove it from the allowlist")]
@@ -569,6 +598,16 @@ public sealed class ToolPinTests
                 break;
             case "dockerfile-add-url": files[FixturePath] = fixture + "ADD https://example.com/tool.tar.gz /opt/tool.tar.gz\n"; break;
             case "dockerfile-add-git": files[FixturePath] = fixture + "ADD git@github.com:example/tool.git /opt/tool\n"; break;
+            case "dockerfile-add-scp-user": files[FixturePath] = fixture + "ADD deploy@build.example.com:releases/tool.tar.gz /opt/\n"; break;
+            case "dockerfile-add-ssh-url": files[FixturePath] = fixture + "ADD ssh://git@example.com/tool.git /opt/tool\n"; break;
+            case "dockerfile-add-git-url": files[FixturePath] = fixture + "ADD git://example.com/tool.git /opt/tool\n"; break;
+            case "dockerfile-add-git-with-checksum":
+                files[FixturePath] = fixture + "ADD --checksum=sha256:" + new string('a', 64) + " deploy@example.com:tool.git /opt/tool\n";
+                break;
+            case "dockerfile-add-http": files[FixturePath] = fixture + "ADD http://example.com/tool.tar.gz /opt/\n"; break;
+            case "dockerfile-bom-escape-directive":
+                files[FixturePath] = "\uFEFF# escape=`\n" + fixture + "ADD `\n  https://example.com/tool.tar.gz /opt/\n";
+                break;
             case "dockerfile-add-uppercase-checksum":
                 files[FixturePath] = fixture + "ADD --checksum=sha256:" + new string('A', 64) + " https://example.com/tool.tar.gz /opt/\n";
                 break;
@@ -718,6 +757,59 @@ public sealed class ToolPinTests
             case "fixture-image-assigned":
                 files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          FIXTURE_IMAGE=\"docker.io/library/alpine:3.22\"\n");
                 break;
+            case "token-read":
+                files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          read -r FIXTURE_IMAGE <<< \"docker.io/library/alpine:3.22\"\n");
+                break;
+            case "token-printf-v":
+                files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          printf -v ASPNET_IMAGE '%s' \"docker.io/library/alpine:3.22\"\n");
+                break;
+            case "token-for":
+                files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          for FIXTURE_IMAGE in docker.io/library/alpine:3.22; do true; done\n");
+                break;
+            case "token-default-assign":
+                files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          : \"${FIXTURE_IMAGE:=docker.io/library/alpine:3.22}\"\n");
+                break;
+            case "token-default-value":
+                files[ScriptPath] = ReplaceText(files[ScriptPath], "  local version\n", "  echo \"${POSTGRES_IMAGE-other}\"\n  local version\n");
+                break;
+            case "token-indirect":
+                files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          name=ASPNET_IMAGE\n          echo \"${!name}\"\n");
+                break;
+            case "token-indirect-expansion": files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          echo \"${!ASPNET_IMAGE}\"\n"); break;
+            case "token-bare-dollar": files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          echo $FIXTURE_IMAGE\n"); break;
+            case "token-heredoc-github-env":
+                files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n",
+                    "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          cat >> \"${GITHUB_ENV}\" <<EOF\n          FIXTURE_IMAGE=docker.io/library/alpine:3.22\n          EOF\n");
+                break;
+            case "token-nameref":
+                files[ScriptPath] = ReplaceText(files[ScriptPath], "  local version\n", "  local -n tcp=other\n  local version\n");
+                break;
+            case "token-read-array":
+                files[ScriptPath] = ReplaceText(files[ScriptPath], "  local version\n", "  read -r -a admin <<< \"podman run alpine\"\n  local version\n");
+                break;
+            case "token-array-element":
+                files[ScriptPath] = ReplaceText(files[ScriptPath], "  local version\n", "  admin[0]=podman\n  local version\n");
+                break;
+            case "token-array-star":
+                files[ScriptPath] = ReplaceText(files[ScriptPath], "  local version\n", "  ${admin[*]} --command='SELECT 1'\n  local version\n");
+                break;
+            case "token-expression":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "      - name: Build the fixture image for linux/amd64\n",
+                    "      - name: Build the fixture image for linux/amd64\n        if: ${{ env.FIXTURE_DOCKERFILE != '' }}\n");
+                break;
+            case "token-in-comment":
+                files[ScriptPath] = ReplaceText(files[ScriptPath], "  local version\n", "  # POSTGRES_IMAGE is checked above.\n  local version\n");
+                break;
+            case "token-copy": files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          base=\"${ASPNET_IMAGE}\"\n"); break;
+            case "hyphenated-compose": files[".github/scripts/services.sh"] = "#!/usr/bin/env bash\ndocker-compose up --detach\n"; break;
+            case "pipe-into-bash": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\nbase64 -d < commands.txt | bash\n"; break;
+            case "pipe-into-sh": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\nprintf '%s\\n' \"${commands}\" | sh -s\n"; break;
+            case "bash-options-then-c": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\nbash -o pipefail -c \"${command}\"\n"; break;
+            case "yaml-workflow":
+                files[".github/workflows/images.yaml"] = string.Join('\n', "name: Images", "on: pull_request", "jobs:", "  images:",
+                    "    runs-on: ubuntu-latest", "    steps:", "      - run: docker pull docker.io/library/alpine:3.22", "");
+                break;
+            case "duplicate-allowed-line": files[CiPath] = ReplaceText(ci, "          docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "          docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n"); break;
             case "image-to-github-env":
                 files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          echo \"ASPNET_IMAGE=docker.io/library/alpine:3\" >> \"${GITHUB_ENV}\"\n");
                 break;
@@ -748,16 +840,72 @@ public sealed class ToolPinTests
     }
 
     [Fact]
-    public void Docker_commands_are_exactly_the_allowlisted_lines()
+    public void Docker_lines_and_guarded_names_are_exactly_the_allowlisted_lines()
     {
+        // Every line that names docker or a guarded name, other than the four env definitions, is a listed line.
         var files = RepositoryFiles.Current;
-        var found = files.Where(pair => ToolPinContract.InDockerScope(pair.Key)).SelectMany(pair => pair.Value.Replace("\r\n", "\n").Split('\n')
-                .Select(line => line.Trim()).Where(line => !line.StartsWith('#') && Regex.IsMatch(line, "(?<![A-Za-z0-9_.-])docker(?![A-Za-z0-9_.-])",
-                    RegexOptions.IgnoreCase)).Select(line => (pair.Key, line)))
-            .ToHashSet();
+        var names = string.Join('|', ToolPinContract.GuardedNames.Select(Regex.Escape));
+        var definitions = 0;
+        var found = new HashSet<(string, string)>();
+        foreach (var (path, text) in files.Where(pair => ToolPinContract.InDockerScope(pair.Key)))
+        {
+            foreach (var line in text.Replace("\r\n", "\n").Split('\n').Select(line => line.Trim()))
+            {
+                var docker = !line.StartsWith('#') && Regex.IsMatch(line, "(?<![A-Za-z0-9_.-])docker(?:-compose)?(?![A-Za-z0-9_.-])", RegexOptions.IgnoreCase);
+                var guarded = Regex.IsMatch(line, $"(?<![A-Za-z0-9_])(?:{names})(?![A-Za-z0-9_])");
+                if (guarded && ToolPinContract.DockerVariables.Any(variable => line.StartsWith(variable.Variable + ": ", StringComparison.Ordinal)))
+                {
+                    definitions++;
+                }
+                else if (docker || guarded)
+                {
+                    Assert.True(found.Add((path, line)), $"{path} repeats the line {line}");
+                }
+            }
+        }
+
+        Assert.Equal(ToolPinContract.DockerVariables.Length, definitions);
         Assert.Equal(ToolPinContract.DockerAllowlist.ToHashSet(), found);
         Assert.Empty(ToolPinContract.DockerCommandErrors(files));
-        Assert.All(ToolPinContract.DockerAllowlist, entry => Assert.DoesNotContain("--build-context", entry.Line, StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("listed-default", "uses FIXTURE_IMAGE other than as ${FIXTURE_IMAGE}")]
+    [InlineData("listed-bare", "uses ASPNET_IMAGE other than as ${ASPNET_IMAGE}")]
+    [InlineData("listed-array-star", "uses admin other than as \"${admin[@]}\" or its definition")]
+    [InlineData("listed-second-definition", "the array tcp must have exactly one listed definition")]
+    [InlineData("listed-build-context", "uses a refused build context")]
+    [InlineData("listed-continued", "must be one complete, trimmed line")]
+    [InlineData("listed-twice", "the allowlist lists a line twice")]
+    public void A_listed_line_outside_the_allowlist_rules_is_rejected(string mutation, string expectedDiagnostic)
+    {
+        // The allowlist is reviewed text, so its own lines are checked too: a careless entry fails here.
+        var allowlist = ToolPinContract.DockerAllowlist.ToList();
+        var build = allowlist.FindIndex(entry => entry.Line.StartsWith("docker build ", StringComparison.Ordinal));
+        var pull = allowlist.FindIndex(entry => entry.Line.StartsWith("docker pull ", StringComparison.Ordinal));
+        var tcp = allowlist.FindIndex(entry => entry.Line.StartsWith("local tcp=(docker ", StringComparison.Ordinal));
+        var admin = allowlist.FindIndex(entry => entry.Line.Contains("\"${admin[@]}\" --command='SELECT pg_reload_conf()'", StringComparison.Ordinal));
+        Assert.True(build >= 0 && pull >= 0 && tcp >= 0 && admin >= 0, "The allowlist must hold the lines these mutations change.");
+        switch (mutation)
+        {
+            case "listed-default":
+                allowlist[build] = (allowlist[build].Path, allowlist[build].Line.Replace("${FIXTURE_IMAGE}", "${FIXTURE_IMAGE:=other}", StringComparison.Ordinal));
+                break;
+            case "listed-bare":
+                allowlist[pull] = (allowlist[pull].Path, allowlist[pull].Line.Replace("\"${ASPNET_IMAGE}\"", "$ASPNET_IMAGE", StringComparison.Ordinal));
+                break;
+            case "listed-array-star":
+                allowlist[admin] = (allowlist[admin].Path, allowlist[admin].Line.Replace("\"${admin[@]}\"", "${admin[*]}", StringComparison.Ordinal));
+                break;
+            case "listed-second-definition": allowlist.Add((ToolPinContract.DatabaseScriptPath, allowlist[tcp].Line + " # again")); break;
+            case "listed-build-context": allowlist[build] = (allowlist[build].Path, allowlist[build].Line + " --build-context=base=https://example.com/b.tar"); break;
+            case "listed-continued": allowlist[build] = (allowlist[build].Path, allowlist[build].Line + " \\"); break;
+            case "listed-twice": allowlist.Add(allowlist[pull]); break;
+            default: throw new ArgumentOutOfRangeException(nameof(mutation), mutation, "Unknown mutation case.");
+        }
+
+        Assert.Contains(ToolPinContract.DockerCommandErrors(RepositoryFiles.Current, allowlist),
+            error => error.Contains(expectedDiagnostic, StringComparison.Ordinal));
     }
 
     [Theory]
