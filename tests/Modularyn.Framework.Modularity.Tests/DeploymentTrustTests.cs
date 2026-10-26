@@ -343,7 +343,7 @@ public sealed class DeploymentTrustTests : IDisposable
     [InlineData("a/con.txt", false)]
     [InlineData("a/LPT1", false)]
     [InlineData("A dll", false)]
-    [InlineData("Aé.dll", false)]
+    [InlineData("A\u00e9.dll", false)]
     [InlineData("A.dll\n", false)]
     [InlineData("a/A.dll\n", false)]
     public void TM_G02_001_Locked_package_paths_are_relative_literal_and_confined(string path, bool accepted)

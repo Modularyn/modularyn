@@ -40,7 +40,7 @@ public sealed class DeploymentLock
     public static DeploymentLock Parse(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
-        if (text.Length > 0 && text[0] == '﻿') text = text[1..];
+        if (text.Length > 0 && text[0] == '\uFEFF') text = text[1..];
         JsonDocument document;
         try
         {
