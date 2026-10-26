@@ -129,8 +129,36 @@ public sealed class SignInTests
         await identity.AccountAsync("admin-1");
         var before = identity.Stores.Verifications;
         var results = await Task.WhenAll(Enumerable.Range(0, 24).Select(index => Attempt(identity, "admin-1", Generated.Password(), "src-" + index)));
+        Assert.InRange(identity.Stores.Verifications - before, 1, 3);
+        Assert.All(results, result => Assert.NotEqual(SignInStatus.Succeeded, result.Status));
+        // Whatever the interleaving, the account's free attempts are verified exactly once each, and no more.
+        for (var attempt = 0; attempt < 6; attempt++) await Attempt(identity, "admin-1", Generated.Password(), "src-x" + attempt);
         Assert.Equal(3, identity.Stores.Verifications - before);
-        Assert.Equal(3, results.Count(result => result.Status == SignInStatus.Failed));
-        Assert.Equal(21, results.Count(result => result.Status == SignInStatus.Throttled));
+    }
+
+    [Fact(DisplayName = "TM-G02-015 an attempt on a counter already in flight is refused at once, without verification or a store read")]
+    public async Task TM_G02_015_An_attempt_on_a_counter_in_flight_is_refused_at_once()
+    {
+        await using var identity = UnitIdentity.Create(UnitIdentity.TestLimits());
+        var (_, password) = await identity.AccountAsync("admin-1");
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        identity.Stores.BeforeVerification = async () =>
+        {
+            entered.TrySetResult();
+            await release.Task;
+        };
+        var first = Attempt(identity, "admin-1", password, "src-1");
+        await entered.Task.WaitAsync(Cancellation);
+        identity.Stores.BeforeVerification = null;
+        var acquisitions = identity.Stores.Acquisitions;
+        var sameAccount = await Attempt(identity, "admin-1", password, "src-2");
+        var sameSource = await Attempt(identity, "editor-1", password, "src-1");
+        Assert.Equal((SignInStatus.Throttled, SignInStatus.Throttled), (sameAccount.Status, sameSource.Status));
+        Assert.Equal(identity.Clock.Now.AddSeconds(1), sameAccount.RetryAt);
+        Assert.Equal(acquisitions, identity.Stores.Acquisitions);
+        release.TrySetResult();
+        Assert.Equal(SignInStatus.Succeeded, (await first).Status);
+        Assert.Equal(SignInStatus.Succeeded, (await Attempt(identity, "admin-1", password, "src-2")).Status);
     }
 }

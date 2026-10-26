@@ -57,16 +57,25 @@ internal sealed class IdentityDatabase : IAsyncDisposable
         Assert.Equal("off", session.Parameters.GetValueOrDefault("is_superuser"));
         Assert.Equal("UTF8", session.Parameters.GetValueOrDefault("server_encoding"));
         var database = new IdentityDatabase(System.Environment.GetEnvironmentVariable(PostgreSqlTarget.Variable)!, "identity_" + Guid.NewGuid().ToString("N"));
-        database.testLock = new NpgsqlConnection(new NpgsqlConnectionStringBuilder(database.ConnectionString) { Pooling = false }.ConnectionString);
-        await database.testLock.OpenAsync(Cancellation);
-        await using (var acquire = new NpgsqlCommand("SELECT pg_advisory_lock(@key)", database.testLock) { CommandTimeout = 600 })
+        try
         {
-            acquire.Parameters.AddWithValue("key", TestLockKey);
-            await acquire.ExecuteNonQueryAsync(Cancellation);
+            database.testLock = new NpgsqlConnection(new NpgsqlConnectionStringBuilder(database.ConnectionString) { Pooling = false }.ConnectionString);
+            await database.testLock.OpenAsync(Cancellation);
+            await using (var acquire = new NpgsqlCommand("SELECT pg_advisory_lock(@key)", database.testLock) { CommandTimeout = 600 })
+            {
+                acquire.Parameters.AddWithValue("key", TestLockKey);
+                await acquire.ExecuteNonQueryAsync(Cancellation);
+            }
+            await database.ExecuteAsync("CREATE SCHEMA " + Quote(database.Schema));
+            if (migrate) await database.MigrateAsync();
+            return database;
         }
-        await database.ExecuteAsync("CREATE SCHEMA " + Quote(database.Schema));
-        if (migrate) await database.MigrateAsync();
-        return database;
+        catch
+        {
+            // A failed setup still drops its schema and releases the test lock, so the next test is not left waiting.
+            await database.DisposeAsync();
+            throw;
+        }
     }
 
     public async Task<ActivationPlan> PlanAsync()

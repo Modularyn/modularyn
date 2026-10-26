@@ -21,6 +21,11 @@ Ingress use only the `Microsoft.AspNetCore.App` shared framework.
 only the .NET shared framework, so domain and application contract projects can
 reference it. `Modularyn.Framework.Tenancy` resolves and keeps tenant context,
 over the PostgreSQL persistence adapter and the ingress policy.
+`Modularyn.Framework.Security.Abstractions` holds the execution principal, its
+delegated authority and service scope, the principal accessor, service identity
+scopes, the freshness recheck, `SecretText` and the client credential seam. It
+uses only the .NET shared framework, and the identity module implements it; see
+[the identity module](../Modules/Modularyn.Modules.Identity.Application/README.md).
 
 ## Selection and validation
 
@@ -365,7 +370,14 @@ package.
    refused with 403. Every response from this step on varies by `Origin`, and
    cross-origin headers set later in the pipeline are replaced or removed. With no
    listed origins the application is same-origin only.
-7. Every request with a method other than GET, HEAD, OPTIONS or TRACE that carries
+7. When an authentication scheme is registered, authentication runs here: after
+   the transport, host and cross-origin checks, so no credential is read from a
+   plain HTTP request or for an unconfigured host, and before antiforgery
+   validation, so antiforgery tokens are validated against the authenticated
+   user. A pipeline that called `UseAuthentication` or `UseAuthorization` before
+   the ingress is refused. Place `UseAuthorization` after the ingress, routing
+   and any tenancy middleware.
+8. Every request with a method other than GET, HEAD, OPTIONS or TRACE that carries
    cookies needs a valid antiforgery token, in the `RequestVerificationToken`
    header or the form. A request without cookies is exempt only when its endpoint
    disables antiforgery, as an endpoint for bearer-token clients does. The
@@ -385,7 +397,8 @@ local path or a configured origin.
 
 Endpoints must not change state on safe methods; the ingress cannot observe
 that. Operation-specific input contracts, paging and query bounds, public error
-contracts, session cookies and tenant resolution are not part of the ingress.
+contracts, session cookies, which the identity module issues, and tenant
+resolution are not part of the ingress.
 
 ## Tenancy
 
@@ -535,6 +548,8 @@ trait `Requires=PostgreSQL` run against PostgreSQL, through CI's real-provider
 job, and the others are unit tests; identity, membership, host authority and
 audit come from test doubles of their seams. SEC-08 maps every control to its
 evidence.
+The controls of TB-G02-04, identity and sessions, are recorded in
+[the identity module](../Modules/Modularyn.Modules.Identity.Application/README.md#threat-model-controls).
 
 - **TM-G02-001, partly.** Delivered: the deployment lock and package integrity
   as a trust validator, and MDC108 for a host without one. Tests:
@@ -574,12 +589,16 @@ evidence.
   options. Tests: `Ingress.Tests` `ProxyAndHostTests` (`AC_004_N01_*`) and
   `IngressOptionsTests.TM_G02_006_*`. Tenant domains, limited to the configured
   public origins, are resolved through `PublicOrigins` (SEC-04, under
-  TM-G02-025). Remaining: membership through the seam that tenancy consumes
-  (SEC-03, SEC-05), the redirect policy applied at sign-in (SEC-03), adversarial
-  isolation evidence (SEC-08).
+  TM-G02-025), and the identity module's sign-in returns only a local path or a
+  configured origin as its redirect (SEC-03; `Identity.HttpApi.Tests`
+  `SignInEndpointTests.TM_G02_006_*`). Remaining: membership through the seam
+  that tenancy consumes (SEC-03, SEC-05), adversarial isolation evidence (SEC-08).
 - **TM-G02-007, partly.** Delivered: antiforgery on every state-changing request
   that carries cookies, and the antiforgery cookie. Tests: `AntiforgeryTests`
-  (`AC_003_N02_*`, `TM_G02_007_*`). Remaining: session cookies (SEC-03); no state
+  (`AC_003_N02_*`, `TM_G02_007_*`). The session cookie is the identity module's
+  `__Host-` cookie, and antiforgery tokens are validated against the
+  authenticated user (SEC-03; `AuthenticationOrderTests.TM_G02_007_*` and
+  `Identity.HttpApi.Tests` `SessionCookieTests.TM_G02_007_*`). Remaining: no state
   change on safe methods, which the ingress cannot observe, through endpoint
   conventions (CODE-06) and contract tests (SEC-08).
 - **TM-G02-008, deferred.** Operation-specific input contracts and server-derived
@@ -599,7 +618,9 @@ evidence.
   and client evidence (CODE-06).
 - **TM-G02-060, partly.** Delivered: plain HTTP redirected before processing and
   HSTS on HTTPS responses for configured hosts, judged only from a declared
-  proxy. Tests: `HttpsTests` (`AC_031_P01_*`). Remaining: recording the subdomain
+  proxy; authentication only after those checks, and refusal of authentication
+  or authorization placed before the ingress (SEC-03). Tests: `HttpsTests`
+  (`AC_031_P01_*`) and `AuthenticationOrderTests` (`TM_G02_060_*`). Remaining: recording the subdomain
   and preload choices with the release, which no G-02 work order covers; host
   and container evidence (CODE-10 on CI-01). Kestrel's own refusals carry no
   HSTS.

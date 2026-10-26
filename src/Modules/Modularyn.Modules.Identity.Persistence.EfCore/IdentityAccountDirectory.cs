@@ -66,6 +66,7 @@ internal sealed class IdentityAccountDirectory : IAccountDirectory
         identity.Password.RequireNonAlphanumeric = false;
         identity.Password.RequiredUniqueChars = 1;
         identity.User.RequireUniqueEmail = false;
+        identity.User.AllowedUserNameCharacters = UserNames.AllowedCharacters;
         identity.Lockout.AllowedForNewUsers = false;
         identity.Stores.ProtectPersonalData = false;
         options = Options.Create(identity);

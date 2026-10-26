@@ -165,7 +165,11 @@ internal sealed class VerificationLedger(PostgreSqlModule module) : IVerificatio
                         row.UpdatedAt = at;
                         context.Entry(row).Property(counter => counter.UpdatedAt).IsModified = true;
                         await work.FlushAsync(cancellationToken).ConfigureAwait(false);
-                        await context.Entry(row).ReloadAsync(cancellationToken).ConfigureAwait(false);
+                        // Read the counter as the previous holder of the lock committed it. An ordinary query, not
+                        // EntityEntry.Reload, whose internal query ignores every filter and is refused by the query guard.
+                        var committed = await context.Set<ThrottleRow>().AsNoTracking().SingleAsync(counter => counter.Key == hash, cancellationToken).ConfigureAwait(false);
+                        context.Entry(row).CurrentValues.SetValues(committed);
+                        context.Entry(row).OriginalValues.SetValues(committed);
                     }
                     if (row.Kind != (int)key.Kind || row.Failures < 0) throw new InvalidOperationException("A throttle counter is inconsistent with its key.");
                     rows[key] = row;

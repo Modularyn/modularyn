@@ -69,6 +69,13 @@ public static class UserNames
 {
     public const int MaximumLength = 256;
 
+    /// <summary>
+    /// The characters a user name may contain, which account creation enforces through ASP.NET Core Identity's user
+    /// validator. They are ASCII, so a name's comparison form is the same with or without the globalization libraries:
+    /// in globalization-invariant mode, Unicode normalization leaves a string unchanged.
+    /// </summary>
+    public const string AllowedCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
+
     /// <summary>The comparison form of a user name, as ASP.NET Core Identity's default normalizer produces it.</summary>
     public static string Normalize(string userName)
     {
@@ -76,8 +83,9 @@ public static class UserNames
         return userName.Normalize(NormalizationForm.FormC).ToUpperInvariant();
     }
 
+    /// <summary>Whether a typed name could belong to an account: from 1 to 256 of the allowed characters.</summary>
     public static bool IsPlausible(string? userName) =>
-        !string.IsNullOrWhiteSpace(userName) && userName.Length <= MaximumLength && !userName.Any(char.IsControl);
+        !string.IsNullOrEmpty(userName) && userName.Length <= MaximumLength && userName.All(character => AllowedCharacters.Contains(character));
 }
 
 /// <summary>

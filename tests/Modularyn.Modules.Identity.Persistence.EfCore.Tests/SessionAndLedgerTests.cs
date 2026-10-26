@@ -88,28 +88,39 @@ public sealed class SessionAndLedgerTests(ITestOutputHelper output)
         output.WriteLine($"Idle edge {idle}, absolute edge {absolute}: each request inside a limit succeeded and the first past it was refused with its reason recorded.");
     }
 
-    [Fact(DisplayName = "TM-G02-015 on PostgreSQL, concurrent attempts never verify more than the per-account and per-source limits allow")]
+    [Fact(DisplayName = "TM-G02-015 on PostgreSQL, concurrent attempts from two hosts never verify more than the per-account and per-source limits allow")]
     public async Task TM_G02_015_Concurrent_attempts_never_verify_more_than_the_limits_allow()
     {
+        // Two service providers stand for two hosts: each admits one attempt per counter, so only the database's row locks
+        // decide between them.
         await using var database = await IdentityDatabase.CreateAsync();
-        await using var identity = PostgreSqlIdentity.Create(database, new() { ["Modularyn:Identity:Throttling:SourceThreshold"] = "1000" });
-        var (_, password) = await identity.AccountAsync("admin-1");
-        var verified = identity.Hasher.Verifications;
-        var results = await Task.WhenAll(Enumerable.Range(0, 16).Select(index => identity.SignInAsync("admin-1", Generated.Password(), "198.51.100." + index)));
-        Assert.Equal(3, identity.Hasher.Verifications - verified);
-        Assert.Equal(3, results.Count(result => result.Status == SignInStatus.Failed));
-        Assert.Equal(13, results.Count(result => result.Status == SignInStatus.Throttled));
-        Assert.Equal(SignInStatus.Throttled, (await identity.SignInAsync("admin-1", password, "198.51.100.200")).Status);
-        output.WriteLine($"16 concurrent guesses for one account: {results.Count(result => result.Status == SignInStatus.Failed)} verified, the rest refused unverified.");
+        var clock = Testing.ManualClock.StartingNow();
+        await using var first = PostgreSqlIdentity.Create(database, new() { ["Modularyn:Identity:Throttling:SourceThreshold"] = "1000" }, clock);
+        await using var second = PostgreSqlIdentity.Create(database, new() { ["Modularyn:Identity:Throttling:SourceThreshold"] = "1000" }, clock);
+        var (_, password) = await first.AccountAsync("admin-1");
+        int Verified() => first.Hasher.Verifications + second.Hasher.Verifications;
+        var before = Verified();
+        var results = await Task.WhenAll(Enumerable.Range(0, 16).Select(index =>
+            (index % 2 == 0 ? first : second).SignInAsync("admin-1", Generated.Password(), "198.51.100." + index)));
+        Assert.InRange(Verified() - before, 1, 3);
+        Assert.All(results, result => Assert.NotEqual(SignInStatus.Succeeded, result.Status));
+        for (var attempt = 0; attempt < 6; attempt++)
+            await (attempt % 2 == 0 ? first : second).SignInAsync("admin-1", Generated.Password(), "198.51.100." + (100 + attempt));
+        Assert.Equal(3, Verified() - before);
+        Assert.Equal(SignInStatus.Throttled, (await first.SignInAsync("admin-1", password, "198.51.100.200")).Status);
+        output.WriteLine("Concurrent and later guesses for one account across two hosts: exactly 3 verified, every other refused unverified.");
 
-        await using var bySource = PostgreSqlIdentity.Create(database, new() { ["Modularyn:Identity:Throttling:AccountFreeAttempts"] = "50" });
+        await using var third = PostgreSqlIdentity.Create(database, new() { ["Modularyn:Identity:Throttling:AccountFreeAttempts"] = "50" }, clock);
+        await using var fourth = PostgreSqlIdentity.Create(database, new() { ["Modularyn:Identity:Throttling:AccountFreeAttempts"] = "50" }, clock);
         var names = Enumerable.Range(0, 12).Select(index => "user-" + index).ToArray();
-        foreach (var name in names) await bySource.AccountAsync(name);
-        verified = bySource.Hasher.Verifications;
-        var spread = await Task.WhenAll(names.Select(name => bySource.SignInAsync(name, Generated.Password(), "203.0.113.50")));
-        Assert.Equal(6, bySource.Hasher.Verifications - verified);
-        Assert.Equal(6, spread.Count(result => result.Status == SignInStatus.Throttled));
-        output.WriteLine("12 concurrent guesses from one source across 12 accounts: 6 verified before the source was blocked.");
+        foreach (var name in names) await third.AccountAsync(name);
+        int SourceVerified() => third.Hasher.Verifications + fourth.Hasher.Verifications;
+        before = SourceVerified();
+        await Task.WhenAll(names.Select((name, index) => (index % 2 == 0 ? third : fourth).SignInAsync(name, Generated.Password(), "203.0.113.50")));
+        Assert.InRange(SourceVerified() - before, 1, 6);
+        foreach (var name in names) await third.SignInAsync(name, Generated.Password(), "203.0.113.50");
+        Assert.Equal(6, SourceVerified() - before);
+        output.WriteLine("Guesses from one source across 12 accounts and two hosts: exactly 6 verified before the source was blocked.");
     }
 
     [Fact(DisplayName = "TM-G02-015 throttle rows hold hashed keys only, never a typed user name or address")]

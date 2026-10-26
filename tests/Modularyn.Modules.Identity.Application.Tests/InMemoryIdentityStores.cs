@@ -26,12 +26,19 @@ internal sealed class InMemoryIdentityStores : IAccountDirectory, ISessionStore,
     private readonly Dictionary<ThrottleKey, ThrottleCounter> counters = [];
     private readonly Dictionary<Guid, DelegationGrant> delegations = [];
     private int verifications;
+    private int acquisitions;
 
     public Dictionary<Guid, ProtectedSeed> Seeds { get; } = [];
     public Dictionary<Guid, (RecoveryCodeVerifier Verifier, DateTimeOffset? Consumed, DateTimeOffset? Invalidated)> RecoveryCodes { get; } = [];
     public Dictionary<string, PasskeyCredentialRecord> Passkeys { get; } = new(StringComparer.Ordinal);
 
     public int Verifications => Volatile.Read(ref verifications);
+
+    /// <summary>Counts ledger acquisitions, each of which is a store access.</summary>
+    public int Acquisitions => Volatile.Read(ref acquisitions);
+
+    /// <summary>Runs inside every password verification, so a test can hold one attempt in flight.</summary>
+    public Func<Task>? BeforeVerification { get; set; }
 
     public IReadOnlyCollection<SessionRecord> Sessions
     {
@@ -65,14 +72,15 @@ internal sealed class InMemoryIdentityStores : IAccountDirectory, ISessionStore,
         }
     }
 
-    public Task<PasswordCheck> CheckPasswordAsync(string userName, SecretText password, CancellationToken cancellationToken)
+    public async Task<PasswordCheck> CheckPasswordAsync(string userName, SecretText password, CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref verifications);
+        if (BeforeVerification is { } hold) await hold();
         lock (gate)
         {
             var account = accounts.Values.SingleOrDefault(row => UserNames.Normalize(row.UserName) == UserNames.Normalize(userName));
-            return Task.FromResult(account is { Disabled: false } && account.Password == password.Reveal()
-                ? new PasswordCheck(PasswordCheckOutcome.Verified, account.State) : PasswordCheck.Rejected);
+            return account is { Disabled: false } && account.Password == password.Reveal()
+                ? new PasswordCheck(PasswordCheckOutcome.Verified, account.State) : PasswordCheck.Rejected;
         }
     }
 
@@ -161,6 +169,7 @@ internal sealed class InMemoryIdentityStores : IAccountDirectory, ISessionStore,
 
     public async Task<IVerificationLedgerEntry> AcquireAsync(IReadOnlyCollection<ThrottleKey> keys, DateTimeOffset now, CancellationToken cancellationToken)
     {
+        Interlocked.Increment(ref acquisitions);
         await ledger.WaitAsync(cancellationToken);
         lock (gate) return new Entry(this, keys.Distinct().ToDictionary(key => key, key => counters.GetValueOrDefault(key) ?? ThrottleCounter.Empty));
     }

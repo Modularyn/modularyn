@@ -69,8 +69,16 @@ public sealed class SessionRulesTests
         Assert.False(PasswordPolicy.IsPlausible(new SecretText("")));
         Assert.False(PasswordPolicy.IsPlausible(new SecretText(new string('x', PasswordPolicy.MaximumLength + 1))));
         Assert.True(PasswordPolicy.IsPlausible(new SecretText(new string('x', PasswordPolicy.MaximumLength))));
-        Assert.False(UserNames.IsPlausible("bad\u0000name"));
-        Assert.Equal("\u00C9LAN", UserNames.Normalize("e\u0301lan"));
+    }
+
+    [Fact(DisplayName = "TM-G02-015 user names are the allowed ASCII characters, so their comparison form never depends on globalization")]
+    public void TM_G02_015_User_names_are_ascii_so_their_comparison_form_never_depends_on_globalization()
+    {
+        Assert.Equal("ADMIN-1@EXAMPLE.TEST", UserNames.Normalize("Admin-1@example.test"));
+        Assert.True(UserNames.IsPlausible("a.b_c-d+e@f"));
+        Assert.True(UserNames.IsPlausible(new string('a', UserNames.MaximumLength)));
+        foreach (var name in new[] { "", " ", "bad\u0000name", "admin 1", "e\u0301lan", "\u00C9LAN", "admin\u200B1", new string('a', UserNames.MaximumLength + 1) })
+            Assert.False(UserNames.IsPlausible(name));
     }
 }
 

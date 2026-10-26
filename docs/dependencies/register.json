@@ -78,6 +78,43 @@
       }
     },
     {
+      "id": "nuget:microsoft.aspnetcore.identity.entityframeworkcore",
+      "name": "Microsoft.AspNetCore.Identity.EntityFrameworkCore",
+      "ecosystem": "nuget",
+      "version": "10.0.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "identity",
+      "purpose": "EF Core stores for ASP.NET Core Identity, which Modularyn.Modules.Identity.Persistence.EfCore uses for local accounts through UserManager in its module-owned context. Identity itself, data protection and antiforgery come from the Microsoft.AspNetCore.App shared framework at the runtime version the SDK entry records.",
+      "reason": "D-08 recommends ASP.NET Core Identity, and SEC-03 adopts its EF Core user store for G-02's local accounts on PostgreSQL (MOD-017, OPS-003). Runtime alignment selects 10.0.14. It requires Microsoft.Extensions.Identity.Stores and Microsoft.EntityFrameworkCore.Relational 10.0.14; every project that resolves it references the ASP.NET Core shared framework, so pruning leaves the Identity packages to the shared framework and the locks add only this package.",
+      "maintenance": {
+        "reviewedAt": "2026-10-26",
+        "published": "2026-10-25",
+        "latestEligible": "10.0.14",
+        "ageException": "Published 2026-10-25, 1 day before review, in the .NET 10.0.14 release. Runtime alignment selects it, with both corroborations: the dotnet/core 10.0.14 release notes list it at 10.0.14, and its nuspec names dotnet/dotnet commit 0427b9abbead3fa64c6655eb4290c537397131fa, which the .version files of both shared frameworks in the pinned SDK 10.0.403 archive record. No advisory affects 10.0.12, the version the age rule alone selects, so the security exception would not select 10.0.14.",
+        "maintainer": "Microsoft; built from the dotnet/dotnet repository",
+        "activity": "dotnet/aspnetcore was pushed 2026-10-26. Servicing releases follow the .NET patch schedule: 10.0.12 (2026-09-08), 10.0.13 (2026-10-13) and 10.0.14 (2026-10-25). The 10.0.14 release notes list Microsoft.AspNetCore.Identity.EntityFrameworkCore 10.0.14 among the packages updated in that release.",
+        "advisories": "No GitHub advisory names this package, Microsoft.Extensions.Identity.Stores or Microsoft.Extensions.Identity.Core, or affects 10.0.14; nuget.org's vulnerability data lists none for them, and dotnet list package --vulnerable --include-transitive reported no vulnerable package. The ASP.NET Core advisories of 10.0.13 and 10.0.14 apply to the shared framework, which runtime 10.0.14 fixes.",
+        "sources": [
+          "https://api.nuget.org/v3/registration5-gz-semver2/microsoft.aspnetcore.identity.entityframeworkcore/index.json",
+          "https://api.nuget.org/v3-flatcontainer/microsoft.aspnetcore.identity.entityframeworkcore/10.0.14/microsoft.aspnetcore.identity.entityframeworkcore.nuspec",
+          "https://api.nuget.org/v3/catalog0/data/2026.10.25.17.35.09/microsoft.aspnetcore.identity.entityframeworkcore.10.0.14.json",
+          "https://github.com/dotnet/aspnetcore",
+          "https://github.com/dotnet/core/blob/main/release-notes/10.0/10.0.14/10.0.14.md",
+          "https://api.github.com/advisories?ecosystem=nuget&affects=Microsoft.AspNetCore.Identity.EntityFrameworkCore",
+          "https://api.github.com/advisories?ecosystem=nuget&affects=Microsoft.Extensions.Identity.Stores",
+          "https://api.nuget.org/v3/vulnerabilities/index.json"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A redistributed copy, such as a container image or self-contained release, lists it in THIRD-PARTY-NOTICES with its copyright and permission notice."
+      }
+    },
+    {
       "id": "nuget:microsoft.bcl.asyncinterfaces",
       "name": "Microsoft.Bcl.AsyncInterfaces",
       "ecosystem": "nuget",
@@ -1614,41 +1651,6 @@
         "community": "cleared",
         "paid": "cleared",
         "note": "MIT. A development tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
-      }
-    },
-    {
-      "id": "nuget:microsoft.aspnetcore.identity.entityframeworkcore",
-      "name": "Microsoft.AspNetCore.Identity.EntityFrameworkCore",
-      "ecosystem": "nuget",
-      "version": "10.0.14",
-      "unpinned": null,
-      "digests": null,
-      "license": "MIT",
-      "status": "candidate",
-      "area": "identity",
-      "purpose": "EF Core stores for ASP.NET Core Identity. Identity itself, cookie authentication, data protection and antiforgery come from the Microsoft.AspNetCore.App shared framework at the runtime version the SDK entry records.",
-      "reason": "D-08 recommends ASP.NET Core Identity for users, credentials, passkeys, lockout and MFA (MOD-001, MOD-002, OPS-003), and G-02 exercises local account sign-in with server-side cookie sessions. The runtime-alignment rule selects 10.0.14, which requires Microsoft.Extensions.Identity.Stores and Microsoft.EntityFrameworkCore.Relational 10.0.14, both MIT.",
-      "maintenance": {
-        "reviewedAt": "2026-10-26",
-        "published": "2026-10-25",
-        "latestEligible": "10.0.14",
-        "ageException": "Published 2026-10-25, 1 day before review, in the .NET 10.0.14 release. The runtime-alignment rule selects the servicing version of the runtime that the SDK pin bundles, so the package and the shared framework come from one release, built from dotnet/dotnet commit 0427b9abbead3fa64c6655eb4290c537397131fa. No advisory names the package, so the security exception alone would not select it.",
-        "maintainer": "Microsoft; built from the dotnet/dotnet repository",
-        "activity": "dotnet/aspnetcore was pushed 2026-10-26. Servicing releases follow the .NET patch schedule: 10.0.12 (2026-09-08), 10.0.13 (2026-10-13) and 10.0.14 (2026-10-25). The 10.0.14 release notes list Microsoft.AspNetCore.Identity.EntityFrameworkCore 10.0.14 among the packages updated in that release.",
-        "advisories": "No GitHub advisory names this package, Microsoft.Extensions.Identity.Stores, Microsoft.Extensions.Identity.Core or Microsoft.EntityFrameworkCore.Relational, and nuget.org reports no vulnerability for 10.0.14. The ASP.NET Core advisories of 10.0.13 and 10.0.14 apply to the shared framework, which runtime 10.0.14 fixes, and to Blazor WebAssembly packages that G-02 does not use.",
-        "sources": [
-          "https://api.nuget.org/v3/registration5-gz-semver2/microsoft.aspnetcore.identity.entityframeworkcore/index.json",
-          "https://api.nuget.org/v3-flatcontainer/microsoft.aspnetcore.identity.entityframeworkcore/10.0.14/microsoft.aspnetcore.identity.entityframeworkcore.nuspec",
-          "https://github.com/dotnet/aspnetcore",
-          "https://github.com/dotnet/core/blob/main/release-notes/10.0/10.0.14/10.0.14.md",
-          "https://api.github.com/advisories?ecosystem=nuget&affects=Microsoft.Extensions.Identity.Stores",
-          "https://api.github.com/advisories?ecosystem=nuget&affects=Microsoft.AspNetCore.Identity.EntityFrameworkCore"
-        ]
-      },
-      "clearance": {
-        "community": "cleared",
-        "paid": "cleared",
-        "note": "MIT. A redistributed copy, such as a container image or self-contained release, lists it in THIRD-PARTY-NOTICES with its copyright and permission notice."
       }
     },
     {
