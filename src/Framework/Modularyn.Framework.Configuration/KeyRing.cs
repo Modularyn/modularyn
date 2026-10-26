@@ -33,14 +33,19 @@ public static class KeyRingServiceCollectionExtensions
     /// Adds ASP.NET Core data protection with a declared key ring: an application name, a key lifetime, and either the
     /// owner-only directory named by <c>{sectionPath}:Directory</c> or the supplied <paramref name="keyStore"/>. Startup
     /// is refused while the declaration is missing or invalid; keys are never generated in an undeclared location.
-    /// The key store and application name are applied after any other configuration, so they cannot be replaced.
+    /// The declaration is applied after other configuration, and startup is also refused when the effective key store,
+    /// key lifetime or application discriminator still differs from it, such as after a later post-configuration.
     /// </summary>
     public static IDataProtectionBuilder AddModularynDataProtection(this IServiceCollection services, IConfiguration configuration,
         string sectionPath = "Modularyn:DataProtection", Func<IServiceProvider, IXmlRepository>? keyStore = null)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        if (services.Any(descriptor => descriptor.ServiceType == typeof(DeclaredKeyRing)))
+            throw new InvalidOperationException("A data-protection key ring is already declared. Declare exactly one key ring.");
         services.AddModularynDeploymentOptions<KeyRingOptions>(configuration, sectionPath);
         services.AddSingleton<IValidateOptions<KeyRingOptions>>(new KeyRingOptionsValidation(sectionPath, keyStore is not null));
-        services.AddSingleton(new DeclaredKeyRing());
+        var declared = new DeclaredKeyRing();
+        services.AddSingleton(declared);
         var builder = services.AddDataProtection();
         services.AddSingleton<IPostConfigureOptions<DataProtectionOptions>>(provider => new PostConfigureOptions<DataProtectionOptions>(Options.DefaultName,
             options => options.ApplicationDiscriminator = provider.GetRequiredService<IOptions<KeyRingOptions>>().Value.ApplicationName));
@@ -48,8 +53,10 @@ public static class KeyRingServiceCollectionExtensions
         {
             var ring = provider.GetRequiredService<IOptions<KeyRingOptions>>().Value;
             options.NewKeyLifetime = ring.KeyLifetime;
-            options.XmlRepository = keyStore is null ? new RestrictedFileSystemXmlRepository(ring.Directory!) : keyStore(provider);
+            options.XmlRepository = declared.Remember(keyStore is null ? new RestrictedFileSystemXmlRepository(ring.Directory!) : keyStore(provider));
         }));
+        services.AddSingleton<IValidateOptions<KeyRingPolicyCheck>>(provider => new KeyRingPolicyValidation(provider, declared, sectionPath));
+        services.AddOptions<KeyRingPolicyCheck>().ValidateOnStart();
         return builder;
     }
 }
@@ -57,7 +64,57 @@ public static class KeyRingServiceCollectionExtensions
 /// <summary>Present in a service collection only when <see cref="KeyRingServiceCollectionExtensions.AddModularynDataProtection"/> declared the key ring.</summary>
 public sealed class DeclaredKeyRing
 {
+    private readonly HashSet<IXmlRepository> stores = new(ReferenceEqualityComparer.Instance);
+
     internal DeclaredKeyRing() { }
+
+    internal IXmlRepository Remember(IXmlRepository store)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        lock (stores) stores.Add(store);
+        return store;
+    }
+
+    internal bool IsDeclared(IXmlRepository? store)
+    {
+        if (store is null) return false;
+        lock (stores) return stores.Contains(store);
+    }
+}
+
+/// <summary>Carries no values; its startup validation compares the effective data-protection options with the declaration.</summary>
+internal sealed class KeyRingPolicyCheck;
+
+/// <summary>
+/// Runs with the other startup validations, before any hosted service and so before module activation. It refuses
+/// startup when the effective key store is not the one the declaration created, or the key lifetime or application
+/// discriminator differs from the declaration.
+/// </summary>
+internal sealed class KeyRingPolicyValidation(IServiceProvider services, DeclaredKeyRing declared, string sectionPath) : IValidateOptions<KeyRingPolicyCheck>
+{
+    public ValidateOptionsResult Validate(string? name, KeyRingPolicyCheck options)
+    {
+        KeyRingOptions ring;
+        KeyManagementOptions keyManagement;
+        try
+        {
+            ring = services.GetRequiredService<IOptions<KeyRingOptions>>().Value;
+            keyManagement = services.GetRequiredService<IOptions<KeyManagementOptions>>().Value;
+        }
+        catch (OptionsValidationException)
+        {
+            // The key-ring section reports its own failures.
+            return ValidateOptionsResult.Skip;
+        }
+        var failures = new List<string>();
+        if (!declared.IsDeclared(keyManagement.XmlRepository))
+            failures.Add($"The data-protection key store was replaced after '{sectionPath}' declared it. Remove the later key-store configuration.");
+        if (keyManagement.NewKeyLifetime != ring.KeyLifetime)
+            failures.Add($"The data-protection key lifetime differs from '{sectionPath}:KeyLifetime'. Remove the later key-lifetime configuration.");
+        if (!string.Equals(services.GetRequiredService<IOptions<DataProtectionOptions>>().Value.ApplicationDiscriminator, ring.ApplicationName, StringComparison.Ordinal))
+            failures.Add($"The data-protection application discriminator differs from '{sectionPath}:ApplicationName'. Remove the later application-name configuration.");
+        return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
+    }
 }
 
 /// <summary>Creates and checks key-ring directories with owner-only access.</summary>

@@ -204,6 +204,45 @@ public sealed class KeyRingTests : IDisposable
         Assert.Contains("'Modularyn:DataProtection:Directory' must be absent when the application supplies its own key store.", exception.Message, StringComparison.Ordinal);
     }
 
+    [Theory(DisplayName = "TM-G02-050 a later post-configuration of the key store, lifetime or application refuses startup before module activation")]
+    [InlineData("store", "The data-protection key store was replaced after 'Modularyn:DataProtection' declared it.")]
+    [InlineData("removed-store", "The data-protection key store was replaced after 'Modularyn:DataProtection' declared it.")]
+    [InlineData("lifetime", "The data-protection key lifetime differs from 'Modularyn:DataProtection:KeyLifetime'.")]
+    [InlineData("discriminator", "The data-protection application discriminator differs from 'Modularyn:DataProtection:ApplicationName'.")]
+    public async Task TM_G02_050_A_later_post_configuration_of_the_key_ring_refuses_startup_before_module_activation(string mutation, string expected)
+    {
+        KeyRingDirectory.Create(keys);
+        var builder = Builder(Declaration(), new CapturedLogs());
+        builder.Services.AddModularynDataProtection(builder.Configuration);
+        switch (mutation)
+        {
+            case "store": builder.Services.PostConfigure<KeyManagementOptions>(options => options.XmlRepository = new ListRepository()); break;
+            case "removed-store": builder.Services.PostConfigure<KeyManagementOptions>(options => options.XmlRepository = null); break;
+            case "lifetime": builder.Services.PostConfigure<KeyManagementOptions>(options => options.NewKeyLifetime = TimeSpan.FromDays(365)); break;
+            default: builder.Services.PostConfigure<DataProtectionOptions>(options => options.ApplicationDiscriminator = "another-application"); break;
+        }
+        var probe = new ModuleProbe();
+        probe.Add(builder.Services);
+        using var host = builder.Build();
+        var exception = await Assert.ThrowsAsync<OptionsValidationException>(() => host.StartAsync(Cancellation));
+        Assert.Contains(expected, exception.Message, StringComparison.Ordinal);
+        Assert.Equal(0, probe.Constructed);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(keys));
+
+        // Earlier configuration of the same options is overridden by the declaration rather than refused.
+        var earlier = Builder(Declaration(), new CapturedLogs());
+        earlier.Services.AddDataProtection().SetApplicationName("another-application").SetDefaultKeyLifetime(TimeSpan.FromDays(365));
+        earlier.Services.AddModularynDataProtection(earlier.Configuration);
+        using var accepted = earlier.Build();
+        await accepted.StartAsync(Cancellation);
+        Assert.Equal("team-workspace", accepted.Services.GetRequiredService<IOptions<DataProtectionOptions>>().Value.ApplicationDiscriminator);
+        Assert.Equal(TimeSpan.FromDays(90), accepted.Services.GetRequiredService<IOptions<KeyManagementOptions>>().Value.NewKeyLifetime);
+        await accepted.StopAsync(Cancellation);
+        var services = new ServiceCollection();
+        services.AddModularynDataProtection(earlier.Configuration);
+        Assert.Throws<InvalidOperationException>(() => services.AddModularynDataProtection(earlier.Configuration));
+    }
+
     private Dictionary<string, string?> Declaration() => new()
     {
         ["Modularyn:DataProtection:ApplicationName"] = "team-workspace",

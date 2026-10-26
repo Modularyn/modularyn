@@ -308,7 +308,10 @@ from 7 to 90 days with 90 by default; and `Directory`, a fully qualified,
 existing directory that is not a link and has owner-only access. Startup is
 refused while any of these is missing or invalid, so keys are never generated
 in an undeclared or shared location. The application name, lifetime and store
-are applied after other data-protection configuration.
+are applied after other data-protection configuration. Startup is also refused,
+before any hosted service starts, when the effective key store is not the one
+the declaration created or the effective key lifetime or application
+discriminator differs from it, as after a later post-configuration.
 
 The directory store reads only regular `.xml` files, never follows links,
 prohibits DTDs, writes each key with mode 0600 on Unix through a temporary file
