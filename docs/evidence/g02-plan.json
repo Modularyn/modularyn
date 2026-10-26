@@ -745,14 +745,14 @@
           "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_B01_WorkerReuseAndContinuationsKeepContextSeparate_Isolation",
           "layer": "isolation",
           "workOrder": "SEC-04",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
           "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_B01_WorkerReuseAndContinuationsKeepContextSeparate_Unit",
           "layer": "unit",
           "workOrder": "SEC-04",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -985,14 +985,14 @@
           "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_P01_IngressWorkersAndCachesKeepValidatedTenantContext_Isolation",
           "layer": "isolation",
           "workOrder": "SEC-04",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
           "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_P01_IngressWorkersAndCachesKeepValidatedTenantContext_Integration",
           "layer": "real-provider-integration",
           "workOrder": "SEC-04",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -1034,21 +1034,21 @@
           "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_R01_RecoveredWorkRevalidatesTenantAndActor_Isolation",
           "layer": "isolation",
           "workOrder": "SEC-04",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
           "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_R01_RecoveredWorkRevalidatesTenantAndActor_Integration",
           "layer": "real-provider-integration",
           "workOrder": "SEC-04",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
           "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_R01_RecoveredWorkRevalidatesTenantAndActor_Recovery",
           "layer": "operational-recovery",
           "workOrder": "SEC-04",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -1138,7 +1138,7 @@
           "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC_005_B01_TransactionModesKeepTheirDeclaredCommitBoundaries_Integration",
           "layer": "real-provider-integration",
           "workOrder": "CODE-03",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -1179,7 +1179,7 @@
           "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC_005_N01_StaleWritesConflictAndFailedTransactionsRollBack_Integration",
           "layer": "real-provider-integration",
           "workOrder": "CODE-03",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -1220,7 +1220,7 @@
           "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC_005_P01_CommittedWorkAndSoftDeleteFiltersAgreeOnPostgreSql_Integration",
           "layer": "real-provider-integration",
           "workOrder": "CODE-03",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -1261,21 +1261,21 @@
           "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC_005_R01_InterruptedMigrationResumesWithoutDuplicateSeeds_Integration",
           "layer": "real-provider-integration",
           "workOrder": "CODE-03",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
           "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC_005_R01_InterruptedMigrationResumesWithoutDuplicateSeeds_Migration",
           "layer": "migration",
           "workOrder": "CODE-03",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
           "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC_005_R01_InterruptedMigrationResumesWithoutDuplicateSeeds_Recovery",
           "layer": "operational-recovery",
           "workOrder": "CODE-03",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [

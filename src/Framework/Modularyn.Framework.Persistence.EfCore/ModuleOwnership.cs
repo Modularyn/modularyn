@@ -21,10 +21,19 @@ public static class ModuleOwnership
     }
 
     /// <summary>Closed operation vocabulary: raw SQL and unrecognized operations cannot escape the module schema.</summary>
-    public static void ValidateMigration(IReadOnlyList<MigrationOperation> operations, PostgreSqlModule module)
+    public static void ValidateMigration(IReadOnlyList<MigrationOperation> operations, PostgreSqlModule module) =>
+        ValidateMigration(operations, module, new Dictionary<string, string>(StringComparer.Ordinal));
+
+    /// <summary>
+    /// Also keeps tenant data out of migrations and the tenant in every key, unique constraint, index and reference of a
+    /// tenant-carrying table, given each such table's tenant column.
+    /// </summary>
+    internal static void ValidateMigration(IReadOnlyList<MigrationOperation> operations, PostgreSqlModule module,
+        IReadOnlyDictionary<string, string> tenantTables)
     {
         ArgumentNullException.ThrowIfNull(operations);
         ArgumentNullException.ThrowIfNull(module);
+        ArgumentNullException.ThrowIfNull(tenantTables);
         foreach (var operation in operations)
         {
             switch (operation)
@@ -33,13 +42,15 @@ public static class ModuleOwnership
                     break;
                 case CreateTableOperation table:
                     Check(table.Schema, table.Name, module);
-                    ValidateMigration(table.Columns.Cast<MigrationOperation>().ToArray(), module);
-                    foreach (var foreignKey in table.ForeignKeys) ValidateForeignKey(foreignKey, module);
+                    ValidateMigration(table.Columns.Cast<MigrationOperation>().ToArray(), module, tenantTables);
+                    foreach (var foreignKey in table.ForeignKeys) ValidateForeignKey(foreignKey, module, tenantTables);
                     if (table.CheckConstraints.Count > 0)
                         Refuse("SQL check expressions need a separately supported ownership contract.");
+                    if (table.PrimaryKey is { } primaryKey) RequireTenant(tenantTables, table.Name, primaryKey.Columns);
+                    foreach (var unique in table.UniqueConstraints) RequireTenant(tenantTables, table.Name, unique.Columns);
                     break;
                 case AddForeignKeyOperation foreignKey:
-                    ValidateForeignKey(foreignKey, module);
+                    ValidateForeignKey(foreignKey, module, tenantTables);
                     break;
                 case RenameTableOperation table:
                     Check(table.Schema, table.Name, module);
@@ -64,6 +75,7 @@ public static class ModuleOwnership
                     Check(index.Schema, index.Table, module);
                     if (index.Filter is not null || Equals(index["Npgsql:CreatedConcurrently"], true))
                         Refuse("Only transactional indexes without SQL predicates are supported.");
+                    RequireTenant(tenantTables, index.Table, index.Columns);
                     break;
                 case DropIndexOperation index:
                     Check(index.Schema, index.Table, module);
@@ -73,9 +85,11 @@ public static class ModuleOwnership
                     break;
                 case AddPrimaryKeyOperation key:
                     Check(key.Schema, key.Table, module);
+                    RequireTenant(tenantTables, key.Table, key.Columns);
                     break;
                 case AddUniqueConstraintOperation key:
                     Check(key.Schema, key.Table, module);
+                    RequireTenant(tenantTables, key.Table, key.Columns);
                     break;
                 case DropPrimaryKeyOperation key:
                     Check(key.Schema, key.Table, module);
@@ -106,12 +120,15 @@ public static class ModuleOwnership
                     break;
                 case InsertDataOperation data:
                     Check(data.Schema, data.Table, module);
+                    RefuseTenantData(tenantTables, data.Table);
                     break;
                 case UpdateDataOperation data:
                     Check(data.Schema, data.Table, module);
+                    RefuseTenantData(tenantTables, data.Table);
                     break;
                 case DeleteDataOperation data:
                     Check(data.Schema, data.Table, module);
+                    RefuseTenantData(tenantTables, data.Table);
                     break;
                 default:
                     Refuse("The migration contains an unsupported operation. Use transactional operations on owned objects.");
@@ -120,10 +137,28 @@ public static class ModuleOwnership
         }
     }
 
-    private static void ValidateForeignKey(AddForeignKeyOperation key, PostgreSqlModule module)
+    private static void ValidateForeignKey(AddForeignKeyOperation key, PostgreSqlModule module, IReadOnlyDictionary<string, string> tenantTables)
     {
         Check(key.Schema, key.Table, module);
         Check(key.PrincipalSchema, key.PrincipalTable, module);
+        if (!tenantTables.TryGetValue(key.PrincipalTable, out var principalTenant)) return;
+        if (!tenantTables.TryGetValue(key.Table, out var dependentTenant) || key.PrincipalColumns is null
+            || key.PrincipalColumns.Length != key.Columns.Length
+            || !Enumerable.Range(0, key.Columns.Length).Any(index => key.Columns[index] == dependentTenant && key.PrincipalColumns[index] == principalTenant))
+            throw new PersistenceContractException("MPS032", "A reference to a tenant-scoped table must come from a tenant-scoped table and carry the same tenant.");
+    }
+
+    private static void RequireTenant(IReadOnlyDictionary<string, string> tenantTables, string table, string[] columns)
+    {
+        if (tenantTables.TryGetValue(table, out var tenant) && !columns.Contains(tenant, StringComparer.Ordinal))
+            throw new PersistenceContractException("MPS032", "Every key, unique constraint and index of a tenant-scoped table must include its tenant column.");
+    }
+
+    private static void RefuseTenantData(IReadOnlyDictionary<string, string> tenantTables, string table)
+    {
+        if (tenantTables.ContainsKey(table))
+            throw new PersistenceContractException("MPS039",
+                "A migration cannot seed or change tenant-scoped rows. Tenant data changes only inside a tenant unit of work.");
     }
 
     private static void Check(string? schema, string? name, PostgreSqlModule module)

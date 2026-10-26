@@ -140,6 +140,9 @@
       },
       "modularyn.framework.persistence.abstractions": {
         "type": "Project"
+      },
+      "modularyn.framework.tenancy.abstractions": {
+        "type": "Project"
       }
     }
   }

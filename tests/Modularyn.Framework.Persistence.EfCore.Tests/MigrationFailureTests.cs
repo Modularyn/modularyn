@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore;
 using Modularyn.Framework.Persistence.Abstractions;
+using Modularyn.Framework.Tenancy.Abstractions;
 using Npgsql;
 using Xunit;
 
@@ -47,7 +48,7 @@ public sealed class MigrationFailureTests : PostgreSqlTestDatabase
     }
 }
 
-public sealed class RecoverySeed
+public sealed class RecoverySeed : IHostScoped
 {
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";

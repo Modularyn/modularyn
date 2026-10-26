@@ -2,10 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Modularyn.Framework.Persistence.Abstractions;
+using Modularyn.Framework.Tenancy.Abstractions;
 
 namespace Modularyn.Framework.Persistence.EfCore.Tests;
 
-public sealed class SampleRow : ISoftDeleted, IConcurrencyTracked
+public sealed class SampleRow : ISoftDeleted, IConcurrencyTracked, IHostScoped
 {
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
@@ -14,7 +15,7 @@ public sealed class SampleRow : ISoftDeleted, IConcurrencyTracked
     public string? Note { get; set; }
 }
 
-public sealed class SystemSeed
+public sealed class SystemSeed : IHostScoped
 {
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";

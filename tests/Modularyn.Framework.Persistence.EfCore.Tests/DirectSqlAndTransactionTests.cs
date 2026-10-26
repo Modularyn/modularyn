@@ -14,14 +14,14 @@ public sealed class DirectSqlAndTransactionTests : PostgreSqlTestDatabase
     {
         var module = SampleModule();
         await MigrateAsync(module);
-        await using (var insert = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: Cancellation))
+        await using (var insert = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation))
         {
             await insert.Sql.InsertAsync(new SampleRow { Id = "item-hidden", Name = "excluded", IsDeleted = true }, Cancellation);
             await insert.Sql.InsertAsync(new SampleRow { Id = "item-quoted", Name = "value'; SELECT 1; --" }, Cancellation);
             Assert.Equal(UnitOfWorkState.Committed, (await insert.CompleteAsync(Cancellation)).State);
         }
         var bypass = new SoftDeleteBypass("Inspect soft-deleted items for recovery", "recovery-query");
-        await using var read = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: Cancellation);
+        await using var read = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation);
         var ef = read.Context.IncludingSoftDeleted<SampleRow>(bypass);
         var sql = read.Sql.IncludingSoftDeleted<SampleRow>(bypass);
         Assert.Same(bypass, ef.Bypass);
@@ -40,7 +40,7 @@ public sealed class DirectSqlAndTransactionTests : PostgreSqlTestDatabase
     {
         var module = SampleModule();
         await MigrateAsync(module);
-        await using (var work = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: Cancellation))
+        await using (var work = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation))
         {
             var row = await work.Context.Set<SampleRow>().SingleAsync(row => row.Id == "item-2", Cancellation);
             work.Context.Remove(row);
@@ -48,7 +48,7 @@ public sealed class DirectSqlAndTransactionTests : PostgreSqlTestDatabase
             Assert.NotEqual(SampleInitial.InitialVersion, row.Version);
         }
         Assert.True(await ScalarAsync<bool>("SELECT \"IsDeleted\" FROM " + Table("Items") + " WHERE \"Id\" = 'item-2'"));
-        await using var read = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: Cancellation);
+        await using var read = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation);
         Assert.Equal(new[] { "item-1" }, await read.Sql.Query<SampleRow>().Select(row => row.Id).ToArrayAsync(Cancellation));
     }
 
@@ -57,7 +57,7 @@ public sealed class DirectSqlAndTransactionTests : PostgreSqlTestDatabase
     {
         var module = SampleModule();
         await MigrateAsync(module);
-        await using (var winner = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: Cancellation))
+        await using (var winner = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation))
         {
             var changed = await winner.Sql.UpdateAsync<SampleRow, string, string>(row => row.Id, "item-1", SampleInitial.InitialVersion,
                 row => row.Name, "direct winner", Cancellation);
@@ -66,7 +66,7 @@ public sealed class DirectSqlAndTransactionTests : PostgreSqlTestDatabase
             Assert.NotEqual(SampleInitial.InitialVersion, changed.Version);
             Assert.Equal(UnitOfWorkState.Committed, (await winner.CompleteAsync(Cancellation)).State);
         }
-        await using (var stale = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: Cancellation))
+        await using (var stale = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation))
         {
             await stale.Sql.InsertAsync(new SampleRow { Id = "must-rollback", Name = "prior work" }, Cancellation);
             var result = await stale.Sql.UpdateAsync<SampleRow, string, string>(row => row.Id, "item-1", SampleInitial.InitialVersion,
@@ -75,7 +75,7 @@ public sealed class DirectSqlAndTransactionTests : PostgreSqlTestDatabase
             Assert.Equal("stale proposal", result.Conflict!.ProposedValues[nameof(SampleRow.Name)]);
             Assert.Equal(UnitOfWorkState.Failed, (await stale.CompleteAsync(Cancellation)).State);
         }
-        await using (var hidden = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: Cancellation))
+        await using (var hidden = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation))
         {
             var result = await hidden.Sql.UpdateAsync<SampleRow, string, string>(row => row.Id, "item-3", SampleInitial.InitialVersion,
                 row => row.Name, "must remain hidden", Cancellation);
@@ -93,7 +93,7 @@ public sealed class DirectSqlAndTransactionTests : PostgreSqlTestDatabase
         var module = SampleModule();
         await MigrateAsync(module);
         var completions = new List<UnitOfWorkResult>();
-        await using (var work = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: Cancellation))
+        await using (var work = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation))
         {
             work.OnCompleted(completions.Add);
             await work.Sql.InsertAsync(new SampleRow { Id = "cancelled", Name = "pending" }, Cancellation);
@@ -110,8 +110,8 @@ public sealed class DirectSqlAndTransactionTests : PostgreSqlTestDatabase
     {
         var module = SampleModule();
         await MigrateAsync(module);
-        await using var outer = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: Cancellation);
-        await using (var inner = await EfCoreUnitOfWork.BeginAsync(module, UnitOfWorkMode.Join, outer, Cancellation))
+        await using var outer = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation);
+        await using (var inner = await EfCoreUnitOfWork.BeginAsync(module, Deployment, UnitOfWorkMode.Join, outer, Cancellation))
             await inner.Sql.InsertAsync(new SampleRow { Id = "abandoned", Name = "joined" }, Cancellation);
         Assert.Equal(UnitOfWorkState.Failed, (await outer.CompleteAsync(Cancellation)).State);
         Assert.Equal(0L, await ScalarAsync<long>("SELECT count(*) FROM " + Table("Items") + " WHERE \"Id\" = 'abandoned'"));
@@ -122,7 +122,7 @@ public sealed class DirectSqlAndTransactionTests : PostgreSqlTestDatabase
     {
         var module = SampleModule();
         await MigrateAsync(module);
-        await using var work = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: Cancellation);
+        await using var work = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation);
         await using (var blocker = new NpgsqlConnection(Options.ConnectionString))
         {
             await blocker.OpenAsync(Cancellation);
@@ -144,7 +144,7 @@ public sealed class DirectSqlAndTransactionTests : PostgreSqlTestDatabase
     {
         var module = SampleModule();
         await MigrateAsync(module);
-        await using var work = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: Cancellation);
+        await using var work = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation);
         work.Context.Update(new SampleRow { Id = "item-1", Name = "missing version" });
         var refusal = await Assert.ThrowsAsync<PersistenceContractException>(() => work.CompleteAsync(Cancellation));
         Assert.Equal("MPS010", refusal.Code);
@@ -157,7 +157,7 @@ public sealed class DirectSqlAndTransactionTests : PostgreSqlTestDatabase
     {
         var module = SampleModule();
         await MigrateAsync(module);
-        await using var work = await EfCoreUnitOfWork.BeginAsync(module, cancellationToken: Cancellation);
+        await using var work = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation);
         var calls = 0;
         work.OnCompleted(_ => { calls++; throw new InvalidOperationException("Callback failed after commit."); });
         var observed = new List<UnitOfWorkResult>();

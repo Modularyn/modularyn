@@ -3,6 +3,7 @@ using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Modularyn.Framework.Persistence.Abstractions;
+using Modularyn.Framework.Tenancy.Abstractions;
 
 namespace Modularyn.Framework.Persistence.EfCore;
 
@@ -48,25 +49,60 @@ public sealed class EfCoreUnitOfWork : IUnitOfWork
     public UnitOfWorkState State => root.result?.State ?? (joinedComplete ? UnitOfWorkState.Joined : UnitOfWorkState.Active);
     public Guid? TransactionId => root.transaction?.TransactionId;
 
-    public static async Task<EfCoreUnitOfWork> BeginAsync(PostgreSqlModule module, UnitOfWorkMode mode = UnitOfWorkMode.Join,
+    /// <summary>
+    /// Begins a unit of work with no tenant context and no deployment scope: it can read host-scoped data and change
+    /// nothing. A joined scope shares its explicitly supplied ambient unit's context and scope.
+    /// </summary>
+    public static Task<EfCoreUnitOfWork> BeginAsync(PostgreSqlModule module, UnitOfWorkMode mode = UnitOfWorkMode.Join,
+        EfCoreUnitOfWork? ambient = null, CancellationToken cancellationToken = default) =>
+        mode == UnitOfWorkMode.Join && ambient is not null
+            ? BeginCoreAsync(module, ambient.Context.Tenant, ambient.Context.Deployment, mode, ambient, cancellationToken)
+            : BeginCoreAsync(module, null, null, mode, ambient, cancellationToken);
+
+    /// <summary>
+    /// Begins a unit of work bound to a validated tenant context for its whole life. The context is passed explicitly and
+    /// never inherited: a new or suppressed scope uses exactly the context given, and a joined scope must name its
+    /// ambient unit's context.
+    /// </summary>
+    public static Task<EfCoreUnitOfWork> BeginAsync(PostgreSqlModule module, TenantContext? tenant, UnitOfWorkMode mode = UnitOfWorkMode.Join,
+        EfCoreUnitOfWork? ambient = null, CancellationToken cancellationToken = default) =>
+        BeginCoreAsync(module, tenant, null, mode, ambient, cancellationToken);
+
+    /// <summary>
+    /// Begins a unit of work in a named deployment scope, which can change host-scoped data but no tenant data. A joined
+    /// scope must name its ambient unit's deployment scope.
+    /// </summary>
+    public static Task<EfCoreUnitOfWork> BeginAsync(PostgreSqlModule module, DeploymentScope deployment, UnitOfWorkMode mode = UnitOfWorkMode.Join,
         EfCoreUnitOfWork? ambient = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(deployment);
+        return BeginCoreAsync(module, null, deployment, mode, ambient, cancellationToken);
+    }
+
+    private static async Task<EfCoreUnitOfWork> BeginCoreAsync(PostgreSqlModule module, TenantContext? tenant, DeploymentScope? deployment,
+        UnitOfWorkMode mode, EfCoreUnitOfWork? ambient, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(module);
         cancellationToken.ThrowIfCancellationRequested();
         if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode));
         if (System.Transactions.Transaction.Current is not null)
             throw new PersistenceContractException("MPS023", "External ambient transactions are unsupported. Pass the module unit of work explicitly.");
+        if (tenant is { IsActive: false })
+            throw new PersistenceContractException("MPS035", "The tenant context has ended; begin a unit of work only while its context is active.");
         if (mode == UnitOfWorkMode.Join && ambient is not null)
         {
             ambient.EnsureActive();
             if (!ReferenceEquals(module, ambient.Context.Module))
                 throw new PersistenceContractException("MPS013", "A joined scope must use the same registered module and database.");
+            if (!ReferenceEquals(tenant, ambient.Context.Tenant) || !ReferenceEquals(deployment, ambient.Context.Deployment))
+                throw new PersistenceContractException("MPS035", "A joined scope must use its ambient unit's tenant context and deployment scope.");
             return new(ambient);
         }
 
         var context = module.CreateContext();
         try
         {
+            context.Bind(tenant, deployment);
             // Materialize and validate ownership before opening a connection.
             _ = context.Model;
             await context.Database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
