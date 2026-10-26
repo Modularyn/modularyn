@@ -95,6 +95,13 @@ public sealed class ThrottleTests
     [Fact(DisplayName = "TM-G02-015 policies refuse values outside their declared ranges")]
     public void TM_G02_015_Policies_refuse_values_outside_their_declared_ranges()
     {
+        var tick = TimeSpan.FromTicks(1);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ThrottlePolicy(20, TimeSpan.FromMinutes(15) + tick, TimeSpan.FromMinutes(15), 5,
+            TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(15), TimeSpan.FromDays(1)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ThrottlePolicy(20, TimeSpan.FromMinutes(15), TimeSpan.FromMinutes(15), 5,
+            TimeSpan.FromSeconds(1) + tick, TimeSpan.FromMinutes(15), TimeSpan.FromDays(1)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ThrottlePolicy(20, TimeSpan.FromMinutes(15), TimeSpan.FromMinutes(15), 5,
+            TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(15), TimeSpan.FromDays(1) + tick));
         var minute = TimeSpan.FromMinutes(1);
         Assert.Throws<ArgumentOutOfRangeException>(() => new ThrottlePolicy(2, minute, minute, 3, TimeSpan.FromSeconds(1), minute, TimeSpan.FromHours(1)));
         Assert.Throws<ArgumentOutOfRangeException>(() => new ThrottlePolicy(5, TimeSpan.FromSeconds(30), minute, 3, TimeSpan.FromSeconds(1), minute, TimeSpan.FromHours(1)));

@@ -63,7 +63,7 @@ internal sealed class CredentialKeyRing(IOptions<IdentitySecurityOptions> option
 }
 
 /// <summary>One-time-password seeds encrypted with AES-256-GCM under versioned keys (TM-G02-056).</summary>
-internal sealed class AuthenticatorSeedService(IAuthenticatorSeedStore store, CredentialKeyRing keys, VerificationGate gate, TimeProvider clock)
+internal sealed class AuthenticatorSeedService(IAuthenticatorSeedStore store, CredentialKeyRing keys, VerificationGate gate, IdentityClock clock)
     : IAuthenticatorSeeds
 {
     public async Task StoreAsync(Guid accountId, ReadOnlyMemory<byte> seed, CancellationToken cancellationToken)
@@ -78,7 +78,7 @@ internal sealed class AuthenticatorSeedService(IAuthenticatorSeedStore store, Cr
             var tag = new byte[ProtectedSeed.TagLength];
             using (var cipher = new AesGcm(key, ProtectedSeed.TagLength))
                 cipher.Encrypt(nonce, seed.Span, ciphertext, tag, ProtectedSeed.AssociatedData(accountId, version));
-            await store.SaveAsync(new ProtectedSeed(accountId, version, nonce, ciphertext, tag, clock.GetUtcNow()), cancellationToken).ConfigureAwait(false);
+            await store.SaveAsync(new ProtectedSeed(accountId, version, nonce, ciphertext, tag, clock.Now), cancellationToken).ConfigureAwait(false);
         }
         finally { CryptographicOperations.ZeroMemory(key); }
     }
@@ -89,7 +89,7 @@ internal sealed class AuthenticatorSeedService(IAuthenticatorSeedStore store, Cr
         ArgumentNullException.ThrowIfNull(check);
         source = ClientSources.Require(source, nameof(source));
         await using var attempt = await gate.EnterAsync(ThrottleKey.ForSource(source), ThrottleKey.ForAccount(ThrottleKind.OneTimeCode, accountId),
-            clock.GetUtcNow(), cancellationToken).ConfigureAwait(false);
+            clock.Now, cancellationToken).ConfigureAwait(false);
         if (attempt.RefusedUntil is { } retryAt) return new(CredentialVerificationStatus.Throttled, retryAt);
         var seed = await store.FindAsync(accountId, cancellationToken).ConfigureAwait(false);
         if (seed is null) return CredentialVerification.Unavailable;
@@ -126,13 +126,13 @@ internal sealed class AuthenticatorSeedService(IAuthenticatorSeedStore store, Cr
 }
 
 /// <summary>Recovery codes stored only as salted verifiers and consumed once (TM-G02-057).</summary>
-internal sealed class RecoveryCodeService(IRecoveryCodeStore store, IAccountDirectory accounts, VerificationGate gate, TimeProvider clock) : IRecoveryCodes
+internal sealed class RecoveryCodeService(IRecoveryCodeStore store, IAccountDirectory accounts, VerificationGate gate, IdentityClock clock) : IRecoveryCodes
 {
     public async Task<RecoveryCodeSet> GenerateAsync(Guid accountId, CancellationToken cancellationToken)
     {
         if (await accounts.FindAsync(accountId, cancellationToken).ConfigureAwait(false) is null)
             throw new InvalidOperationException("Recovery codes belong to an existing account.");
-        var now = clock.GetUtcNow();
+        var now = clock.Now;
         var setId = Guid.NewGuid();
         var codes = Enumerable.Range(0, RecoveryCodes.CodesPerSet).Select(_ => RecoveryCodes.Generate()).ToArray();
         await store.ReplaceAsync(accountId, codes.Select(code => RecoveryCodes.CreateVerifier(accountId, setId, code, now)).ToArray(), now,
@@ -144,7 +144,7 @@ internal sealed class RecoveryCodeService(IRecoveryCodeStore store, IAccountDire
     {
         ArgumentNullException.ThrowIfNull(code);
         source = ClientSources.Require(source, nameof(source));
-        var now = clock.GetUtcNow();
+        var now = clock.Now;
         await using var attempt = await gate.EnterAsync(ThrottleKey.ForSource(source), ThrottleKey.ForAccount(ThrottleKind.RecoveryCode, accountId),
             now, cancellationToken).ConfigureAwait(false);
         if (attempt.RefusedUntil is { } retryAt) return new(CredentialVerificationStatus.Throttled, retryAt);
@@ -169,7 +169,7 @@ internal sealed class RecoveryCodeService(IRecoveryCodeStore store, IAccountDire
 }
 
 /// <summary>Passkey records bound to their account, credential and relying party by an integrity tag (TM-G02-058).</summary>
-internal sealed class PasskeyCredentialService(IPasskeyCredentialStore store, CredentialKeyRing keys, TimeProvider clock) : IPasskeyCredentials
+internal sealed class PasskeyCredentialService(IPasskeyCredentialStore store, CredentialKeyRing keys, IdentityClock clock) : IPasskeyCredentials
 {
     public async Task<bool> EnrollAsync(PasskeyEnrollment enrollment, CancellationToken cancellationToken)
     {
@@ -181,7 +181,7 @@ internal sealed class PasskeyCredentialService(IPasskeyCredentialStore store, Cr
         try { tag = HMACSHA256.HashData(key, canonical); }
         finally { CryptographicOperations.ZeroMemory(key); }
         return await store.AddAsync(new PasskeyCredentialRecord(Guid.NewGuid(), enrollment.AccountId, enrollment.CredentialId.ToArray(),
-            enrollment.RelyingPartyId, enrollment.PublicKey.ToArray(), enrollment.Algorithm, clock.GetUtcNow(), version, tag), cancellationToken).ConfigureAwait(false);
+            enrollment.RelyingPartyId, enrollment.PublicKey.ToArray(), enrollment.Algorithm, clock.Now, version, tag), cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<PasskeyLookup> FindForSignInAsync(byte[] credentialId, string relyingPartyId, CancellationToken cancellationToken)

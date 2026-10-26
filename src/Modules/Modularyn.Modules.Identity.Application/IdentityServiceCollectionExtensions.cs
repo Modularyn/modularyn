@@ -14,7 +14,8 @@ public static class IdentityServiceCollectionExtensions
     /// <summary>
     /// Registers the identity module's application services and binds <see cref="IdentitySecurityOptions"/> from
     /// <paramref name="sectionPath"/>, validated before startup. The persistence adapter registers the stores; startup is
-    /// refused while any of them is missing. Register a <see cref="TimeProvider"/> to replace the system clock.
+    /// refused while any of them is missing. Register a <see cref="TimeProvider"/> to replace the system clock; the module reads it
+    /// through its own clock, which normalizes every time to whole microseconds (<see cref="StoredTime"/>).
     /// </summary>
     public static IServiceCollection AddModularynIdentity(this IServiceCollection services, IConfiguration configuration, string sectionPath = "Modularyn:Identity")
     {
@@ -24,6 +25,7 @@ public static class IdentityServiceCollectionExtensions
         services.AddModularynDeploymentOptions<IdentitySecurityOptions>(configuration, sectionPath);
         services.AddSingleton<IValidateOptions<IdentitySecurityOptions>>(new IdentitySecurityOptionsValidation(sectionPath));
         services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<IdentityClock>();
         services.AddSingleton(provider => IdentityPolicies.From(provider.GetRequiredService<IOptions<IdentitySecurityOptions>>().Value));
         services.AddSingleton(provider => provider.GetRequiredService<IdentityPolicies>().Passwords);
         services.AddSingleton(provider => new ServiceIdentityRegistry(provider.GetServices<ServiceIdentityDeclaration>()));

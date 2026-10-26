@@ -5,14 +5,14 @@ using Modularyn.Modules.Identity.Domain;
 
 namespace Modularyn.Modules.Identity.Application;
 
-internal sealed class SignInService(IAccountDirectory accounts, VerificationGate gate, SessionService sessions, TimeProvider clock) : ISignInService
+internal sealed class SignInService(IAccountDirectory accounts, VerificationGate gate, SessionService sessions, IdentityClock clock) : ISignInService
 {
     public async Task<SignInResult> SignInWithPasswordAsync(PasswordSignInRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         // Input no account could match is refused before any lookup, identically for every account name.
         if (!UserNames.IsPlausible(request.UserName) || !PasswordPolicy.IsPlausible(request.Password)) return SignInResult.Failed;
-        var now = clock.GetUtcNow();
+        var now = clock.Now;
         await using var attempt = await gate.EnterAsync(ThrottleKey.ForSource(request.Source),
             ThrottleKey.ForUserName(ThrottleKind.Password, request.UserName), now, cancellationToken).ConfigureAwait(false);
         if (attempt.RefusedUntil is { } retryAt) return SignInResult.Throttled(retryAt);
@@ -30,7 +30,7 @@ internal sealed class SignInService(IAccountDirectory accounts, VerificationGate
 }
 
 internal sealed class AccountService(IAccountDirectory accounts, VerificationGate gate, SessionService sessions, IdentityPolicies policies,
-    TimeProvider clock) : IAccountService
+    IdentityClock clock) : IAccountService
 {
     public async Task<AccountCreationResult> CreateLocalAccountAsync(string userName, SecretText password, CancellationToken cancellationToken)
     {
@@ -55,7 +55,7 @@ internal sealed class AccountService(IAccountDirectory accounts, VerificationGat
         if (account is null || account.Disabled) return new(PasswordChangeStatus.AccountUnavailable, null);
 
         // The current password is a guess like any other, so it shares sign-in's counters.
-        var now = clock.GetUtcNow();
+        var now = clock.Now;
         await using var attempt = await gate.EnterAsync(ThrottleKey.ForSource(source),
             ThrottleKey.ForUserName(ThrottleKind.Password, account.UserName), now, cancellationToken).ConfigureAwait(false);
         if (attempt.RefusedUntil is { } retryAt) return new(PasswordChangeStatus.Throttled, retryAt);
@@ -92,11 +92,11 @@ internal sealed class AccountService(IAccountDirectory accounts, VerificationGat
     }
 }
 
-internal sealed class TenantMembershipService(ITenantMembershipStore store, TimeProvider clock) : ITenantMemberships
+internal sealed class TenantMembershipService(ITenantMembershipStore store, IdentityClock clock) : ITenantMemberships
 {
     public Task<bool> AddMemberAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken) =>
         tenantId == Guid.Empty ? throw new ArgumentException("Name the tenant by its identifier.", nameof(tenantId))
-            : store.AddAsync(accountId, tenantId, clock.GetUtcNow(), cancellationToken);
+            : store.AddAsync(accountId, tenantId, clock.Now, cancellationToken);
 
     public Task<bool> RemoveMemberAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken) => store.RemoveAsync(accountId, tenantId, cancellationToken);
 

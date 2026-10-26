@@ -71,6 +71,27 @@ public sealed class SessionRulesTests
         Assert.True(PasswordPolicy.IsPlausible(new SecretText(new string('x', PasswordPolicy.MaximumLength))));
     }
 
+    [Fact(DisplayName = "TM-G02-016 stored times are whole microseconds, and session limits finer than that are refused")]
+    public void TM_G02_016_Stored_times_are_whole_microseconds_and_finer_session_limits_are_refused()
+    {
+        var at = new DateTimeOffset(2026, 10, 27, 1, 0, 0, TimeSpan.FromHours(2)).AddTicks(1_234_567);
+        Assert.Equal(new DateTimeOffset(at.UtcTicks - 7, TimeSpan.Zero), StoredTime.Floor(at));
+        Assert.Equal(new DateTimeOffset(at.UtcTicks + 3, TimeSpan.Zero), StoredTime.Ceiling(at));
+        Assert.Equal(TimeSpan.Zero, StoredTime.Floor(at).Offset);
+        Assert.Equal(StoredTime.Floor(at), StoredTime.Floor(StoredTime.Floor(at)));
+        Assert.Equal(StoredTime.Floor(at), StoredTime.Ceiling(StoredTime.Floor(at)));
+        Assert.True(StoredTime.IsNormalized(StoredTime.Floor(at)));
+        Assert.False(StoredTime.IsNormalized(at));
+        Assert.Equal(StoredTime.Floor(at), StoredTime.Require(StoredTime.Floor(at)));
+        Assert.Throws<InvalidOperationException>(() => StoredTime.Require(at));
+        // A comparison of a raw time with a whole-microsecond limit decides as the floored time does.
+        var limit = StoredTime.Floor(at).AddMinutes(20);
+        foreach (var ticks in new[] { -11, -10, -9, -1, 0, 1, 9, 10 })
+            Assert.Equal(limit.AddTicks(ticks) < limit, StoredTime.Floor(limit.AddTicks(ticks)) < limit);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SessionPolicy(TimeSpan.FromMinutes(20).Add(TimeSpan.FromTicks(5)), TimeSpan.FromHours(8)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SessionPolicy(TimeSpan.FromMinutes(20), TimeSpan.FromHours(8).Add(TimeSpan.FromTicks(1))));
+    }
+
     [Fact(DisplayName = "TM-G02-015 user names are the allowed ASCII characters, so their comparison form never depends on globalization")]
     public void TM_G02_015_User_names_are_ascii_so_their_comparison_form_never_depends_on_globalization()
     {
@@ -110,6 +131,22 @@ public sealed class DelegationGrantTests
             grant.Authority.NotBefore, grant.Authority.ExpiresAt, grant.IssuedBy, grant.IssuedAt, Now.AddMinutes(5), User1);
         Assert.Equal(DelegationState.Active, revoked.StateAt(Now.AddMinutes(5).AddSeconds(-1)));
         Assert.Equal(DelegationState.Revoked, revoked.StateAt(Now.AddMinutes(5)));
+    }
+
+    [Fact(DisplayName = "TM-G02-018 a requested window is narrowed to whole microseconds, never starting earlier or ending later than asked")]
+    public void TM_G02_018_A_requested_window_is_narrowed_to_whole_microseconds()
+    {
+        var grant = DelegationGrant.Issue(Guid.NewGuid(), Support1, User1, ["item.read"], "support case", TenantA, Now.AddTicks(3),
+            Now.AddMinutes(10).AddTicks(7), User1, Now.AddTicks(1), Policy);
+        Assert.Equal((Now.AddTicks(10), Now.AddMinutes(10), Now), (grant.Authority.NotBefore, grant.Authority.ExpiresAt, grant.IssuedAt));
+        Assert.Equal(DelegationState.Pending, grant.StateAt(Now.AddTicks(9)));
+        Assert.Equal(DelegationState.Active, grant.StateAt(Now.AddTicks(10)));
+        Assert.Equal(DelegationState.Active, grant.StateAt(Now.AddMinutes(10).AddTicks(-1)));
+        Assert.NotEqual(DelegationState.Active, grant.StateAt(Now.AddMinutes(10)));
+        // A window shorter than a microsecond is no window at all.
+        Assert.ThrowsAny<ArgumentException>(() => DelegationGrant.Issue(Guid.NewGuid(), Support1, User1, ["item.read"], "support case", TenantA,
+            Now.AddTicks(1), Now.AddTicks(9), User1, Now, Policy));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new DelegationPolicy(TimeSpan.FromHours(8).Add(TimeSpan.FromTicks(1))));
     }
 
     [Fact(DisplayName = "TM-G02-018 issue refuses self delegation, service kinds, backdating and windows beyond the declared lifetime")]

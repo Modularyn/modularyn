@@ -88,6 +88,106 @@ public sealed class SessionAndLedgerTests(ITestOutputHelper output)
         output.WriteLine($"Idle edge {idle}, absolute edge {absolute}: each request inside a limit succeeded and the first past it was refused with its reason recorded.");
     }
 
+    [Fact(DisplayName = "TM-G02-016 under a clock with 100 ns ticks, stored times equal the times in memory, so every limit decides the same before and after a round trip")]
+    public async Task TM_G02_016_Under_a_sub_microsecond_clock_limits_decide_the_same_before_and_after_a_round_trip()
+    {
+        // Ticks that PostgreSQL's microseconds cannot hold, as a Linux clock reports them, on every platform.
+        var start = new DateTimeOffset(2026, 10, 27, 0, 3, 53, TimeSpan.Zero).AddTicks(9_999_996);
+        var clock = new ManualClock(start);
+        var limit = TimeSpan.FromMinutes(15);
+        await using var database = await IdentityDatabase.CreateAsync();
+        await using var identity = PostgreSqlIdentity.Create(database, new()
+        {
+            ["Modularyn:Identity:Sessions:IdleTimeout"] = "00:15:00",
+            ["Modularyn:Identity:Sessions:AbsoluteLifetime"] = "00:30:00"
+        }, clock);
+        var sessions = identity.Get<ISessionService>();
+        var (_, password) = await identity.AccountAsync("editor-1");
+        var idle = (await identity.SignInAsync("editor-1", password)).Session!;
+        var idleEdge = (await identity.SignInAsync("editor-1", password)).Session!;
+        var absolute = (await identity.SignInAsync("editor-1", password)).Session!;
+
+        // What the module holds in memory is what the database keeps: whole microseconds, no later than the clock.
+        foreach (var issued in new[] { idle, idleEdge, absolute })
+        {
+            var stored = (await sessions.DescribeAsync(issued.SessionId, Cancellation))!;
+            Assert.Equal((issued.AuthenticatedAt, issued.AuthenticatedAt, issued.ExpiresAt), (stored.AuthenticatedAt, stored.LastSeenAt, stored.ExpiresAt));
+            Assert.Equal(issued.AuthenticatedAt, (await RecordAsync(database, issued.SessionId)).LastSeen);
+            Assert.True(StoredTime.IsNormalized(issued.AuthenticatedAt) && StoredTime.IsNormalized(issued.ExpiresAt));
+            Assert.InRange(start - issued.AuthenticatedAt, TimeSpan.Zero, TimeSpan.FromTicks(9));
+        }
+
+        // The idle limit, one tick either side of the edge the issued session implies.
+        clock.Set(idle.AuthenticatedAt + limit - TimeSpan.FromTicks(1));
+        Assert.NotNull(await sessions.ValidateAsync(idle.Token, Cancellation));
+        clock.Set(idleEdge.AuthenticatedAt + limit);
+        Assert.Null(await sessions.ValidateAsync(idleEdge.Token, Cancellation));
+        Assert.Equal(SessionEndCause.IdleTimeout, (await sessions.DescribeAsync(idleEdge.SessionId, Cancellation))!.EndCause);
+
+        // The absolute limit, at the deadline the issued session reported, after activity kept it from idling.
+        foreach (var minutes in new[] { 14, 28 })
+        {
+            clock.Set(absolute.AuthenticatedAt + TimeSpan.FromMinutes(minutes));
+            Assert.NotNull(await sessions.ValidateAsync(absolute.Token, Cancellation));
+        }
+        clock.Set(absolute.ExpiresAt - TimeSpan.FromTicks(1));
+        Assert.NotNull(await sessions.ValidateAsync(absolute.Token, Cancellation));
+        clock.Set(absolute.ExpiresAt);
+        Assert.Null(await sessions.ValidateAsync(absolute.Token, Cancellation));
+        Assert.Equal(SessionEndCause.AbsoluteLifetime, (await sessions.DescribeAsync(absolute.SessionId, Cancellation))!.EndCause);
+
+        // A delegation's window comes from the caller: the stored grant starts no earlier and ends no later than requested,
+        // and it is pending, active and expired at the same instants before and after the round trip.
+        clock.Set(start + TimeSpan.FromHours(1));
+        var (subjectId, subjectPassword) = await identity.AccountAsync("user-1");
+        var (actorId, actorPassword) = await identity.AccountAsync("support-1");
+        var subject = (await sessions.ValidateAsync((await identity.SignInAsync("user-1", subjectPassword)).Session!.Token, Cancellation))!.ToPrincipal();
+        var actor = (await sessions.ValidateAsync((await identity.SignInAsync("support-1", actorPassword)).Session!.Token, Cancellation))!.ToPrincipal();
+        var notBefore = clock.Now + TimeSpan.FromMinutes(1) + TimeSpan.FromTicks(3);
+        var expiresAt = clock.Now + TimeSpan.FromMinutes(10) + TimeSpan.FromTicks(7);
+        var delegations = identity.Get<IDelegationService>();
+        var grant = (await delegations.IssueAsync(new DelegationRequest(actorId, subjectId, ["item.read"], "Support case", null, expiresAt, notBefore), subject, Cancellation)).GrantId!.Value;
+        var view = (await delegations.DescribeAsync(grant, Cancellation))!;
+        Assert.Equal((StoredTime.Ceiling(notBefore), StoredTime.Floor(expiresAt)), (view.NotBefore, view.ExpiresAt));
+        Assert.True(StoredTime.IsNormalized(view.IssuedAt));
+        clock.Set(view.NotBefore - TimeSpan.FromTicks(1));
+        Assert.Null(await delegations.ResolveAsync(grant, actor, Cancellation));
+        clock.Set(view.NotBefore);
+        var delegated = await delegations.ResolveAsync(grant, actor, Cancellation);
+        Assert.NotNull(delegated);
+        clock.Set(view.ExpiresAt - TimeSpan.FromTicks(1));
+        Assert.NotNull(await delegations.ResolveAsync(grant, actor, Cancellation));
+        Assert.True(delegated!.IsWithinCeiling("item.read", null, clock.Now));
+        clock.Set(view.ExpiresAt);
+        Assert.Null(await delegations.ResolveAsync(grant, actor, Cancellation));
+        Assert.False(delegated.IsWithinCeiling("item.read", null, clock.Now));
+
+        // An account delay ends at the retry time the module reports, which is whole microseconds.
+        clock.Set(start + TimeSpan.FromHours(2));
+        await identity.AccountAsync("admin-1");
+        for (var failure = 0; failure < 3; failure++)
+            Assert.Equal(SignInStatus.Failed, (await identity.SignInAsync("admin-1", Generated.Password(), "198.51.100." + failure)).Status);
+        var throttled = await identity.SignInAsync("admin-1", Generated.Password(), "198.51.100.10");
+        Assert.Equal(SignInStatus.Throttled, throttled.Status);
+        Assert.True(StoredTime.IsNormalized(throttled.RetryAt!.Value));
+        clock.Set(throttled.RetryAt.Value - TimeSpan.FromTicks(1));
+        Assert.Equal(SignInStatus.Throttled, (await identity.SignInAsync("admin-1", Generated.Password(), "198.51.100.11")).Status);
+        clock.Set(throttled.RetryAt.Value);
+        Assert.Equal(SignInStatus.Failed, (await identity.SignInAsync("admin-1", Generated.Password(), "198.51.100.12")).Status);
+
+        // A time that bypassed the module's clock is refused when it would be written, never truncated silently, and the
+        // record is left as it was.
+        var store = identity.Get<ISessionStore>();
+        var raw = start + TimeSpan.FromHours(3);
+        var unnormalized = new SessionRecord(Guid.NewGuid(), SessionToken.Create().ComputeHash(), idle.AccountId, raw, raw, raw + limit, "stamp", null, null);
+        Assert.Contains("whole microseconds", (await Assert.ThrowsAnyAsync<Exception>(() => store.CreateAsync(unnormalized, Cancellation))).ToString());
+        Assert.Null(await store.FindAsync(unnormalized.Id, Cancellation));
+        Assert.Contains("whole microseconds", (await Assert.ThrowsAnyAsync<Exception>(() =>
+            store.EndAsync(idle.SessionId, SessionEndReason.Revoked, raw, Cancellation))).ToString());
+        Assert.Null((await RecordAsync(database, idle.SessionId)).Ended);
+        output.WriteLine("Sessions, a delegation and an account delay decided their limits at the instants the module reported, before and after PostgreSQL.");
+    }
+
     [Fact(DisplayName = "TM-G02-015 on PostgreSQL, concurrent attempts from two hosts never verify more than the per-account and per-source limits allow")]
     public async Task TM_G02_015_Concurrent_attempts_never_verify_more_than_the_limits_allow()
     {

@@ -100,6 +100,8 @@ public sealed record ThrottlePolicy
             throw new ArgumentOutOfRangeException(nameof(subjectMaximumDelay), "The delay cap is from the first delay to one hour.");
         if (subjectResetAfter < subjectMaximumDelay || subjectResetAfter > TimeSpan.FromDays(30))
             throw new ArgumentOutOfRangeException(nameof(subjectResetAfter), "Failures are forgotten after from the delay cap to thirty days.");
+        if (!new[] { sourceWindow, sourceBlock, subjectBaseDelay, subjectMaximumDelay, subjectResetAfter }.All(StoredTime.IsWhole))
+            throw new ArgumentOutOfRangeException(nameof(sourceWindow), "Throttle periods are whole microseconds, the precision the database keeps.");
         SourceThreshold = sourceThreshold;
         SourceWindow = sourceWindow;
         SourceBlock = sourceBlock;

@@ -14,6 +14,8 @@ public sealed record SessionPolicy
             throw new ArgumentOutOfRangeException(nameof(idleTimeout), "A session idle timeout is from one minute to twelve hours.");
         if (absoluteLifetime < MinimumAbsoluteLifetime || absoluteLifetime > MaximumAbsoluteLifetime || absoluteLifetime < idleTimeout)
             throw new ArgumentOutOfRangeException(nameof(absoluteLifetime), "A session absolute lifetime is from fifteen minutes to a day, and at least the idle timeout.");
+        if (!StoredTime.IsWhole(idleTimeout) || !StoredTime.IsWhole(absoluteLifetime))
+            throw new ArgumentOutOfRangeException(nameof(idleTimeout), "Session limits are whole microseconds, the precision the database keeps.");
         IdleTimeout = idleTimeout;
         AbsoluteLifetime = absoluteLifetime;
     }

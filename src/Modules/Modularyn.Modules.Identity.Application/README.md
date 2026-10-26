@@ -117,6 +117,33 @@ therefore take effect at the next request; that is the declared freshness bound
 for sessions and the claims they carry. `IPrincipalFreshness` repeats the check
 inside a running request for a security-sensitive operation.
 
+### Stored times
+
+PostgreSQL's `timestamptz` keeps whole microseconds, while .NET times tick in
+100 ns, and Linux clocks report that resolution. A time held in memory more
+finely than the database keeps it would come back up to 0.9 µs earlier, and a
+limit decided before the round trip could flip after it. `StoredTime` fixes the
+precision of every time the module stores or compares at whole microseconds:
+
+- **The clock.** The module reads the host's `TimeProvider` through one clock,
+  which floors every reading.
+- **Policies.** Every policy duration must be whole microseconds; startup refuses
+  any other.
+- **Delegation windows.** A delegation's window is the one time a caller supplies.
+  It is narrowed when the grant is issued: its start rounds up and its end rounds
+  down.
+- **The persistence guard.** The adapter refuses to write a time that is not whole
+  microseconds, instead of letting the database truncate it.
+
+Session limits, last-seen times, expiries, delegation windows and throttle
+windows are therefore the same in memory and in the database, and a raw time
+compared with one of them decides exactly as the floored time would.
+
+`SessionAndLedgerTests` checks this against PostgreSQL with a clock that has
+100 ns ticks. Its sessions, a delegation and an account delay decide at the
+instants the module reported, one tick either side, and a time that bypassed the
+clock is refused.
+
 ## Actors, delegation and service identities
 
 `ExecutionPrincipal` distinguishes the actor, the effective subject and the
@@ -265,10 +292,12 @@ evidence.
 - **TM-G02-016, done for G-02.** Delivered: a new session and token at every
   sign-in, ending the one presented; only the token's hash stored; the
   `__Host-` cookie; no authentication over plain HTTP or for an unconfigured
-  host; idle and absolute limits at their edges, with the reason recorded.
-  Tests: `Identity.Domain.Tests` `SessionRulesTests`, `Identity.Application.Tests`
-  `FreshnessTests`, `Identity.Persistence.EfCore.Tests` `SessionAndLedgerTests`
-  and `Identity.HttpApi.Tests` `SessionCookieTests`, all `TM_G02_016_*`.
+  host; idle and absolute limits at their edges, with the reason recorded; every
+  stored time whole microseconds, so a limit decides the same before and after a
+  database round trip. Tests: `Identity.Domain.Tests` `SessionRulesTests`,
+  `Identity.Application.Tests` `FreshnessTests`, `Identity.Persistence.EfCore.Tests`
+  `SessionAndLedgerTests` and `Identity.HttpApi.Tests` `SessionCookieTests`, all
+  `TM_G02_016_*`.
   Remaining: adversarial evidence (SEC-08). Ended sessions accumulate until a
   retention job removes them (CODE-05).
 - **TM-G02-017, partly.** Delivered: sessions, account state and delegations

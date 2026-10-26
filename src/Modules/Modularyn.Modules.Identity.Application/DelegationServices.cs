@@ -5,7 +5,7 @@ using Modularyn.Modules.Identity.Domain;
 
 namespace Modularyn.Modules.Identity.Application;
 
-internal sealed class DelegationService(IDelegationStore store, IAccountDirectory accounts, IdentityPolicies policies, TimeProvider clock)
+internal sealed class DelegationService(IDelegationStore store, IAccountDirectory accounts, IdentityPolicies policies, IdentityClock clock)
     : IDelegationService
 {
     public async Task<DelegationIssueResult> IssueAsync(DelegationRequest request, ExecutionPrincipal issuedBy, CancellationToken cancellationToken)
@@ -24,7 +24,7 @@ internal sealed class DelegationService(IDelegationStore store, IAccountDirector
         if (await accounts.FindAsync(request.SubjectAccountId, cancellationToken).ConfigureAwait(false) is not { Disabled: false })
             return new(DelegationIssueStatus.SubjectUnavailable, null);
 
-        var now = clock.GetUtcNow();
+        var now = clock.Now;
         DelegationGrant grant;
         try
         {
@@ -45,7 +45,7 @@ internal sealed class DelegationService(IDelegationStore store, IAccountDirector
         var grant = await store.FindAsync(grantId, cancellationToken).ConfigureAwait(false);
         // Either party may end a delegation; revoking only ever removes authority.
         if (grant is null || (revokedBy.Actor != grant.Actor && revokedBy.Actor != grant.Subject)) return false;
-        return await store.RevokeAsync(grantId, revokedBy.Actor, clock.GetUtcNow(), cancellationToken).ConfigureAwait(false);
+        return await store.RevokeAsync(grantId, revokedBy.Actor, clock.Now, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<ExecutionPrincipal?> ResolveAsync(Guid grantId, ExecutionPrincipal actor, CancellationToken cancellationToken)
@@ -55,7 +55,7 @@ internal sealed class DelegationService(IDelegationStore store, IAccountDirector
         if (actor.IsDelegated || actor.ServiceScope is not null || actor.SessionId is not { } sessionId || actor.AuthenticatedAt is not { } authenticatedAt)
             return null;
         var grant = await store.FindAsync(grantId, cancellationToken).ConfigureAwait(false);
-        if (grant is null || grant.Actor != actor.Actor || grant.StateAt(clock.GetUtcNow()) != DelegationState.Active) return null;
+        if (grant is null || grant.Actor != actor.Actor || grant.StateAt(clock.Now) != DelegationState.Active) return null;
         if (!Guid.TryParseExact(grant.Subject.Id, "D", out var subjectId)
             || await accounts.FindAsync(subjectId, cancellationToken).ConfigureAwait(false) is not { Disabled: false })
             return null;
@@ -109,12 +109,12 @@ internal sealed class ServiceIdentityScopes(ServiceIdentityRegistry registry, IS
 
 /// <summary>Rechecks a principal against the stores for a security-sensitive operation (TM-G02-017).</summary>
 internal sealed class PrincipalFreshness(ISessionStore sessions, IDelegationStore delegations, IAccountDirectory accounts, ServiceIdentityRegistry registry,
-    IdentityPolicies policies, TimeProvider clock) : IPrincipalFreshness
+    IdentityPolicies policies, IdentityClock clock) : IPrincipalFreshness
 {
     public async ValueTask<FreshnessStatus> RecheckAsync(ExecutionPrincipal principal, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(principal);
-        var now = clock.GetUtcNow();
+        var now = clock.Now;
         if (principal.ServiceScope is { } scope)
             return registry.Find(principal.Actor.Id) is { } declared && declared.Scope.SetEquals(scope) ? FreshnessStatus.Current : FreshnessStatus.SubjectUnavailable;
         if (principal.SessionId is not { } sessionId) return FreshnessStatus.SessionEnded;

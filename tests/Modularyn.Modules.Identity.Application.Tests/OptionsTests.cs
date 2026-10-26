@@ -29,17 +29,21 @@ public sealed class OptionsTests
     [Fact(DisplayName = "TM-G02-048 identity limits outside their declared ranges refuse startup, naming the key and never the value")]
     public async Task TM_G02_048_Identity_limits_outside_their_ranges_refuse_startup()
     {
-        var cases = new Dictionary<string, string>
-        {
-            ["Modularyn:Identity:Passwords:MinimumLength"] = "9",
-            ["Modularyn:Identity:Passwords:HashIterations"] = "100000",
-            ["Modularyn:Identity:Sessions:IdleTimeout"] = "00:00:10",
-            ["Modularyn:Identity:Sessions:AbsoluteLifetime"] = "3.00:00:00",
-            ["Modularyn:Identity:Throttling:SourceThreshold"] = "2",
-            ["Modularyn:Identity:Throttling:AccountMaximumDelay"] = "05:00:00",
-            ["Modularyn:Identity:Delegation:MaximumLifetime"] = "30.00:00:00",
-            ["Modularyn:Identity:CredentialKeys:CurrentVersion"] = "3"
-        };
+        (string Key, string Value)[] cases =
+        [
+            ("Modularyn:Identity:Passwords:MinimumLength", "9"),
+            ("Modularyn:Identity:Passwords:HashIterations", "100000"),
+            ("Modularyn:Identity:Sessions:IdleTimeout", "00:00:10"),
+            ("Modularyn:Identity:Sessions:AbsoluteLifetime", "3.00:00:00"),
+            ("Modularyn:Identity:Throttling:SourceThreshold", "2"),
+            ("Modularyn:Identity:Throttling:AccountMaximumDelay", "05:00:00"),
+            ("Modularyn:Identity:Delegation:MaximumLifetime", "30.00:00:00"),
+            ("Modularyn:Identity:CredentialKeys:CurrentVersion", "3"),
+            // Durations finer than the microseconds the database keeps.
+            ("Modularyn:Identity:Sessions:IdleTimeout", "00:20:00.0000005"),
+            ("Modularyn:Identity:Throttling:SourceWindow", "00:15:00.0000003"),
+            ("Modularyn:Identity:Delegation:MaximumLifetime", "08:00:00.0000001")
+        ];
         foreach (var (key, value) in cases)
         {
             var refused = await RefusedAsync(new() { [key] = value });

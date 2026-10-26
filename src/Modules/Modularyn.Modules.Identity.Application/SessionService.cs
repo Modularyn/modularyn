@@ -7,7 +7,7 @@ namespace Modularyn.Modules.Identity.Application;
 /// Server-side sessions. Every validation reads the record and its account's state from the store, so the declared
 /// freshness bound for sessions and their claims is the next request: nothing about a session is cached.
 /// </summary>
-internal sealed class SessionService(ISessionStore store, IdentityPolicies policies, TimeProvider clock) : ISessionService
+internal sealed class SessionService(ISessionStore store, IdentityPolicies policies, IdentityClock clock) : ISessionService
 {
     private SessionPolicy Policy => policies.Sessions;
 
@@ -24,7 +24,7 @@ internal sealed class SessionService(ISessionStore store, IdentityPolicies polic
     public async Task<ActiveSession?> ValidateAsync(SessionToken token, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(token);
-        var now = clock.GetUtcNow();
+        var now = clock.Now;
         var lookup = await store.FindByTokenHashAsync(token.ComputeHash(), cancellationToken).ConfigureAwait(false);
         if (lookup is null) return null;
         var session = lookup.Session;
@@ -49,14 +49,14 @@ internal sealed class SessionService(ISessionStore store, IdentityPolicies polic
         ArgumentNullException.ThrowIfNull(token);
         var lookup = await store.FindByTokenHashAsync(token.ComputeHash(), cancellationToken).ConfigureAwait(false);
         return lookup is not null
-            && await store.EndAsync(lookup.Session.Id, SessionEndReason.SignedOut, clock.GetUtcNow(), cancellationToken).ConfigureAwait(false);
+            && await store.EndAsync(lookup.Session.Id, SessionEndReason.SignedOut, clock.Now, cancellationToken).ConfigureAwait(false);
     }
 
     public Task<bool> RevokeAsync(Guid sessionId, CancellationToken cancellationToken) =>
-        store.EndAsync(sessionId, SessionEndReason.Revoked, clock.GetUtcNow(), cancellationToken);
+        store.EndAsync(sessionId, SessionEndReason.Revoked, clock.Now, cancellationToken);
 
     public Task<int> RevokeAllAsync(Guid accountId, CancellationToken cancellationToken) =>
-        store.EndAllAsync(accountId, SessionEndReason.Revoked, clock.GetUtcNow(), cancellationToken);
+        store.EndAllAsync(accountId, SessionEndReason.Revoked, clock.Now, cancellationToken);
 
     public async Task<SessionRecordView?> DescribeAsync(Guid sessionId, CancellationToken cancellationToken)
     {
@@ -68,5 +68,5 @@ internal sealed class SessionService(ISessionStore store, IdentityPolicies polic
     }
 
     internal Task<int> EndAllAsync(Guid accountId, SessionEndReason reason, CancellationToken cancellationToken) =>
-        store.EndAllAsync(accountId, reason, clock.GetUtcNow(), cancellationToken);
+        store.EndAllAsync(accountId, reason, clock.Now, cancellationToken);
 }

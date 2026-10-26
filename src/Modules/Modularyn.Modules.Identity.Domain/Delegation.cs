@@ -10,6 +10,8 @@ public sealed record DelegationPolicy
     {
         if (maximumLifetime < TimeSpan.FromMinutes(1) || maximumLifetime > LongestAllowedLifetime)
             throw new ArgumentOutOfRangeException(nameof(maximumLifetime), "A delegation lasts from one minute to seven days.");
+        if (!StoredTime.IsWhole(maximumLifetime))
+            throw new ArgumentOutOfRangeException(nameof(maximumLifetime), "A delegation lifetime is whole microseconds, the precision the database keeps.");
         MaximumLifetime = maximumLifetime;
     }
 
@@ -53,7 +55,11 @@ public sealed class DelegationGrant
     public DateTimeOffset? RevokedAt { get; }
     public PrincipalReference? RevokedBy { get; }
 
-    /// <summary>Validates and creates a new grant. Its lifetime may not exceed the policy, and it may start no earlier than its issue.</summary>
+    /// <summary>
+    /// Validates and creates a new grant. Its lifetime may not exceed the policy, and it may start no earlier than its issue.
+    /// The requested window is narrowed to whole microseconds (<see cref="StoredTime"/>), its start rounded up and its end
+    /// down, so the stored grant never begins earlier or ends later than requested.
+    /// </summary>
     public static DelegationGrant Issue(Guid id, PrincipalReference actor, PrincipalReference subject, IEnumerable<string> scope, string purpose,
         Guid? tenant, DateTimeOffset notBefore, DateTimeOffset expiresAt, PrincipalReference issuedBy, DateTimeOffset now, DelegationPolicy policy)
     {
@@ -64,6 +70,9 @@ public sealed class DelegationGrant
         if (actor.Kind != IdentityKind.User || subject.Kind != IdentityKind.User)
             throw new ArgumentException("Delegation is between users; a service identity runs under its own declared scope.", nameof(actor));
         if (actor == subject) throw new ArgumentException("A delegation's actor and subject are different users.", nameof(subject));
+        now = StoredTime.Floor(now);
+        notBefore = StoredTime.Ceiling(notBefore);
+        expiresAt = StoredTime.Floor(expiresAt);
         if (notBefore < now) throw new ArgumentOutOfRangeException(nameof(notBefore), "A delegation cannot begin before it is issued.");
         if (expiresAt - notBefore > policy.MaximumLifetime)
             throw new ArgumentOutOfRangeException(nameof(expiresAt), "The delegation would outlast the declared maximum lifetime.");

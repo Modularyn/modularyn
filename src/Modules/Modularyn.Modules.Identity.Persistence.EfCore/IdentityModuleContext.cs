@@ -1,10 +1,12 @@
 using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Modularyn.Framework.Modularity.Abstractions;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
 using Modularyn.Framework.Tenancy.Abstractions;
+using Modularyn.Modules.Identity.Domain;
 
 [assembly: InternalsVisibleTo("Modularyn.Modules.Identity.Persistence.EfCore.Tests")]
 
@@ -194,6 +196,13 @@ public sealed class IdentityModuleContext(PostgreSqlModule module) : ModuleDbCon
             entity.HasOne<IdentityAccount>().WithMany().HasForeignKey(row => row.AccountId)
                 .OnDelete(DeleteBehavior.Cascade).HasConstraintName("FK_PasskeyCredentials_Accounts_AccountId");
         });
+
+        // PostgreSQL keeps whole microseconds, so every stored time must already be one (StoredTime). A time the module
+        // failed to normalize is refused here, written or compared, rather than silently truncated by the database.
+        var precision = new ValueConverter<DateTimeOffset, DateTimeOffset>(value => StoredTime.Require(value), value => value);
+        foreach (var property in modelBuilder.Model.GetEntityTypes().SelectMany(entity => entity.GetProperties())
+            .Where(property => property.ClrType == typeof(DateTimeOffset) || property.ClrType == typeof(DateTimeOffset?)).ToArray())
+            property.SetValueConverter(precision);
     }
 }
 
