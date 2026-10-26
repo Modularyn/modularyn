@@ -57,3 +57,6 @@ public interface ICompositionValidator
 /// Other validators run only after trust and structure both pass.
 /// </summary>
 public interface ICompositionTrustValidator : ICompositionValidator;
+
+/// <summary>Establishes completion of every selected module's migrations before construction.</summary>
+public interface ICompositionMigrationValidator : ICompositionValidator;

@@ -83,7 +83,9 @@ public sealed class DependencyRegisterTests
     {
         var files = RepositoryFiles.Current.ToDictionary();
         var register = JsonNode.Parse(files[RegisterPath])!;
+        // A candidate has no pin or lock to disagree with, so the exception alone decides whether its version is accepted.
         var aligned = First(register["entries"]!.AsArray(), entry => Value(entry, "ecosystem") == "nuget"
+            && Value(entry, "status") == "candidate"
             && DependencyRegister.IsRuntimeAligned(Value(entry, "ecosystem"), Value(entry, "name")));
         var id = Value(aligned, "id");
         var runtime = DependencyRegister.PinnedRuntime(files[PinPath])!;

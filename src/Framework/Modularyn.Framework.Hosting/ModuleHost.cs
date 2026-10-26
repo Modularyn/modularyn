@@ -106,6 +106,16 @@ public sealed class ModuleHost : IHostedLifecycleService, IDisposable
                 throw new ModuleCompositionException([refusal]);
             }
             CompositionResult composition;
+            if (!composer.VerifiesMigrations && selection.Modules.Any(module => module.Migrations.Count > 0))
+            {
+                foreach (var id in states.Keys.ToArray()) states[id] = ModuleState.Refused;
+                var refusal = new CompositionDiagnostic(ModuleHostDiagnosticCodes.MigrationsNotConfigured,
+                    "Selected modules declare migrations, but no migration-completion validator is registered. Register the persistence migration gate before activation.",
+                    selection.Modules.Where(module => module.Migrations.Count > 0).Select(module => module.Id));
+                diagnostics.Add(refusal);
+                SetHostState(ModuleHostState.Failed);
+                throw new ModuleCompositionException([refusal]);
+            }
             try
             {
                 composition = await composer.ComposeAsync(selection, cancellationToken).ConfigureAwait(false);
