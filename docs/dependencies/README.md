@@ -1,6 +1,6 @@
 # Dependencies and licenses
 
-[register.json](register.json) records every dependency the repository uses and every candidate planned for persistence, identity, the Admin and tests, as reviewed on 2026-10-25 for work order PLAN-06. Each entry has an exact version, an SPDX license expression, a dated maintenance review with its public sources, the reason it is listed, and a license clearance for both distributions: **Community** under Apache-2.0 and the **paid modules** under PolyForm Noncommercial 1.0.0.
+[register.json](register.json) records every dependency the repository uses and every candidate planned for persistence, identity, the Admin and tests, as reviewed on 2026-10-25 for work order PLAN-06 and updated for SEC-01, which made CI verify every tool it downloads against a pinned hash. Each entry has an exact version, an SPDX license expression, a dated maintenance review with its public sources, the reason it is listed, and a license clearance for both distributions: **Community** under Apache-2.0 and the **paid modules** under PolyForm Noncommercial 1.0.0.
 
 Candidates are recorded, not adopted. Adopting one is a separate reviewed change that adds its pin and moves its entry to `in-use`.
 
@@ -10,24 +10,24 @@ The policy carries out the design's dependency requirements: exact SDK and depen
 
 ## Findings of the 2026-10-25 review
 
-The register has 51 entries. **In use (27):** the SDK (`build`); two actions, gitleaks and the runtime that setup-dotnet installs (`ci`); and the test project's 3 direct and 19 transitive NuGet packages (`test`). **Candidates (24):** 6 for `persistence`, 3 for `identity`, 10 for `admin` and 5 for `test`.
+The register has 49 entries. **In use (25):** the SDK (`build`); actions/checkout and gitleaks (`ci`); and the test project's 3 direct and 19 transitive NuGet packages (`test`). **Candidates (24):** 6 for `persistence`, 3 for `identity`, 10 for `admin` and 5 for `test`. The review recorded 51 entries; SEC-01 removed `actions/setup-dotnet` and the runtime it installed, `binary:dotnet-runtime`, when CI stopped using them (findings 7 and 8).
 
 1. **The SDK was updated with this register.** SDK 10.0.303 (2026-08-11) bundled runtime 10.0.11, which predates three .NET security releases: 10.0.12 (2026-09-08, 6 CVEs), 10.0.13 (2026-10-13, 44 CVEs, including the critical ASP.NET Core advisories GHSA-rv87-ccxw-8ggf and GHSA-fpq8-4vhr-rcxx) and the out-of-band 10.0.14 (2026-10-25, 4 CVEs, including CVE-2026-111497 in the Brotli decoder). `global.json` now pins SDK 10.0.403, which carries runtime 10.0.14, under the security exception. See [SDK and runtime pin](#sdk-and-runtime-pin).
 2. **The pin is now exact by construction.** `latestPatch` let the .NET host and setup-dotnet use the newest SDK in the pinned feature band, so the pin was exact only while no later SDK existed in that band. `global.json` now uses `rollForward: disable`.
 3. **Microsoft.NET.Test.Sdk 18.11.0** and its vstest companions Microsoft.CodeCoverage, Microsoft.TestPlatform.ObjectModel and Microsoft.TestPlatform.TestHost were published 12 days before review. They were adopted before this policy, their release notes list no security fix, and they meet the 14-day age on 2026-10-27; their entries record an `ageException`, and no change is needed.
-4. **Three entries are flagged, under two license categories.** Under *platform licenses for tools*, the .NET SDK (`dotnet-sdk:dotnet`) and the runtime that CI installs (`binary:dotnet-runtime`) include Windows binaries under the .NET Library License, and the SDK's Windows distribution also includes one under the Windows SDK License. Under *weak copyleft*, Lightning CSS (`npm:lightningcss`), which Vite 8 requires at build time, is MPL-2.0. None blocks planned use; each limits redistribution. No entry is rejected.
+4. **Two entries are flagged, under two license categories.** Under *platform licenses for tools*, the .NET SDK (`dotnet-sdk:dotnet`) includes Windows binaries under the .NET Library License, and its Windows distribution also includes one under the Windows SDK License. Under *weak copyleft*, Lightning CSS (`npm:lightningcss`), which Vite 8 requires at build time, is MPL-2.0. None blocks planned use; each limits redistribution. No entry is rejected. The review also flagged the runtime that CI installed beside the SDK (`binary:dotnet-runtime`) under the .NET Library License, until SEC-01 removed it.
 5. **OpenIddict is recommended** for the authorization server, with its maintenance concentrated in one principal maintainer recorded as the main risk. See [Identity](#identity-trade-off-and-recommendation).
-6. **Two smaller CI gaps.** The secret scan verifies gitleaks against a checksum file from the same release, which detects corruption but not a replaced release asset; recording the archive digest in the workflow would remove that reliance. The `ubuntu-latest`, `windows-latest` and `macos-latest` runner labels resolve to images that GitHub rebuilds regularly, most recently on 2026-10-23, and even versioned labels receive those rebuilds. No label pins the preinstalled tools, so each job log's image version is the available provenance for them.
-7. **CI does not verify the SDK it installs.** setup-dotnet's install script downloads SDK 10.0.403 by exact version, but it compares the download only with the size the server reports, continues even when the sizes differ, and computes no hash. In CI on 2026-10-25 it reported equal sizes on Linux and macOS; on Windows it could not measure the size and continued. The Builder's SHA-512 check covered only its own local download.
-8. **CI installs an unpinned runtime.** Before the SDK, setup-dotnet installs the newest .NET runtime in the LTS channel, and it has no input to skip or pin that step. The channel resolved to runtime 10.0.13 on 2026-10-25, after the 10.0.14 security release had shipped; the Windows image already had 10.0.13. No repository file selects it, so the register records it as `binary:dotnet-runtime` with an `unpinned` note. The logs do not show which runtime ran the build and tests.
+6. **Two smaller CI gaps.** The secret scan verified gitleaks only against a checksum file from the same release, which detects corruption but not a replaced release asset; recording the archive digest in the workflow would remove that reliance. The `ubuntu-latest`, `windows-latest` and `macos-latest` runner labels resolve to images that GitHub rebuilds regularly, most recently on 2026-10-23, and even versioned labels receive those rebuilds. No label pins the preinstalled tools, so each job log's image version is the available provenance for them. **Resolved by SEC-01 for gitleaks:** the secret-scan workflow pins the archive's SHA-256 as `GITLEAKS_SHA256` and checks it with `sha256sum --check --strict` before extraction, keeps the release checksum-file check, and fails if the two disagree. The runner images still cannot be pinned.
+7. **CI did not verify the SDK it installed.** setup-dotnet's install script downloaded SDK 10.0.403 by exact version, but it compared the download only with the size the server reported, continued even when the sizes differed, and computed no hash. In CI on 2026-10-25 it reported equal sizes on Linux and macOS; on Windows it could not measure the size and continued. The Builder's SHA-512 check covered only its own local download. **Resolved by SEC-01:** CI installs the SDK from the official archive for each runner and verifies its SHA-512 against [.github/dotnet-sdk.json](../../.github/dotnet-sdk.json) before extraction; see [SDK and runtime pin](#sdk-and-runtime-pin).
+8. **CI installed an unpinned runtime.** Before the SDK, setup-dotnet installed the newest .NET runtime in the LTS channel, and it had no input to skip or pin that step. The channel resolved to runtime 10.0.13 on 2026-10-25, after the 10.0.14 security release had shipped; the Windows image already had 10.0.13. No repository file selected it, so the register recorded it as `binary:dotnet-runtime` with an `unpinned` note, and the logs did not show which runtime ran the build and tests. **Resolved by SEC-01:** with setup-dotnet gone, CI installs no runtime beyond those the SDK bundles, and each job lists its SDKs and runtimes in its log. The register no longer lists `actions/setup-dotnet` or `binary:dotnet-runtime`.
 
-Findings 1 and 2 were carried out in this change, together with the convention tests and the CI guide. Findings 6, 7 and 8 need reviewed workflow changes, which are outside this work order's permitted paths:
+Findings 1 and 2 were carried out in PLAN-06, together with the convention tests and the CI guide. Findings 6, 7 and 8 needed reviewed workflow changes outside PLAN-06's permitted paths, and SEC-01 carried them out:
 
-- record the gitleaks archive's SHA-256 in the secret-scan workflow, so that verification no longer depends on a checksum file from the same release;
-- install the SDK with a hash check, for example by downloading each platform's archive and verifying its SHA-512 against the dotnet/core release record before extraction; and
-- pin or remove the extra runtime. A hash-verified install that replaces setup-dotnet does both; until then, the register keeps it as an `unpinned` entry.
+- the secret-scan workflow records the gitleaks archive's SHA-256, so verification no longer depends on a checksum file from the same release;
+- CI downloads each platform's SDK archive and verifies its SHA-512, copied from the dotnet/core release record into `.github/dotnet-sdk.json`, before extraction; and
+- that hash-verified install replaces setup-dotnet, which removes the extra runtime.
 
-The runner images cannot be pinned; their job-log versions remain the provenance for the preinstalled tools.
+The runner images cannot be pinned; their job-log versions remain the provenance for the tools CI takes from them, such as Git, curl, jq, tar, PowerShell and the hash utilities.
 
 ## Register format
 
@@ -65,7 +65,7 @@ Every dependency is pinned to one exact version, never a range, floating version
 - **NuGet:** versions live only in [Directory.Packages.props](../../Directory.Packages.props) under central package management, with version overrides disabled; project files carry no versions. .NET tools, such as `dotnet-ef`, are pinned in a local tool manifest.
 - **npm:** when the Admin is added, `package.json` uses exact versions without `^` or `~`, the committed `package-lock.json` is installed with `npm ci`, and install scripts run only for reviewed packages.
 - **Actions:** each `uses` names a full 40-character commit SHA, and [actions.allow](../../.github/workflows/actions.allow) lists the same SHAs with their release tags, as [the CI guide](../ci.md) describes.
-- **Binaries and images:** CI must download each tool by exact version and verify it against a cryptographic hash before use, and container images are referenced by digest. Today gitleaks is verified by SHA-256 against its release's checksum file (finding 6). The .NET SDK does not meet the rule yet: setup-dotnet's install script checks only the download size, and the same step installs an unpinned runtime (findings 7 and 8).
+- **Binaries and images:** CI must download each tool by exact version and verify it against a cryptographic hash pinned in the repository before extraction or use, and container images are referenced by digest. A checksum published beside the download may add a check but never replaces the pinned hash, and no step installs a tool or runtime from a channel or an unpinned version. The .NET SDK archive for each runner is verified by SHA-512 against [.github/dotnet-sdk.json](../../.github/dotnet-sdk.json), and gitleaks by SHA-256 against `GITLEAKS_SHA256` in the secret-scan workflow and against its release's checksum file, which must agree.
 
 ### Locked restore and the advisory gate
 
@@ -104,7 +104,7 @@ Once a month, and whenever a security release affects a recorded dependency, a B
 
 1. Query each registry for the latest stable version, the latest eligible version, publication dates and deprecation.
 2. Query the advisory sources for every recorded version and for the runtime.
-3. Compare the versions that the latest CI logs show installed, including `unpinned` entries, with the register.
+3. Compare the versions that the latest CI logs show installed, including the SDK and runtimes each build-test job lists and any `unpinned` entries, with the register.
 4. Check repository activity and maintainers against the maintenance criteria.
 5. Read the license of every newly selected version, because a version update can change the license.
 6. Update `reviewedAt` and the maintenance fields, and record the findings in this document.
@@ -116,10 +116,10 @@ Supply-chain review is security work, done by the Builder's own sessions.
 ### Adding or changing a dependency
 
 1. Record the dependency as a `candidate` with its full review and clearance. A license outside the allowlist needs a recorded decision before adoption.
-2. In the adoption change, add the exact pin, regenerate the lock as the [CI guide](../ci.md) describes, review the lock diff, add every new transitive package to the register as `in-use`, and move the entry to `in-use`.
+2. In the adoption change, add the exact pin and, for a tool that CI downloads, its pinned hash; regenerate the lock as the [CI guide](../ci.md) describes, review the lock diff, add every new transitive package to the register as `in-use`, and move the entry to `in-use`.
 3. Run locked restore, the Release build and the tests, require CI on all three platforms at the exact head, and run gitleaks.
 
-The tests fail when a `PackageVersion`, a locked package, an action SHA or a workflow tool version has no matching `in-use` entry.
+The tests fail when a `PackageVersion`, a locked package, an action SHA or a workflow tool version has no matching `in-use` entry, and when a tool's pinned hash is missing, malformed or disagrees with `global.json` or the register.
 
 ## SDK and runtime pin
 
@@ -127,11 +127,11 @@ The tests fail when a `PackageVersion`, a locked package, an action SHA or a wor
 
 **Why it moved.** The previous pin, SDK 10.0.303 with `latestPatch`, bundled runtime 10.0.11 and predated the security releases 10.0.12, 10.0.13 and 10.0.14. Its feature band, 10.0.3xx, received none of their fixes, because those releases ship only 10.0.4xx and 10.0.1xx SDKs. SDK 10.0.403 is younger than the 14-day publication age and is adopted under the security exception.
 
-**Exact by construction.** With `rollForward: disable`, the .NET host and the pinned setup-dotnet use exactly the named SDK, and a machine without it fails instead of substituting another. Every SDK patch is therefore a reviewed commit that changes `global.json` and this register together, and the monthly dependency review checks for new .NET security releases. The convention tests require an exact stable .NET 10 SDK version, `rollForward: disable` and prereleases disabled, and the register test requires the register's SDK entry to equal `global.json`.
+**Exact by construction.** With `rollForward: disable`, the .NET host uses exactly the named SDK, and a machine without it fails instead of substituting another. Every SDK patch is therefore a reviewed commit that changes `global.json`, [.github/dotnet-sdk.json](../../.github/dotnet-sdk.json) and this register together, and the monthly dependency review checks for new .NET security releases. The convention tests require an exact stable .NET 10 SDK version, `rollForward: disable` and prereleases disabled; the register test requires the register's SDK entry to equal `global.json`; and the tool-pin tests require the pin file's version and archive URLs to name that version too.
 
-**Provenance.** When the pin changed, the channel release metadata still listed 10.0.13 as the latest release, while the dotnet/core release record for 10.0.14 lists SDK 10.0.403 and its files' SHA-512 hashes. The Builder verified its own local download of the archive against that record. CI's copies are not hash-verified: setup-dotnet's install script compares only download sizes, and on Windows it could not measure them (finding 7). Each CI job's log shows the SDK version it installed.
+**Provenance.** When the pin changed, the channel release metadata still listed 10.0.13 as the latest release, while the dotnet/core release record for 10.0.14 lists SDK 10.0.403 and its files' SHA-512 hashes. `.github/dotnet-sdk.json` records that record's URL and, for linux-x64, linux-arm64, osx-x64, osx-arm64, win-x64 and win-arm64, the archive URL and SHA-512 it lists. The Builder verified its own osx-arm64 download against them, and SEC-01 found that all six official downloads matched on 2026-10-25. CI selects the archive for the runner's operating system and architecture, downloads it over HTTPS with TLS 1.2 or later, and verifies its SHA-512 before extraction, stopping on a mismatch. It then requires the `dotnet` on `PATH` to be that install and `dotnet --version` to equal `global.json`. Each job's log shows the archive, its verified hash, and the SDK and runtimes installed. The [CI guide](../ci.md#sdk-install) describes the steps and how to update the pin.
 
-**Runtime.** Applications target `net10.0`. A framework-dependent application runs on the newest 10.0 patch runtime installed on its host, so each release states its runtime version in the FND-001 matrix, and container images and self-contained builds pin the runtime exactly (OPS-009). ASP.NET Core Identity, cookie authentication, data protection and antiforgery are part of the ASP.NET Core shared framework, so their security fixes arrive with the runtime. The `global.json` pin covers the SDK and its bundled runtime only: in CI, setup-dotnet also installs the newest LTS-channel runtime, 10.0.13 on 2026-10-25, which no repository file selects (finding 8).
+**Runtime.** Applications target `net10.0`. A framework-dependent application runs on the newest 10.0 patch runtime installed on its host, so each release states its runtime version in the FND-001 matrix, and container images and self-contained builds pin the runtime exactly (OPS-009). ASP.NET Core Identity, cookie authentication, data protection and antiforgery are part of the ASP.NET Core shared framework, so their security fixes arrive with the runtime. The `global.json` pin covers the SDK and its bundled runtime only, and CI installs nothing else: it extracts the SDK archive into an empty directory that `DOTNET_ROOT` names and that comes first on `PATH`, so the build and tests run on the runtime the SDK bundles, 10.0.14.
 
 ## License allowlist
 
@@ -195,10 +195,9 @@ All licenses on the allowlist meet these conditions. Inside a paid distribution,
 ### Flagged entries in this register
 
 - **`dotnet-sdk:dotnet`** is `MIT AND LicenseRef-dotnet-library-license AND LicenseRef-windows-sdk-license`. Linux and macOS distributions are MIT. On Windows, `coreclr.dll`, the native symbol reader and WPF native binaries use the .NET Library License, and the WPF shader compiler uses the Windows SDK License. Modularyn builds with the SDK and does not redistribute it, and compiler output carries no SDK restriction. Review before a release redistributes Windows runtime binaries, such as a Windows self-contained or single-file build.
-- **`binary:dotnet-runtime`** is `MIT AND LicenseRef-dotnet-library-license`: its Linux and macOS distributions are MIT, and on Windows `coreclr.dll` uses the .NET Library License. It runs only in CI and is never redistributed.
 - **`npm:lightningcss`** is `MPL-2.0`. Vite 8 runs it at build time; the CSS it produces is not covered, and as an unmodified tool that Modularyn does not redistribute it imposes no obligation. Modifying its files, or shipping them in any distribution, needs a review and source availability for those files under MPL-2.0.
 
-The other 48 entries are cleared for both distributions.
+The other 47 entries are cleared for both distributions.
 
 ### THIRD-PARTY-NOTICES
 
@@ -248,7 +247,14 @@ The authentication requirements (OPS-003, MOD-001, MOD-002, MOD-023) need local 
 
 In-memory mutations exercise each rule and assert its specific diagnostic without writing invalid files. A line-ending case checks portability across platforms. The existing CI workflow runs these tests on Linux, Windows and macOS.
 
-The checks cannot establish that a version is still current, that an advisory search is complete or that a license analysis is correct; the monthly review provides that.
+[ToolPinTests.cs](../../tests/Modularyn.Repository.Tests/ToolPinTests.cs) checks the hashes pinned for the tools CI downloads, with its own in-memory mutations and line-ending case. It requires:
+
+- `.github/dotnet-sdk.json` to name exactly linux-x64, linux-arm64, osx-x64, osx-arm64, win-x64 and win-arm64, its version to equal `global.json`, and its source to be the dotnet/core `release.json` record for that version's channel, which the register's SDK entry cites;
+- each archive URL to be the official `https://builds.dotnet.microsoft.com/dotnet/Sdk/<version>/` archive for its RID, `.zip` for Windows and `.tar.gz` otherwise, and each SHA-512 to be 128 lowercase hexadecimal characters, distinct from the others;
+- the CI workflow to read that file, and no workflow or allow-list line to name actions/setup-dotnet or the dotnet-install script; and
+- the secret-scan workflow to pin `GITLEAKS_SHA256` once, as 64 lowercase hexadecimal characters, to check the archive against it with `sha256sum --check --strict`, and to pin a `GITLEAKS_VERSION` equal to the register's in-use `binary:gitleaks` version.
+
+The checks cannot establish that a version is still current, that an advisory search is complete, that a license analysis is correct or that a pinned hash is the publisher's; the monthly review and the release records provide that, and only a CI run shows that each runner's download matches its pin.
 
 ## What this review could not verify
 
@@ -258,5 +264,6 @@ The checks cannot establish that a version is still current, that an advisory se
 - **Container images.** The PostgreSQL image and its digest are recorded when the integration suite is added, because container registries are outside the permitted sources.
 - **Browser builds.** The licenses of the browsers that Playwright installs were not reviewed; they are used for tests only.
 - **Complete candidate closures.** Only the first-level NuGet dependencies of candidates were reviewed; the npm closure was resolved but is not registered entry by entry.
-- **The runtime CI executes.** The CI logs show runtime 10.0.13 from the LTS channel installed beside the SDK's 10.0.14, but not which of them ran the build and tests.
+- **The runtime CI executes.** Before SEC-01, the CI logs showed runtime 10.0.13 from the LTS channel installed beside the SDK's 10.0.14, but not which of them ran the build and tests. CI now installs only the SDK archive and lists its SDKs and runtimes in each job's log.
+- **Archives that CI does not download.** The hosted runners are Linux x64, Windows x64 and macOS arm64, so no CI run checks the linux-arm64, osx-x64 and win-arm64 archives. SEC-01 downloaded all six archives on 2026-10-25 and each matched its pinned SHA-512; a runner of another platform still checks its archive on every install.
 - **Runner images.** The contents of GitHub's hosted runner images were not reviewed.
