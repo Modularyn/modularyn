@@ -15,6 +15,8 @@ concurrency:
 env:
   DOTNET_CLI_TELEMETRY_OPTOUT: '1'
   DOTNET_NOLOGO: '1'
+  # The Node.js release whose archives .github/node.json pins; change the two and the register together.
+  NODE_VERSION: '24.22.1'
 
 jobs:
   build-test:
@@ -205,9 +207,490 @@ jobs:
           Write-Output "Using .NET SDK $reported from $env:DOTNET_ROOT"
           & dotnet --list-sdks
           & dotnet --list-runtimes
+      # Each install takes the runner's archive URL and SHA-256 from .github/node.json and verifies
+      # the download before extracting it. Nothing else installs Node.js or takes the runner's own.
+      - name: Install the pinned Node.js (Linux and macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          pin_file=".github/node.json"
+          case "${RUNNER_OS}/${RUNNER_ARCH}" in
+            Linux/X64) target="linux-x64" ;;
+            Linux/ARM64) target="linux-arm64" ;;
+            macOS/X64) target="darwin-x64" ;;
+            macOS/ARM64) target="darwin-arm64" ;;
+            *) fail "No pinned Node.js archive for runner ${RUNNER_OS} ${RUNNER_ARCH}." ;;
+          esac
+          command -v jq > /dev/null || fail "jq is required to read ${pin_file}."
+          [[ "${NODE_VERSION:-}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "NODE_VERSION must be an exact version."
+          pinned_version="$(jq -er '.version' "${pin_file}")" || fail "${pin_file} does not name a Node.js version."
+          [ "${pinned_version}" = "${NODE_VERSION}" ] \
+            || fail "${pin_file} pins Node.js ${pinned_version}, but NODE_VERSION is ${NODE_VERSION}."
+          url="$(jq -er --arg target "${target}" '.archives[$target].url' "${pin_file}")" \
+            || fail "${pin_file} has no archive URL for ${target}."
+          sha256="$(jq -er --arg target "${target}" '.archives[$target].sha256' "${pin_file}")" \
+            || fail "${pin_file} has no SHA-256 for ${target}."
+          archive_name="node-v${NODE_VERSION}-${target}.tar.gz"
+          [ "${url}" = "https://nodejs.org/dist/v${NODE_VERSION}/${archive_name}" ] \
+            || fail "${pin_file} gives ${url} for ${target}, which is not the official Node.js ${NODE_VERSION} archive."
+          [[ "${sha256}" =~ ^[0-9a-f]{64}$ ]] || fail "${pin_file} has a malformed SHA-256 for ${target}."
+          echo "Runner ${RUNNER_OS} ${RUNNER_ARCH} selects ${target}, archive ${url}"
+          download_dir="${RUNNER_TEMP}/node-download"
+          install_dir="${RUNNER_TEMP}/node"
+          rm -rf "${download_dir}" "${install_dir}"
+          mkdir -p "${download_dir}" "${install_dir}"
+          archive="${download_dir}/${archive_name}"
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 \
+            --retry 3 "${url}" --output "${archive}" || fail "Download of ${url} failed."
+          if command -v sha256sum > /dev/null; then
+            actual="$(sha256sum "${archive}" | cut -d ' ' -f 1)" || fail "Cannot compute the SHA-256 of ${archive}."
+          else
+            actual="$(shasum -a 256 "${archive}" | cut -d ' ' -f 1)" || fail "Cannot compute the SHA-256 of ${archive}."
+          fi
+          [ "${actual}" = "${sha256}" ] \
+            || fail "SHA-256 mismatch for ${url}, expected ${sha256} but got ${actual}. The archive was not extracted."
+          echo "SHA-256 verified, ${actual}"
+          tar -xzf "${archive}" -C "${install_dir}" --strip-components 1 || fail "Extraction of ${archive} failed."
+          rm -f "${archive}"
+          echo "${install_dir}/bin" >> "${GITHUB_PATH}"
+      - name: Install the pinned Node.js (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          function Fail([string] $Message) {
+            Write-Output "::error::$Message"
+            exit 1
+          }
+          $pinFile = '.github/node.json'
+          $target = switch ("$env:RUNNER_OS/$env:RUNNER_ARCH") {
+            'Windows/X64' { 'win-x64' }
+            'Windows/ARM64' { 'win-arm64' }
+            default { '' }
+          }
+          if ($target -eq '') {
+            Fail "No pinned Node.js archive for runner $env:RUNNER_OS $env:RUNNER_ARCH."
+          }
+          $version = [string] $env:NODE_VERSION
+          if ($version -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
+            Fail 'NODE_VERSION must be an exact version.'
+          }
+          try {
+            $pin = Get-Content -Raw -LiteralPath $pinFile | ConvertFrom-Json -AsHashtable
+            $pinnedVersion = [string] $pin['version']
+            $url = [string] $pin['archives'][$target]['url']
+            $sha256 = [string] $pin['archives'][$target]['sha256']
+          } catch {
+            Fail "$pinFile has no archive URL and SHA-256 for $target. $_"
+          }
+          if ($pinnedVersion -cne $version) {
+            Fail "$pinFile pins Node.js $pinnedVersion, but NODE_VERSION is $version."
+          }
+          $archiveName = "node-v$version-$target.zip"
+          if ($url -cne "https://nodejs.org/dist/v$version/$archiveName") {
+            Fail "$pinFile gives $url for $target, which is not the official Node.js $version archive."
+          }
+          if ($sha256 -cnotmatch '^[0-9a-f]{64}$') {
+            Fail "$pinFile has a malformed SHA-256 for $target."
+          }
+          Write-Output "Runner $env:RUNNER_OS $env:RUNNER_ARCH selects $target, archive $url"
+          $downloadDir = Join-Path $env:RUNNER_TEMP 'node-download'
+          $extractDir = Join-Path $env:RUNNER_TEMP 'node-extract'
+          $installDir = Join-Path $env:RUNNER_TEMP 'node'
+          foreach ($directory in @($downloadDir, $extractDir, $installDir)) {
+            if (Test-Path -LiteralPath $directory) {
+              Remove-Item -LiteralPath $directory -Recurse -Force
+            }
+          }
+          New-Item -ItemType Directory -Path $downloadDir | Out-Null
+          New-Item -ItemType Directory -Path $extractDir | Out-Null
+          $archive = Join-Path $downloadDir $archiveName
+          try {
+            Invoke-WebRequest -Uri $url -OutFile $archive -SslProtocol Tls12, Tls13 -MaximumRetryCount 3 -RetryIntervalSec 5
+          } catch {
+            Fail "Download of $url failed. $_"
+          }
+          $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -cne $sha256) {
+            Fail "SHA-256 mismatch for $url, expected $sha256 but got $actual. The archive was not extracted."
+          }
+          Write-Output "SHA-256 verified, $actual"
+          try {
+            Expand-Archive -LiteralPath $archive -DestinationPath $extractDir
+            # The archive holds one folder named after it; that folder becomes the install.
+            Move-Item -LiteralPath (Join-Path $extractDir "node-v$version-$target") -Destination $installDir
+          } catch {
+            Fail "Extraction of $archive failed. $_"
+          }
+          Remove-Item -LiteralPath $archive
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value $installDir
+      - name: Verify Node.js (Linux and macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          install_dir="${RUNNER_TEMP}/node/bin"
+          resolved="$(command -v node)" || fail "node is not on PATH."
+          [ "${resolved}" = "${install_dir}/node" ] \
+            || fail "node resolves to ${resolved}, not the pinned install in ${install_dir}."
+          resolved_npm="$(command -v npm)" || fail "npm is not on PATH."
+          [ "${resolved_npm}" = "${install_dir}/npm" ] \
+            || fail "npm resolves to ${resolved_npm}, not the pinned install in ${install_dir}."
+          reported="$(node --version)" || fail "node --version failed."
+          [ "${reported}" = "v${NODE_VERSION}" ] \
+            || fail "node --version reports ${reported}, but NODE_VERSION is ${NODE_VERSION}."
+          echo "Using Node.js ${reported} from ${install_dir}, with its bundled npm $(npm --version)"
+      - name: Verify Node.js (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = 'Stop'
+          function Fail([string] $Message) {
+            Write-Output "::error::$Message"
+            exit 1
+          }
+          $installDir = Join-Path $env:RUNNER_TEMP 'node'
+          $command = Get-Command -Name 'node' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($null -eq $command) {
+            Fail 'node is not on PATH.'
+          }
+          $expected = [System.IO.Path]::GetFullPath((Join-Path $installDir 'node.exe'))
+          if ([System.IO.Path]::GetFullPath($command.Source) -ne $expected) {
+            Fail "node resolves to $($command.Source), not the pinned install in $installDir."
+          }
+          $npm = Get-Command -Name 'npm.cmd' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($null -eq $npm -or [System.IO.Path]::GetFullPath($npm.Source) -ne [System.IO.Path]::GetFullPath((Join-Path $installDir 'npm.cmd'))) {
+            Fail "npm does not resolve to the pinned install in $installDir."
+          }
+          $reported = (& node --version | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0) {
+            Fail 'node --version failed.'
+          }
+          if ($reported -cne "v$env:NODE_VERSION") {
+            Fail "node --version reports $reported, but NODE_VERSION is $env:NODE_VERSION."
+          }
+          $npmVersion = (& npm.cmd --version | Out-String).Trim()
+          Write-Output "Using Node.js $reported from $installDir, with its bundled npm $npmVersion"
       - name: Restore locked dependencies
         run: dotnet restore --locked-mode
       - name: Build
         run: dotnet build -c Release --no-restore
-      - name: Test repository conventions
-        run: dotnet test -c Release --no-build
+      # Tests that need PostgreSQL carry the trait Requires=PostgreSQL and run in the real-provider job.
+      - name: Test without real providers
+        run: dotnet test -c Release --no-build --filter "Requires!=PostgreSQL"
+
+  # Real-provider tests on Linux x64, against the digest-pinned PostgreSQL service. Tests read the
+  # connection string from MODULARYN_TEST_POSTGRESQL, which local runs set the same way (docs/ci.md).
+  real-provider:
+    name: real-provider
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # The server release that the pinned image packages; the database step requires the service to report it.
+      POSTGRESQL_VERSION: '18.6'
+      # The service image below, which the database step checks against the running service.
+      POSTGRES_IMAGE: docker.io/library/postgres:18.6-trixie@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6
+    services:
+      postgres:
+        image: docker.io/library/postgres:18.6-trixie@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6
+        env:
+          # The image needs a superuser password to initialize. pg_hba rejects every host connection
+          # until the database step replaces it, and that step removes this password, so it never
+          # authenticates anything. It is the run's public id, not a secret.
+          POSTGRES_PASSWORD: ${{ github.run_id }}
+          POSTGRES_HOST_AUTH_METHOD: reject
+        ports:
+          - 127.0.0.1:5432:5432
+        options: --health-cmd "pg_isready --host=127.0.0.1 --port=5432 --username=postgres --dbname=postgres" --health-interval 2s --health-timeout 5s --health-retries 30
+    steps:
+      - name: Check out the exact head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      # The same SDK and Node.js steps as build-test runs on Linux; a repository test keeps them identical.
+      - name: Install the pinned .NET SDK (Linux and macOS)
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          pin_file=".github/dotnet-sdk.json"
+          case "${RUNNER_OS}/${RUNNER_ARCH}" in
+            Linux/X64) rid="linux-x64" ;;
+            Linux/ARM64) rid="linux-arm64" ;;
+            macOS/X64) rid="osx-x64" ;;
+            macOS/ARM64) rid="osx-arm64" ;;
+            *) fail "No pinned .NET SDK archive for runner ${RUNNER_OS} ${RUNNER_ARCH}." ;;
+          esac
+          command -v jq > /dev/null || fail "jq is required to read ${pin_file}."
+          sdk_version="$(jq -er '.sdk.version' global.json)" || fail "global.json does not name an SDK version."
+          pinned_version="$(jq -er '.version' "${pin_file}")" || fail "${pin_file} does not name an SDK version."
+          [ "${pinned_version}" = "${sdk_version}" ] \
+            || fail "${pin_file} pins SDK ${pinned_version}, but global.json requires ${sdk_version}."
+          url="$(jq -er --arg rid "${rid}" '.archives[$rid].url' "${pin_file}")" \
+            || fail "${pin_file} has no archive URL for ${rid}."
+          sha512="$(jq -er --arg rid "${rid}" '.archives[$rid].sha512' "${pin_file}")" \
+            || fail "${pin_file} has no SHA-512 for ${rid}."
+          [ "${url}" = "https://builds.dotnet.microsoft.com/dotnet/Sdk/${sdk_version}/dotnet-sdk-${sdk_version}-${rid}.tar.gz" ] \
+            || fail "${pin_file} gives ${url} for ${rid}, which is not the official SDK ${sdk_version} archive."
+          [[ "${sha512}" =~ ^[0-9a-f]{128}$ ]] || fail "${pin_file} has a malformed SHA-512 for ${rid}."
+          echo "Runner ${RUNNER_OS} ${RUNNER_ARCH} selects ${rid}, archive ${url}"
+          download_dir="${RUNNER_TEMP}/dotnet-download"
+          install_dir="${RUNNER_TEMP}/dotnet"
+          rm -rf "${download_dir}" "${install_dir}"
+          mkdir -p "${download_dir}" "${install_dir}"
+          archive="${download_dir}/dotnet-sdk-${sdk_version}-${rid}.tar.gz"
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 \
+            --retry 3 "${url}" --output "${archive}" || fail "Download of ${url} failed."
+          if command -v sha512sum > /dev/null; then
+            actual="$(sha512sum "${archive}" | cut -d ' ' -f 1)" || fail "Cannot compute the SHA-512 of ${archive}."
+          else
+            actual="$(shasum -a 512 "${archive}" | cut -d ' ' -f 1)" || fail "Cannot compute the SHA-512 of ${archive}."
+          fi
+          [ "${actual}" = "${sha512}" ] \
+            || fail "SHA-512 mismatch for ${url}, expected ${sha512} but got ${actual}. The archive was not extracted."
+          echo "SHA-512 verified, ${actual}"
+          tar -xzf "${archive}" -C "${install_dir}" || fail "Extraction of ${archive} failed."
+          rm -f "${archive}"
+          echo "DOTNET_ROOT=${install_dir}" >> "${GITHUB_ENV}"
+          echo "${install_dir}" >> "${GITHUB_PATH}"
+      - name: Verify the .NET SDK (Linux and macOS)
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          : "${DOTNET_ROOT:?DOTNET_ROOT was not set by the install step.}"
+          sdk_version="$(jq -er '.sdk.version' global.json)" || fail "global.json does not name an SDK version."
+          resolved="$(command -v dotnet)" || fail "dotnet is not on PATH."
+          [ "${resolved}" = "${DOTNET_ROOT}/dotnet" ] \
+            || fail "dotnet resolves to ${resolved}, not the pinned install in ${DOTNET_ROOT}."
+          reported="$(dotnet --version)" || fail "dotnet --version failed."
+          [ "${reported}" = "${sdk_version}" ] \
+            || fail "dotnet --version reports ${reported}, but global.json requires ${sdk_version}."
+          echo "Using .NET SDK ${reported} from ${DOTNET_ROOT}"
+          dotnet --list-sdks
+          dotnet --list-runtimes
+      - name: Install the pinned Node.js (Linux and macOS)
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          pin_file=".github/node.json"
+          case "${RUNNER_OS}/${RUNNER_ARCH}" in
+            Linux/X64) target="linux-x64" ;;
+            Linux/ARM64) target="linux-arm64" ;;
+            macOS/X64) target="darwin-x64" ;;
+            macOS/ARM64) target="darwin-arm64" ;;
+            *) fail "No pinned Node.js archive for runner ${RUNNER_OS} ${RUNNER_ARCH}." ;;
+          esac
+          command -v jq > /dev/null || fail "jq is required to read ${pin_file}."
+          [[ "${NODE_VERSION:-}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "NODE_VERSION must be an exact version."
+          pinned_version="$(jq -er '.version' "${pin_file}")" || fail "${pin_file} does not name a Node.js version."
+          [ "${pinned_version}" = "${NODE_VERSION}" ] \
+            || fail "${pin_file} pins Node.js ${pinned_version}, but NODE_VERSION is ${NODE_VERSION}."
+          url="$(jq -er --arg target "${target}" '.archives[$target].url' "${pin_file}")" \
+            || fail "${pin_file} has no archive URL for ${target}."
+          sha256="$(jq -er --arg target "${target}" '.archives[$target].sha256' "${pin_file}")" \
+            || fail "${pin_file} has no SHA-256 for ${target}."
+          archive_name="node-v${NODE_VERSION}-${target}.tar.gz"
+          [ "${url}" = "https://nodejs.org/dist/v${NODE_VERSION}/${archive_name}" ] \
+            || fail "${pin_file} gives ${url} for ${target}, which is not the official Node.js ${NODE_VERSION} archive."
+          [[ "${sha256}" =~ ^[0-9a-f]{64}$ ]] || fail "${pin_file} has a malformed SHA-256 for ${target}."
+          echo "Runner ${RUNNER_OS} ${RUNNER_ARCH} selects ${target}, archive ${url}"
+          download_dir="${RUNNER_TEMP}/node-download"
+          install_dir="${RUNNER_TEMP}/node"
+          rm -rf "${download_dir}" "${install_dir}"
+          mkdir -p "${download_dir}" "${install_dir}"
+          archive="${download_dir}/${archive_name}"
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 \
+            --retry 3 "${url}" --output "${archive}" || fail "Download of ${url} failed."
+          if command -v sha256sum > /dev/null; then
+            actual="$(sha256sum "${archive}" | cut -d ' ' -f 1)" || fail "Cannot compute the SHA-256 of ${archive}."
+          else
+            actual="$(shasum -a 256 "${archive}" | cut -d ' ' -f 1)" || fail "Cannot compute the SHA-256 of ${archive}."
+          fi
+          [ "${actual}" = "${sha256}" ] \
+            || fail "SHA-256 mismatch for ${url}, expected ${sha256} but got ${actual}. The archive was not extracted."
+          echo "SHA-256 verified, ${actual}"
+          tar -xzf "${archive}" -C "${install_dir}" --strip-components 1 || fail "Extraction of ${archive} failed."
+          rm -f "${archive}"
+          echo "${install_dir}/bin" >> "${GITHUB_PATH}"
+      - name: Verify Node.js (Linux and macOS)
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          install_dir="${RUNNER_TEMP}/node/bin"
+          resolved="$(command -v node)" || fail "node is not on PATH."
+          [ "${resolved}" = "${install_dir}/node" ] \
+            || fail "node resolves to ${resolved}, not the pinned install in ${install_dir}."
+          resolved_npm="$(command -v npm)" || fail "npm is not on PATH."
+          [ "${resolved_npm}" = "${install_dir}/npm" ] \
+            || fail "npm resolves to ${resolved_npm}, not the pinned install in ${install_dir}."
+          reported="$(node --version)" || fail "node --version failed."
+          [ "${reported}" = "v${NODE_VERSION}" ] \
+            || fail "node --version reports ${reported}, but NODE_VERSION is ${NODE_VERSION}."
+          echo "Using Node.js ${reported} from ${install_dir}, with its bundled npm $(npm --version)"
+      - name: Restore locked dependencies
+        run: dotnet restore --locked-mode
+      - name: Build
+        run: dotnet build -c Release --no-restore
+      # The database script creates the per-run credentials and runs the tests script with MODULARYN_TEST_POSTGRESQL
+      # set, so the credentials exist only in this step. The tests script runs every project's PostgreSQL tests with
+      # detailed output and fails unless at least one ran and all passed.
+      - name: Test against PostgreSQL
+        shell: bash
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+          POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
+        run: bash .github/scripts/postgresql-test-database.sh ci bash .github/scripts/real-provider-tests.sh
+
+  # The fixture image on the digest-pinned ASP.NET Core runtime base, built for linux/amd64. Every
+  # Dockerfile in the repository must use that base; CODE-09 adds the sample application's build.
+  container-build:
+    name: container-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ASPNET_IMAGE: mcr.microsoft.com/dotnet/aspnet:10.0.14-noble@sha256:de0ee358cdd672f7017a003bed21e9ac9ed48a27c922a59b18175b6e82fa7fee
+      FIXTURE_DOCKERFILE: tests/Fixtures/container/Dockerfile
+      # A local tag, never pulled: docker run uses it only with --pull=never.
+      FIXTURE_IMAGE: modularyn-fixture:ci
+    steps:
+      - name: Check out the exact head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Check the base image of every Dockerfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+          [[ "${ASPNET_IMAGE}" =~ ^mcr\.microsoft\.com/dotnet/aspnet:[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}$ ]] || fail "The ASP.NET Core base image must be named by tag and index digest."
+          git ls-files --error-unmatch -- "${FIXTURE_DOCKERFILE}" > /dev/null || fail "${FIXTURE_DOCKERFILE} is not tracked."
+          checked=0
+          while IFS= read -r -d '' file; do
+            # Dockerfile names in any letter case, as the repository tests find them.
+            name="$(lower "${file##*/}")"
+            case "${name}" in
+              *dockerfile | *dockerfile.* | *containerfile | *containerfile.*) ;;
+              *) continue ;;
+            esac
+            checked=$((checked + 1))
+            stages=" "
+            number=0
+            bases=0
+            instructions=0
+            while IFS= read -r line || [ -n "${line}" ]; do
+              number=$((number + 1))
+              line="${line%$'\r'}"
+              # BuildKit ignores a UTF-8 byte-order mark before the first line, so the checks do too.
+              [ "${number}" -gt 1 ] || line="${line#$'\xef\xbb\xbf'}"
+              location="${file}:${number}"
+              # Parser directives can select a frontend image or change the continuation character, so none is allowed.
+              if [[ "${line}" =~ ^[[:space:]]*#[[:space:]]*([A-Za-z][A-Za-z0-9_-]*)[[:space:]]*= ]]; then
+                directive="$(lower "${BASH_REMATCH[1]}")"
+                if [ "${instructions}" -eq 0 ] || [ "${directive}" = "syntax" ] || [ "${directive}" = "escape" ] || [ "${directive}" = "check" ]; then
+                  fail "${location}: the parser directive ${directive} is refused; directives can select a frontend image or change how lines continue."
+                fi
+              fi
+              [[ "${line}" =~ ^[[:space:]]*# ]] && continue
+              [[ "${line}" =~ ^[[:space:]]*$ ]] || instructions=$((instructions + 1))
+              lowered="$(lower "${line}")"
+              # Every --from and mount from= must name an earlier stage, never another image.
+              rest="${lowered}"
+              while [[ "${rest}" =~ (^|[[:space:],=-])from=([^,[:space:]]+)(.*)$ ]]; do
+                source="${BASH_REMATCH[2]}"
+                rest="${BASH_REMATCH[3]}"
+                [[ "${stages}" == *" ${source} "* || "${source}" =~ ^[0-9]+$ ]] \
+                  || fail "${location}: ${source} is not an earlier stage, so it would pull an unpinned image."
+              done
+              # ADD of a git or ssh source is refused, since --checksum=sha256: cannot pin it. ADD of an http(s) source
+              # must name exactly one source and verify it with a pinned SHA-256; a variable source could hide a remote
+              # one, so it needs the checksum too.
+              if [[ "${lowered}" =~ ^[[:space:]]*(onbuild[[:space:]]+)?add[[:space:]] ]]; then
+                [[ ! "${line}" =~ \\[[:space:]]*$ ]] || fail "${location}: keep each ADD instruction on one line."
+                [[ ! "${lowered}" =~ (git://|ssh://|[a-z0-9._-]+@[a-z0-9.-]+:) ]] \
+                  || fail "${location}: ADD of a git or ssh source is refused, because --checksum=sha256: cannot pin it."
+                remote=0
+                rest="${lowered}"
+                while [[ "${rest}" =~ (https?://)(.*)$ ]]; do
+                  remote=$((remote + 1))
+                  rest="${BASH_REMATCH[2]}"
+                done
+                checksums=0
+                checksum=""
+                rest="${line}"
+                while [[ "${rest}" =~ (^|[[:space:]])--checksum=([^[:space:]]*)(.*)$ ]]; do
+                  checksums=$((checksums + 1))
+                  checksum="${BASH_REMATCH[2]}"
+                  rest="${BASH_REMATCH[3]}"
+                done
+                if [ "${remote}" -gt 0 ] || [[ "${line}" == *'$'* ]]; then
+                  { [ "${remote}" -le 1 ] && [ "${checksums}" -eq 1 ] && [[ "${checksum}" =~ ^sha256:[0-9a-f]{64}$ ]]; } \
+                    || fail "${location}: ADD of a remote or variable source needs exactly one source and --checksum=sha256:<digest>."
+                fi
+              fi
+              [[ "${lowered}" =~ ^[[:space:]]*from[[:space:]] ]] || continue
+              bases=$((bases + 1))
+              [[ ! "${line}" =~ \\[[:space:]]*$ ]] || fail "${location}: keep each FROM instruction on one line."
+              read -r -a words <<< "${line}"
+              index=1
+              if [[ "${words[index]:-}" == --* ]]; then
+                [ "$(lower "${words[index]}")" = "--platform=linux/amd64" ] \
+                  || fail "${location}: the only FROM option allowed is --platform=linux/amd64."
+                index=$((index + 1))
+              fi
+              image="${words[index]:-}"
+              index=$((index + 1))
+              stage=""
+              if [ "${#words[@]}" -gt "${index}" ]; then
+                { [ "${#words[@]}" -eq $((index + 2)) ] && [ "$(lower "${words[index]}")" = "as" ]; } \
+                  || fail "${location}: FROM takes an image and an optional AS <stage>."
+                stage="$(lower "${words[index + 1]}")"
+              fi
+              [ "${image}" = "${ASPNET_IMAGE}" ] || [[ "${stages}" == *" $(lower "${image}") "* ]] || fail "${location}: FROM ${image} must be ${ASPNET_IMAGE} or an earlier stage."
+              [ -z "${stage}" ] || stages="${stages}${stage} "
+            done < "${file}"
+            [ "${bases}" -gt 0 ] || fail "${file}: a Dockerfile needs a FROM instruction."
+            echo "${file}: every base is ${ASPNET_IMAGE} or an earlier stage"
+          done < <(git ls-files -z)
+          [ "${checked}" -gt 0 ] || fail "No Dockerfile found; ${FIXTURE_DOCKERFILE} must exist."
+      - name: Build the fixture image for linux/amd64
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --platform=linux/amd64 --pull --no-cache --tag="${FIXTURE_IMAGE}" --file="${FIXTURE_DOCKERFILE}" tests/Fixtures/container
+      - name: Check the fixture image
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "${FIXTURE_IMAGE}")"
+          [ "${platform}" = "linux/amd64" ] || fail "The fixture image is ${platform}, not linux/amd64."
+          user="$(docker image inspect --format '{{.Config.User}}' "${FIXTURE_IMAGE}")"
+          [[ "${user}" =~ ^[1-9][0-9]*$ ]] || fail "The fixture image must run as a numeric non-root user, not '${user}'."
+          # The fixture adds no layer, so its layers must be exactly those of the pinned base.
+          docker pull --platform=linux/amd64 "${ASPNET_IMAGE}" > /dev/null || fail "Pull of ${ASPNET_IMAGE} failed."
+          base_layers="$(docker image inspect --format '{{json .RootFS.Layers}}' "${ASPNET_IMAGE}")"
+          fixture_layers="$(docker image inspect --format '{{json .RootFS.Layers}}' "${FIXTURE_IMAGE}")"
+          [ "${fixture_layers}" = "${base_layers}" ] || fail "The fixture image's layers are not those of ${ASPNET_IMAGE}."
+          # The runtime release is the version in the image tag, which the register aligns with the SDK pin.
+          tag="${ASPNET_IMAGE}"
+          tag="${tag#*:}"
+          runtime="${tag%%[-@]*}"
+          [[ "${runtime}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "Cannot read the runtime version from ${ASPNET_IMAGE}."
+          reported="$(docker run --rm --pull=never --platform=linux/amd64 --network=none "${FIXTURE_IMAGE}")" || fail "The fixture image did not run."
+          printf '%s\n' "${reported}"
+          listed="$(printf '%s\n' "${reported}" | awk '{ print $1 " " $2 }' | LC_ALL=C sort)"
+          expected="$(printf '%s\n' "Microsoft.AspNetCore.App ${runtime}" "Microsoft.NETCore.App ${runtime}")"
+          [ "${listed}" = "${expected}" ] || fail "The fixture image must report exactly the ASP.NET Core and .NET runtimes ${runtime}."
+          echo "Fixture image $(docker image inspect --format '{{.Id}}' "${FIXTURE_IMAGE}") on ${platform}, user ${user}, runtime ${runtime}, layers of ${ASPNET_IMAGE}"

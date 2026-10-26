@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -13,6 +14,10 @@ public sealed class ToolPinTests
     private const string SecretScanPath = ToolPinContract.SecretScanPath;
     private const string AllowListPath = ".github/workflows/actions.allow";
     private const string RegisterPath = DependencyRegister.RegisterPath;
+    private const string NodePinPath = ToolPinContract.NodePinPath;
+    private const string ScriptPath = ToolPinContract.DatabaseScriptPath;
+    private const string TestsScriptPath = ToolPinContract.TestsScriptPath;
+    private const string FixturePath = ToolPinContract.FixtureDockerfile;
 
     [Fact]
     public void Tool_pins_agree_with_global_json_the_workflows_and_the_register()
@@ -24,7 +29,7 @@ public sealed class ToolPinTests
     public void Tool_pins_accept_platform_line_endings()
     {
         var files = RepositoryFiles.Current.ToDictionary();
-        foreach (var path in new[] { PinPath, CiPath, SecretScanPath, RegisterPath, "global.json" })
+        foreach (var path in new[] { PinPath, CiPath, SecretScanPath, RegisterPath, "global.json", NodePinPath, ScriptPath, TestsScriptPath, FixturePath })
         {
             files[path] = files[path].Replace("\r\n", "\n").Replace("\n", "\r\n");
         }
@@ -266,6 +271,758 @@ public sealed class ToolPinTests
             || Canonical(pair.Key, text) != Canonical(pair.Key, pair.Value));
         Assert.True(changed, $"Mutation {mutation} must change the repository files.");
         Assert.Contains(ToolPinContract.Validate(files), error => error.Contains(expectedDiagnostic, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Real_provider_job_runs_the_build_test_steps_it_shares_and_the_pinned_service()
+    {
+        var jobs = ToolPinContract.Jobs(RepositoryFiles.Current[CiPath]);
+        Assert.Equal(new[] { ToolPinContract.BuildTestJob, ToolPinContract.RealProviderJob, ToolPinContract.ContainerJob }, jobs.Keys);
+        foreach (var step in ToolPinContract.SharedLinuxSteps)
+        {
+            var run = ToolPinContract.Run(jobs[ToolPinContract.BuildTestJob], step);
+            Assert.False(string.IsNullOrWhiteSpace(run), $"build-test must run '{step}'.");
+            Assert.StartsWith("set -euo pipefail\n", run.TrimStart(), StringComparison.Ordinal);
+            Assert.Equal(run, ToolPinContract.Run(jobs[ToolPinContract.RealProviderJob], step));
+        }
+
+        var entries = JsonNode.Parse(RepositoryFiles.Current[RegisterPath])!["entries"]!.AsArray();
+        var postgres = Assert.Single(entries, entry => (string?)entry!["id"] == ToolPinContract.PostgresImageId)!;
+        var index = Assert.Single(postgres["digests"]!.AsArray(), digest => (string?)digest!["target"] == "index")!;
+        var reference = ToolPinContract.PinnedReference(Value(postgres, "name"), Value(index, "url"), Value(index, "digest"));
+        Assert.Equal(new[] { reference }, ToolPinContract.Values(jobs[ToolPinContract.RealProviderJob], "image"));
+        Assert.Equal("docker.io/library/postgres:18.6-trixie@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6", reference);
+    }
+
+    [Fact]
+    public void Node_pin_records_the_registered_archives_for_the_workflow_version()
+    {
+        var pin = JsonNode.Parse(RepositoryFiles.Current[NodePinPath])!;
+        var version = Value(pin, "version");
+        Assert.Equal(new[] { version }, ToolPinContract.Values(RepositoryFiles.Current[CiPath], "NODE_VERSION"));
+        var entries = JsonNode.Parse(RepositoryFiles.Current[RegisterPath])!["entries"]!.AsArray();
+        var node = Assert.Single(entries, entry => (string?)entry!["id"] == "binary:node")!;
+        Assert.Equal(("in-use", version), (Value(node, "status"), Value(node, "version")));
+        var recorded = node["digests"]!.AsArray().ToDictionary(digest => Value(digest!, "target"), digest => (Value(digest!, "url"), Value(digest!, "digest")));
+        var pinned = pin["archives"]!.AsObject().ToDictionary(archive => archive.Key, archive => (Value(archive.Value!, "url"), "sha256:" + Value(archive.Value!, "sha256")));
+        Assert.Equal(recorded.OrderBy(pair => pair.Key, StringComparer.Ordinal), pinned.OrderBy(pair => pair.Key, StringComparer.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("FROM {0} AS base\nFROM base AS final\nCOPY --from=base /app /app\n")]
+    [InlineData("FROM --platform=linux/amd64 {0} AS Build\nRUN --mount=type=cache,from=build,target=/cache true\nFROM {0}\nCOPY --from=0 /a /a\n")]
+    [InlineData("# A comment that mentions from=elsewhere is ignored.\r\nfrom {0}\r\n")]
+    [InlineData("FROM {0}\nADD --checksum=sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef https://example.com/tool.tar.gz /opt/tool.tar.gz\n")]
+    [InlineData("FROM {0}\nADD app.tar.gz /app/\nadd --chown=1654 config /app/config\n")]
+    [InlineData("# Note: a comment with key: value is not a directive.\nFROM {0}\n# setting=value after the first instruction is only a comment\n")]
+    [InlineData("\uFEFFFROM {0}\n")]
+    public void Dockerfiles_on_the_pinned_base_and_its_stages_are_accepted(string dockerfile)
+    {
+        const string pinned = "mcr.microsoft.com/dotnet/aspnet:10.0.14-noble@sha256:de0ee358cdd672f7017a003bed21e9ac9ed48a27c922a59b18175b6e82fa7fee";
+        Assert.Empty(ToolPinContract.DockerfileErrors("Dockerfile", string.Format(CultureInfo.InvariantCulture, dockerfile, pinned), pinned));
+    }
+
+    [Theory]
+    [InlineData("Dockerfile", true)]
+    [InlineData("src/Tooling/Sample/Dockerfile", true)]
+    [InlineData("deploy/Dockerfile.release", true)]
+    [InlineData("deploy/app.dockerfile", true)]
+    [InlineData("deploy/Containerfile", true)]
+    [InlineData("src/Tooling/Sample/dockerfile", true)]
+    [InlineData("deploy/DOCKERFILE.prod", true)]
+    [InlineData("deploy/App.DockerFile", true)]
+    [InlineData("deploy/containerfile", true)]
+    [InlineData("docs/dockerfiles.md", false)]
+    [InlineData(".dockerignore", false)]
+    public void Dockerfiles_are_found_as_the_container_build_job_finds_them(string path, bool expected)
+    {
+        Assert.Equal(expected, ToolPinContract.IsDockerfile(path));
+    }
+
+    [Theory]
+    [InlineData("missing-node-pin", "the Node.js archive pin file is missing")]
+    [InlineData("invalid-node-pin", "must contain valid JSON")]
+    [InlineData("node-pin-version-mismatch", "must equal the workflow's NODE_VERSION")]
+    [InlineData("node-workflow-version-mismatch", "must equal the workflow's NODE_VERSION")]
+    [InlineData("duplicate-node-version", "must pin NODE_VERSION exactly once")]
+    [InlineData("node-register-candidate", "needs exactly one in-use binary:node entry")]
+    [InlineData("node-register-version-mismatch", "must equal the register's in-use binary:node version")]
+    [InlineData("node-other-source", "source must be the release's")]
+    [InlineData("node-uncited-source", "must cite the source")]
+    [InlineData("missing-node-target", "archives must name exactly")]
+    [InlineData("extra-node-target", "archives must name exactly")]
+    [InlineData("node-other-host", "url must be the official Node.js archive")]
+    [InlineData("node-windows-tarball", "url must be the official Node.js archive")]
+    [InlineData("node-uppercase-hash", "sha256 must be 64 lowercase hexadecimal characters")]
+    [InlineData("node-sha512-field", "fields must be exactly url, sha256")]
+    [InlineData("node-duplicate-hash", "duplicates the hash of")]
+    [InlineData("node-register-digest-mismatch", "must equal the register's binary:node")]
+    [InlineData("ci-without-node-pin", "must install Node.js from the archives pinned in")]
+    [InlineData("unpinned-service-image", "must be <registry>/<repository>:<tag>@sha256:<index digest>")]
+    [InlineData("other-service-digest", "only service image must be the register's")]
+    [InlineData("postgres-image-env-mismatch", "POSTGRES_IMAGE must equal its service image")]
+    [InlineData("postgres-register-candidate", "needs exactly one in-use container-image:docker.io/library/postgres entry")]
+    [InlineData("inline-container", "give a job container as a mapping")]
+    [InlineData("aspnet-image-env-mismatch", "ASPNET_IMAGE must be the register's")]
+    [InlineData("aspnet-register-candidate", "needs exactly one in-use container-image:mcr.microsoft.com/dotnet/aspnet entry")]
+    [InlineData("missing-fixture", "the container-build fixture is missing")]
+    [InlineData("dockerfile-other-base", "or an earlier stage")]
+    [InlineData("dockerfile-unpinned-base", "or an earlier stage")]
+    [InlineData("dockerfile-arg-base", "or an earlier stage")]
+    [InlineData("dockerfile-syntax-directive", "the parser directive syntax is refused")]
+    [InlineData("dockerfile-escape-directive", "the parser directive escape is refused")]
+    [InlineData("dockerfile-check-directive", "the parser directive check is refused")]
+    [InlineData("dockerfile-unknown-directive", "the parser directive future is refused")]
+    [InlineData("dockerfile-escape-after-from", "the parser directive escape is refused")]
+    [InlineData("dockerfile-copy-from-image", "is not an earlier stage")]
+    [InlineData("dockerfile-mount-from-image", "is not an earlier stage")]
+    [InlineData("dockerfile-later-stage", "is not an earlier stage")]
+    [InlineData("dockerfile-other-platform", "the only FROM option allowed is --platform=linux/amd64")]
+    [InlineData("dockerfile-continued-from", "keep each FROM instruction on one line")]
+    [InlineData("dockerfile-extra-from-words", "FROM takes an image and an optional AS <stage>")]
+    [InlineData("dockerfile-without-from", "a Dockerfile needs a FROM instruction")]
+    [InlineData("second-dockerfile-other-base", "or an earlier stage")]
+    [InlineData("lowercase-dockerfile-other-base", "or an earlier stage")]
+    [InlineData("dockerfile-add-url", "ADD of a remote or variable source needs exactly one source and --checksum")]
+    [InlineData("dockerfile-add-git", "ADD of a git or ssh source is refused")]
+    [InlineData("dockerfile-add-scp-user", "ADD of a git or ssh source is refused")]
+    [InlineData("dockerfile-add-ssh-url", "ADD of a git or ssh source is refused")]
+    [InlineData("dockerfile-add-git-url", "ADD of a git or ssh source is refused")]
+    [InlineData("dockerfile-add-git-with-checksum", "ADD of a git or ssh source is refused")]
+    [InlineData("dockerfile-add-http", "ADD of a remote or variable source needs exactly one source and --checksum")]
+    [InlineData("dockerfile-bom-escape-directive", "the parser directive escape is refused")]
+    [InlineData("dockerfile-add-uppercase-checksum", "ADD of a remote or variable source needs exactly one source and --checksum")]
+    [InlineData("dockerfile-add-two-remote", "ADD of a remote or variable source needs exactly one source and --checksum")]
+    [InlineData("dockerfile-add-variable", "ADD of a remote or variable source needs exactly one source and --checksum")]
+    [InlineData("dockerfile-onbuild-add-url", "ADD of a remote or variable source needs exactly one source and --checksum")]
+    [InlineData("dockerfile-add-continued", "keep each ADD instruction on one line")]
+    [InlineData("dockerfile-add-continued-space", "keep each ADD instruction on one line")]
+    [InlineData("missing-real-provider-job", "the real-provider job is missing")]
+    [InlineData("real-provider-on-windows", "real-provider job must run on ubuntu-latest")]
+    [InlineData("service-host-trust", "must start with POSTGRES_HOST_AUTH_METHOD reject")]
+    [InlineData("missing-health-check", "needs a pg_isready health check")]
+    [InlineData("postgresql-version-mismatch", "POSTGRESQL_VERSION must equal")]
+    [InlineData("postgresql-register-candidate", "POSTGRESQL_VERSION must equal")]
+    [InlineData("database-step-other-command", "step must come after its Build step and run")]
+    [InlineData("database-before-build", "step must come after its Build step and run")]
+    [InlineData("database-in-another-step", "may run .github/scripts/postgresql-test-database.sh, so the credentials exist in no other step")]
+    [InlineData("database-to-github-env", "never to GITHUB_ENV, GITHUB_OUTPUT, GITHUB_STATE, GITHUB_PATH")]
+    [InlineData("database-to-github-state", "never to GITHUB_ENV, GITHUB_OUTPUT, GITHUB_STATE, GITHUB_PATH")]
+    [InlineData("database-to-github-path", "never to GITHUB_ENV, GITHUB_OUTPUT, GITHUB_STATE, GITHUB_PATH")]
+    [InlineData("tests-to-github-env", "never to GITHUB_ENV, GITHUB_OUTPUT, GITHUB_STATE, GITHUB_PATH")]
+    [InlineData("unmasked-password", "must generate the password from /dev/urandom, mask it")]
+    [InlineData("missing-database-script", "must generate the password from /dev/urandom, mask it")]
+    [InlineData("real-provider-direct-test", "every dotnet test in the real-provider job must select its tests")]
+    [InlineData("tests-script-unfiltered", "must run dotnet test with --filter \"Requires=PostgreSQL\", and only with it")]
+    [InlineData("tests-script-unit-filter", "must run dotnet test with --filter \"Requires=PostgreSQL\", and only with it")]
+    [InlineData("missing-tests-script", "must run dotnet test with --filter \"Requires=PostgreSQL\", and only with it")]
+    [InlineData("tests-script-without-minimum", "require at least one PostgreSQL test to have run")]
+    [InlineData("tests-script-allows-failures", "require at least one PostgreSQL test to have run")]
+    [InlineData("tests-script-shared-results", "require at least one PostgreSQL test to have run")]
+    [InlineData("tests-script-some-projects", "require at least one PostgreSQL test to have run")]
+    [InlineData("build-test-unfiltered", "every dotnet test in the build-test job must select its tests")]
+    [InlineData("build-test-real-provider-filter", "every dotnet test in the build-test job must select its tests")]
+    [InlineData("build-test-without-tests", "the build-test job must run dotnet test")]
+    [InlineData("diverged-shared-step", "exactly as build-test does")]
+    [InlineData("missing-shared-step", "exactly as build-test does")]
+    [InlineData("missing-container-job", "the container-build job is missing")]
+    [InlineData("container-on-macos", "container-build job must run on ubuntu-latest")]
+    [InlineData("container-other-platform", "must build for linux/amd64")]
+    [InlineData("container-other-fixture", "must build tests/Fixtures/container/Dockerfile")]
+    [InlineData("playwright-install-step", "must not install Playwright browsers")]
+    [InlineData("playwright-install-script", "must not install Playwright browsers")]
+    [InlineData("build-space-form-stdin", "standard input is refused as a docker context or Dockerfile")]
+    [InlineData("build-space-form-context", "this docker command is not on the allowlist")]
+    [InlineData("build-context-url", "docker build --build-context is refused")]
+    [InlineData("build-context-git", "docker build --build-context is refused")]
+    [InlineData("build-context-pinned-image", "docker-image:// is refused")]
+    [InlineData("build-url-context", "a URL or git context is refused")]
+    [InlineData("build-git-context", "a URL or git context is refused")]
+    [InlineData("buildx-build", "this docker command is not on the allowlist")]
+    [InlineData("image-build", "this docker command is not on the allowlist")]
+    [InlineData("container-run", "this docker command is not on the allowlist")]
+    [InlineData("compose-script", "this docker command is not on the allowlist")]
+    [InlineData("service-script", "this docker command is not on the allowlist")]
+    [InlineData("unpinned-run", "this docker command is not on the allowlist")]
+    [InlineData("uppercase-docker", "this docker command is not on the allowlist")]
+    [InlineData("absolute-docker", "this docker command is not on the allowlist")]
+    [InlineData("docker-in-variable", "this docker command is not on the allowlist")]
+    [InlineData("allowed-line-in-other-file", "this docker command is not on the allowlist")]
+    [InlineData("continuation-into-allowed", "the line before an allowed line continues into it")]
+    [InlineData("split-allowed-line", "this docker command is not on the allowlist")]
+    [InlineData("appended-command", "this docker command is not on the allowlist")]
+    [InlineData("bash-c-docker", "this docker command is not on the allowlist")]
+    [InlineData("sh-c", "eval, a shell with -c and a pipe into a shell can hide a docker command")]
+    [InlineData("bash-lc", "eval, a shell with -c and a pipe into a shell can hide a docker command")]
+    [InlineData("eval", "eval, a shell with -c and a pipe into a shell can hide a docker command")]
+    [InlineData("redefined-array", "the guarded name admin appears outside its definition and the allowlisted lines")]
+    [InlineData("fixture-image-registry", "FIXTURE_IMAGE must be a local tag")]
+    [InlineData("fixture-image-assigned", "the guarded name FIXTURE_IMAGE appears outside its definition and the allowlisted lines")]
+    [InlineData("image-to-github-env", "the guarded name ASPNET_IMAGE appears outside its definition and the allowlisted lines")]
+    [InlineData("token-read", "the guarded name FIXTURE_IMAGE appears outside")]
+    [InlineData("token-printf-v", "the guarded name ASPNET_IMAGE appears outside")]
+    [InlineData("token-for", "the guarded name FIXTURE_IMAGE appears outside")]
+    [InlineData("token-default-assign", "the guarded name FIXTURE_IMAGE appears outside")]
+    [InlineData("token-default-value", "the guarded name POSTGRES_IMAGE appears outside")]
+    [InlineData("token-indirect", "the guarded name ASPNET_IMAGE appears outside")]
+    [InlineData("token-indirect-expansion", "the guarded name ASPNET_IMAGE appears outside")]
+    [InlineData("token-bare-dollar", "the guarded name FIXTURE_IMAGE appears outside")]
+    [InlineData("token-heredoc-github-env", "the guarded name FIXTURE_IMAGE appears outside")]
+    [InlineData("token-nameref", "the guarded name tcp appears outside")]
+    [InlineData("token-read-array", "the guarded name admin appears outside")]
+    [InlineData("token-array-element", "the guarded name admin appears outside")]
+    [InlineData("token-array-star", "the guarded name admin appears outside")]
+    [InlineData("token-expression", "the guarded name FIXTURE_DOCKERFILE appears outside")]
+    [InlineData("token-in-comment", "the guarded name POSTGRES_IMAGE appears outside")]
+    [InlineData("token-copy", "the guarded name ASPNET_IMAGE appears outside")]
+    [InlineData("hyphenated-compose", "this docker command is not on the allowlist")]
+    [InlineData("pipe-into-bash", "eval, a shell with -c and a pipe into a shell can hide a docker command")]
+    [InlineData("pipe-into-sh", "eval, a shell with -c and a pipe into a shell can hide a docker command")]
+    [InlineData("bash-options-then-c", "eval, a shell with -c and a pipe into a shell can hide a docker command")]
+    [InlineData("yaml-workflow", "this docker command is not on the allowlist")]
+    [InlineData("duplicate-allowed-line", "appears 2 times; each allowed line appears once")]
+    [InlineData("second-image-definition", "FIXTURE_IMAGE must be defined exactly once, as a literal")]
+    [InlineData("computed-dockerfile-env", "FIXTURE_DOCKERFILE must be defined exactly once, as a literal")]
+    [InlineData("unused-allowlist-entry", "is not used; remove it from the allowlist")]
+    public void A_single_ci_pin_violation_is_rejected(string mutation, string expectedDiagnostic)
+    {
+        // Every mutation derives its values from the current files, so a later pin update cannot turn it into a no-op.
+        var original = RepositoryFiles.Current;
+        var files = original.ToDictionary();
+        Assert.Empty(ToolPinContract.Validate(files));
+        var pin = JsonNode.Parse(files[NodePinPath])!;
+        var archives = pin["archives"]!.AsObject();
+        var (firstTarget, first) = archives.First();
+        var (_, second) = archives.Skip(1).First();
+        var (_, windows) = archives.First(archive => archive.Key.StartsWith("win-", StringComparison.Ordinal));
+        var register = JsonNode.Parse(files[RegisterPath])!;
+        var entries = register["entries"]!.AsArray();
+        JsonNode Entry(string id) => entries.Single(entry => (string?)entry!["id"] == id)!;
+        var node = Entry("binary:node");
+        var postgres = Entry(ToolPinContract.PostgresImageId);
+        var aspnet = Entry(ToolPinContract.AspNetImageId);
+        var postgresReference = Reference(postgres);
+        var aspnetReference = Reference(aspnet);
+        var ci = files[CiPath];
+        var fixture = files[FixturePath];
+        string? pinText = null;
+        switch (mutation)
+        {
+            case "missing-node-pin": Assert.True(files.Remove(NodePinPath)); break;
+            case "invalid-node-pin": pinText = files[NodePinPath].TrimEnd()[..^1]; break;
+            case "node-pin-version-mismatch": Set(pin, "version", Bump(Value(pin, "version"))); break;
+            case "node-workflow-version-mismatch":
+                files[CiPath] = RewriteLine(ci, "NODE_VERSION", line => line.Replace(Value(pin, "version"), Bump(Value(pin, "version"))));
+                break;
+            case "duplicate-node-version": files[CiPath] = RewriteLine(ci, "NODE_VERSION", line => line + "\n" + line); break;
+            case "node-register-candidate": Set(node, "status", "candidate"); break;
+            case "node-register-version-mismatch": Set(node, "version", Bump(Value(node, "version"))); break;
+            case "node-other-source": Set(pin, "source", Value(pin, "source").Replace("SHASUMS256.txt", "SHASUMS256.txt.asc")); break;
+            case "node-uncited-source":
+                var sources = node["maintenance"]!["sources"]!.AsArray();
+                Assert.True(sources.Remove(sources.First(source => (string?)source == Value(pin, "source"))));
+                break;
+            case "missing-node-target": Assert.True(archives.Remove(firstTarget)); break;
+            case "extra-node-target": archives.Add(firstTarget.Split('-')[0] + "-ppc64le", first!.DeepClone()); break;
+            case "node-other-host": Set(first!, "url", Value(first!, "url").Replace("nodejs.org", "mirror.example")); break;
+            case "node-windows-tarball": Set(windows!, "url", Value(windows!, "url").Replace(".zip", ".tar.gz")); break;
+            case "node-uppercase-hash": Set(first!, "sha256", Value(first!, "sha256").ToUpperInvariant()); break;
+            case "node-sha512-field":
+                first!["sha512"] = Value(first!, "sha256");
+                Assert.True(first.AsObject().Remove("sha256"));
+                break;
+            case "node-duplicate-hash": Set(second!, "sha256", Value(first!, "sha256")); break;
+            case "node-register-digest-mismatch":
+                var recorded = node["digests"]!.AsArray().First(digest => (string?)digest!["target"] == firstTarget)!;
+                var digest = Value(recorded, "digest");
+                Set(recorded, "digest", digest[..^1] + (digest[^1] == '0' ? '1' : '0'));
+                break;
+            case "ci-without-node-pin": files[CiPath] = Changed(ci, ci.Replace(NodePinPath, ".github/node-pin.json", StringComparison.Ordinal)); break;
+            case "unpinned-service-image":
+                files[CiPath] = ReplaceLine(ci, "        image: " + postgresReference, "        image: " + postgresReference.Split('@')[0]);
+                break;
+            case "other-service-digest":
+                files[CiPath] = ReplaceLine(ci, "        image: " + postgresReference, "        image: " + Flip(postgresReference));
+                break;
+            case "postgres-image-env-mismatch":
+                files[CiPath] = ReplaceLine(ci, "      POSTGRES_IMAGE: " + postgresReference, "      POSTGRES_IMAGE: " + Flip(postgresReference));
+                break;
+            case "postgres-register-candidate": Set(postgres, "status", "candidate"); break;
+            case "inline-container":
+                files[CiPath] = ReplaceLine(ci, "    timeout-minutes: 15", "    timeout-minutes: 15\n    container: " + aspnetReference, firstOnly: true);
+                break;
+            case "aspnet-image-env-mismatch":
+                files[CiPath] = ReplaceLine(ci, "      ASPNET_IMAGE: " + aspnetReference, "      ASPNET_IMAGE: " + Flip(aspnetReference));
+                break;
+            case "aspnet-register-candidate": Set(aspnet, "status", "candidate"); break;
+            case "missing-fixture": Assert.True(files.Remove(FixturePath)); break;
+            case "dockerfile-other-base":
+                files[FixturePath] = Changed(fixture, fixture.Replace("/dotnet/aspnet:", "/dotnet/runtime:", StringComparison.Ordinal));
+                break;
+            case "dockerfile-unpinned-base":
+                files[FixturePath] = Changed(fixture, fixture.Replace(aspnetReference, aspnetReference.Split('@')[0], StringComparison.Ordinal));
+                break;
+            case "dockerfile-arg-base":
+                files[FixturePath] = Changed(fixture, fixture.Replace("FROM " + aspnetReference, "ARG BASE=" + aspnetReference + "\nFROM ${BASE}",
+                    StringComparison.Ordinal));
+                break;
+            case "dockerfile-syntax-directive": files[FixturePath] = "# syntax=docker/dockerfile:1\n" + fixture; break;
+            case "dockerfile-escape-directive":
+                files[FixturePath] = "# escape=`\n" + fixture + "ADD `\n  https://example.com/tool.tar.gz /opt/tool.tar.gz\n";
+                break;
+            case "dockerfile-check-directive": files[FixturePath] = "# check=skip=all\n" + fixture; break;
+            case "dockerfile-unknown-directive": files[FixturePath] = "# future=value\n" + fixture; break;
+            case "dockerfile-escape-after-from": files[FixturePath] = fixture + "# escape=`\n"; break;
+            case "dockerfile-copy-from-image": files[FixturePath] = fixture + "COPY --from=docker.io/library/busybox:1 /bin/busybox /busybox\n"; break;
+            case "dockerfile-mount-from-image": files[FixturePath] = fixture + "RUN --mount=type=bind,from=alpine,target=/opt/alpine true\n"; break;
+            case "dockerfile-later-stage": files[FixturePath] = fixture + "COPY --from=later /a /a\nFROM " + aspnetReference + " AS later\n"; break;
+            case "dockerfile-other-platform":
+                files[FixturePath] = Changed(fixture, fixture.Replace("FROM " + aspnetReference, "FROM --platform=linux/arm64 " + aspnetReference,
+                    StringComparison.Ordinal));
+                break;
+            case "dockerfile-continued-from":
+                files[FixturePath] = Changed(fixture, fixture.Replace("FROM " + aspnetReference, "FROM \\\n  " + aspnetReference, StringComparison.Ordinal));
+                break;
+            case "dockerfile-extra-from-words":
+                files[FixturePath] = Changed(fixture, fixture.Replace("FROM " + aspnetReference, "FROM " + aspnetReference + " AS base extra",
+                    StringComparison.Ordinal));
+                break;
+            case "dockerfile-without-from":
+                files[FixturePath] = Changed(fixture, string.Join('\n', fixture.Split('\n').Where(line => !line.StartsWith("FROM ", StringComparison.Ordinal))));
+                break;
+            case "second-dockerfile-other-base":
+                files["src/Tooling/Sample/Dockerfile"] = "FROM docker.io/library/alpine:3.22@sha256:" + new string('a', 64) + "\n";
+                break;
+            case "lowercase-dockerfile-other-base":
+                files["src/Tooling/Sample/dockerfile"] = "FROM docker.io/library/alpine:3.22@sha256:" + new string('a', 64) + "\n";
+                break;
+            case "dockerfile-add-url": files[FixturePath] = fixture + "ADD https://example.com/tool.tar.gz /opt/tool.tar.gz\n"; break;
+            case "dockerfile-add-git": files[FixturePath] = fixture + "ADD git@github.com:example/tool.git /opt/tool\n"; break;
+            case "dockerfile-add-scp-user": files[FixturePath] = fixture + "ADD deploy@build.example.com:releases/tool.tar.gz /opt/\n"; break;
+            case "dockerfile-add-ssh-url": files[FixturePath] = fixture + "ADD ssh://git@example.com/tool.git /opt/tool\n"; break;
+            case "dockerfile-add-git-url": files[FixturePath] = fixture + "ADD git://example.com/tool.git /opt/tool\n"; break;
+            case "dockerfile-add-git-with-checksum":
+                files[FixturePath] = fixture + "ADD --checksum=sha256:" + new string('a', 64) + " deploy@example.com:tool.git /opt/tool\n";
+                break;
+            case "dockerfile-add-http": files[FixturePath] = fixture + "ADD http://example.com/tool.tar.gz /opt/\n"; break;
+            case "dockerfile-bom-escape-directive":
+                files[FixturePath] = "\uFEFF# escape=`\n" + fixture + "ADD `\n  https://example.com/tool.tar.gz /opt/\n";
+                break;
+            case "dockerfile-add-uppercase-checksum":
+                files[FixturePath] = fixture + "ADD --checksum=sha256:" + new string('A', 64) + " https://example.com/tool.tar.gz /opt/\n";
+                break;
+            case "dockerfile-add-two-remote":
+                files[FixturePath] = fixture + "ADD --checksum=sha256:" + new string('a', 64) + " https://example.com/a https://example.com/b /opt/\n";
+                break;
+            case "dockerfile-add-variable": files[FixturePath] = fixture + "ARG TOOL\nADD ${TOOL} /opt/tool\n"; break;
+            case "dockerfile-onbuild-add-url": files[FixturePath] = fixture + "ONBUILD ADD https://example.com/tool.tar.gz /opt/\n"; break;
+            case "dockerfile-add-continued": files[FixturePath] = fixture + "ADD \\\n  https://example.com/tool.tar.gz /opt/\n"; break;
+            case "dockerfile-add-continued-space": files[FixturePath] = fixture + "ADD \\  \n  https://example.com/tool.tar.gz /opt/\n"; break;
+            case "missing-real-provider-job": files[CiPath] = ReplaceLine(ci, "  real-provider:", "  integration:"); break;
+            case "real-provider-on-windows": files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, "runs-on: ubuntu-latest", "runs-on: windows-latest"); break;
+            case "service-host-trust": files[CiPath] = ReplaceLine(ci, "          POSTGRES_HOST_AUTH_METHOD: reject", "          POSTGRES_HOST_AUTH_METHOD: trust"); break;
+            case "missing-health-check": files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, "\"pg_isready ", "\"true "); break;
+            case "postgresql-version-mismatch":
+                files[CiPath] = RewriteLine(ci, "POSTGRESQL_VERSION", line => line.Replace(Value(postgres, "version"), Bump(Value(postgres, "version"))));
+                break;
+            case "postgresql-register-candidate": Set(Entry("binary:postgresql"), "status", "candidate"); break;
+            case "database-step-other-command":
+                files[CiPath] = ReplaceLine(ci, "        run: " + ToolPinContract.RealProviderTestRun,
+                    $"        run: bash {ScriptPath} ci dotnet test -c Release --no-build " + ToolPinContract.RealProviderFilter);
+                break;
+            case "database-before-build":
+                var testStep = ci[ci.IndexOf("      - name: " + ToolPinContract.RealProviderTestStep, StringComparison.Ordinal)..];
+                testStep = testStep[..(testStep.IndexOf("\n\n", StringComparison.Ordinal) + 1)];
+                var withoutTest = ReplaceInJob(ci, ToolPinContract.RealProviderJob, testStep, "");
+                files[CiPath] = ReplaceInJob(withoutTest, ToolPinContract.RealProviderJob, "      - name: Restore locked dependencies\n",
+                    testStep + "      - name: Restore locked dependencies\n");
+                break;
+            case "database-in-another-step":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, "      - name: Restore locked dependencies",
+                    $"      - name: Prepare\n        run: bash {ScriptPath} ci true\n      - name: Restore locked dependencies");
+                break;
+            case "database-to-github-state":
+                files[ScriptPath] = ReplaceText(files[ScriptPath], "  local status\n", "  echo \"name=${name}\" >> \"${GITHUB_STATE}\"\n  local status\n");
+                break;
+            case "database-to-github-path":
+                files[ScriptPath] = ReplaceText(files[ScriptPath], "  local status\n", "  echo \"${name}\" >> \"${GITHUB_PATH}\"\n  local status\n");
+                break;
+            case "tests-to-github-env":
+                files[TestsScriptPath] = ReplaceText(files[TestsScriptPath], "  count_results \"${results}\" \"${names[@]}\"\n",
+                    "  echo \"results=${results}\" >> \"${GITHUB_ENV}\"\n  count_results \"${results}\" \"${names[@]}\"\n");
+                break;
+            case "database-to-github-env":
+                files[ScriptPath] = Changed(files[ScriptPath], files[ScriptPath].Replace("  local status\n",
+                    "  echo \"MODULARYN_TEST_DATABASE=${name}\" >> \"${GITHUB_ENV}\"\n  local status\n", StringComparison.Ordinal));
+                break;
+            case "unmasked-password":
+                files[ScriptPath] = Changed(files[ScriptPath], files[ScriptPath].Replace("echo \"::add-mask::${password}\"", "true", StringComparison.Ordinal));
+                break;
+            case "missing-database-script": Assert.True(files.Remove(ScriptPath)); break;
+            case "real-provider-direct-test":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, "      - name: Restore locked dependencies",
+                    "      - name: Test everything\n        run: dotnet test -c Release --no-build\n      - name: Restore locked dependencies");
+                break;
+            case "tests-script-unfiltered": files[TestsScriptPath] = ReplaceText(files[TestsScriptPath], " " + ToolPinContract.RealProviderFilter, ""); break;
+            case "tests-script-unit-filter":
+                files[TestsScriptPath] = ReplaceText(files[TestsScriptPath], ToolPinContract.RealProviderFilter, ToolPinContract.UnitFilter);
+                break;
+            case "missing-tests-script": Assert.True(files.Remove(TestsScriptPath)); break;
+            case "tests-script-without-minimum": files[TestsScriptPath] = ReplaceText(files[TestsScriptPath], "[ \"${passed}\" -ge 1 ]", "true"); break;
+            case "tests-script-allows-failures":
+                files[TestsScriptPath] = ReplaceText(files[TestsScriptPath], "[ \"${passed}\" -eq \"${total}\" ]", "true");
+                break;
+            case "tests-script-shared-results":
+                files[TestsScriptPath] = ReplaceText(files[TestsScriptPath], "LogFileName=${name}.trx", "LogFileName=results.trx");
+                break;
+            case "tests-script-some-projects":
+                files[TestsScriptPath] = ReplaceText(files[TestsScriptPath], "'tests/*/*.Tests.csproj'", "'tests/Modularyn.Repository.Tests/*.csproj'");
+                break;
+            case "build-test-unfiltered": files[CiPath] = ReplaceInJob(ci, ToolPinContract.BuildTestJob, " " + ToolPinContract.UnitFilter, ""); break;
+            case "build-test-real-provider-filter":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.BuildTestJob, ToolPinContract.UnitFilter, ToolPinContract.RealProviderFilter);
+                break;
+            case "build-test-without-tests":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.BuildTestJob, "run: dotnet test -c Release --no-build " + ToolPinContract.UnitFilter,
+                    "run: echo no tests");
+                break;
+            case "diverged-shared-step": files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, "--retry 3", "--retry 1"); break;
+            case "missing-shared-step":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, "- name: " + ToolPinContract.SharedLinuxSteps[^1], "- name: Verify Node.js");
+                break;
+            case "missing-container-job": files[CiPath] = ReplaceLine(ci, "  container-build:", "  image-build:"); break;
+            case "container-on-macos": files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "runs-on: ubuntu-latest", "runs-on: macos-latest"); break;
+            case "container-other-platform":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "docker build --platform=linux/amd64 ", "docker build --platform=linux/arm64 ");
+                break;
+            case "container-other-fixture":
+                files[CiPath] = ReplaceLine(ci, "      FIXTURE_DOCKERFILE: " + FixturePath, "      FIXTURE_DOCKERFILE: tests/Fixtures/other/Dockerfile");
+                break;
+            case "playwright-install-step":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, "      - name: Restore locked dependencies",
+                    "      - name: Install browsers\n        run: pwsh playwright.ps1 install --with-deps chromium\n      - name: Restore locked dependencies");
+                break;
+            case "playwright-install-script": files[".github/scripts/browsers.sh"] = "#!/usr/bin/env bash\nnpx playwright install chromium\n"; break;
+            case "build-space-form-stdin":
+                files[CiPath] = ReplaceText(ci, "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container",
+                    "docker build --platform=linux/amd64 --pull --no-cache --tag \"${FIXTURE_IMAGE}\" --file \"${FIXTURE_DOCKERFILE}\" -");
+                break;
+            case "build-space-form-context":
+                files[CiPath] = ReplaceText(ci, "--file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container", "--file \"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container");
+                break;
+            case "build-context-url":
+                files[CiPath] = ReplaceText(ci, "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container", "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container --build-context=base=https://example.com/base.tar.gz");
+                break;
+            case "build-context-git":
+                files[CiPath] = ReplaceText(ci, "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container", "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container --build-context=src=git@github.com:example/src.git");
+                break;
+            case "build-context-pinned-image":
+                files[CiPath] = ReplaceText(ci, "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container", "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container --build-context=base=docker-image://" + aspnetReference);
+                break;
+            case "build-url-context":
+                files[CiPath] = ReplaceText(ci, "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container", "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container".Replace("tests/Fixtures/container", "https://github.com/Modularyn/modularyn.git"));
+                break;
+            case "build-git-context":
+                files[CiPath] = ReplaceText(ci, "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container", "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container".Replace("tests/Fixtures/container", "git@github.com:Modularyn/modularyn.git"));
+                break;
+            case "buildx-build": files[CiPath] = ReplaceText(ci, "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container", "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container".Replace("docker build", "docker buildx build")); break;
+            case "image-build": files[CiPath] = ReplaceText(ci, "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container", "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container".Replace("docker build", "docker image build")); break;
+            case "container-run": files[CiPath] = ReplaceText(ci, "$(docker run --rm", "$(docker container run --rm"); break;
+            case "compose-script": files[".github/scripts/services.sh"] = "#!/usr/bin/env bash\ndocker compose up --detach\n"; break;
+            case "service-script": files[".github/scripts/services.sh"] = "#!/usr/bin/env bash\ndocker service create --name cache redis\n"; break;
+            case "unpinned-run":
+                files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          docker run --rm docker.io/library/alpine:3.22 true\n");
+                break;
+            case "uppercase-docker": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\nDocker pull alpine\n"; break;
+            case "absolute-docker": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\n/usr/bin/docker pull alpine\n"; break;
+            case "docker-in-variable": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\ntool=docker\n\"${tool}\" pull alpine\n"; break;
+            case "allowed-line-in-other-file": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\ndocker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n"; break;
+            case "continuation-into-allowed":
+                files[CiPath] = ReplaceText(ci, "          docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "          env DOCKER_CONFIG=other \\\n          docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n");
+                break;
+            case "split-allowed-line":
+                files[CiPath] = ReplaceText(ci, "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container", "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${FIXTURE_IMAGE}\" --file=\"${FIXTURE_DOCKERFILE}\" tests/Fixtures/container".Replace(" --file=", " \\\n            --file="));
+                break;
+            case "appended-command": files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"; docker pull alpine\n"); break;
+            case "bash-c-docker": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\nbash -c 'docker pull alpine'\n"; break;
+            case "sh-c": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\nsh -c \"$(printf 'cmd')\"\n"; break;
+            case "bash-lc": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\nbash -lc \"${command}\"\n"; break;
+            case "eval": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\neval \"$(printf 'ZG9ja2VyIHB1bGwgYWxwaW5l' | base64 -d)\"\n"; break;
+            case "redefined-array":
+                files[ScriptPath] = ReplaceText(files[ScriptPath], "  local version\n", "  admin=(\"${admin[@]:0:1}\" run --rm alpine)\n  local version\n");
+                break;
+            case "fixture-image-registry":
+                files[CiPath] = ReplaceLine(ci, "      FIXTURE_IMAGE: modularyn-fixture:ci", "      FIXTURE_IMAGE: docker.io/library/alpine:3.22");
+                break;
+            case "fixture-image-assigned":
+                files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          FIXTURE_IMAGE=\"docker.io/library/alpine:3.22\"\n");
+                break;
+            case "token-read":
+                files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          read -r FIXTURE_IMAGE <<< \"docker.io/library/alpine:3.22\"\n");
+                break;
+            case "token-printf-v":
+                files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          printf -v ASPNET_IMAGE '%s' \"docker.io/library/alpine:3.22\"\n");
+                break;
+            case "token-for":
+                files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          for FIXTURE_IMAGE in docker.io/library/alpine:3.22; do true; done\n");
+                break;
+            case "token-default-assign":
+                files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          : \"${FIXTURE_IMAGE:=docker.io/library/alpine:3.22}\"\n");
+                break;
+            case "token-default-value":
+                files[ScriptPath] = ReplaceText(files[ScriptPath], "  local version\n", "  echo \"${POSTGRES_IMAGE-other}\"\n  local version\n");
+                break;
+            case "token-indirect":
+                files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          name=ASPNET_IMAGE\n          echo \"${!name}\"\n");
+                break;
+            case "token-indirect-expansion": files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          echo \"${!ASPNET_IMAGE}\"\n"); break;
+            case "token-bare-dollar": files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          echo $FIXTURE_IMAGE\n"); break;
+            case "token-heredoc-github-env":
+                files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n",
+                    "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          cat >> \"${GITHUB_ENV}\" <<EOF\n          FIXTURE_IMAGE=docker.io/library/alpine:3.22\n          EOF\n");
+                break;
+            case "token-nameref":
+                files[ScriptPath] = ReplaceText(files[ScriptPath], "  local version\n", "  local -n tcp=other\n  local version\n");
+                break;
+            case "token-read-array":
+                files[ScriptPath] = ReplaceText(files[ScriptPath], "  local version\n", "  read -r -a admin <<< \"podman run alpine\"\n  local version\n");
+                break;
+            case "token-array-element":
+                files[ScriptPath] = ReplaceText(files[ScriptPath], "  local version\n", "  admin[0]=podman\n  local version\n");
+                break;
+            case "token-array-star":
+                files[ScriptPath] = ReplaceText(files[ScriptPath], "  local version\n", "  ${admin[*]} --command='SELECT 1'\n  local version\n");
+                break;
+            case "token-expression":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "      - name: Build the fixture image for linux/amd64\n",
+                    "      - name: Build the fixture image for linux/amd64\n        if: ${{ env.FIXTURE_DOCKERFILE != '' }}\n");
+                break;
+            case "token-in-comment":
+                files[ScriptPath] = ReplaceText(files[ScriptPath], "  local version\n", "  # POSTGRES_IMAGE is checked above.\n  local version\n");
+                break;
+            case "token-copy": files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          base=\"${ASPNET_IMAGE}\"\n"); break;
+            case "hyphenated-compose": files[".github/scripts/services.sh"] = "#!/usr/bin/env bash\ndocker-compose up --detach\n"; break;
+            case "pipe-into-bash": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\nbase64 -d < commands.txt | bash\n"; break;
+            case "pipe-into-sh": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\nprintf '%s\\n' \"${commands}\" | sh -s\n"; break;
+            case "bash-options-then-c": files[".github/scripts/images.sh"] = "#!/usr/bin/env bash\nbash -o pipefail -c \"${command}\"\n"; break;
+            case "yaml-workflow":
+                files[".github/workflows/images.yaml"] = string.Join('\n', "name: Images", "on: pull_request", "jobs:", "  images:",
+                    "    runs-on: ubuntu-latest", "    steps:", "      - run: docker pull docker.io/library/alpine:3.22", "");
+                break;
+            case "duplicate-allowed-line": files[CiPath] = ReplaceText(ci, "          docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "          docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n"); break;
+            case "image-to-github-env":
+                files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          echo \"ASPNET_IMAGE=docker.io/library/alpine:3\" >> \"${GITHUB_ENV}\"\n");
+                break;
+            case "second-image-definition":
+                files[CiPath] = ReplaceLine(ci, "      POSTGRESQL_VERSION: '18.6'", "      POSTGRESQL_VERSION: '18.6'\n      FIXTURE_IMAGE: other:ci");
+                break;
+            case "computed-dockerfile-env":
+                files[CiPath] = ReplaceLine(ci, "      FIXTURE_DOCKERFILE: " + FixturePath, "      FIXTURE_DOCKERFILE: ${{ vars.DOCKERFILE }}");
+                break;
+            case "unused-allowlist-entry":
+                files[CiPath] = ReplaceText(ci, "user=\"$(docker image inspect --format '{{.Config.User}}' \"${FIXTURE_IMAGE}\")\"", "user=\"1654\"");
+                break;
+            default: throw new ArgumentOutOfRangeException(nameof(mutation), mutation, "Unknown mutation case.");
+        }
+
+        if (files.ContainsKey(NodePinPath))
+        {
+            files[NodePinPath] = pinText ?? pin.ToJsonString();
+        }
+
+        files[RegisterPath] = register.ToJsonString();
+
+        // Compare JSON files by content and every other file by text, so an unchanged mutation fails here.
+        var changed = files.Count != original.Count || files.Any(pair => !original.TryGetValue(pair.Key, out var text)
+            || Canonical(pair.Key, text) != Canonical(pair.Key, pair.Value));
+        Assert.True(changed, $"Mutation {mutation} must change the repository files.");
+        Assert.Contains(ToolPinContract.Validate(files), error => error.Contains(expectedDiagnostic, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Docker_lines_and_guarded_names_are_exactly_the_allowlisted_lines()
+    {
+        // Every line that names docker or a guarded name, other than the four env definitions, is a listed line.
+        var files = RepositoryFiles.Current;
+        var names = string.Join('|', ToolPinContract.GuardedNames.Select(Regex.Escape));
+        var definitions = 0;
+        var found = new HashSet<(string, string)>();
+        foreach (var (path, text) in files.Where(pair => ToolPinContract.InDockerScope(pair.Key)))
+        {
+            foreach (var line in text.Replace("\r\n", "\n").Split('\n').Select(line => line.Trim()))
+            {
+                var docker = !line.StartsWith('#') && Regex.IsMatch(line, "(?<![A-Za-z0-9_.-])docker(?:-compose)?(?![A-Za-z0-9_.-])", RegexOptions.IgnoreCase);
+                var guarded = Regex.IsMatch(line, $"(?<![A-Za-z0-9_])(?:{names})(?![A-Za-z0-9_])");
+                if (guarded && ToolPinContract.DockerVariables.Any(variable => line.StartsWith(variable.Variable + ": ", StringComparison.Ordinal)))
+                {
+                    definitions++;
+                }
+                else if (docker || guarded)
+                {
+                    Assert.True(found.Add((path, line)), $"{path} repeats the line {line}");
+                }
+            }
+        }
+
+        Assert.Equal(ToolPinContract.DockerVariables.Length, definitions);
+        Assert.Equal(ToolPinContract.DockerAllowlist.ToHashSet(), found);
+        Assert.Empty(ToolPinContract.DockerCommandErrors(files));
+    }
+
+    [Theory]
+    [InlineData("listed-default", "uses FIXTURE_IMAGE other than as ${FIXTURE_IMAGE}")]
+    [InlineData("listed-bare", "uses ASPNET_IMAGE other than as ${ASPNET_IMAGE}")]
+    [InlineData("listed-array-star", "uses admin other than as \"${admin[@]}\" or its definition")]
+    [InlineData("listed-second-definition", "the array tcp must have exactly one listed definition")]
+    [InlineData("listed-build-context", "uses a refused build context")]
+    [InlineData("listed-continued", "must be one complete, trimmed line")]
+    [InlineData("listed-twice", "the allowlist lists a line twice")]
+    public void A_listed_line_outside_the_allowlist_rules_is_rejected(string mutation, string expectedDiagnostic)
+    {
+        // The allowlist is reviewed text, so its own lines are checked too: a careless entry fails here.
+        var allowlist = ToolPinContract.DockerAllowlist.ToList();
+        var build = allowlist.FindIndex(entry => entry.Line.StartsWith("docker build ", StringComparison.Ordinal));
+        var pull = allowlist.FindIndex(entry => entry.Line.StartsWith("docker pull ", StringComparison.Ordinal));
+        var tcp = allowlist.FindIndex(entry => entry.Line.StartsWith("local tcp=(docker ", StringComparison.Ordinal));
+        var admin = allowlist.FindIndex(entry => entry.Line.Contains("\"${admin[@]}\" --command='SELECT pg_reload_conf()'", StringComparison.Ordinal));
+        Assert.True(build >= 0 && pull >= 0 && tcp >= 0 && admin >= 0, "The allowlist must hold the lines these mutations change.");
+        switch (mutation)
+        {
+            case "listed-default":
+                allowlist[build] = (allowlist[build].Path, allowlist[build].Line.Replace("${FIXTURE_IMAGE}", "${FIXTURE_IMAGE:=other}", StringComparison.Ordinal));
+                break;
+            case "listed-bare":
+                allowlist[pull] = (allowlist[pull].Path, allowlist[pull].Line.Replace("\"${ASPNET_IMAGE}\"", "$ASPNET_IMAGE", StringComparison.Ordinal));
+                break;
+            case "listed-array-star":
+                allowlist[admin] = (allowlist[admin].Path, allowlist[admin].Line.Replace("\"${admin[@]}\"", "${admin[*]}", StringComparison.Ordinal));
+                break;
+            case "listed-second-definition": allowlist.Add((ToolPinContract.DatabaseScriptPath, allowlist[tcp].Line + " # again")); break;
+            case "listed-build-context": allowlist[build] = (allowlist[build].Path, allowlist[build].Line + " --build-context=base=https://example.com/b.tar"); break;
+            case "listed-continued": allowlist[build] = (allowlist[build].Path, allowlist[build].Line + " \\"); break;
+            case "listed-twice": allowlist.Add(allowlist[pull]); break;
+            default: throw new ArgumentOutOfRangeException(nameof(mutation), mutation, "Unknown mutation case.");
+        }
+
+        Assert.Contains(ToolPinContract.DockerCommandErrors(RepositoryFiles.Current, allowlist),
+            error => error.Contains(expectedDiagnostic, StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("one-passed", true, "1 PostgreSQL tests passed across 1 test projects.")]
+    [InlineData("passed-across-projects", true, "2 PostgreSQL tests passed across 3 test projects.")]
+    [InlineData("zero", false, "No test with the trait Requires=PostgreSQL ran")]
+    [InlineData("skipped", false, "Only 0 of 1 PostgreSQL tests passed")]
+    [InlineData("failed", false, "Only 1 of 2 PostgreSQL tests passed")]
+    [InlineData("missing", false, "wrote no test results")]
+    [InlineData("no-counters", false, "has no result counters")]
+    public void Real_provider_counting_requires_a_passed_test_and_nothing_else(string scenario, bool passes, string expected)
+    {
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "The CI scripts run under bash: on Linux in CI and on Linux or macOS locally. "
+            + "No CI job runs them on Windows, so this test does not either.");
+        var directory = Directory.CreateTempSubdirectory("modularyn-trx-");
+        try
+        {
+            void Results(string name, int total, int passed, int failed, int notExecuted) =>
+                File.WriteAllText(Path.Combine(directory.FullName, name + ".trx"), string.Join('\n',
+                    "<?xml version=\"1.0\" encoding=\"utf-8\"?>",
+                    "<TestRun xmlns=\"http://microsoft.com/schemas/VisualStudio/TeamTest/2010\">",
+                    $"  <ResultSummary outcome=\"{(failed > 0 ? "Failed" : "Completed")}\">",
+                    $"    <Counters total=\"{total}\" executed=\"{total - notExecuted}\" passed=\"{passed}\" failed=\"{failed}\" error=\"0\" "
+                    + "timeout=\"0\" aborted=\"0\" inconclusive=\"0\" passedButRunAborted=\"0\" notRunnable=\"0\" "
+                    + $"notExecuted=\"{notExecuted}\" disconnected=\"0\" warning=\"0\" completed=\"0\" inProgress=\"0\" pending=\"0\" />",
+                    "  </ResultSummary>", "</TestRun>", ""));
+            string[] names = ["Alpha.Tests"];
+            switch (scenario)
+            {
+                case "one-passed": Results("Alpha.Tests", 1, 1, 0, 0); break;
+                case "passed-across-projects":
+                    names = ["Alpha.Tests", "Beta.Tests", "Gamma.Tests"];
+                    Results("Alpha.Tests", 0, 0, 0, 0);
+                    Results("Beta.Tests", 1, 1, 0, 0);
+                    Results("Gamma.Tests", 1, 1, 0, 0);
+                    break;
+                case "zero": Results("Alpha.Tests", 0, 0, 0, 0); break;
+                case "skipped": Results("Alpha.Tests", 1, 0, 0, 1); break;
+                case "failed": Results("Alpha.Tests", 2, 1, 1, 0); break;
+                case "missing":
+                    names = ["Alpha.Tests", "Beta.Tests"];
+                    Results("Alpha.Tests", 1, 1, 0, 0);
+                    break;
+                case "no-counters": File.WriteAllText(Path.Combine(directory.FullName, "Alpha.Tests.trx"), "<TestRun />\n"); break;
+                default: throw new ArgumentOutOfRangeException(nameof(scenario), scenario, "Unknown scenario.");
+            }
+
+            var (exitCode, output) = Bash(TestsScriptPath, ["count", directory.FullName, .. names]);
+            Assert.True(passes == (exitCode == 0), $"Scenario {scenario} exited with {exitCode}: {output}");
+            Assert.Contains(expected, output, StringComparison.Ordinal);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    // Runs a repository script with bash from the repository root, outside GitHub Actions' annotations.
+    private static (int ExitCode, string Output) Bash(string script, string[] arguments)
+    {
+        var start = new ProcessStartInfo("bash")
+        {
+            WorkingDirectory = RepositoryFiles.Root,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        start.ArgumentList.Add(Path.Combine(RepositoryFiles.Root, script));
+        foreach (var argument in arguments)
+        {
+            start.ArgumentList.Add(argument);
+        }
+
+        start.Environment.Remove("GITHUB_ACTIONS");
+        using var process = Process.Start(start) ?? throw new InvalidOperationException("Cannot start bash.");
+        var output = process.StandardOutput.ReadToEndAsync();
+        var error = process.StandardError.ReadToEndAsync();
+        Assert.True(process.WaitForExit(30_000), $"{script} did not finish within 30 seconds.");
+        return (process.ExitCode, output.GetAwaiter().GetResult() + error.GetAwaiter().GetResult());
+    }
+
+    private static string ReplaceText(string text, string value, string replacement)
+    {
+        Assert.Contains(value, text, StringComparison.Ordinal);
+        return Changed(text, text.Replace(value, replacement, StringComparison.Ordinal));
+    }
+
+    private static string Reference(JsonNode image)
+    {
+        var index = image["digests"]!.AsArray().Single(digest => (string?)digest!["target"] == "index")!;
+        return ToolPinContract.PinnedReference(Value(image, "name"), Value(index, "url"), Value(index, "digest"))
+            ?? throw new InvalidOperationException("The image entry has no index fetched by tag.");
+    }
+
+    // Changes the last hexadecimal digit of a digest-pinned reference, which keeps it well formed and different.
+    private static string Flip(string reference) => reference[..^1] + (reference[^1] == '0' ? '1' : '0');
+
+    // Replaces one exact line of a file, or the first of several when firstOnly is set.
+    private static string ReplaceLine(string text, string line, string replacement, bool firstOnly = false)
+    {
+        var lines = text.Split('\n').ToList();
+        var matches = lines.Select((value, index) => (value, index)).Where(pair => pair.value.TrimEnd('\r') == line).ToList();
+        Assert.True(firstOnly ? matches.Count >= 1 : matches.Count == 1, $"The file must contain the line '{line}' {(firstOnly ? "at least" : "exactly")} once.");
+        lines[matches[0].index] = replacement;
+        return Changed(text, string.Join('\n', lines));
+    }
+
+    // Replaces the first occurrence of a text within one job of the CI workflow.
+    private static string ReplaceInJob(string workflow, string job, string value, string replacement)
+    {
+        var start = workflow.IndexOf($"\n  {job}:\n", StringComparison.Ordinal);
+        Assert.True(start >= 0, $"The workflow must define the {job} job.");
+        var next = Regex.Match(workflow[(start + 1)..], @"\n  [A-Za-z_][A-Za-z0-9_-]*:\n");
+        var end = next.Success ? start + 1 + next.Index : workflow.Length;
+        var at = workflow.IndexOf(value, start, end - start, StringComparison.Ordinal);
+        Assert.True(at >= 0, $"The {job} job must contain '{value}'.");
+        return Changed(workflow, workflow[..at] + replacement + workflow[(at + value.Length)..]);
     }
 
     private static JsonNode Pin() => JsonNode.Parse(RepositoryFiles.Current[PinPath])!;
