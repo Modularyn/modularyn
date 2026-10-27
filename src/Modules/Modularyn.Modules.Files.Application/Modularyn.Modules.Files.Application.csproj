@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../Modularyn.Modules.Files.Domain/Modularyn.Modules.Files.Domain.csproj" />
+    <ProjectReference Include="../Modularyn.Modules.Files.Application.Contracts/Modularyn.Modules.Files.Application.Contracts.csproj" />
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Tenancy/Modularyn.Framework.Tenancy.csproj" />
+  </ItemGroup>
+</Project>
