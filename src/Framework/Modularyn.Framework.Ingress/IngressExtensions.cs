@@ -1,6 +1,7 @@
 using System.Net;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HostFiltering;
@@ -35,6 +36,8 @@ public static class IngressServiceCollectionExtensions
         services.AddSingleton<IValidateOptions<IngressOptions>>(new IngressOptionsValidation(sectionPath));
         services.AddSingleton<PublicOrigins>();
         services.AddSingleton<IngressMarker>();
+        services.AddSingleton<IngressPipeline>();
+        services.AddTransient<IStartupFilter, AuthorizationOrderCheck>();
         services.AddSingleton<IValidateOptions<IngressPolicyCheck>>(provider => new IngressPolicyValidation(provider));
         services.AddOptions<IngressPolicyCheck>().ValidateOnStart();
         services.AddAntiforgery();
@@ -129,6 +132,8 @@ public static class IngressApplicationBuilderExtensions
         if (app.Properties.ContainsKey(AuthenticationSet) || app.Properties.ContainsKey(AuthorizationSet))
             throw new InvalidOperationException("UseAuthentication or UseAuthorization was called before UseModularynIngress. Remove UseAuthentication, "
                 + "which the ingress places after its transport checks, and call UseAuthorization after the ingress.");
+        // Kept so that the startup check can see whether the application placed authorization after the ingress.
+        app.ApplicationServices.GetRequiredService<IngressPipeline>().Application = app;
         app.UseMiddleware<ProxyTrustMiddleware>();
         app.UseHostFiltering();
         app.UseHttpsRedirection();
@@ -145,7 +150,32 @@ public static class IngressApplicationBuilderExtensions
     // adding either middleware ahead of the application's own pipeline. Authorization placed before the ingress would run
     // before authentication.
     private const string AuthenticationSet = "__AuthenticationMiddlewareSet";
-    private const string AuthorizationSet = "__AuthorizationMiddlewareSet";
+    internal const string AuthorizationSet = "__AuthorizationMiddlewareSet";
 }
 
 internal sealed class IngressMarker;
+
+/// <summary>The application pipeline that called UseModularynIngress, if any.</summary>
+internal sealed class IngressPipeline
+{
+    internal IApplicationBuilder? Application { get; set; }
+}
+
+/// <summary>
+/// Refuses to start a host that registered authorization services but never called UseAuthorization after the ingress.
+/// WebApplication would otherwise add authorization ahead of the whole pipeline when it starts, so it would run before
+/// the ingress and before authentication. The check runs before WebApplication adds it, after the application's own
+/// pipeline is complete.
+/// </summary>
+internal sealed class AuthorizationOrderCheck(IngressPipeline pipeline, IServiceProvider services) : IStartupFilter
+{
+    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => builder =>
+    {
+        if (pipeline.Application is { } application && !application.Properties.ContainsKey(IngressApplicationBuilderExtensions.AuthorizationSet)
+            && services.GetService<IServiceProviderIsService>()?.IsService(typeof(IAuthorizationHandlerProvider)) is true)
+            throw new InvalidOperationException("Authorization services are registered, but UseAuthorization is not called after UseModularynIngress, "
+                + "so authorization would run ahead of the ingress and authentication. Call UseAuthorization after UseModularynIngress, and after "
+                + "UseModularynTenancy when the application uses tenancy.");
+        next(builder);
+    };
+}

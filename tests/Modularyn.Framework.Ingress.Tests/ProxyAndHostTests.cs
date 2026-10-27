@@ -1,5 +1,7 @@
+using System.Collections.Concurrent;
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Xunit;
 using static Modularyn.Framework.Ingress.Tests.IngressServer;
 
@@ -121,5 +123,56 @@ public sealed class ProxyAndHostTests
         request.Headers.Add("X-Forwarded-Prefix", "/admin");
         request.Headers.Add("X-Original-For", "198.51.100.8");
         request.Headers.Add("Forwarded", "for=198.51.100.7;proto=https;host=" + OtherTenantHost);
+    }
+}
+
+// TM-G02-006: an undeclared reverse proxy would present every client behind it as one address, so forwarded headers from
+// a peer that is not a declared proxy are reported, once per peer, as well as removed.
+public sealed class UndeclaredForwarderTests
+{
+    private sealed class Warnings : ILoggerProvider
+    {
+        internal ConcurrentQueue<(EventId Event, LogLevel Level, string Message)> Entries { get; } = new();
+
+        public ILogger CreateLogger(string categoryName) => new Logger(Entries);
+
+        public void Dispose() { }
+
+        private sealed class Logger(ConcurrentQueue<(EventId, LogLevel, string)> entries) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
+
+            // Only the ingress's undeclared-forwarder event is kept; other components warn about their own setup.
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            {
+                if (IsEnabled(logLevel) && eventId.Id == 8200) entries.Enqueue((eventId, logLevel, formatter(state, exception)));
+            }
+        }
+    }
+
+    [Fact(DisplayName = "TM-G02-006 forwarded headers from a peer that is not a declared proxy are removed and reported once per peer")]
+    public async Task TM_G02_006_Forwarded_headers_from_an_undeclared_peer_are_reported_once()
+    {
+        var warnings = new Warnings();
+        await using (var server = await IngressServer.StartAsync(IngressServer.Settings(), services => services.AddSingleton<ILoggerProvider>(warnings)))
+        {
+            Assert.Equal(HttpStatusCode.OK, (await server.SendAsync(true, HttpMethod.Get, "/echo")).StatusCode);
+            Assert.Empty(warnings.Entries);
+            for (var request = 0; request < 3; request++)
+                Assert.Equal(HttpStatusCode.OK, (await server.SendAsync(true, HttpMethod.Get, "/echo", message => message.Headers.Add("X-Forwarded-For", "198.51.100.7"))).StatusCode);
+        }
+        var (eventId, level, text) = Assert.Single(warnings.Entries);
+        Assert.Equal((8200, LogLevel.Warning), (eventId.Id, level));
+        Assert.Contains("127.0.0.1", text, StringComparison.Ordinal);
+        Assert.Contains("Modularyn:Ingress:Proxies", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("198.51.100.7", text, StringComparison.Ordinal);
+
+        // From a declared proxy the headers are applied, and nothing is reported.
+        var quiet = new Warnings();
+        await using (var server = await IngressServer.StartAsync(IngressServer.Settings(("Proxies:0", "127.0.0.1")), services => services.AddSingleton<ILoggerProvider>(quiet)))
+            Assert.Equal(HttpStatusCode.OK, (await server.SendAsync(true, HttpMethod.Get, "/echo", message => message.Headers.Add("X-Forwarded-For", "198.51.100.7"))).StatusCode);
+        Assert.DoesNotContain(quiet.Entries, entry => entry.Event.Id == 8200);
     }
 }

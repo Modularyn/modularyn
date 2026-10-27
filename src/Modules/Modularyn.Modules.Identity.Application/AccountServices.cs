@@ -13,7 +13,7 @@ internal sealed class SignInService(IAccountDirectory accounts, VerificationGate
         // Input no account could match is refused before any lookup, identically for every account name.
         if (!UserNames.IsPlausible(request.UserName) || !PasswordPolicy.IsPlausible(request.Password)) return SignInResult.Failed;
         var now = clock.Now;
-        await using var attempt = await gate.EnterAsync(ThrottleKey.ForSource(request.Source),
+        await using var attempt = await gate.EnterAsync(request.Source,
             ThrottleKey.ForUserName(ThrottleKind.Password, request.UserName), now, cancellationToken).ConfigureAwait(false);
         if (attempt.RefusedUntil is { } retryAt) return SignInResult.Throttled(retryAt);
 
@@ -56,7 +56,7 @@ internal sealed class AccountService(IAccountDirectory accounts, VerificationGat
 
         // The current password is a guess like any other, so it shares sign-in's counters.
         var now = clock.Now;
-        await using var attempt = await gate.EnterAsync(ThrottleKey.ForSource(source),
+        await using var attempt = await gate.EnterAsync(source,
             ThrottleKey.ForUserName(ThrottleKind.Password, account.UserName), now, cancellationToken).ConfigureAwait(false);
         if (attempt.RefusedUntil is { } retryAt) return new(PasswordChangeStatus.Throttled, retryAt);
         var outcome = await accounts.ChangePasswordAsync(accountId, currentPassword, newPassword, cancellationToken).ConfigureAwait(false);

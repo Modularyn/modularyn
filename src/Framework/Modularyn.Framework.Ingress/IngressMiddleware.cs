@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Globalization;
+using System.Net;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -15,14 +17,27 @@ namespace Modularyn.Framework.Ingress;
 /// Applies forwarded headers only when the immediate peer is a declared proxy, and removes every forwarded header the
 /// application did not apply, so later code cannot read an unverified scheme, host or client address.
 /// </summary>
-internal sealed class ProxyTrustMiddleware
+/// <remarks>
+/// A peer that is not a declared proxy but sends forwarded headers may be an undeclared reverse proxy, and then every
+/// client behind it arrives with its one address, so a per-source limit, such as sign-in throttling, treats them all as
+/// one source. The middleware logs a warning for each such peer, once, naming the setting that declares it. It cannot tell
+/// such a proxy from a client that sends the headers itself, so it changes nothing else.
+/// </remarks>
+internal sealed partial class ProxyTrustMiddleware
 {
+    // Distinct peers warned about per process, so a client cycling forwarded headers cannot flood the log.
+    private const int WarnedPeers = 32;
     private static readonly string[] Supplied = ["X-Original-For", "X-Original-Proto", "X-Original-Host", "X-Original-Prefix"];
     private static readonly string[] Unapplied = ["X-Forwarded-For", "X-Forwarded-Proto", "X-Forwarded-Host", "X-Forwarded-Prefix", "Forwarded"];
     private readonly RequestDelegate pipeline;
+    private readonly ILogger logger;
+    private readonly HashSet<string> declared;
+    private readonly ConcurrentDictionary<string, byte> warned = new(StringComparer.Ordinal);
 
     public ProxyTrustMiddleware(RequestDelegate next, IOptions<IngressOptions> ingress, IOptions<ForwardedHeadersOptions> forwarded, ILoggerFactory loggers)
     {
+        logger = loggers.CreateLogger(typeof(ProxyTrustMiddleware).FullName!);
+        declared = new HashSet<string>(ingress.Value.Proxies, StringComparer.Ordinal);
         RequestDelegate sanitized = context =>
         {
             foreach (var name in Unapplied) context.Request.Headers.Remove(name);
@@ -48,8 +63,22 @@ internal sealed class ProxyTrustMiddleware
     public Task Invoke(HttpContext context)
     {
         foreach (var name in Supplied) context.Request.Headers.Remove(name);
+        if (context.Request.Headers.ContainsKey("X-Forwarded-For") || context.Request.Headers.ContainsKey("Forwarded")) NoteForwarder(context.Connection.RemoteIpAddress);
         return pipeline(context);
     }
+
+    private void NoteForwarder(IPAddress? peer)
+    {
+        if (peer is null) return;
+        var address = (peer.IsIPv4MappedToIPv6 ? peer.MapToIPv4() : peer).ToString();
+        if (declared.Contains(address) || warned.Count >= WarnedPeers || !warned.TryAdd(address, 0)) return;
+        UndeclaredForwarder(logger, address);
+    }
+
+    [LoggerMessage(EventId = 8200, Level = LogLevel.Warning, Message = "Forwarded headers arrived from {Peer}, which is not a declared proxy, and were "
+        + "removed. If a reverse proxy runs there, every client behind it shares that address for per-source limits, such as sign-in throttling, "
+        + "until it is declared in Modularyn:Ingress:Proxies.")]
+    private static partial void UndeclaredForwarder(ILogger logger, string peer);
 }
 
 /// <summary>Refuses a declared body larger than the limit before any handler, and caps undeclared bodies at the same limit.</summary>

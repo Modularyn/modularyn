@@ -88,7 +88,7 @@ internal sealed class AuthenticatorSeedService(IAuthenticatorSeedStore store, Cr
     {
         ArgumentNullException.ThrowIfNull(check);
         source = ClientSources.Require(source, nameof(source));
-        await using var attempt = await gate.EnterAsync(ThrottleKey.ForSource(source), ThrottleKey.ForAccount(ThrottleKind.OneTimeCode, accountId),
+        await using var attempt = await gate.EnterAsync(source, ThrottleKey.ForAccount(ThrottleKind.OneTimeCode, accountId),
             clock.Now, cancellationToken).ConfigureAwait(false);
         if (attempt.RefusedUntil is { } retryAt) return new(CredentialVerificationStatus.Throttled, retryAt);
         var seed = await store.FindAsync(accountId, cancellationToken).ConfigureAwait(false);
@@ -145,7 +145,7 @@ internal sealed class RecoveryCodeService(IRecoveryCodeStore store, IAccountDire
         ArgumentNullException.ThrowIfNull(code);
         source = ClientSources.Require(source, nameof(source));
         var now = clock.Now;
-        await using var attempt = await gate.EnterAsync(ThrottleKey.ForSource(source), ThrottleKey.ForAccount(ThrottleKind.RecoveryCode, accountId),
+        await using var attempt = await gate.EnterAsync(source, ThrottleKey.ForAccount(ThrottleKind.RecoveryCode, accountId),
             now, cancellationToken).ConfigureAwait(false);
         if (attempt.RefusedUntil is { } retryAt) return new(CredentialVerificationStatus.Throttled, retryAt);
         var normalized = RecoveryCodes.Normalize(code.Reveal());

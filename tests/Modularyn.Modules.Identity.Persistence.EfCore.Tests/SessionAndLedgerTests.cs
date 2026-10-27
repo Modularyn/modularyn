@@ -223,6 +223,30 @@ public sealed class SessionAndLedgerTests(ITestOutputHelper output)
         output.WriteLine("Guesses from one source across 12 accounts and two hosts: exactly 6 verified before the source was blocked.");
     }
 
+    [Fact(DisplayName = "TM-G02-015 on PostgreSQL, a source renewing an account's delay counts its refusals and meets its own longer delay, so the owner signs in")]
+    public async Task TM_G02_015_On_PostgreSql_a_source_renewing_a_delay_cannot_keep_the_owner_out()
+    {
+        await using var database = await IdentityDatabase.CreateAsync();
+        await using var identity = PostgreSqlIdentity.Create(database, new() { ["Modularyn:Identity:Throttling:SourceThreshold"] = "1000" });
+        var (_, password) = await identity.AccountAsync("admin-1");
+        // Three free failures from the attacker; the account's delay is then 2 s and the attacker's own 4 s.
+        for (var failure = 0; failure < 3; failure++)
+            Assert.Equal(SignInStatus.Failed, (await identity.SignInAsync("admin-1", Generated.Password(), "198.51.100.66")).Status);
+        identity.Clock.Advance(TimeSpan.FromSeconds(2));
+        Assert.Equal(SignInStatus.Throttled, (await identity.SignInAsync("admin-1", Generated.Password(), "198.51.100.66")).Status);
+        Assert.Equal(SignInStatus.Succeeded, (await identity.SignInAsync("admin-1", password, "203.0.113.9")).Status);
+
+        var source = ThrottleKey.ForSource("198.51.100.66");
+        var account = ThrottleKey.ForUserName(ThrottleKind.Password, "admin-1");
+        async Task<long> FailuresAsync(ThrottleKey key) => await database.ScalarAsync<int>("SELECT \"Failures\" FROM " + database.Table("VerificationThrottle")
+            + " WHERE \"Key\" = @key AND \"Kind\" = @kind", new NpgsqlParameter("key", key.Hash.ToArray()), new NpgsqlParameter("kind", (int)key.Kind));
+        // The refusal counted against the source, the owner's success cleared the account, and the attacker's own counter stays.
+        Assert.Equal(4L, await FailuresAsync(source));
+        Assert.Equal(0L, await FailuresAsync(account));
+        Assert.Equal(3L, await FailuresAsync(ThrottleKey.ForSourceOnSubject(source, account)));
+        output.WriteLine("The attacker's poll at the account's retry instant met its own delay; the owner signed in from another source.");
+    }
+
     [Fact(DisplayName = "TM-G02-015 throttle rows hold hashed keys only, never a typed user name or address")]
     public async Task TM_G02_015_Throttle_rows_hold_hashed_keys_only()
     {
@@ -230,9 +254,13 @@ public sealed class SessionAndLedgerTests(ITestOutputHelper output)
         await using var identity = PostgreSqlIdentity.Create(database);
         var typed = Generated.Sentinel();
         Assert.Equal(SignInStatus.Failed, (await identity.SignInAsync(typed, Generated.Password(), "192.0.2.77")).Status);
-        Assert.Equal(2L, await database.ScalarAsync<long>("SELECT count(*) FROM " + database.Table("VerificationThrottle") + " WHERE \"Failures\" = 1"));
-        Assert.Equal(1L, await database.ScalarAsync<long>("SELECT count(*) FROM " + database.Table("VerificationThrottle") + " WHERE \"Key\" = @key",
-            new NpgsqlParameter("key", ThrottleKey.ForUserName(ThrottleKind.Password, typed).Hash.ToArray())));
+        // The source's counter, the account's, and the source's own counter on the account, each keyed by a hash.
+        Assert.Equal(3L, await database.ScalarAsync<long>("SELECT count(*) FROM " + database.Table("VerificationThrottle") + " WHERE \"Failures\" = 1"));
+        var source = ThrottleKey.ForSource("192.0.2.77");
+        var account = ThrottleKey.ForUserName(ThrottleKind.Password, typed);
+        foreach (var key in new[] { source, account, ThrottleKey.ForSourceOnSubject(source, account) })
+            Assert.Equal(1L, await database.ScalarAsync<long>("SELECT count(*) FROM " + database.Table("VerificationThrottle") + " WHERE \"Key\" = @key",
+                new NpgsqlParameter("key", key.Hash.ToArray())));
         Assert.All(await database.DumpAsync(), value =>
         {
             Assert.DoesNotContain(typed, value, StringComparison.OrdinalIgnoreCase);

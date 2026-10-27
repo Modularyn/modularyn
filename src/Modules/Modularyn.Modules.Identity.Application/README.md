@@ -49,7 +49,14 @@ called `UseAuthentication` or `UseAuthorization`. A host with tenancy registers 
 with `AddModularynTenancy` and places `UseModularynTenancy` after routing and
 before authorization, as shown. Startup is refused while a store is missing,
 while the ingress policy is not registered, or after the session scheme was
-replaced.
+replaced. Startup is also refused when authorization services are registered but
+`UseAuthorization` is never called after the ingress, since WebApplication would
+then add authorization ahead of the whole pipeline, before authentication.
+
+`IdentityModuleContext` is internal, so only the identity module can name it and
+open owner-bound units over its records. `IdentityPersistence.CreateModule`
+stays public, because the host needs it to register identity's PostgreSQL module
+with its migration registry.
 
 Options come from `Modularyn:Identity` and are validated before startup; a
 refusal names the setting and its range, never its value.
@@ -82,18 +89,56 @@ PBKDF2-HMAC-SHA512 with a 128-bit salt, with the iteration count recorded in
 each verifier. A successful sign-in rewrites a verifier below the configured
 count; a wrong password changes nothing.
 
-There is no lockout. After the free attempts, each failure for an account
-requires a delay that doubles up to the cap, so failures by others slow the owner
-but never lock the owner out (TH-G02-076). Each client source is also blocked
-for the block period once it reaches its threshold within the window; a source
-is an IPv4 address or an IPv6 /64 network, as judged by the ingress's declared
-proxies. Password sign-in, password change, one-time codes and recovery codes
-all pass through one verification gate. It locks the source and subject
-counters in PostgreSQL across the verification, refuses without verifying while
-a limit applies, and records the outcome before it releases them. Each host
-admits one attempt per counter at a time and refuses the others at once with a
-one-second retry, so parallel attempts cannot each hold a connection.
-Throttle rows hold SHA-256 hashes of their keys, never a user name or address.
+There is no lockout. Password sign-in, password change, one-time codes and
+recovery codes all pass through one verification gate, which applies three
+counters to every attempt:
+
+- **The source.** A source is an IPv4 address or an IPv6 /64 network, as judged
+  by the ingress's declared proxies. It is blocked for the block period once it
+  reaches its threshold within the window. An attempt refused because of an
+  account's delay counts against its source as a failure would, but never
+  against the account. A source that keeps trying a delayed account therefore
+  blocks itself.
+- **The account.** After the free attempts, each failure from any source requires
+  a delay that doubles up to the cap. Every attempt on the account waits for it,
+  so the number of verifications an account allows is bounded however many
+  sources guess at it.
+- **The source on the account.** Each source also has its own counter for each
+  account. It has the same free attempts and twice the account's delay, so a
+  source's next attempt always comes after the account delay its own failure set
+  has ended. One source can renew an account's delay at most once in every two
+  delays, and in between the account is open to every other source.
+
+The rule addresses TH-G02-076 without weakening TM-G02-015. An attacker polling
+from one source, however it times its attempts, cannot keep the owner out. The
+owner, refused inside the delay, signs in at the instant the refusal names,
+because the attacker's own longer delay keeps it from trying at that instant.
+No source gains a verification: every attempt still waits for the account's
+delay, and the second counter only removes attempts. Exempting a source with no
+failures of its own from the account's delay would have let the owner in at
+once, but it would also give every fresh address a guess at a delayed account.
+Several sources acting together can still keep an account delayed for as long
+as they keep failing. That slows sign-in without adding verifications, and the
+operator alert that would flag it remains to be built.
+
+The gate locks the counters in PostgreSQL across the verification, refuses
+without verifying while a limit applies, and records the outcome before it
+releases them. So that parallel attempts cannot each hold a connection, each host
+admits one attempt per account at a time and refuses the others at once with a
+one-second retry. Attempts from one source wait their turn in memory, up to
+eight behind the one in progress for at most two seconds, so concurrent sign-ins
+from one network address wait instead of failing. An attempt with no client
+address belongs to the unknown source, which has no counter of its own: such
+attempts never block or delay one another, and only the account's limits apply
+to them. Throttle rows hold SHA-256 hashes of their keys, never a user name or
+address.
+
+A reverse proxy that is not declared in `Modularyn:Ingress:Proxies` presents
+every client behind it with its own address, so they would share one source. A
+client can send forwarded headers too, so the two cannot be told apart, and an
+exemption would let any client escape its source limit. The ingress therefore
+leaves the limits in place and logs a warning, once per peer, when forwarded
+headers arrive from a peer that is not a declared proxy.
 
 An unknown account costs one verification against a verifier made when the
 account directory is created, and unknown, disabled and wrong-password attempts
@@ -175,10 +220,16 @@ established once, can never be replaced, and ends with the unit.
 - **Everything else has no principal.** Work that is not given a unit's services,
   such as a task started without them or a new scope, has none. So does later
   work on a reused worker.
+- **No capture by a singleton.** Production hosts do not validate scopes, so a
+  singleton that depended on the accessor would quietly receive the root
+  provider's holder. Resolving the holder or the accessor from the root provider
+  is therefore refused, wherever it happens.
 
-`ServiceIdentityScopeTests` and `ExecutionPrincipalScopeTests` show concurrent
-units seeing only their own principal, work outside a unit seeing none, the
-principal ending with its unit, and refusal to replace one.
+`ServiceIdentityScopeTests` and `ExecutionPrincipalScopeTests` cover these cases:
+- concurrent units each see only their own principal;
+- work outside a unit sees none;
+- a unit's principal ends with the unit and cannot be replaced;
+- a singleton cannot capture one when scopes are not validated.
 
 ## Stored forms of other credentials
 
@@ -252,9 +303,20 @@ scope from ever being applied implicitly:
 - **Nothing from the tenant.** A request's tenant context is never bound to
   identity's units, so it neither widens nor narrows them, and a tenant
   administrator's membership confers nothing in identity.
-- **Administrative acts.** Disabling an account, a security-state change and
-  membership administration have no endpoint and no permission check of their
-  own. The permission that gates them is SEC-05's.
+- **Administrative acts.** Identity's administrative writes have no endpoint, no
+  permission check and no audit record of their own. They are account creation,
+  disabling and enabling, security-state changes, revoking all of an account's
+  sessions, membership changes, recovery-code regeneration, and passkey enrolment
+  and revocation. Until SEC-05 gates them, any in-process caller of these
+  services performs them; SEC-07 records them.
+- **Authority data.** Under the owner-bound rule, a module writes its own
+  host-scoped records without host authority. Records that are themselves
+  authority, such as permission grants or host-authority grants, must stay behind
+  the audited host scope instead; SEC-05 keeps them out of owner-bound writes.
+  Identity's tenant memberships decide who may establish a tenant context, so
+  they are access data of that kind. They are written today through identity's
+  owner-bound unit, with no permission check or audit; SEC-05 decides whether
+  they move behind the audited host scope as well.
 
 `TenancyIntegrationTests` (`Identity.HttpApi.Tests`) resolves tenants through
 these seams with SEC-04's directory on PostgreSQL. A security-state change made
@@ -274,18 +336,20 @@ adapter on Kestrel over loopback HTTPS. The others are unit tests, over
 in-memory stores where they need stores. SEC-08 maps every control to its
 evidence.
 
-- **TM-G02-015, partly.** Delivered: per-source blocks and per-account delays
-  without lockout, shared by every credential and code verification; counters
-  held locked in PostgreSQL across a verification, so concurrent attempts from
-  several hosts never verify more than the limits allow; uniform results,
-  responses, throttling and comparable timing for unknown, disabled and
-  wrong-password attempts;
-  malformed sign-in input refused before any verification. Tests:
+- **TM-G02-015, partly.** Delivered: per-source blocks that refusals count
+  toward; per-account delays without lockout; each source's own longer delay on
+  an account, so that one source cannot keep the owner out; all shared by every
+  credential and code verification; counters held locked in PostgreSQL across a
+  verification, so concurrent attempts from several hosts never verify more than
+  the limits allow; uniform results, responses, throttling and comparable timing
+  for unknown, disabled and wrong-password attempts; no source counters for an
+  unknown source; malformed sign-in input refused before any verification. Tests:
   `Identity.Domain.Tests` `ThrottleTests`, `Identity.Application.Tests`
   `SignInTests` and `OptionsTests`, `Identity.Persistence.EfCore.Tests`
   `SessionAndLedgerTests` and `Identity.HttpApi.Tests` `SignInEndpointTests` and
   `ClientSourceTests`, all `TM_G02_015_*`. Remaining: an operator alert for a
-  sustained attack, which no G-02 work order covers; the one-time-code and
+  sustained attack, which no G-02 work order covers, since several sources acting
+  together can keep an account delayed; the one-time-code and
   recovery journeys and their endpoints (G-03); AC-002's API-contract evidence
   (SEC-08). Throttle rows accumulate until a retention job removes them
   (CODE-05).

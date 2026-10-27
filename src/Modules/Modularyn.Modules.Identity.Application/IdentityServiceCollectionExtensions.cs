@@ -43,8 +43,14 @@ public static class IdentityServiceCollectionExtensions
         services.AddSingleton<IPasskeyCredentials, PasskeyCredentialService>();
         services.AddSingleton<ITenantMemberships, TenantMembershipService>();
         services.TryAddSingleton<Framework.Tenancy.Abstractions.ITenantMembership, IdentityTenantMembership>();
-        // Each service scope, a request's or a unit of work's, holds its own principal; nothing ambient carries one.
-        services.AddScoped<ExecutionPrincipalScope>();
+        // Each service scope, a request's or a unit of work's, holds its own principal; nothing ambient carries one. A
+        // singleton that captured it would hold the root provider's for every request, so resolving it outside a scope is
+        // refused even in a host that does not validate scopes.
+        services.AddSingleton<RootServices>();
+        services.AddScoped(provider => provider.GetRequiredService<RootServices>().IsRoot(provider)
+            ? throw new InvalidOperationException("The execution principal belongs to one unit of work. Resolve it from that unit's service scope, "
+                + "never from a singleton or the root provider.")
+            : new ExecutionPrincipalScope());
         services.Replace(ServiceDescriptor.Scoped<IExecutionPrincipalAccessor>(provider => provider.GetRequiredService<ExecutionPrincipalScope>()));
         services.AddSingleton<IValidateOptions<IdentityStoresCheck>, IdentityStoresValidation>();
         services.AddOptions<IdentityStoresCheck>().ValidateOnStart();
@@ -80,4 +86,10 @@ internal sealed class IdentityStoresValidation(IServiceProvider services) : IVal
         return missing.Length == 0 ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail($"The identity module's stores are not registered ({string.Join(", ", missing)}). Register its persistence adapter.");
     }
+}
+
+/// <summary>Identifies the root provider, which singletons resolve their dependencies from.</summary>
+internal sealed class RootServices(IServiceProvider root)
+{
+    internal bool IsRoot(IServiceProvider provider) => ReferenceEquals(provider, root);
 }

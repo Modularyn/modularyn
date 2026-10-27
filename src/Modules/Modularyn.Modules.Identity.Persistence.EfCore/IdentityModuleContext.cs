@@ -112,8 +112,12 @@ internal sealed class PasskeyCredentialRow : IHostScoped
     public byte[] IntegrityTag { get; set; } = [];
 }
 
-/// <summary>The identity module's own context. It maps only the module's schema; its migrations are written by hand.</summary>
-public sealed class IdentityModuleContext(PostgreSqlModule module) : ModuleDbContext(module)
+/// <summary>
+/// The identity module's own context. It maps only the module's schema; its migrations are written by hand. It is
+/// internal, so only this module can name it and so open owner-bound units over identity's records
+/// (<see cref="IdentityOwnerScopes"/>).
+/// </summary>
+internal sealed class IdentityModuleContext(PostgreSqlModule module) : ModuleDbContext(module)
 {
     protected override void ConfigureModule(ModelBuilder modelBuilder)
     {

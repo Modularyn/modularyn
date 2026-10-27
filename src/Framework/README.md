@@ -350,7 +350,10 @@ package.
    exact `Proxies` addresses, processing `ForwardLimit` entries from the nearest,
    and only forwarded hosts among the public origins' hosts. With no proxies,
    none are applied. Every forwarded header that was not applied is removed, as
-   are client-supplied `X-Original-*` headers.
+   are client-supplied `X-Original-*` headers. Forwarded headers from a peer that
+   is not a declared proxy are logged as a warning (event 8200), once per peer.
+   That peer may be an undeclared reverse proxy, which would present every client
+   behind it as one address to per-source limits.
 2. Host filtering accepts only the hosts of `PublicOrigins` and refuses an empty
    host, with 400 and no detail.
 3. Plain HTTP is redirected with 308 to `HttpsPort` on the same configured host,
@@ -376,7 +379,10 @@ package.
    validation, so antiforgery tokens are validated against the authenticated
    user. A pipeline that called `UseAuthentication` or `UseAuthorization` before
    the ingress is refused. Place `UseAuthorization` after the ingress, routing
-   and any tenancy middleware.
+   and any tenancy middleware. Startup is also refused when authorization
+   services are registered but `UseAuthorization` is never called after the
+   ingress, since WebApplication would otherwise add authorization ahead of the
+   whole pipeline, before authentication.
 8. Every request with a method other than GET, HEAD, OPTIONS or TRACE that carries
    cookies needs a valid antiforgery token, in the `RequestVerificationToken`
    header or the form. A request without cookies is exempt only when its endpoint
@@ -590,8 +596,9 @@ The controls of TB-G02-04, identity and sessions, are recorded in
   work order covers FND-005.
 - **TM-G02-006, partly.** Delivered: declared-proxy forwarded headers, host
   filtering, `PublicOrigins` links and redirect targets, and refusal of widened
-  options. Tests: `Ingress.Tests` `ProxyAndHostTests` (`AC_004_N01_*`) and
-  `IngressOptionsTests.TM_G02_006_*`. Tenant domains, limited to the configured
+  options; a warning for forwarded headers from a peer that is not a declared
+  proxy (SEC-03). Tests: `Ingress.Tests` `ProxyAndHostTests` (`AC_004_N01_*`),
+  `UndeclaredForwarderTests` and `IngressOptionsTests.TM_G02_006_*`. Tenant domains, limited to the configured
   public origins, are resolved through `PublicOrigins` (SEC-04, under
   TM-G02-025), and the identity module's sign-in returns only a local path or a
   configured origin as its redirect (SEC-03; `Identity.HttpApi.Tests`
@@ -622,9 +629,10 @@ The controls of TB-G02-04, identity and sessions, are recorded in
   and client evidence (CODE-06).
 - **TM-G02-060, partly.** Delivered: plain HTTP redirected before processing and
   HSTS on HTTPS responses for configured hosts, judged only from a declared
-  proxy; authentication only after those checks, and refusal of authentication
-  or authorization placed before the ingress (SEC-03). Tests: `HttpsTests`
-  (`AC_031_P01_*`) and `AuthenticationOrderTests` (`TM_G02_060_*`). Remaining: recording the subdomain
+  proxy; authentication only after those checks; refusal of authentication or
+  authorization placed before the ingress, and of authorization services without
+  `UseAuthorization` after it (SEC-03). Tests: `HttpsTests` (`AC_031_P01_*`) and
+  `AuthenticationOrderTests` (`TM_G02_060_*`). Remaining: recording the subdomain
   and preload choices with the release, which no G-02 work order covers; host
   and container evidence (CODE-10 on CI-01). Kestrel's own refusals carry no
   HSTS.

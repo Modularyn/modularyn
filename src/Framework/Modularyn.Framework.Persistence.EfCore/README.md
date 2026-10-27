@@ -159,8 +159,11 @@ context, for its own use cases.
   (`MPS037`), and an owner-bound unit carries no tenant: a module that writes
   its own host-scoped records during a tenant request begins an owner-bound unit
   for them, separately from its tenant units.
-- **Not authorization.** Who may invoke the use case that opens it belongs to
-  authorization.
+- **Not authorization, and not for authority.** Who may invoke the use case that
+  opens it belongs to authorization. Records that are themselves authority, such
+  as permission grants or host-authority grants, stay behind the audited host
+  scope rather than in owner-bound writes; SEC-05 makes that rule and gates the
+  administrative use cases that open owner-bound units today.
 
 The repository test `PersistenceBoundaryTests` keeps deployment scopes out of
 product source outside this adapter, and allows `BeginOwnedAsync` and

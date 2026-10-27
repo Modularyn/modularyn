@@ -322,7 +322,11 @@ internal sealed class UnitIdentity : IAsyncDisposable
     public InMemoryIdentityStores Stores { get; }
     public ManualClock Clock { get; }
 
-    public static UnitIdentity Create(Dictionary<string, string?>? settings = null, Action<IServiceCollection>? configure = null)
+    /// <summary>
+    /// A unit-test host over in-memory stores. Scopes are validated unless <paramref name="validateScopes"/> is false, as
+    /// in a production host.
+    /// </summary>
+    public static UnitIdentity Create(Dictionary<string, string?>? settings = null, Action<IServiceCollection>? configure = null, bool validateScopes = true)
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings ?? []).Build();
         var stores = new InMemoryIdentityStores();
@@ -340,7 +344,7 @@ internal sealed class UnitIdentity : IAsyncDisposable
         services.AddSingleton<IPasskeyCredentialStore>(stores);
         services.AddSingleton<ITenantMembershipStore>(stores);
         configure?.Invoke(services);
-        return new UnitIdentity(services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true }), stores, clock);
+        return new UnitIdentity(services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = validateScopes }), stores, clock);
     }
 
     /// <summary>Limits small enough to reach in a test; every other value is the module's default.</summary>

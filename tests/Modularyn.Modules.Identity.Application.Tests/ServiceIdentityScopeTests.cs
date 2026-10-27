@@ -68,4 +68,25 @@ public sealed class ServiceIdentityScopeTests
         Assert.Throws<InvalidOperationException>(() => scopes.Begin("svc-admin"));
         Assert.Throws<InvalidOperationException>(() => scopes.Begin("SVC-ITEMS"));
     }
+
+    private sealed class CapturingSingleton(IExecutionPrincipalAccessor principals)
+    {
+        internal IExecutionPrincipalAccessor Principals { get; } = principals;
+    }
+
+    [Fact(DisplayName = "TM-G02-018 a singleton cannot capture a unit's principal, even in a host that does not validate scopes")]
+    public async Task TM_G02_018_A_singleton_cannot_capture_a_unit_s_principal_even_without_scope_validation()
+    {
+        // A production host does not validate scopes, so the container would hand a singleton the root provider's holder.
+        await using var identity = UnitIdentity.Create(UnitIdentity.TestLimits(), services => services.AddSingleton<CapturingSingleton>(), validateScopes: false);
+        Assert.Contains("unit of work", Assert.Throws<InvalidOperationException>(() => identity.Get<CapturingSingleton>()).Message, StringComparison.Ordinal);
+        Assert.Throws<InvalidOperationException>(() => identity.Get<IExecutionPrincipalAccessor>());
+        Assert.Throws<InvalidOperationException>(() => identity.Get<ExecutionPrincipalScope>());
+
+        // Inside a scope the holder is the unit's own.
+        await using var unit = identity.Get<IServiceScopeFactory>().CreateAsyncScope();
+        var holder = unit.ServiceProvider.GetRequiredService<ExecutionPrincipalScope>();
+        Assert.Same(holder, unit.ServiceProvider.GetRequiredService<IExecutionPrincipalAccessor>());
+        Assert.Null(holder.Current);
+    }
 }

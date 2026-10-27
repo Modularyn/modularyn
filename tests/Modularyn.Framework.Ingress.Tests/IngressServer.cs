@@ -161,7 +161,15 @@ internal sealed class IngressServer : IAsyncDisposable
             context.Response.Headers.AccessControlAllowCredentials = "true";
             return "leaky";
         });
-        await application.StartAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            await application.StartAsync(TestContext.Current.CancellationToken);
+        }
+        catch
+        {
+            await application.DisposeAsync();
+            throw;
+        }
         var addresses = application.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Select(address => new Uri(address)).ToArray();
         server = new IngressServer(application, addresses.Single(address => address.Scheme == "http"), addresses.Single(address => address.Scheme == "https"));
         return server;

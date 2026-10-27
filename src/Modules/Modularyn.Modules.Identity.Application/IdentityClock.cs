@@ -1,4 +1,7 @@
+using System.Runtime.CompilerServices;
 using Modularyn.Modules.Identity.Domain;
+
+[assembly: InternalsVisibleTo("Modularyn.Modules.Identity.Application.Tests")]
 
 namespace Modularyn.Modules.Identity.Application;
 

@@ -126,7 +126,7 @@ internal static class ClientSourceAddress
 {
     internal static string From(IPAddress? address)
     {
-        if (address is null) return "unknown";
+        if (address is null) return ClientSources.Unknown;
         if (address.IsIPv4MappedToIPv6) address = address.MapToIPv4();
         if (address.AddressFamily != AddressFamily.InterNetworkV6) return address.ToString();
         var bytes = address.GetAddressBytes();

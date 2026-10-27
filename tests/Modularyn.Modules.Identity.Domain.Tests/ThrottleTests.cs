@@ -92,6 +92,54 @@ public sealed class ThrottleTests
         Assert.Equal(1, VerificationThrottle.SubjectFailed(policy, counter, Start.AddSeconds(5) + policy.SubjectResetAfter).Failures);
     }
 
+    [Fact(DisplayName = "TM-G02-015 a source's own delay on a subject is twice the subject's, so it always ends after the delay its failure set")]
+    public void TM_G02_015_A_source_s_own_delay_on_a_subject_always_ends_after_the_subject_delay()
+    {
+        var policy = Policy();
+        for (var failures = 0; failures <= 12; failures++)
+            Assert.Equal(VerificationThrottle.SubjectDelay(policy, failures) * 2, VerificationThrottle.SourceOnSubjectDelay(policy, failures));
+
+        // One source failing alone: after the free attempts, its own retry is always strictly later than the subject's.
+        var subject = ThrottleCounter.Empty;
+        var own = ThrottleCounter.Empty;
+        for (var failure = 1; failure <= 12; failure++)
+        {
+            var at = Start.AddMinutes(failure);
+            subject = VerificationThrottle.SubjectFailed(policy, subject, at);
+            own = VerificationThrottle.SourceOnSubjectFailed(policy, own, at);
+            var bySubject = VerificationThrottle.EvaluateSubject(policy, subject, at);
+            var byOwn = VerificationThrottle.EvaluateSourceOnSubject(policy, own, at);
+            Assert.Equal(bySubject.Allowed, byOwn.Allowed);
+            if (!bySubject.Allowed) Assert.True(byOwn.RetryAt > bySubject.RetryAt);
+        }
+
+        // The source's own failures are kept twice as long as the subject's, so its longer delay never outlives them.
+        var last = Start.AddMinutes(12);
+        var later = last + policy.SubjectResetAfter;
+        Assert.Equal(1, VerificationThrottle.SubjectFailed(policy, subject, later).Failures);
+        Assert.Equal(13, VerificationThrottle.SourceOnSubjectFailed(policy, own, later).Failures);
+        Assert.Equal(1, VerificationThrottle.SourceOnSubjectFailed(policy, own, last + policy.SubjectResetAfter * 2).Failures);
+    }
+
+    [Fact(DisplayName = "TM-G02-015 a source's counter on a subject is keyed by both hashes and by nothing typed")]
+    public void TM_G02_015_A_source_s_counter_on_a_subject_is_keyed_by_both_hashes()
+    {
+        var source = ThrottleKey.ForSource("198.51.100.1");
+        var account = ThrottleKey.ForUserName(ThrottleKind.Password, "admin-1");
+        var key = ThrottleKey.ForSourceOnSubject(source, account);
+        Assert.Equal(ThrottleKind.SourceOnSubject, key.Kind);
+        Assert.Equal(key, ThrottleKey.ForSourceOnSubject(ThrottleKey.ForSource("198.51.100.1"), ThrottleKey.ForUserName(ThrottleKind.Password, "ADMIN-1")));
+        Assert.NotEqual(key, ThrottleKey.ForSourceOnSubject(ThrottleKey.ForSource("198.51.100.2"), account));
+        Assert.NotEqual(key, ThrottleKey.ForSourceOnSubject(source, ThrottleKey.ForUserName(ThrottleKind.Password, "admin-2")));
+        Assert.NotEqual(key, ThrottleKey.ForSourceOnSubject(source, ThrottleKey.ForAccount(ThrottleKind.OneTimeCode, Guid.NewGuid())));
+        Assert.NotEqual(key, source);
+        Assert.NotEqual(key, account);
+        Assert.Throws<ArgumentException>(() => ThrottleKey.ForSourceOnSubject(account, source));
+        Assert.Throws<ArgumentException>(() => ThrottleKey.ForSourceOnSubject(source, key));
+        Assert.Throws<ArgumentOutOfRangeException>(() => ThrottleKey.ForUserName(ThrottleKind.SourceOnSubject, "admin-1"));
+        Assert.Throws<ArgumentOutOfRangeException>(() => ThrottleKey.ForAccount(ThrottleKind.SourceOnSubject, Guid.NewGuid()));
+    }
+
     [Fact(DisplayName = "TM-G02-015 policies refuse values outside their declared ranges")]
     public void TM_G02_015_Policies_refuse_values_outside_their_declared_ranges()
     {

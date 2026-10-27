@@ -114,4 +114,30 @@ public sealed class AuthenticationOrderTests
             Assert.Contains("before UseModularynIngress", refused.Message, StringComparison.Ordinal);
         }
     }
+
+    [Fact(DisplayName = "TM-G02-060 a host with authorization services that never places UseAuthorization after the ingress refuses to start")]
+    public async Task TM_G02_060_Authorization_services_without_UseAuthorization_after_the_ingress_refuse_startup()
+    {
+        void Services(IServiceCollection services)
+        {
+            services.AddSingleton(new ProbeCounter());
+            services.AddAuthentication(ProbeScheme).AddScheme<AuthenticationSchemeOptions, ProbeHandler>(ProbeScheme, _ => { });
+            services.AddAuthorization();
+        }
+
+        // WebApplication would add authorization ahead of the whole pipeline, before the ingress and authentication.
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => IngressServer.StartAsync(Settings(), Services,
+            application => application.MapGet("/protected", () => "content").RequireAuthorization()));
+        Assert.Contains("UseAuthorization", refused.Message, StringComparison.Ordinal);
+
+        // Placed after the ingress, authorization sees the authenticated user: an anonymous request is challenged.
+        await using var server = await IngressServer.StartAsync(Settings(), Services, application =>
+        {
+            application.UseAuthorization();
+            application.MapGet("/protected", (HttpContext context) => context.User.FindFirstValue(ClaimTypes.NameIdentifier)).RequireAuthorization();
+        });
+        Assert.Equal(HttpStatusCode.Unauthorized, (await server.SendAsync(true, HttpMethod.Get, "/protected")).StatusCode);
+        var admitted = await server.SendAsync(true, HttpMethod.Get, "/protected", request => request.Headers.Add("Cookie", Cookie + "=alice"));
+        Assert.Equal((HttpStatusCode.OK, "alice"), (admitted.StatusCode, await admitted.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)));
+    }
 }

@@ -10,6 +10,15 @@ public static class ClientSources
 {
     public const int MaximumLength = 200;
 
+    /// <summary>
+    /// The source of an attempt whose adapter observed no client, such as a connection without an address. It stands for
+    /// any number of clients, so it has no per-source counter: only the subject's limits apply to it, and one such client
+    /// can neither block nor delay another.
+    /// </summary>
+    public const string Unknown = "unknown";
+
+    public static bool IsUnknown(string source) => string.Equals(source, Unknown, StringComparison.Ordinal);
+
     public static bool IsValid(string? source) =>
         !string.IsNullOrEmpty(source) && source.Length <= MaximumLength && !source.Any(char.IsControl);
 
