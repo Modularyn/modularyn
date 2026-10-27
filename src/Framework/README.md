@@ -21,6 +21,11 @@ Ingress use only the `Microsoft.AspNetCore.App` shared framework.
 only the .NET shared framework, so domain and application contract projects can
 reference it. `Modularyn.Framework.Tenancy` resolves and keeps tenant context,
 over the PostgreSQL persistence adapter and the ingress policy.
+`Modularyn.Framework.Security.Abstractions` holds the execution principal, its
+delegated authority and service scope, the per-unit principal holder and its
+accessor, service identity scopes, the freshness recheck, `SecretText` and the client credential seam. It
+uses only the .NET shared framework, and the identity module implements it; see
+[the identity module](../Modules/Modularyn.Modules.Identity.Application/README.md).
 
 ## Selection and validation
 
@@ -345,7 +350,10 @@ package.
    exact `Proxies` addresses, processing `ForwardLimit` entries from the nearest,
    and only forwarded hosts among the public origins' hosts. With no proxies,
    none are applied. Every forwarded header that was not applied is removed, as
-   are client-supplied `X-Original-*` headers.
+   are client-supplied `X-Original-*` headers. Forwarded headers from a peer that
+   is not a declared proxy are logged as a warning (event 8200), once per peer.
+   That peer may be an undeclared reverse proxy, which would present every client
+   behind it as one address to per-source limits.
 2. Host filtering accepts only the hosts of `PublicOrigins` and refuses an empty
    host, with 400 and no detail.
 3. Plain HTTP is redirected with 308 to `HttpsPort` on the same configured host,
@@ -365,7 +373,17 @@ package.
    refused with 403. Every response from this step on varies by `Origin`, and
    cross-origin headers set later in the pipeline are replaced or removed. With no
    listed origins the application is same-origin only.
-7. Every request with a method other than GET, HEAD, OPTIONS or TRACE that carries
+7. When an authentication scheme is registered, authentication runs here: after
+   the transport, host and cross-origin checks, so no credential is read from a
+   plain HTTP request or for an unconfigured host, and before antiforgery
+   validation, so antiforgery tokens are validated against the authenticated
+   user. A pipeline that called `UseAuthentication` or `UseAuthorization` before
+   the ingress is refused. Place `UseAuthorization` after the ingress, routing
+   and any tenancy middleware. Startup is also refused when authorization
+   services are registered but `UseAuthorization` is never called after the
+   ingress, since WebApplication would otherwise add authorization ahead of the
+   whole pipeline, before authentication.
+8. Every request with a method other than GET, HEAD, OPTIONS or TRACE that carries
    cookies needs a valid antiforgery token, in the `RequestVerificationToken`
    header or the form. A request without cookies is exempt only when its endpoint
    disables antiforgery, as an endpoint for bearer-token clients does. The
@@ -385,7 +403,8 @@ local path or a configured origin.
 
 Endpoints must not change state on safe methods; the ingress cannot observe
 that. Operation-specific input contracts, paging and query bounds, public error
-contracts, session cookies and tenant resolution are not part of the ingress.
+contracts, session cookies, which the identity module issues, and tenant
+resolution are not part of the ingress.
 
 ## Tenancy
 
@@ -397,12 +416,14 @@ seams; while one is absent or fails, every operation that needs it is refused:
 | Seam | Answers | Supplied by |
 |---|---|---|
 | `ITenantActorResolver` | The actor of an authenticated principal | Identity (SEC-03) |
-| `ITenantMembership` | Whether an actor is currently a member of a tenant | Identity or authorization (SEC-03, SEC-05) |
+| `ITenantMembership` | Whether an actor is currently a member of a tenant | Identity (SEC-03); roles within a membership are authorization's (SEC-05) |
 | `IHostAuthority` | Whether an actor currently holds host authority for one operation | Authorization (SEC-05) |
 | `IHostScopeAudit` | Records a host-scope grant before the scope exists | Audit (SEC-07) |
 
 The claim type `modularyn.tenant` is the tenant candidate that a principal may
-carry; whether identity issues it is SEC-03's decision.
+carry. Identity issues it only for a delegated request whose grant names a
+tenant, so that request reaches only that tenant; see
+[the identity module](../Modules/Modularyn.Modules.Identity.Application/README.md#tenancy).
 
 ### Directory
 
@@ -475,9 +496,11 @@ and a tenant administrator's membership never implies it. A host-scope unit
 reads tenant data only through `AcrossTenants`, which still requires the scope
 to be active at each execution, and changes none of it except a named tenant's
 row through `ModuleSql.UpdateForTenantAsync`. Host-scoped data, such as the
-directory, changes only in a host scope or in the persistence adapter's named
-`DeploymentScope`, which product code outside the adapter does not open; a unit
-of work with neither can only read it. A host grant names its operation, and
+directory, changes only in a host scope, in the persistence adapter's named
+`DeploymentScope`, which product code outside the adapter does not open, or in
+the owning module's owner-bound unit, which writes only that module's own
+host-scoped records and reaches no tenant data; a unit of work with none of them
+can only read it. A host grant names its operation, and
 `AcrossTenants` accepts any active grant: binding an operation to the modules and
 entities it may reach belongs to the elevated policy that SEC-05 supplies.
 
@@ -535,6 +558,8 @@ trait `Requires=PostgreSQL` run against PostgreSQL, through CI's real-provider
 job, and the others are unit tests; identity, membership, host authority and
 audit come from test doubles of their seams. SEC-08 maps every control to its
 evidence.
+The controls of TB-G02-04, identity and sessions, are recorded in
+[the identity module](../Modules/Modularyn.Modules.Identity.Application/README.md#threat-model-controls).
 
 - **TM-G02-001, partly.** Delivered: the deployment lock and package integrity
   as a trust validator, and MDC108 for a host without one. Tests:
@@ -571,15 +596,20 @@ evidence.
   work order covers FND-005.
 - **TM-G02-006, partly.** Delivered: declared-proxy forwarded headers, host
   filtering, `PublicOrigins` links and redirect targets, and refusal of widened
-  options. Tests: `Ingress.Tests` `ProxyAndHostTests` (`AC_004_N01_*`) and
-  `IngressOptionsTests.TM_G02_006_*`. Tenant domains, limited to the configured
+  options; a warning for forwarded headers from a peer that is not a declared
+  proxy (SEC-03). Tests: `Ingress.Tests` `ProxyAndHostTests` (`AC_004_N01_*`),
+  `UndeclaredForwarderTests` and `IngressOptionsTests.TM_G02_006_*`. Tenant domains, limited to the configured
   public origins, are resolved through `PublicOrigins` (SEC-04, under
-  TM-G02-025). Remaining: membership through the seam that tenancy consumes
-  (SEC-03, SEC-05), the redirect policy applied at sign-in (SEC-03), adversarial
-  isolation evidence (SEC-08).
+  TM-G02-025), and the identity module's sign-in returns only a local path or a
+  configured origin as its redirect (SEC-03; `Identity.HttpApi.Tests`
+  `SignInEndpointTests.TM_G02_006_*`), and identity answers tenancy's membership
+  seam (SEC-03). Remaining: adversarial isolation evidence (SEC-08).
 - **TM-G02-007, partly.** Delivered: antiforgery on every state-changing request
   that carries cookies, and the antiforgery cookie. Tests: `AntiforgeryTests`
-  (`AC_003_N02_*`, `TM_G02_007_*`). Remaining: session cookies (SEC-03); no state
+  (`AC_003_N02_*`, `TM_G02_007_*`). The session cookie is the identity module's
+  `__Host-` cookie, and antiforgery tokens are validated against the
+  authenticated user (SEC-03; `AuthenticationOrderTests.TM_G02_007_*` and
+  `Identity.HttpApi.Tests` `SessionCookieTests.TM_G02_007_*`). Remaining: no state
   change on safe methods, which the ingress cannot observe, through endpoint
   conventions (CODE-06) and contract tests (SEC-08).
 - **TM-G02-008, deferred.** Operation-specific input contracts and server-derived
@@ -599,7 +629,10 @@ evidence.
   and client evidence (CODE-06).
 - **TM-G02-060, partly.** Delivered: plain HTTP redirected before processing and
   HSTS on HTTPS responses for configured hosts, judged only from a declared
-  proxy. Tests: `HttpsTests` (`AC_031_P01_*`). Remaining: recording the subdomain
+  proxy; authentication only after those checks; refusal of authentication or
+  authorization placed before the ingress, and of authorization services without
+  `UseAuthorization` after it (SEC-03). Tests: `HttpsTests` (`AC_031_P01_*`) and
+  `AuthenticationOrderTests` (`TM_G02_060_*`). Remaining: recording the subdomain
   and preload choices with the release, which no G-02 work order covers; host
   and container evidence (CODE-10 on CI-01). Kestrel's own refusals carry no
   HSTS.
@@ -633,9 +666,11 @@ evidence.
   configured public origins, read through `PublicOrigins`; declared endpoints that
   refuse to run without a context, whatever the pipeline order. Tests:
   `Tenancy.Tests` `TenantResolutionTests` and `TenancyHttpTests` (`TM_G02_025_*`),
-  and `G02AC004Tests.AC_004_P01_*`. Remaining: the actor and membership seams
-  (SEC-03, SEC-05), which the tests replace with doubles; the permission for the
-  requested operation (SEC-05); adversarial evidence for AC-004-N01 (SEC-08); the
+  and `G02AC004Tests.AC_004_P01_*`; the tests replace the seams with doubles.
+  Identity supplies the actor and membership seams and the delegation's tenant
+  claim (SEC-03; `Identity.HttpApi.Tests`
+  `TenancyIntegrationTests.TM_G02_025_*`). Remaining: the permission for the
+  requested operation and for membership administration (SEC-05); adversarial evidence for AC-004-N01 (SEC-08); the
   website profile's equivalent host forms (AC-004-B03). An unavailable seam on a
   member endpoint answers 404, by design, and is logged as a warning.
 - **TM-G02-026, partly.** Delivered: a scoped `TenantExecution` for each request
@@ -661,10 +696,14 @@ evidence.
   combined with, a tenant the request names; tenant data reached only through the
   explicit cross-tenant read, checked again at each execution, and never changed
   except a named tenant's disposition row; directory administration as a host
-  operation; host-scoped data changed only in a host scope or a named deployment
-  scope, never by a unit without either. Tests: `HostScopeTests` and
-  `HostScopeDatabaseTests` (`Tenancy.Tests`) and `HostWriteTests`
-  (`Persistence.EfCore.Tests`), all `TM_G02_028_*`. Remaining: the elevated policy
+  operation; host-scoped data changed only in a host scope, a named deployment
+  scope or the owning module's owner-bound unit, never by a unit without one; the
+  owner-bound unit confined to its own module's host-scoped data, with no tenant
+  access and no cross-tenant read or update, and opened only from that module's
+  application and persistence projects (SEC-03). Tests: `HostScopeTests`,
+  `HostScopeDatabaseTests` and `OwnerBoundUnitTests` (`Tenancy.Tests`),
+  `HostWriteTests` and `OwnerScopeTests` (`Persistence.EfCore.Tests`) and
+  `PersistenceBoundaryTests` (`Repository.Tests`), all `TM_G02_028_*`. Remaining: the elevated policy
   and host-authority grants (SEC-05), including binding a host operation to the
   modules and entities it may reach, since `AcrossTenants` accepts any active
   grant; the audit store, records in the transaction of the change and the

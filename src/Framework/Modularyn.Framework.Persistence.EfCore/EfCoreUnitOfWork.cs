@@ -50,14 +50,14 @@ public sealed class EfCoreUnitOfWork : IUnitOfWork
     public Guid? TransactionId => root.transaction?.TransactionId;
 
     /// <summary>
-    /// Begins a unit of work with no tenant context and no deployment scope: it can read host-scoped data and change
-    /// nothing. A joined scope shares its explicitly supplied ambient unit's context and scope.
+    /// Begins a unit of work with no tenant context, deployment scope or owner scope: it can read host-scoped data and
+    /// change nothing. A joined scope shares its explicitly supplied ambient unit's context and scope.
     /// </summary>
     public static Task<EfCoreUnitOfWork> BeginAsync(PostgreSqlModule module, UnitOfWorkMode mode = UnitOfWorkMode.Join,
         EfCoreUnitOfWork? ambient = null, CancellationToken cancellationToken = default) =>
         mode == UnitOfWorkMode.Join && ambient is not null
-            ? BeginCoreAsync(module, ambient.Context.Tenant, ambient.Context.Deployment, mode, ambient, cancellationToken)
-            : BeginCoreAsync(module, null, null, mode, ambient, cancellationToken);
+            ? BeginCoreAsync(module, ambient.Context.Tenant, ambient.Context.Deployment, ambient.Context.Owner, mode, ambient, cancellationToken)
+            : BeginCoreAsync(module, null, null, null, mode, ambient, cancellationToken);
 
     /// <summary>
     /// Begins a unit of work bound to a validated tenant context for its whole life. The context is passed explicitly and
@@ -66,7 +66,7 @@ public sealed class EfCoreUnitOfWork : IUnitOfWork
     /// </summary>
     public static Task<EfCoreUnitOfWork> BeginAsync(PostgreSqlModule module, TenantContext? tenant, UnitOfWorkMode mode = UnitOfWorkMode.Join,
         EfCoreUnitOfWork? ambient = null, CancellationToken cancellationToken = default) =>
-        BeginCoreAsync(module, tenant, null, mode, ambient, cancellationToken);
+        BeginCoreAsync(module, tenant, null, null, mode, ambient, cancellationToken);
 
     /// <summary>
     /// Begins a unit of work in a named deployment scope, which can change host-scoped data but no tenant data. A joined
@@ -76,11 +76,26 @@ public sealed class EfCoreUnitOfWork : IUnitOfWork
         EfCoreUnitOfWork? ambient = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(deployment);
-        return BeginCoreAsync(module, null, deployment, mode, ambient, cancellationToken);
+        return BeginCoreAsync(module, null, deployment, null, mode, ambient, cancellationToken);
+    }
+
+    /// <summary>
+    /// Begins an owner-bound unit of work, in which a module changes its own host-scoped data through its own context. It
+    /// is accepted only for the module whose context type <paramref name="owner"/> names, reaches no tenant-scoped row and
+    /// grants no host authority. A joined scope must name its ambient unit's owner scope.
+    /// </summary>
+    public static Task<EfCoreUnitOfWork> BeginOwnedAsync(PostgreSqlModule module, ModuleOwnerScope owner, UnitOfWorkMode mode = UnitOfWorkMode.Join,
+        EfCoreUnitOfWork? ambient = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(module);
+        ArgumentNullException.ThrowIfNull(owner);
+        if (owner.ContextType != module.ContextType)
+            throw new PersistenceContractException("MPS042", "An owner-bound unit of work changes only the data of the module whose context type it names.");
+        return BeginCoreAsync(module, null, null, owner, mode, ambient, cancellationToken);
     }
 
     private static async Task<EfCoreUnitOfWork> BeginCoreAsync(PostgreSqlModule module, TenantContext? tenant, DeploymentScope? deployment,
-        UnitOfWorkMode mode, EfCoreUnitOfWork? ambient, CancellationToken cancellationToken)
+        ModuleOwnerScope? owner, UnitOfWorkMode mode, EfCoreUnitOfWork? ambient, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(module);
         cancellationToken.ThrowIfCancellationRequested();
@@ -94,15 +109,16 @@ public sealed class EfCoreUnitOfWork : IUnitOfWork
             ambient.EnsureActive();
             if (!ReferenceEquals(module, ambient.Context.Module))
                 throw new PersistenceContractException("MPS013", "A joined scope must use the same registered module and database.");
-            if (!ReferenceEquals(tenant, ambient.Context.Tenant) || !ReferenceEquals(deployment, ambient.Context.Deployment))
-                throw new PersistenceContractException("MPS035", "A joined scope must use its ambient unit's tenant context and deployment scope.");
+            if (!ReferenceEquals(tenant, ambient.Context.Tenant) || !ReferenceEquals(deployment, ambient.Context.Deployment)
+                || !ReferenceEquals(owner, ambient.Context.Owner))
+                throw new PersistenceContractException("MPS035", "A joined scope must use its ambient unit's tenant context, deployment scope and owner scope.");
             return new(ambient);
         }
 
         var context = module.CreateContext();
         try
         {
-            context.Bind(tenant, deployment);
+            context.Bind(tenant, deployment, owner);
             // Materialize and validate ownership before opening a connection.
             _ = context.Model;
             await context.Database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);

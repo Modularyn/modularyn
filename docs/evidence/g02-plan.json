@@ -349,14 +349,14 @@
           "name": "Modularyn.Modules.Identity.Application.Tests.G02AC003Tests.AC_003_B02_DelegationHonorsScopeExpiryAndActorIdentity_Unit",
           "layer": "unit",
           "workOrder": "SEC-03",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Modules.Identity.Application.Tests/Modularyn.Modules.Identity.Application.Tests.csproj",
           "name": "Modularyn.Modules.Identity.Application.Tests.G02AC003Tests.AC_003_B02_DelegationHonorsScopeExpiryAndActorIdentity_Isolation",
           "layer": "isolation",
           "workOrder": "SEC-03",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
