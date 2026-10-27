@@ -59,6 +59,9 @@ public sealed class TenantCache : IDisposable
     private readonly MemoryCache cache = new(new MemoryCacheOptions());
     private readonly ConcurrentDictionary<string, long> generations = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, Flight> flights = new(StringComparer.Ordinal);
+    private readonly TimeProvider time;
+
+    public TenantCache(TimeProvider? time = null) => this.time = time ?? TimeProvider.System;
 
     /// <summary>The key for an entry in a context; exposed so evidence can record it. The context must be active.</summary>
     public string KeyFor(TenantContext context, TenantCacheEntry entry)
@@ -88,12 +91,21 @@ public sealed class TenantCache : IDisposable
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(factory);
+        cancellationToken.ThrowIfCancellationRequested();
         var key = KeyFor(context, entry);
-        if (cache.TryGetValue(key, out Stored? hit)) return Unwrap<T>(hit!);
+        if (cache.TryGetValue(key, out Stored? hit))
+        {
+            if (time.GetElapsedTime(hit!.StartedAt) < entry.MaxStaleness) return Unwrap<T>(hit);
+            cache.Remove(key);
+        }
         var candidate = new Flight();
         candidate.Value = new(() => ProduceAsync(key, candidate, entry, factory), LazyThreadSafetyMode.ExecutionAndPublication);
         var flight = flights.GetOrAdd(key, candidate);
-        return Unwrap<T>(await flight.Value!.Value.WaitAsync(cancellationToken).ConfigureAwait(false));
+        var result = await flight.Value!.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
+        if (!context.IsActive) throw new InvalidOperationException("The cache context ended while the value was read.");
+        if (time.GetElapsedTime(result.StartedAt) >= entry.MaxStaleness)
+            throw new InvalidOperationException("The cache factory exceeded the entry's declared staleness bound.");
+        return Unwrap<T>(result);
     }
 
     /// <summary>Makes every entry of the tenant unreachable, for grant, capability and setting changes.</summary>
@@ -112,10 +124,14 @@ public sealed class TenantCache : IDisposable
     {
         try
         {
+            var startedAt = time.GetTimestamp();
             // The shared factory runs independently of any one waiter's cancellation.
             var value = await factory(CancellationToken.None).ConfigureAwait(false);
-            var stored = new Stored(typeof(T), value);
-            cache.Set(key, stored, new MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = entry.MaxStaleness });
+            var stored = new Stored(typeof(T), value, startedAt);
+            // Time spent obtaining the value counts toward its staleness, too.
+            var remaining = entry.MaxStaleness - time.GetElapsedTime(startedAt);
+            if (remaining > TimeSpan.Zero)
+                cache.Set(key, stored, new MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = remaining });
             return stored;
         }
         finally { flights.TryRemove(new KeyValuePair<string, Flight>(key, flight)); }
@@ -138,7 +154,7 @@ public sealed class TenantCache : IDisposable
     private static void Append(StringBuilder key, string name, string value) =>
         key.Append('|').Append(name).Append('=').Append(value.Length.ToString(CultureInfo.InvariantCulture)).Append(':').Append(value);
 
-    private sealed record Stored(Type Type, object? Value);
+    private sealed record Stored(Type Type, object? Value, long StartedAt);
 
     private sealed class Flight
     {

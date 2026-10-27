@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../Modularyn.Framework.Features.Abstractions/Modularyn.Framework.Features.Abstractions.csproj" />
+    <ProjectReference Include="../Modularyn.Framework.Settings/Modularyn.Framework.Settings.csproj" />
+  </ItemGroup>
+</Project>

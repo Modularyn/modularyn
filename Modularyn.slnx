@@ -10,6 +10,12 @@
     <Project Path="src/Framework/Modularyn.Framework.Persistence.EfCore/Modularyn.Framework.Persistence.EfCore.csproj" />
     <Project Path="src/Framework/Modularyn.Framework.Tenancy.Abstractions/Modularyn.Framework.Tenancy.Abstractions.csproj" />
     <Project Path="src/Framework/Modularyn.Framework.Tenancy/Modularyn.Framework.Tenancy.csproj" />
+    <Project Path="src/Framework/Modularyn.Framework.Caching/Modularyn.Framework.Caching.csproj" />
+    <Project Path="src/Framework/Modularyn.Framework.Settings.Abstractions/Modularyn.Framework.Settings.Abstractions.csproj" />
+    <Project Path="src/Framework/Modularyn.Framework.Settings/Modularyn.Framework.Settings.csproj" />
+    <Project Path="src/Framework/Modularyn.Framework.Features.Abstractions/Modularyn.Framework.Features.Abstractions.csproj" />
+    <Project Path="src/Framework/Modularyn.Framework.Features/Modularyn.Framework.Features.csproj" />
+    <Project Path="src/Framework/Modularyn.Framework.Localization/Modularyn.Framework.Localization.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Modularyn.Framework.Modularity.Abstractions.Tests/Modularyn.Framework.Modularity.Abstractions.Tests.csproj" />
@@ -20,6 +26,7 @@
     <Project Path="tests/Modularyn.Framework.Ingress.Tests/Modularyn.Framework.Ingress.Tests.csproj" />
     <Project Path="tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj" />
     <Project Path="tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj" />
+    <Project Path="tests/Modularyn.Framework.Settings.Tests/Modularyn.Framework.Settings.Tests.csproj" />
     <Project Path="tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj" />
   </Folder>
 </Solution>
