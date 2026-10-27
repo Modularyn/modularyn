@@ -104,10 +104,11 @@ cannot insert, update or delete rows of a tenant-scoped table (`MPS039`).
 
 `EfCoreUnitOfWork.BeginAsync(module, tenant, ...)` binds a validated
 `TenantContext` to the unit's context for its whole life, and
-`BeginAsync(module, deployment, ...)` binds a named `DeploymentScope` instead. The
-overload with neither binds nothing, a joined scope shares its ambient unit's
-binding and must name the same one, and a new or suppressed scope never inherits
-one. Each tenant-scoped root carries two adapter filters on the named seam:
+`BeginAsync(module, deployment, ...)` binds a named `DeploymentScope` instead, and
+`BeginOwnedAsync(module, owner, ...)` a `ModuleOwnerScope`. A unit carries at most
+one of the three. The overload with none binds nothing, a joined scope shares its
+ambient unit's binding and must name the same one, and a new or suppressed scope
+never inherits one. Each tenant-scoped root carries two adapter filters on the named seam:
 `Modularyn.Tenant`, which requires `TenantId` to equal the unit's tenant, and
 `Modularyn.Scope`, which requires the unit's context to be active and, outside an
 active host scope, compares `TenantId` with the unit's tenant again. A query that
@@ -130,12 +131,47 @@ such as a denied disposition.
 
 Host scope is never applied implicitly. Host-scoped data changes only in an
 active host scope, which the tenancy runtime grants under host authority and
-audit, or in a `DeploymentScope`, which names its operation and reason and exists
-for framework metadata, required seeds and tests under deployment authority. A
-unit with neither can read host-scoped data but change none of it (`MPS040`).
+audit, in a `DeploymentScope`, which names its operation and reason and exists
+for framework metadata, required seeds and tests under deployment authority, or
+in the owning module's owner-bound unit. A unit with none of them can read
+host-scoped data but change none of it (`MPS040`). Migrations run under the
+coordinator's lock and do not use units of work.
+
+Cross-tenant host authority and a module writing its own host-scoped data are
+different things. The first reaches or changes tenant data from host level,
+through `AcrossTenants` and `UpdateForTenantAsync`, and stays gated by the audited
+host scope. The second is the owner-bound unit: a module changes the host-scoped
+records it owns, such as identity's accounts and sessions, through its own
+context, for its own use cases.
+
+- **Explicit.** `EfCoreUnitOfWork.BeginOwnedAsync(module, owner, ...)` begins it,
+  with `ModuleOwnerScope.For<TContext>(operationId)`, which names the module's
+  context type and an operation. Nothing begins it by default.
+- **Its own module only.** The unit is accepted only when the scope's context type
+  is the module's (`MPS042`), and ownership confines that context to the module's
+  own schema and tables, so it writes only that module's host-scoped entities.
+  Joining a unit of another module is refused (`MPS013`), as is joining with a
+  different binding (`MPS035`).
+- **No tenant access and no host authority.** It refuses every tenant-scoped read
+  and write (`MPS035`), and `AcrossTenants` and `UpdateForTenantAsync` still
+  require an active host grant (`MPS038`). Bulk LINQ writes to host-scoped data
+  stay refused (`MPS037`). A tenant unit still cannot change host-scoped data
+  (`MPS037`), and an owner-bound unit carries no tenant: a module that writes
+  its own host-scoped records during a tenant request begins an owner-bound unit
+  for them, separately from its tenant units.
+- **Not authorization, and not for authority.** Who may invoke the use case that
+  opens it belongs to authorization. Records that are themselves authority, such
+  as permission grants or host-authority grants, stay behind the audited host
+  scope rather than in owner-bound writes; SEC-05 makes that rule and gates the
+  administrative use cases that open owner-bound units today.
+
 The repository test `PersistenceBoundaryTests` keeps deployment scopes out of
-product source outside this adapter. Migrations run under the coordinator's
-lock and do not use units of work.
+product source outside this adapter, and allows `BeginOwnedAsync` and
+`ModuleOwnerScope` only in this adapter and in a module's own `.Application` and
+`.Persistence.*` projects, each scope naming a context type that the same module
+declares. These rules rest on that source check, the architecture rules that keep
+a module from referencing another module's persistence project, and the context
+type check at run time; they do not resist reflection.
 
 ## Filters and query guard
 
@@ -201,7 +237,7 @@ Each raw or direct SQL site in this adapter, and how it keeps the tenant filter:
 | Site | SQL | Tenant filter |
 |---|---|---|
 | `ModuleSql.Query` and its filtered overload, through `Read` | `SELECT *` from one owned table, optionally where one column `IS NOT DISTINCT FROM` a parameter, both from `ModuleSqlText` | EF composes `Modularyn.Tenant`, `Modularyn.Scope`, soft delete and module filters over the `SELECT`; the guard accepts this root only under the adapter's marker and only with the template's exact text for its entity |
-| `ModuleSql.InsertAsync` | `INSERT` of one scalar row, every value a parameter | An insert has nothing to filter, so the row's tenant is set from, or must equal, the unit's tenant; a host-scoped row needs a host or deployment scope |
+| `ModuleSql.InsertAsync` | `INSERT` of one scalar row, every value a parameter | An insert has nothing to filter, so the row's tenant is set from, or must equal, the unit's tenant; a host-scoped row needs a host, deployment or owner scope |
 | `ModuleSql.UpdateAsync` and `UpdateForTenantAsync` | EF's direct update of one value and the version, by key and expected version | Every filter applies, and the tenant column cannot be the value; the host form lifts only the tenant predicate, adds the named tenant as an explicit predicate and requires an active host grant |
 | `ModuleSchemaOwnership` | Ownership-row and catalog reads on the unit's connection | Framework metadata of the module schema; no tenant data |
 | `MigrationProgressStore`, `PostgreSqlMigrationLock` | Schema, ownership and progress tables, and the advisory lock | Framework metadata under the migration lock; no tenant data |

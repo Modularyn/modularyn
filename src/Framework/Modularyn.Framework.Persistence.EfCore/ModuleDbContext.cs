@@ -37,6 +37,12 @@ public abstract class ModuleDbContext : DbContext
     /// </summary>
     public DeploymentScope? Deployment { get; private set; }
 
+    /// <summary>
+    /// The owner scope bound by an owner-bound unit of work, or null. It allows this module's own host-scoped writes, and
+    /// nothing else: no tenant-scoped row and no cross-tenant read or update.
+    /// </summary>
+    public ModuleOwnerScope? Owner { get; private set; }
+
     private static DbContextOptions CreateOptions(PostgreSqlModule module)
     {
         ArgumentNullException.ThrowIfNull(module);
@@ -103,16 +109,20 @@ public abstract class ModuleDbContext : DbContext
     internal HostScopeGrant RequireHostGrant() => Tenant is { Scope: TenantScope.Host, IsActive: true, HostGrant: { } grant } ? grant
         : throw new PersistenceContractException("MPS038", "Reading across tenants requires an active, audited host-scope unit of work.");
 
-    internal void Bind(TenantContext? tenant, DeploymentScope? deployment)
+    internal void Bind(TenantContext? tenant, DeploymentScope? deployment, ModuleOwnerScope? owner)
     {
-        if (Tenant is not null || Deployment is not null)
+        if (Tenant is not null || Deployment is not null || Owner is not null)
             throw new PersistenceContractException("MPS035", "A module context is bound to one context once.");
-        if (tenant is not null && deployment is not null)
-            throw new PersistenceContractException("MPS035", "A unit of work runs in a tenant or host context or in a deployment scope, not both.");
+        if ((tenant is null ? 0 : 1) + (deployment is null ? 0 : 1) + (owner is null ? 0 : 1) > 1)
+            throw new PersistenceContractException("MPS035",
+                "A unit of work runs in one of a tenant or host context, a deployment scope or an owner scope, never in more than one.");
         if (tenant is { IsActive: false })
             throw new PersistenceContractException("MPS035", "The tenant context has ended; begin a unit of work only while its context is active.");
+        if (owner is not null && owner.ContextType != GetType())
+            throw new PersistenceContractException("MPS042", "An owner-bound unit of work changes only the data of the module whose context type it names.");
         Tenant = tenant;
         Deployment = deployment;
+        Owner = owner;
     }
 
     /// <summary>The tenant predicate's value for one execution. It refuses rather than widening or emptying the result.</summary>
@@ -229,15 +239,19 @@ public abstract class ModuleDbContext : DbContext
         _ => Tenant.TenantId!.Value
     };
 
-    /// <summary>Host-scoped data changes only in an active host scope or a named deployment scope, never implicitly.</summary>
+    /// <summary>
+    /// Host-scoped data changes only in an active host scope, a named deployment scope or the owning module's owner-bound
+    /// unit, never implicitly. Every entity of this context belongs to its module, so an owner-bound unit reaches only its
+    /// own module's tables.
+    /// </summary>
     internal void RequireHostWrite()
     {
         if (Tenant is { IsActive: false }) throw new PersistenceContractException("MPS035", "The unit's tenant context has ended.");
         if (Tenant is { Scope: TenantScope.Tenant })
             throw new PersistenceContractException("MPS037", "A tenant unit of work can read host-scoped data but cannot change it.");
-        if (Tenant is null && Deployment is null)
+        if (Tenant is null && Deployment is null && Owner is null)
             throw new PersistenceContractException("MPS040",
-                "Changing host-scoped data requires an audited host scope or a named deployment scope; a unit without either can only read.");
+                "Changing host-scoped data requires an audited host scope, a named deployment scope or the owning module's owner-bound unit; a unit without one can only read.");
     }
 
     internal void RequireWork()

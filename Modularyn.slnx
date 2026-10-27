@@ -16,6 +16,14 @@
     <Project Path="src/Framework/Modularyn.Framework.Features.Abstractions/Modularyn.Framework.Features.Abstractions.csproj" />
     <Project Path="src/Framework/Modularyn.Framework.Features/Modularyn.Framework.Features.csproj" />
     <Project Path="src/Framework/Modularyn.Framework.Localization/Modularyn.Framework.Localization.csproj" />
+    <Project Path="src/Framework/Modularyn.Framework.Security.Abstractions/Modularyn.Framework.Security.Abstractions.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/">
+    <Project Path="src/Modules/Modularyn.Modules.Identity.Domain/Modularyn.Modules.Identity.Domain.csproj" />
+    <Project Path="src/Modules/Modularyn.Modules.Identity.Application.Contracts/Modularyn.Modules.Identity.Application.Contracts.csproj" />
+    <Project Path="src/Modules/Modularyn.Modules.Identity.Application/Modularyn.Modules.Identity.Application.csproj" />
+    <Project Path="src/Modules/Modularyn.Modules.Identity.Persistence.EfCore/Modularyn.Modules.Identity.Persistence.EfCore.csproj" />
+    <Project Path="src/Modules/Modularyn.Modules.Identity.HttpApi/Modularyn.Modules.Identity.HttpApi.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Modularyn.Framework.Modularity.Abstractions.Tests/Modularyn.Framework.Modularity.Abstractions.Tests.csproj" />
@@ -27,6 +35,11 @@
     <Project Path="tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj" />
     <Project Path="tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj" />
     <Project Path="tests/Modularyn.Framework.Settings.Tests/Modularyn.Framework.Settings.Tests.csproj" />
+    <Project Path="tests/Modularyn.Framework.Security.Abstractions.Tests/Modularyn.Framework.Security.Abstractions.Tests.csproj" />
+    <Project Path="tests/Modularyn.Modules.Identity.Domain.Tests/Modularyn.Modules.Identity.Domain.Tests.csproj" />
+    <Project Path="tests/Modularyn.Modules.Identity.Application.Tests/Modularyn.Modules.Identity.Application.Tests.csproj" />
+    <Project Path="tests/Modularyn.Modules.Identity.Persistence.EfCore.Tests/Modularyn.Modules.Identity.Persistence.EfCore.Tests.csproj" />
+    <Project Path="tests/Modularyn.Modules.Identity.HttpApi.Tests/Modularyn.Modules.Identity.HttpApi.Tests.csproj" />
     <Project Path="tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj" />
   </Folder>
 </Solution>
