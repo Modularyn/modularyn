@@ -114,8 +114,8 @@ public sealed class NamesAndLayoutTests
     {
         var files = RepositoryFiles.Current.ToDictionary();
         AddProject(files, "src/Modularyn/Modularyn.csproj", "<Project />");
-        AddProject(files, "src/Modules/Modularyn.Modules.Files.Domain/Modularyn.Modules.Files.Domain.csproj", "<Project />");
-        AddProject(files, "tests/Modularyn.Modules.Files.Domain.Tests/Modularyn.Modules.Files.Domain.Tests.csproj",
+        AddProject(files, "src/Modules/Modularyn.Modules.Sample.Domain/Modularyn.Modules.Sample.Domain.csproj", "<Project />");
+        AddProject(files, "tests/Modularyn.Modules.Sample.Domain.Tests/Modularyn.Modules.Sample.Domain.Tests.csproj",
             "<Project><PropertyGroup><IsPackable>false</IsPackable></PropertyGroup></Project>");
         AddProject(files, "src/Tooling/Modularyn.Tooling.Cli/Modularyn.Tooling.Cli.csproj",
             "<Project><PropertyGroup><PackageId>dotnet-modularyn</PackageId><PackAsTool>true</PackAsTool><ToolCommandName>dotnet-modularyn</ToolCommandName></PropertyGroup></Project>");
@@ -135,18 +135,18 @@ public sealed class NamesAndLayoutTests
     {
         var files = RepositoryFiles.Current.ToDictionary();
         Assert.Empty(NamesAndLayoutContract.Validate(files));
-        var path = "src/Modules/Modularyn.Modules.Files.Domain/Modularyn.Modules.Files.Domain.csproj";
+        var path = "src/Modules/Modularyn.Modules.Sample.Domain/Modularyn.Modules.Sample.Domain.csproj";
         var project = "<Project />";
         switch (mutation)
         {
-            case "source-location": path = "src/Modularyn.Modules.Files.Domain/Modularyn.Modules.Files.Domain.csproj"; break;
+            case "source-location": path = "src/Modularyn.Modules.Sample.Domain/Modularyn.Modules.Sample.Domain.csproj"; break;
             case "package-identity": project = "<Project><PropertyGroup><PackageId>Modularyn.Modules.Other.Domain</PackageId></PropertyGroup></Project>"; break;
-            case "module-role": path = "src/Modules/Modularyn.Modules.Files.Storage/Modularyn.Modules.Files.Storage.csproj"; break;
+            case "module-role": path = "src/Modules/Modularyn.Modules.Sample.Storage/Modularyn.Modules.Sample.Storage.csproj"; break;
             case "paid-source": path = "src/Pro/Modularyn.Pro.Studio.Workspace/Modularyn.Pro.Studio.Workspace.csproj"; break;
             case "paid-reference": project = "<Project><ItemGroup><PackageReference Include=\"Modularyn.Pro.Workflow.Domain\" /></ItemGroup></Project>"; break;
             case "domain-ui-reference": project = "<Project><ItemGroup><PackageReference Include=\"Modularyn.UI.Razor\" /></ItemGroup></Project>"; break;
             case "orphan-tests":
-                path = "tests/Modularyn.Modules.Files.Domain.Tests/Modularyn.Modules.Files.Domain.Tests.csproj";
+                path = "tests/Modularyn.Modules.Sample.Domain.Tests/Modularyn.Modules.Sample.Domain.Tests.csproj";
                 project = "<Project><PropertyGroup><IsPackable>false</IsPackable></PropertyGroup></Project>";
                 break;
             case "tool-command":
