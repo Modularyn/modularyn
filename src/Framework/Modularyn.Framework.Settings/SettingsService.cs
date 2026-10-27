@@ -122,6 +122,9 @@ public sealed class SettingsService
     {
         RequireScope(context, definition, scope);
         Validate(definition, value);
+        // A reference names a deployment-wide secret, so only a host-granted global override may choose one.
+        if (definition.IsSecret && scope != ValueSource.Global)
+            throw new InvalidOperationException("Only a global override may set a secret reference.");
         await using var work = await EfCoreUnitOfWork.BeginAsync(module, context, cancellationToken: cancellationToken).ConfigureAwait(false);
         var db = (SettingsContext)work.Context;
         IConcurrencyTracked changed;
@@ -212,7 +215,7 @@ public sealed class SettingsService
     private static ResolvedValue Materialize(ScopedValueDefinition definition, string value, ValueKind kind, ValueSource source,
         Guid version, DateTimeOffset at)
     {
-        if (kind != definition.Kind) throw new ValueValidationException();
+        if (kind != definition.Kind || (definition.IsSecret && source != ValueSource.Global)) throw new ValueValidationException();
         Validate(definition, value);
         return new(definition, value, source, version, SettingsTimestamp.Normalize(at));
     }

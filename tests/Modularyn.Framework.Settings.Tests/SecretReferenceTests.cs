@@ -9,6 +9,7 @@ using Modularyn.Framework.Caching;
 using Modularyn.Framework.Configuration;
 using Modularyn.Framework.Settings.Abstractions;
 using Modularyn.Framework.Tenancy;
+using Npgsql;
 using Xunit;
 
 namespace Modularyn.Framework.Settings.Tests;
@@ -78,17 +79,34 @@ public sealed class SecretReferenceTests
             using (var secret = await settings.ResolveSecretAsync(a, TestDefinitions.Secret, Cancellation))
                 Assert.True(secret.RevealString() == first, "The recovered store must be read again.");
 
+            // A reference names a deployment-wide secret, so a tenant or a user may not choose one, and a stored one fails closed.
             var userReference = SecretReference.Parse("secret:user-connection");
-            await settings.SetSecretReferenceAsync(a, TestDefinitions.Secret, ValueSource.User, userReference, cancellationToken: Cancellation);
-            Assert.Equal(userReference, (await settings.ResolveAsync(a, TestDefinitions.Secret, Cancellation)).Get<SecretReference>());
+            foreach (var scope in new[] { ValueSource.Tenant, ValueSource.User })
+                await Assert.ThrowsAsync<InvalidOperationException>(() => settings.SetSecretReferenceAsync(a, TestDefinitions.Secret, scope,
+                    userReference, cancellationToken: Cancellation));
+            Assert.Equal(reference, (await settings.ResolveAsync(a, TestDefinitions.Secret, Cancellation)).Get<SecretReference>());
+            await database.ExecuteAsync("INSERT INTO " + database.Table("TenantValues")
+                + " (\"TenantId\", \"ModuleId\", \"Name\", \"User\", \"Value\", \"Kind\", \"Version\", \"UpdatedAt\")"
+                + " VALUES (@tenant, @module, @name, '', @value, @kind, @version, @at)",
+                new NpgsqlParameter("tenant", database.TenantA), new NpgsqlParameter("module", TestDefinitions.Secret.ModuleId),
+                new NpgsqlParameter("name", TestDefinitions.Secret.AssetName), new NpgsqlParameter("value", userReference.ToString()),
+                new NpgsqlParameter("kind", (int)ValueKind.SecretReference), new NpgsqlParameter("version", Guid.NewGuid()),
+                new NpgsqlParameter("at", DateTimeOffset.UnixEpoch));
+            var cache = database.Services.GetRequiredService<ScopedValueCache>();
+            cache.InvalidateTenant(database.TenantA);
+            await Assert.ThrowsAsync<ValueUnavailableException>(() => settings.ResolveAsync(a, TestDefinitions.Secret, Cancellation));
+            await Assert.ThrowsAsync<ValueUnavailableException>(() => settings.ResolveSecretAsync(a, TestDefinitions.Secret, Cancellation).AsTask());
             Assert.Equal(reference, (await settings.ResolveAsync(b, TestDefinitions.Secret, Cancellation)).Get<SecretReference>());
+            await database.ExecuteAsync("DELETE FROM " + database.Table("TenantValues"));
+            cache.InvalidateTenant(database.TenantA);
+            Assert.Equal(reference, (await settings.ResolveAsync(a, TestDefinitions.Secret, Cancellation)).Get<SecretReference>());
             var conflict = await Assert.ThrowsAsync<ValueConflictException>(() => settings.SetSecretReferenceAsync(host, TestDefinitions.Secret,
                 ValueSource.Global, userReference, Guid.NewGuid(), Cancellation));
             errors.Add(JsonSerializer.Serialize(conflict.Message));
             Assert.NotEqual(Guid.Empty, global);
 
             var inventory = await database.InventoryAsync();
-            Assert.Equal(2, inventory.Length);
+            Assert.Single(inventory);
             Assert.All(inventory, row => Assert.Contains("secret:", row, StringComparison.Ordinal));
             foreach (var text in inventory.Concat(capture.Messages).Concat(errors))
             {

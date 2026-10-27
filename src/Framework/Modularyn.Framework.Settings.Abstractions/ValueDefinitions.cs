@@ -49,7 +49,7 @@ public sealed class ValueValidation
 
 /// <summary>
 /// A module contract bound to an identically named and versioned manifest definition. Secret definitions have no
-/// literal default or allowed-value list: an explicit scoped reference supplies them. Values use ordinal identity.
+/// literal default or allowed-value list: an explicit global reference supplies them. Values use ordinal identity.
 /// </summary>
 public abstract class ScopedValueDefinition
 {

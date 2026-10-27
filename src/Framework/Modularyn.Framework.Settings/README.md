@@ -51,7 +51,11 @@ migration and history; it uses the persistence adapter's query and write guards.
 UTC whole microseconds, read from the registered `TimeProvider`.
 
 Secret definitions have an unset default and accept only an explicit
-`SecretReference` at a writable scope. Literal secret defaults, literal writes
+`SecretReference`, and only as a global override under the settings host
+grant. A reference names a deployment-wide secret, so a tenant or a user may
+not choose one, and a stored tenant or user reference fails the read. Secrets
+owned by one tenant would need a tenant-bound secret namespace, which this
+project does not provide. Literal secret defaults, literal writes
 and arbitrary validation callbacks are not supported. `SetSecretReferenceAsync`
 uses the configuration contract; `SetAsync` applies the same reference check
 before opening a unit. Storage and effective caches contain references only.
