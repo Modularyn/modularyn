@@ -1,0 +1,28 @@
+{
+  "version": 2,
+  "dependencies": {
+    "net10.0": {
+      "modularyn.framework.configuration": {
+        "type": "Project"
+      },
+      "modularyn.framework.security.abstractions": {
+        "type": "Project"
+      },
+      "modularyn.framework.tenancy.abstractions": {
+        "type": "Project"
+      },
+      "modularyn.modules.identity.application.contracts": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Security.Abstractions": "[1.0.0, )"
+        }
+      },
+      "modularyn.modules.identity.domain": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Security.Abstractions": "[1.0.0, )"
+        }
+      }
+    }
+  }
+}
