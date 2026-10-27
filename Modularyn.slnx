@@ -10,6 +10,12 @@
     <Project Path="src/Framework/Modularyn.Framework.Persistence.EfCore/Modularyn.Framework.Persistence.EfCore.csproj" />
     <Project Path="src/Framework/Modularyn.Framework.Tenancy.Abstractions/Modularyn.Framework.Tenancy.Abstractions.csproj" />
     <Project Path="src/Framework/Modularyn.Framework.Tenancy/Modularyn.Framework.Tenancy.csproj" />
+    <Project Path="src/Framework/Modularyn.Framework.Caching/Modularyn.Framework.Caching.csproj" />
+    <Project Path="src/Framework/Modularyn.Framework.Settings.Abstractions/Modularyn.Framework.Settings.Abstractions.csproj" />
+    <Project Path="src/Framework/Modularyn.Framework.Settings/Modularyn.Framework.Settings.csproj" />
+    <Project Path="src/Framework/Modularyn.Framework.Features.Abstractions/Modularyn.Framework.Features.Abstractions.csproj" />
+    <Project Path="src/Framework/Modularyn.Framework.Features/Modularyn.Framework.Features.csproj" />
+    <Project Path="src/Framework/Modularyn.Framework.Localization/Modularyn.Framework.Localization.csproj" />
     <Project Path="src/Framework/Modularyn.Framework.Security.Abstractions/Modularyn.Framework.Security.Abstractions.csproj" />
   </Folder>
   <Folder Name="/src/Modules/">
@@ -34,6 +40,7 @@
     <Project Path="tests/Modularyn.Framework.Ingress.Tests/Modularyn.Framework.Ingress.Tests.csproj" />
     <Project Path="tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj" />
     <Project Path="tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj" />
+    <Project Path="tests/Modularyn.Framework.Settings.Tests/Modularyn.Framework.Settings.Tests.csproj" />
     <Project Path="tests/Modularyn.Framework.Security.Abstractions.Tests/Modularyn.Framework.Security.Abstractions.Tests.csproj" />
     <Project Path="tests/Modularyn.Modules.Identity.Domain.Tests/Modularyn.Modules.Identity.Domain.Tests.csproj" />
     <Project Path="tests/Modularyn.Modules.Identity.Application.Tests/Modularyn.Modules.Identity.Application.Tests.csproj" />

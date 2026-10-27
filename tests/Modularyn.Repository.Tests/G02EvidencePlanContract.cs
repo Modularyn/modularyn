@@ -246,10 +246,10 @@ internal static class G02EvidencePlanContract
         var testClass = name[(classSeparator + 1)..methodSeparator];
         var method = name[(methodSeparator + 1)..];
         var directory = project[..(project.LastIndexOf('/') + 1)];
-        // The merged test sources use file-scoped namespaces and top-level test classes, which may
-        // declare a primary constructor or a base type on the class line.
+        // The merged test sources use file-scoped namespaces and top-level test classes, which may be
+        // partial and may declare a primary constructor or a base type on the class line.
         var namespacePattern = @"(?m)^namespace " + Regex.Escape(testNamespace) + @";[ \t]*\r?$";
-        var classPattern = @"(?m)^public (?:sealed )?class " + Regex.Escape(testClass) + @"\b[^\r\n{]*\r?\n\{";
+        var classPattern = @"(?m)^public (?:sealed )?(?:partial )?class " + Regex.Escape(testClass) + @"\b[^\r\n{]*\r?\n\{";
         var methodPattern = @"(?m)^    \[(?:Fact|Theory)(?:\([^\r\n]*\))?\][ \t]*\r?\n"
             + @"(?:    \[[^\r\n]+\][ \t]*\r?\n)*    public (?:async )?(?:void|Task|ValueTask) "
             + Regex.Escape(method) + @"\(";

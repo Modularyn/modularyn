@@ -597,14 +597,14 @@
           "name": "Modularyn.Framework.Settings.Tests.G02AC003Tests.AC_003_P02_PrecedenceAndInvalidationKeepTenantValuesSeparate_Unit",
           "layer": "unit",
           "workOrder": "CODE-04",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Settings.Tests/Modularyn.Framework.Settings.Tests.csproj",
           "name": "Modularyn.Framework.Settings.Tests.G02AC003Tests.AC_003_P02_PrecedenceAndInvalidationKeepTenantValuesSeparate_Integration",
           "layer": "real-provider-integration",
           "workOrder": "CODE-04",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
