@@ -281,7 +281,7 @@ public sealed class StorageBoundaryTests
         await using var read = await database.Service().ReadAsync(tenant.Context, version.FileId, version.VersionId, cancellationToken: Cancellation);
         await tenant.DisposeAsync();
         Assert.Equal(FileStorageError.InvalidScope, (await Assert.ThrowsAsync<FileStorageException>(async () =>
-            await read.Content.ReadAsync(new byte[1], Cancellation))).Code);
+            await read.Content.ReadExactlyAsync(new byte[1], Cancellation))).Code);
         Assert.Equal(FileStorageError.InvalidScope, (await Assert.ThrowsAsync<FileStorageException>(() =>
             database.Service().ListAsync(tenant.Context, version.FileId, Cancellation))).Code);
         Assert.Equal(FileStorageError.InvalidScope, (await Assert.ThrowsAsync<FileStorageException>(async () =>
