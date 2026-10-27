@@ -10,7 +10,15 @@ internal sealed class ManualClock(DateTimeOffset start) : TimeProvider
 {
     private long ticks = start.UtcTicks;
 
-    public static ManualClock StartingNow() => new(new DateTimeOffset(DateTime.UtcNow.Ticks - DateTime.UtcNow.Ticks % TimeSpan.TicksPerSecond, TimeSpan.Zero));
+    /// <summary>
+    /// A clock at the current whole second, read once, so tests that advance it by whole units see the times the module
+    /// records. Tests of finer clocks construct one with the ticks they need.
+    /// </summary>
+    public static ManualClock StartingNow()
+    {
+        var now = DateTime.UtcNow.Ticks;
+        return new(new DateTimeOffset(now - now % TimeSpan.TicksPerSecond, TimeSpan.Zero));
+    }
 
     public DateTimeOffset Now => new(Interlocked.Read(ref ticks), TimeSpan.Zero);
 
