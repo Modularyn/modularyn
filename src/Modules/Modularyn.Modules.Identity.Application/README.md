@@ -104,10 +104,15 @@ counters to every attempt:
   so the number of verifications an account allows is bounded however many
   sources guess at it.
 - **The source on the account.** Each source also has its own counter for each
-  account. It has the same free attempts and twice the account's delay, so a
-  source's next attempt always comes after the account delay its own failure set
-  has ended. One source can renew an account's delay at most once in every two
-  delays, and in between the account is open to every other source.
+  account. It has the same free attempts and twice the account's delay. A
+  source whose own count lags the account's, because the owner's typos or other
+  sources' failures came first, is seeded from the account's at its next
+  failure: its own count becomes the larger of its own and the account's
+  effective failures, plus one. So a source's next attempt always comes after
+  the account delay its own failure set has ended, whether or not it caused the
+  account's earlier failures. One source can renew an account's delay at most
+  once in every two delays, and in between the account is open to every other
+  source.
 
 The rule addresses TH-G02-076 without weakening TM-G02-015. An attacker polling
 from one source, however it times its attempts, cannot keep the owner out. The
@@ -139,6 +144,35 @@ client can send forwarded headers too, so the two cannot be told apart, and an
 exemption would let any client escape its source limit. The ingress therefore
 leaves the limits in place and logs a warning, once per peer, when forwarded
 headers arrive from a peer that is not a declared proxy.
+
+### Conditions and Retry-After
+
+The limits hold as described when these conditions hold:
+
+- **Each client is seen at its own address.** Kestrel listens on TCP, directly
+  or behind reverse proxies declared in `Modularyn:Ingress:Proxies`. A
+  connection with no client address, such as one through a Unix-socket
+  listener, puts every attempt in the unknown source, so per-source limits are
+  off and only the account's limits apply. The first such sign-in in a process
+  logs warning 8210, once.
+- **One database.** Every host shares the counters in one PostgreSQL database,
+  so the limits apply across hosts.
+- **One clock.** Every host reads the same wall time; the delays and blocks are
+  instants in the database.
+
+A throttled sign-in answers 429 with the code `sign_in_throttled` and a
+`Retry-After` header: whole seconds to the instant the refusal names, rounded
+up, and at least one. For a blocked source that instant is the latest of the
+source's block, the account's delay and the source's own delay on the account,
+so a client that waits for it is not refused again by a limit that outlasts the
+block. An attempt refused because another attempt on the same account is in
+progress on this host gets one second.
+
+Clients, including the generated clients of CODE-06, wait at least
+`Retry-After` before trying the same account again and never retry a 429
+sooner on their own. An attempt before that instant is refused without a
+verification; while the account's delay applies, the refusal counts against
+the source, so a client that ignores the header blocks its own source.
 
 An unknown account costs one verification against a verifier made when the
 account directory is created, and unknown, disabled and wrong-password attempts
@@ -257,6 +291,34 @@ no other origin. `SecretText`, and a `ClientCredential` through its value,
 format and serialize only as a redaction, and `SecretText` refuses to be read
 from JSON. The module issues no tokens, and registers no provider.
 
+## Administration
+
+Identity's administrative writes take an `IdentityAuthority` and refuse,
+before they read or change anything, unless it authorizes them (SEC-05). An
+identity administrator acts in an active host scope granted for the write's own
+operation, which tenancy establishes only under host authority from
+authorization's elevated policy and after host-scope audit. The account's owner
+acts as itself, through an undelegated session of the account, rechecked
+against the store at the write. Nothing else authorizes these writes: a tenant
+context, a tenant administrator's membership, a delegation or a service
+identity confers nothing in identity.
+
+| Write | Authorized by | Refusal |
+|---|---|---|
+| Account creation, disabling and enabling, security-state changes | A host scope for `modularyn.identity.accounts` | `MID001` |
+| Adding and removing tenant memberships | A host scope for `modularyn.identity.memberships` | `MID001` |
+| Revoking a session, revoking all of an account's sessions | The owner, or a host scope for `modularyn.identity.sessions` | `MID002` |
+| Removing a one-time-password seed, revoking a passkey | The owner, or a host scope for `modularyn.identity.credentials` | `MID002` |
+| Storing a seed, regenerating recovery codes, enrolling a passkey | The owner only | `MID003` |
+
+A refusal throws `IdentityAuthorityException` with its code and changes
+nothing. A credential that signs in as its account, and recovery codes, which
+are shown to whoever generates them, are the owner's alone; an administrator
+can only remove access. `IdentityHostOperations.Definitions` returns the four
+operations for authorization's registry; list them in the identity module's
+manifest. The module's own use cases, sign-in, validation, sign-out, a password
+change with the current password and delegations, are unchanged.
+
 ## Tenancy
 
 Every identity record is host-scoped: accounts, credentials, sessions, the
@@ -285,10 +347,11 @@ tenant, so such a request reaches that tenant only. An undelegated session
 carries no tenant claim; its tenant comes from the request's domain, route or
 header and the membership check.
 
-Identity changes its records only in owner-bound units of work, under the scopes
-in `IdentityOwnerScopes`, whether or not the request resolved a tenant, and reads
-them in unbound units. This is consistent with TM-G02-028, which keeps host
-scope from ever being applied implicitly:
+Identity changes its records in owner-bound units of work, under the scopes in
+`IdentityOwnerScopes`, whether or not the request resolved a tenant, and reads
+them in unbound units; tenant memberships are the exception, below. This is
+consistent with TM-G02-028, which keeps host scope from ever being applied
+implicitly:
 
 - **No host scope.** An owner-bound unit is confined to identity's own schema
   and tables. It reaches no tenant-scoped row, and it can neither read across
@@ -303,25 +366,24 @@ scope from ever being applied implicitly:
 - **Nothing from the tenant.** A request's tenant context is never bound to
   identity's units, so it neither widens nor narrows them, and a tenant
   administrator's membership confers nothing in identity.
-- **Administrative acts.** Identity's administrative writes have no endpoint, no
-  permission check and no audit record of their own. They are account creation,
-  disabling and enabling, security-state changes, revoking all of an account's
-  sessions, membership changes, recovery-code regeneration, and passkey enrolment
-  and revocation. Until SEC-05 gates them, any in-process caller of these
-  services performs them; SEC-07 records them.
+- **Administrative acts.** Identity's administrative writes are gated as
+  [Administration](#administration) states, before any unit opens. They have no
+  endpoint and no audit record of their own yet; SEC-07 records them.
 - **Authority data.** Under the owner-bound rule, a module writes its own
   host-scoped records without host authority. Records that are themselves
-  authority, such as permission grants or host-authority grants, must stay behind
-  the audited host scope instead; SEC-05 keeps them out of owner-bound writes.
-  Identity's tenant memberships decide who may establish a tenant context, so
-  they are access data of that kind. They are written today through identity's
-  owner-bound unit, with no permission check or audit; SEC-05 decides whether
-  they move behind the audited host scope as well.
+  authority stay behind an audited, authorized scope instead. Identity's tenant
+  memberships decide who may establish a tenant context, so they are access data
+  of that kind: they are written only in the administrator's audited host scope
+  for `modularyn.identity.memberships`, whose operation reaches identity's
+  membership table and nothing else, never in an owner-bound unit.
 
 `TenancyIntegrationTests` (`Identity.HttpApi.Tests`) resolves tenants through
-these seams with SEC-04's directory on PostgreSQL. A security-state change made
-from a tenant endpoint rotates the stamp and ends the member's sessions. The
-owner-bound unit's own tests are `OwnerBoundUnitTests` (`Framework.Tenancy.Tests`)
+these seams with SEC-04's directory on PostgreSQL. A security-state change that
+offers a tenant context as its authority is refused and changes nothing; made
+in an identity administrator's host scope, it rotates the stamp and ends the
+member's sessions. `CredentialStoreTests.TM_G02_028_*`
+(`Identity.Persistence.EfCore.Tests`) shows memberships written only in a host
+scope that reaches them. The owner-bound unit's own tests are `OwnerBoundUnitTests` (`Framework.Tenancy.Tests`)
 and `HostWriteTests` and `OwnerScopeTests` (`Framework.Persistence.EfCore.Tests`).
 
 ## Threat-model controls
@@ -343,7 +405,12 @@ evidence.
   verification, so concurrent attempts from several hosts never verify more than
   the limits allow; uniform results, responses, throttling and comparable timing
   for unknown, disabled and wrong-password attempts; no source counters for an
-  unknown source; malformed sign-in input refused before any verification. Tests:
+  unknown source; malformed sign-in input refused before any verification. From
+  SEC-05: a lagging source's own counter seeded from the account's failures, so
+  a source arriving after the owner's typos cannot renew the delay at the
+  instant the owner was told; the latest retry instant named to a blocked
+  source; a warning, once per process, at the first sign-in with no client
+  address; the conditions and the `Retry-After` guidance above. Tests:
   `Identity.Domain.Tests` `ThrottleTests`, `Identity.Application.Tests`
   `SignInTests` and `OptionsTests`, `Identity.Persistence.EfCore.Tests`
   `SessionAndLedgerTests` and `Identity.HttpApi.Tests` `SignInEndpointTests` and
@@ -367,13 +434,17 @@ evidence.
 - **TM-G02-017, partly.** Delivered: sessions, account state and delegations
   read from the store on every request, so a revocation, password change,
   disabled account or security-state change ends a session at the next request;
-  a recheck inside a running request through `IPrincipalFreshness`. Tests:
-  `Identity.Domain.Tests` `SessionRulesTests`, `Identity.Application.Tests`
-  `FreshnessTests` and `Identity.HttpApi.Tests` `RevocationTests`, all
-  `TM_G02_017_*`, and `G02AC003Tests.AC_003_B02_*`. Remaining: permissions and
-  their versions (SEC-05), which must call `SecurityStateChangedAsync` or
-  recheck their own grants; the isolation and real-provider evidence for AC-003
-  beyond AC-003-B02 (SEC-08).
+  a recheck inside a running request through `IPrincipalFreshness`; sessions
+  revoked only by their owner or an identity administrator in host scope.
+  Permissions recheck their own grants: authorization's current profile reads
+  them, and rechecks the session and membership, at every decision, and its
+  bounded profile within the declared bound (SEC-05; see
+  [authorization](../../Framework/Modularyn.Framework.Authorization/README.md#revocation-and-freshness)).
+  Tests: `Identity.Domain.Tests` `SessionRulesTests`, `Identity.Application.Tests`
+  `FreshnessTests` and `AdministrationTests` and `Identity.HttpApi.Tests`
+  `RevocationTests`, all `TM_G02_017_*`, `G02AC003Tests.AC_003_B02_*`, and
+  `Framework.Authorization.Tests` `G02AC003Tests.AC_003_B01_*`, `AC_003_R01_*`
+  and `AC_003_R02_*`. Remaining: adversarial evidence for AC-003 (SEC-08).
 - **TM-G02-018, partly.** Delivered: actor, effective subject and identity kind
   on every principal; delegation between users only, explicit, scoped, limited
   to a tenant when the grant names one, expiring and revocable, exercised only
@@ -382,10 +453,15 @@ evidence.
   `Framework.Security.Abstractions.Tests` `ExecutionPrincipalTests` and
   `ExecutionPrincipalScopeTests`, `Identity.Domain.Tests` `DelegationGrantTests`,
   `Identity.Application.Tests` `ServiceIdentityScopeTests`, all `TM_G02_018_*`,
-  and `G02AC003Tests.AC_003_B02_*`. Remaining: delegation and
-  impersonation issued by an administrator, which need a permission (SEC-05);
-  audit records of issue, use and revocation (SEC-07); jobs and handlers
-  running through `IServiceIdentityScopes` (CODE-05, with TM-G02-041).
+  and `G02AC003Tests.AC_003_B02_*`. Authorization honors the ceiling: a
+  delegated decision applies the subject's authority within the grant's scope,
+  tenant and window, a service identity's within its scope, and neither changes
+  authority (SEC-05; `Framework.Authorization.Tests` `DecisionTests` and
+  `AuthorityTests`). Remaining: delegation and impersonation issued by an
+  administrator rather than by the subject, which no G-02 work order specifies
+  as a journey; audit records of issue, use and revocation (SEC-07); jobs and
+  handlers running through `IServiceIdentityScopes` (CODE-05, with
+  TM-G02-041).
 - **TM-G02-055, done.** Delivered: salted PBKDF2-HMAC-SHA512 verifiers with
   their parameters recorded, at no fewer than 210,000 iterations; upgrade at
   sign-in; no credential, session token or verifier in a log, a response or an
@@ -395,15 +471,19 @@ evidence.
   the secret store, rotation and refusal without a usable key. Tests:
   `Identity.Domain.Tests` `CredentialFormTests`, `Identity.Application.Tests`
   `CredentialFormServiceTests` and `Identity.Persistence.EfCore.Tests`
-  `CredentialStoreTests`, all `TM_G02_056_*`. Remaining: enrolment and
-  verification journeys (G-03); evidence that a restored database is unusable
-  without the keys (CODE-10 on CI-01, with OPS-004).
+  `CredentialStoreTests`, all `TM_G02_056_*`; a seed stored only by its owner
+  and removed by its owner or an identity administrator (SEC-05). Remaining:
+  enrolment and verification journeys (G-03); evidence that a restored database
+  is unusable without the keys (CODE-10 on CI-01, with OPS-004).
 - **TM-G02-057, partly.** Delivered: the stored form, single consumption under
-  concurrency and replacement of a set. Tests: the same three classes,
-  `TM_G02_057_*`. Remaining: the recovery journey and its endpoints (G-03).
+  concurrency and replacement of a set, regenerated only by the owner (SEC-05).
+  Tests: the same three classes, `TM_G02_057_*`. Remaining: the recovery journey
+  and its endpoints (G-03).
 - **TM-G02-058, partly.** Delivered: the integrity-tagged stored form, checked
-  before use. Tests: the same three classes, `TM_G02_058_*`. Remaining: passkey
-  registration and sign-in (G-03); audit of credential changes (SEC-07).
+  before use; enrolment only by the owner and revocation by the owner or an
+  identity administrator (SEC-05). Tests: the same three classes,
+  `TM_G02_058_*`. Remaining: passkey registration and sign-in (G-03); audit of
+  credential changes (SEC-07).
 
 `G02AC003Tests.AC_003_B02_DelegationHonorsScopeExpiryAndActorIdentity_Unit` and
 `_Isolation` cover the reference case AC-003-B02: a delegated read inside its
@@ -412,11 +492,15 @@ subject and their kinds; an update outside the scope, the read after expiry and
 a revoked grant are refused; another session cannot present the grant; and a
 job started from the delegated request runs as its service identity with only
 that identity's scope. A fixture stands in for authorization's grants, which
-are SEC-05's. The unit test uses in-memory stores; the isolation test runs
+are SEC-05's; the authorization tests decide with the real evaluator. The unit test uses in-memory stores; the isolation test runs
 through the HTTP adapter on Kestrel against PostgreSQL. Tests named
 `TM_G02_004_*`, `TM_G02_025_*` and `TM_G02_048_*` cover the identity module's
 schema confinement, its membership records and tenancy seams, and its option
-validation.
+validation. `AdministrationTests.TM_G02_019_*` (`Identity.Application.Tests`)
+and `CredentialStoreTests.TM_G02_028_*` (`Identity.Persistence.EfCore.Tests`)
+cover the gate on administrative writes, which belongs to TB-G02-05 and is
+recorded with
+[authorization's controls](../../Framework/Modularyn.Framework.Authorization/README.md#threat-model-controls).
 
 TM-G02-013, on boundary TB-G02-03, is partly delivered here: the credential
 provider seam, bound to exact configured origins, and the redaction of its

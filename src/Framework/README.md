@@ -1,4 +1,4 @@
-# Framework composition, hosting, observability, configuration, ingress and tenancy
+# Framework composition, hosting, observability, configuration, ingress, tenancy and authorization
 
 `Modularyn.Framework.Modularity.Abstractions` contains immutable manifests,
 SemVer values, explicit version intervals, composition validators and lifecycle
@@ -26,6 +26,10 @@ delegated authority and service scope, the per-unit principal holder and its
 accessor, service identity scopes, the freshness recheck, `SecretText` and the client credential seam. It
 uses only the .NET shared framework, and the identity module implements it; see
 [the identity module](../Modules/Modularyn.Modules.Identity.Application/README.md).
+`Modularyn.Framework.Authorization.Abstractions` and
+`Modularyn.Framework.Authorization` hold the permission definitions, the one
+evaluator, permission and host-authority administration and the entry points;
+see [authorization](Modularyn.Framework.Authorization/README.md).
 
 ## Selection and validation
 
@@ -417,7 +421,7 @@ seams; while one is absent or fails, every operation that needs it is refused:
 |---|---|---|
 | `ITenantActorResolver` | The actor of an authenticated principal | Identity (SEC-03) |
 | `ITenantMembership` | Whether an actor is currently a member of a tenant | Identity (SEC-03); roles within a membership are authorization's (SEC-05) |
-| `IHostAuthority` | Whether an actor currently holds host authority for one operation | Authorization (SEC-05) |
+| `IHostAuthority` | Whether an actor currently holds host authority for one operation, and the operation's declared reach | Authorization (SEC-05) |
 | `IHostScopeAudit` | Records a host-scope grant before the scope exists | Audit (SEC-07) |
 
 The claim type `modularyn.tenant` is the tenant candidate that a principal may
@@ -500,9 +504,17 @@ directory, changes only in a host scope, in the persistence adapter's named
 `DeploymentScope`, which product code outside the adapter does not open, or in
 the owning module's owner-bound unit, which writes only that module's own
 host-scoped records and reaches no tenant data; a unit of work with none of them
-can only read it. A host grant names its operation, and
-`AcrossTenants` accepts any active grant: binding an operation to the modules and
-entities it may reach belongs to the elevated policy that SEC-05 supplies.
+can only read it.
+
+A host grant carries its operation, which names every entity the scope may
+reach as a module and table. `IHostAuthority` returns the operation with its
+reach, and tenancy refuses a grant for any other operation (`MTN009`). The
+persistence adapter then refuses, with `MPS043`, a cross-tenant read, a named
+tenant's update or a host-scoped write in that scope outside the reach; an
+operation such as identity's account administration, whose records the owning
+module writes in its own owner-bound unit, reaches no entity in host scope. The
+elevated policy that grants operations is
+[authorization's](Modularyn.Framework.Authorization/README.md#host-authority).
 
 ### Propagation contract for events, jobs and files
 
@@ -539,11 +551,16 @@ CODE-05 (events and jobs) and CODE-07 (Files) carry tenant context this way:
 `TenantCacheEntry`: the tenant or host scope, the owning module, its schema
 version, the principal for a principal-scoped entry, the entry name and its
 parts, each length-prefixed, so entries that differ in one dimension never share
-a key. An authorization-sensitive entry must be principal-scoped. Each entry
-declares a staleness limit of at most one day and expires at it;
-`InvalidateTenant` and `InvalidatePrincipal` make earlier entries unreachable at
-once. Concurrent misses for one key share a single build, which a waiter's
-cancellation does not cancel, and a failed build is not cached. The store is the
+a key. A host-scope entry is keyed by its grant's operation as well, so a
+scope granted for one operation never reads another's entries, and
+`InvalidateHost` and `InvalidateHostPrincipal` make an operation's entries, or
+one actor's, unreachable at once. An authorization-sensitive entry must be
+principal-scoped. Each entry declares a staleness limit of at most one day and
+expires at it; `InvalidateTenant` and `InvalidatePrincipal` make earlier entries
+unreachable at once. A fill that overruns its limit fails with
+`TenantCacheStaleException` and is not cached. Concurrent misses for one key
+share a single build, which a waiter's cancellation does not cancel, and a
+failed build is not cached. The store is the
 process's own memory cache: it has no separate outage, and it coordinates
 nothing across processes, which the single-node profile does not need.
 
@@ -559,7 +576,10 @@ job, and the others are unit tests; identity, membership, host authority and
 audit come from test doubles of their seams. SEC-08 maps every control to its
 evidence.
 The controls of TB-G02-04, identity and sessions, are recorded in
-[the identity module](../Modules/Modularyn.Modules.Identity.Application/README.md#threat-model-controls).
+[the identity module](../Modules/Modularyn.Modules.Identity.Application/README.md#threat-model-controls),
+and those of TB-G02-05, authorization, with SEC-05's parts of TM-G02-017,
+TM-G02-028 and TM-G02-033, in
+[authorization](Modularyn.Framework.Authorization/README.md#threat-model-controls).
 
 - **TM-G02-001, partly.** Delivered: the deployment lock and package integrity
   as a trust validator, and MDC108 for a host without one. Tests:
@@ -576,8 +596,11 @@ The controls of TB-G02-04, identity and sessions, are recorded in
   and `KeyRingTests.AC_031_R04_A_deployment_without_a_declared_key_ring_stays_unready_and_generates_no_keys`;
   `Ingress.Tests`
   `IngressOptionsTests.TM_G02_006_Widened_ingress_options_or_a_missing_key_ring_refuse_startup_before_module_activation`.
+  Declared permissions and host operations must match the composed manifests
+  before activation (SEC-05, `MDC310`; `Authorization.Tests`
+  `DecisionTests.TM_G02_002_*`).
   Remaining: activation only after migrations complete (CODE-03); declared
-  permissions (SEC-05) and declared endpoints (CODE-06); disabling a module with a
+  endpoints (CODE-06); disabling a module with a
   report of its dependents, active work and retained data (FND-003), which no
   G-02 work order covers: CODE-02's scope excludes it and the tool command is
   DEV-005, Tooling, at G-06. Under the restart model, a selection that drops a
@@ -669,8 +692,12 @@ The controls of TB-G02-04, identity and sessions, are recorded in
   and `G02AC004Tests.AC_004_P01_*`; the tests replace the seams with doubles.
   Identity supplies the actor and membership seams and the delegation's tenant
   claim (SEC-03; `Identity.HttpApi.Tests`
-  `TenancyIntegrationTests.TM_G02_025_*`). Remaining: the permission for the
-  requested operation and for membership administration (SEC-05); adversarial evidence for AC-004-N01 (SEC-08); the
+  `TenancyIntegrationTests.TM_G02_025_*`). The permission for the requested
+  operation is the evaluator's, within the established context, and membership
+  administration needs a host scope for identity's memberships operation that
+  reaches the membership table (SEC-05; `Authorization.Tests`
+  `G02AC003Tests.AC_003_P01_*` and `Identity.Application.Tests`
+  `AdministrationTests.TM_G02_019_*`). Remaining: adversarial evidence for AC-004-N01 (SEC-08); the
   website profile's equivalent host forms (AC-004-B03). An unavailable seam on a
   member endpoint answers 404, by design, and is logged as a warning.
 - **TM-G02-026, partly.** Delivered: a scoped `TenantExecution` for each request
@@ -688,9 +715,11 @@ The controls of TB-G02-04, identity and sessions, are recorded in
   `PropagationTests` and `PropagationDatabaseTests` (`TM_G02_027_*`, `TM_G02_041_*`)
   and `G02AC004Tests.AC_004_R01_*`, over a test work table and dispatcher.
   Remaining: the durable outbox, inbox and job store adopting the contract, with
-  AC-006 and AC-007 evidence (CODE-05); file processing steps (CODE-07); the
-  producer's permission for the specific action (SEC-05); adversarial evidence
-  for AC-004-N03 (SEC-08).
+  AC-006 and AC-007 evidence (CODE-05), running each item through
+  authorization's `AuthorizedWorkRunner`, which decides the producer's current
+  permission for the specific action before any work (SEC-05;
+  `Authorization.Tests` `G02AC003Tests.AC_003_R01_*`); file processing steps
+  (CODE-07); adversarial evidence for AC-004-N03 (SEC-08).
 - **TM-G02-028, partly.** Delivered: host scope only under host authority for a
   named operation and after its audit record is written; never derived from, or
   combined with, a tenant the request names; tenant data reached only through the
@@ -703,12 +732,13 @@ The controls of TB-G02-04, identity and sessions, are recorded in
   application and persistence projects (SEC-03). Tests: `HostScopeTests`,
   `HostScopeDatabaseTests` and `OwnerBoundUnitTests` (`Tenancy.Tests`),
   `HostWriteTests` and `OwnerScopeTests` (`Persistence.EfCore.Tests`) and
-  `PersistenceBoundaryTests` (`Repository.Tests`), all `TM_G02_028_*`. Remaining: the elevated policy
-  and host-authority grants (SEC-05), including binding a host operation to the
-  modules and entities it may reach, since `AcrossTenants` accepts any active
-  grant; the audit store, records in the transaction of the change and the
-  affected tenants (SEC-07, TM-G02-051); adversarial evidence for AC-004-N03
-  (SEC-08).
+  `PersistenceBoundaryTests` (`Repository.Tests`), all `TM_G02_028_*`. Each
+  host grant reaches only the entities its operation declares, on every host
+  path (SEC-05; `HostScopeTests.TM_G02_028_*` and
+  `HostScopeDatabaseTests.TM_G02_028_*`); the elevated policy and host-authority
+  grants are authorization's. Remaining: the audit store, records in the
+  transaction of the change and the affected tenants (SEC-07, TM-G02-051);
+  adversarial evidence for AC-004-N03 (SEC-08).
 - **TM-G02-029, tenant part (SEC-04), partly.** Delivered: every root entity
   declares its scope; the tenant and scope filters on CODE-03's seam for every
   tenant-scoped entity, on the EF and direct-SQL paths; the query guard, which
@@ -730,16 +760,19 @@ The controls of TB-G02-04, identity and sessions, are recorded in
   version, principal for principal-scoped entries, name and parts; declared
   staleness of at most a day; tenant and principal invalidation. Tests:
   `TenantCacheTests` (`TM_G02_033_*`) and `G02AC004Tests.AC_004_P01_*` and
-  `AC_004_B01_*`. Remaining: invalidation on grant, capability and setting changes
-  (SEC-05, CODE-04); the freshness bound for authorization entries (TM-G02-017,
-  SEC-03 and SEC-05); bootstrap configuration (TM-G02-014, CODE-04); adversarial
-  evidence for AC-004-B02 (SEC-08).
+  `AC_004_B01_*`. Host-scope entries keyed by their grant's operation and
+  invalidated with it, and authority entries invalidated on every grant change
+  and expiring at the declared freshness bound (SEC-05); settings and features
+  invalidated on change (CODE-04). Remaining: bootstrap configuration
+  (TM-G02-014, CODE-04); adversarial evidence for AC-004-B02 (SEC-08).
 - **TM-G02-034, partly.** Delivered: one shared build for concurrent misses,
   independent of a waiter's cancellation, no cached failures, and the declared
   outage behavior of an in-process store that coordinates nothing across
-  processes. Tests: `TenantCacheTests.TM_G02_034_*`. Remaining: the settings and
-  feature caches (CODE-04); the operational-recovery evidence of AC-030, a
-  website-profile family outside the G-02 reference plan.
+  processes. Tests: `TenantCacheTests.TM_G02_034_*`. The settings and feature
+  caches use it (CODE-04), and a settings fill that overruns its staleness bound
+  is reported as `ValueUnavailableException` (SEC-05; `Settings.Tests`
+  `ManagementTests.TM_G02_034_*`). Remaining: the operational-recovery evidence
+  of AC-030, a website-profile family outside the G-02 reference plan.
 
 ## Coverage and verification
 

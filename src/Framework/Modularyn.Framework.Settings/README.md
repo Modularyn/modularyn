@@ -44,11 +44,25 @@ require its current version, obtained from `ReadOverrideAsync` or the effective
 result when that scope is selected. Each write owns a tracked unit and commits
 before invalidating caches. Conflicts and rollbacks leave the committed value
 in place. Global writes require an explicit host context granted for
-`SettingsService.GlobalOperationId`; a grant for another operation is refused. Tenant and user rows
-carry `TenantId` in their composite primary key. The module owns its schema,
-migration and history; it uses the persistence adapter's query and write guards.
-`SettingsTimestamp.Normalize` is the one boundary for stored update times:
-UTC whole microseconds, read from the registered `TimeProvider`.
+`SettingsService.GlobalOperationId`; a grant for another operation is refused,
+and the operation, `SettingsModule.GlobalOperation`, reaches the global values
+and nothing else. Tenant and user rows carry `TenantId` in their composite
+primary key. The module owns its schema, migration and history; it uses the
+persistence adapter's query and write guards. `SettingsTimestamp.Normalize` is
+the one boundary for stored update times: UTC whole microseconds, read from the
+registered `TimeProvider`.
+
+Every write and reset takes the caller's `ExecutionPrincipal`. A tenant
+override needs `modularyn.settings.tenant-overrides` and a user override
+`modularyn.settings.user-overrides`, which `SettingsModule.Permissions` declares
+for the manifest and authorization's registry. The registered
+`IPermissionEvaluator` decides the permission at the current profile, from the
+store and with the principal rechecked, before any unit opens; a refusal throws
+`ValueAccessDeniedException` with the decision's code and changes nothing. A
+user override is the acting user's own, so none is written under a delegation
+(`MAZ004`). While no evaluator is registered, every tenant and user write and
+reset is refused (`MAZ008`). Effective reads need no permission beyond the
+tenant context.
 
 Secret definitions have an unset default and accept only an explicit
 `SecretReference`, and only as a global override under the settings host
@@ -63,14 +77,16 @@ Inspection, formatting and serialization mask a secret setting. Each
 `ResolveSecretAsync` call invokes the existing `ISecretStore` afresh and returns
 a caller-owned `SecretValue`, which the caller disposes. Rotation of mounted
 content is therefore independent of reference-cache expiry. This project adds
-no secret store or authorization policy.
+no secret store.
 
 `FeatureService.ResolveAsync` reports the configured flag and its source.
 `IsEnabledAsync` also calls the separately supplied `IFeatureGate` on each
-operation; no gate means no enabled operation. Permission and entitlement
-implementations attach there. Settings and flags never confer authority, alter
-installed composition, or expose client configuration endpoints. Management
-authorization and audit integrations belong at the application boundary.
+operation; no gate means no enabled operation. Entitlement implementations
+(G-03) attach there; a permission is never a feature, and the evaluator decides
+it separately. Settings and flags never confer authority, alter
+installed composition, or expose client configuration endpoints. Feature
+management goes through the settings gate, with the same permission as the
+override at that scope. Audit of management changes is SEC-07's.
 
 ## Cache and work lifetime
 
@@ -84,7 +100,9 @@ a fill; a cancelled waiter does not cancel other waiters.
 
 Each definition declares a positive maximum staleness of at most one day.
 The injected clock measures it from the start of the fill, including database
-read time. An overlong fill fails and is not cached. Each fill captures a
+read time. An overlong fill fails with `ValueUnavailableException`, as any other
+unavailable read does, and is not cached; the caller's own cancellation still
+surfaces as a cancellation. Each fill captures a
 `PropagatedTenantContext` and executes through `TenantWorkRunner`, in its own
 revalidated scope with cancellation at the staleness deadline. No request's database context is
 shared with a detached fill. A context that ends while awaiting a fill cannot
@@ -105,12 +123,16 @@ validation, conflicts, rollback, clock precision, independent caches, recovery
 and context boundaries. Secret tests use the real mounted-file store and
 inspect actual PostgreSQL rows, logs and EF diagnostics for generated canaries.
 Unit checks cover definitions, cache races and module localization fallback.
+`ManagementTests` covers the management gate against PostgreSQL with a stand-in
+evaluator, and the report of a fill that overruns its bound; the authorization
+tests repeat the gate with the real evaluator, grants and sessions.
 
 Every real-provider test has `Requires=PostgreSQL`. Fixtures read
 `MODULARYN_TEST_POSTGRESQL`, acquire the shared `PostgreSqlTestLock`, migrate
 fresh schemas in the supplied database, and drop only their own schemas. They
-need no elevated database role. Identity, membership and host-authority test
-seams supply fixture contexts only and establish no security qualification.
+need no elevated database role. Identity, membership, host-authority and
+permission test seams supply fixture contexts only and establish no security
+qualification.
 
 The Builder must restore and validate the dependency locks, build Release,
 run the unit suite and the repository's PostgreSQL script, and collect all six

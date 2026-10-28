@@ -129,6 +129,13 @@ tenant-scoped data either (`MPS038`), except one named tenant's row through
 `ModuleSql.UpdateForTenantAsync`, for records the host keeps about tenant work,
 such as a denied disposition.
 
+A host grant reaches only the entities its operation declares, each named by
+its module and table, with an owned type following the entity that owns it.
+`AcrossTenants`, `UpdateForTenantAsync` and every host-scoped write in a host
+scope, on the EF and direct-SQL paths, refuse any other entity (`MPS043`). An
+operation whose module writes its records in its own owner-bound unit declares
+no reach, so its host scope reaches nothing here.
+
 Host scope is never applied implicitly. Host-scoped data changes only in an
 active host scope, which the tenancy runtime grants under host authority and
 audit, in a `DeploymentScope`, which names its operation and reason and exists
@@ -160,10 +167,13 @@ context, for its own use cases.
   its own host-scoped records during a tenant request begins an owner-bound unit
   for them, separately from its tenant units.
 - **Not authorization, and not for authority.** Who may invoke the use case that
-  opens it belongs to authorization. Records that are themselves authority, such
-  as permission grants or host-authority grants, stay behind the audited host
-  scope rather than in owner-bound writes; SEC-05 makes that rule and gates the
-  administrative use cases that open owner-bound units today.
+  opens it belongs to authorization, which gates identity's administrative use
+  cases with a host scope for their own operation or the account owner's own
+  session. Records that are themselves authority, such as permission grants,
+  role memberships, host-authority grants and identity's tenant memberships,
+  are never written in an owner-bound unit: they change only in a tenant unit
+  of an authorized, audited change or in an audited host scope that reaches
+  them (SEC-05).
 
 The repository test `PersistenceBoundaryTests` keeps deployment scopes out of
 product source outside this adapter, and allows `BeginOwnedAsync` and
