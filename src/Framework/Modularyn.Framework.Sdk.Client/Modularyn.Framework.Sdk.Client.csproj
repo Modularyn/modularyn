@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../Modularyn.Framework.Api.Contracts/Modularyn.Framework.Api.Contracts.csproj" />
+    <ProjectReference Include="../Modularyn.Framework.Security.Abstractions/Modularyn.Framework.Security.Abstractions.csproj" />
+  </ItemGroup>
+</Project>

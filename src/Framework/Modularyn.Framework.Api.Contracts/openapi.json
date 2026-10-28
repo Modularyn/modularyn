@@ -1,0 +1,1560 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Modularyn API",
+    "version": "2"
+  },
+  "x-modularyn-oldest-version": 1,
+  "paths": {
+    "/api/v1/t/{tenant}/configuration": {
+      "get": {
+        "operationId": "GetConfigurationV1",
+        "deprecated": false,
+        "x-modularyn-authorization": "MemberOnly",
+        "x-modularyn-permission": null,
+        "x-modularyn-client-visible": true,
+        "x-modularyn-version": 1,
+        "x-modularyn-idempotent": false,
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authoritative response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BootstrapConfiguration"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Transport or endpoint refusal",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "explicitCredential": []
+          }
+        ]
+      }
+    },
+    "/api/v2/t/{tenant}/configuration": {
+      "get": {
+        "operationId": "GetConfigurationV2",
+        "deprecated": false,
+        "x-modularyn-authorization": "MemberOnly",
+        "x-modularyn-permission": null,
+        "x-modularyn-client-visible": true,
+        "x-modularyn-version": 2,
+        "x-modularyn-idempotent": false,
+        "parameters": [
+          {
+            "name": "tenant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authoritative response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BootstrapConfiguration"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Transport or endpoint refusal",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Modularyn-Api-Version": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "explicitCredential": []
+          }
+        ]
+      }
+    },
+    "/identity/sign-in": {
+      "post": {
+        "operationId": "SignInV1",
+        "deprecated": false,
+        "x-modularyn-authorization": "Anonymous",
+        "x-modularyn-permission": null,
+        "x-modularyn-client-visible": false,
+        "x-modularyn-version": 1,
+        "x-modularyn-idempotent": false,
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Authoritative response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "redirect": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "redirect"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Transport or endpoint refusal",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userName": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string",
+                    "writeOnly": true
+                  },
+                  "returnUrl": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "userName",
+                  "password"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/identity/sign-out": {
+      "post": {
+        "operationId": "SignOutV1",
+        "deprecated": false,
+        "x-modularyn-authorization": "Anonymous",
+        "x-modularyn-permission": null,
+        "x-modularyn-client-visible": false,
+        "x-modularyn-version": 1,
+        "x-modularyn-idempotent": false,
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Authoritative response",
+            "content": {},
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Transport or endpoint refusal",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {}
+        ]
+      }
+    },
+    "/identity/antiforgery": {
+      "get": {
+        "operationId": "GetAntiforgeryV1",
+        "deprecated": false,
+        "x-modularyn-authorization": "Anonymous",
+        "x-modularyn-permission": null,
+        "x-modularyn-client-visible": false,
+        "x-modularyn-version": 1,
+        "x-modularyn-idempotent": false,
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Authoritative response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "requestToken": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "requestToken"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Transport or endpoint refusal",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/identity/current-user": {
+      "get": {
+        "operationId": "GetCurrentUserV1",
+        "deprecated": false,
+        "x-modularyn-authorization": "Anonymous",
+        "x-modularyn-permission": null,
+        "x-modularyn-client-visible": false,
+        "x-modularyn-version": 1,
+        "x-modularyn-idempotent": false,
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Authoritative response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "actor": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "user",
+                            "service"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "kind"
+                      ]
+                    },
+                    "effectiveSubject": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "user",
+                            "service"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "kind"
+                      ]
+                    },
+                    "delegated": {
+                      "type": "boolean"
+                    },
+                    "delegationId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "delegatedScope": {
+                      "anyOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "delegationPurpose": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "delegationTenant": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "delegationExpiresAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "serviceScope": {
+                      "anyOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "authenticatedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "actor",
+                    "effectiveSubject",
+                    "delegated",
+                    "delegationId",
+                    "delegatedScope",
+                    "delegationPurpose",
+                    "delegationTenant",
+                    "delegationExpiresAt",
+                    "serviceScope",
+                    "authenticatedAt"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Declared failure",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "code"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Transport or endpoint refusal",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/health/live": {
+      "get": {
+        "operationId": "GetLivenessV1",
+        "deprecated": false,
+        "x-modularyn-authorization": "Anonymous",
+        "x-modularyn-permission": null,
+        "x-modularyn-client-visible": false,
+        "x-modularyn-version": 1,
+        "x-modularyn-idempotent": false,
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Authoritative response",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "Healthy",
+                    "Degraded",
+                    "Unhealthy"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Declared failure",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "Healthy",
+                    "Degraded",
+                    "Unhealthy"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Transport or endpoint refusal",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "GetReadinessV1",
+        "deprecated": false,
+        "x-modularyn-authorization": "Anonymous",
+        "x-modularyn-permission": null,
+        "x-modularyn-client-visible": false,
+        "x-modularyn-version": 1,
+        "x-modularyn-idempotent": false,
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Authoritative response",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "Healthy",
+                    "Degraded",
+                    "Unhealthy"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Declared failure",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "Healthy",
+                    "Degraded",
+                    "Unhealthy"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Transport or endpoint refusal",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "headers": {
+              "Modularyn-Correlation": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BootstrapConfiguration": {
+        "type": "object",
+        "properties": {
+          "settings": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "features": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "boolean",
+                "null"
+              ]
+            }
+          }
+        },
+        "required": [
+          "settings",
+          "features"
+        ]
+      },
+      "Problem": {
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code",
+          "correlationId"
+        ],
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "code": {
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "operationId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "errors": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "explicitCredential": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization",
+        "description": "Explicit credential obtained for this origin from the host\u0027s credential provider."
+      },
+      "session": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-Modularyn-Session"
+      }
+    }
+  }
+}

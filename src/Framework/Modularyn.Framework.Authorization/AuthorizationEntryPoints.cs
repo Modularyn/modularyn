@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Modularyn.Framework.Api.Contracts;
 using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Security.Abstractions;
 using Modularyn.Framework.Tenancy;
@@ -70,7 +71,12 @@ internal static partial class PermissionEndpointGuard
     {
         context.Response.StatusCode = Status(decision.Code!);
         context.Response.Headers.CacheControl = "no-store";
-        return context.Response.WriteAsJsonAsync(new Refusal(decision.Code!), context.RequestAborted);
+        var correlation = context.Response.Headers[FrameworkApi.CorrelationHeader].ToString();
+        if (correlation.Length == 0) correlation = context.TraceIdentifier;
+        context.Response.Headers[FrameworkApi.CorrelationHeader] = correlation;
+        return context.Response.WriteAsJsonAsync(new ApiProblem("urn:modularyn:problem:" + decision.Code,
+            "The request was refused.", context.Response.StatusCode, decision.Code!, correlation), options: null,
+            contentType: "application/problem+json", cancellationToken: context.RequestAborted);
     }
 
     internal static int Status(string code) => code switch
@@ -81,8 +87,6 @@ internal static partial class PermissionEndpointGuard
         AuthorizationCodes.NoTenantContext => StatusCodes.Status500InternalServerError,
         _ => StatusCodes.Status403Forbidden
     };
-
-    private sealed record Refusal(string Code);
 
     [LoggerMessage(EventId = 8303, Level = LogLevel.Error,
         Message = "An endpoint that requires a permission ran without a tenant context or an evaluator. Declare RequireTenantMember and register authorization.")]
@@ -197,6 +201,7 @@ internal sealed partial class AuthorizationEntryPointReporter(IServiceProvider s
         {
             if (point.Kind == AuthorizationEntryPointKind.InterceptionOnly) InterceptionOnly(logger, string.Join(",", point.Methods), point.Route);
             else if (point.Kind == AuthorizationEntryPointKind.Undeclared) Undeclared(logger, string.Join(",", point.Methods), point.Route);
+            else if (point.Kind == AuthorizationEntryPointKind.MemberOnly) MemberOnly(logger, string.Join(",", point.Methods), point.Route);
         }
     }
 
@@ -209,4 +214,8 @@ internal sealed partial class AuthorizationEntryPointReporter(IServiceProvider s
     [LoggerMessage(EventId = 8305, Level = LogLevel.Warning,
         Message = "Endpoint {Methods} {Route} declares no authorization. Declare RequirePermission, host authority or explicit anonymous access.")]
     private static partial void Undeclared(ILogger logger, string methods, string route);
+
+    [LoggerMessage(EventId = 8306, Level = LogLevel.Warning,
+        Message = "Endpoint {Methods} {Route} requires tenant membership only; no operation permission is declared.")]
+    private static partial void MemberOnly(ILogger logger, string methods, string route);
 }

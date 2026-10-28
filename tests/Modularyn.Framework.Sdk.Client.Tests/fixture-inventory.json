@@ -1,0 +1,524 @@
+{
+  "oldestVersion": 1,
+  "currentVersion": 2,
+  "models": [
+    {
+      "name": "BootstrapConfiguration",
+      "fields": [
+        {
+          "name": "Settings",
+          "type": "values",
+          "nullable": false
+        },
+        {
+          "name": "Features",
+          "type": "values",
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "ItemView",
+      "fields": [
+        {
+          "name": "Id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "Title",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "Note",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "Version",
+          "type": "uuid",
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "CreateItemRequest",
+      "fields": [
+        {
+          "name": "Title",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "Note",
+          "type": "string",
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "name": "UpdateItemRequest",
+      "fields": [
+        {
+          "name": "Title",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "Note",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "Version",
+          "type": "uuid",
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "name": "OperationView",
+      "fields": [
+        {
+          "name": "OperationId",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "State",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "Item",
+          "type": "ItemView",
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "name": "CheckpointView",
+      "fields": [
+        {
+          "name": "State",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    }
+  ],
+  "endpoints": [
+    {
+      "name": "GetConfiguration",
+      "method": "GET",
+      "route": "/api/v{version}/t/{tenant}/configuration",
+      "authorization": "MemberOnly",
+      "permission": null,
+      "clientVisible": true,
+      "request": null,
+      "response": "BootstrapConfiguration",
+      "mutation": false,
+      "idempotent": false,
+      "versioned": true,
+      "deprecated": false
+    },
+    {
+      "name": "SignIn",
+      "method": "POST",
+      "route": "/identity/sign-in",
+      "authorization": "Anonymous",
+      "permission": null,
+      "clientVisible": false,
+      "request": null,
+      "response": null,
+      "mutation": true,
+      "idempotent": false,
+      "versioned": false,
+      "deprecated": false,
+      "authentication": "none",
+      "legacyErrors": true,
+      "requestSchema": {
+        "type": "object",
+        "properties": {
+          "userName": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "returnUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "userName",
+          "password"
+        ]
+      },
+      "responseSchema": {
+        "type": "object",
+        "properties": {
+          "redirect": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "redirect"
+        ]
+      },
+      "errorStatuses": [
+        400,
+        401,
+        415,
+        429,
+        503
+      ]
+    },
+    {
+      "name": "SignOut",
+      "method": "POST",
+      "route": "/identity/sign-out",
+      "authorization": "Anonymous",
+      "permission": null,
+      "clientVisible": false,
+      "request": null,
+      "response": null,
+      "mutation": true,
+      "idempotent": false,
+      "versioned": false,
+      "deprecated": false,
+      "authentication": "session",
+      "legacyErrors": true,
+      "successStatus": 204,
+      "optionalAuthentication": true,
+      "errorStatuses": [
+        400,
+        403,
+        503
+      ]
+    },
+    {
+      "name": "GetAntiforgery",
+      "method": "GET",
+      "route": "/identity/antiforgery",
+      "authorization": "Anonymous",
+      "permission": null,
+      "clientVisible": false,
+      "request": null,
+      "response": null,
+      "mutation": false,
+      "idempotent": false,
+      "versioned": false,
+      "deprecated": false,
+      "authentication": "none",
+      "legacyErrors": true,
+      "responseSchema": {
+        "type": "object",
+        "properties": {
+          "requestToken": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestToken"
+        ]
+      },
+      "errorStatuses": [
+        503
+      ]
+    },
+    {
+      "name": "GetCurrentUser",
+      "method": "GET",
+      "route": "/identity/current-user",
+      "authorization": "Anonymous",
+      "permission": null,
+      "clientVisible": false,
+      "request": null,
+      "response": null,
+      "mutation": false,
+      "idempotent": false,
+      "versioned": false,
+      "deprecated": false,
+      "authentication": "session",
+      "legacyErrors": true,
+      "responseSchema": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "service"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "kind"
+            ]
+          },
+          "effectiveSubject": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "service"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "kind"
+            ]
+          },
+          "delegated": {
+            "type": "boolean"
+          },
+          "delegationId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "delegatedScope": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "delegationPurpose": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "delegationTenant": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "delegationExpiresAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "serviceScope": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "authenticatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "actor",
+          "effectiveSubject",
+          "delegated",
+          "delegationId",
+          "delegatedScope",
+          "delegationPurpose",
+          "delegationTenant",
+          "delegationExpiresAt",
+          "serviceScope",
+          "authenticatedAt"
+        ]
+      },
+      "errorStatuses": [
+        401,
+        503
+      ]
+    },
+    {
+      "name": "GetLiveness",
+      "method": "GET",
+      "route": "/health/live",
+      "authorization": "Anonymous",
+      "permission": null,
+      "clientVisible": false,
+      "request": null,
+      "response": null,
+      "mutation": false,
+      "idempotent": false,
+      "versioned": false,
+      "deprecated": false,
+      "authentication": "none",
+      "legacyErrors": false,
+      "responseMediaType": "text/plain",
+      "responseSchema": {
+        "type": "string",
+        "enum": [
+          "Healthy",
+          "Degraded",
+          "Unhealthy"
+        ]
+      },
+      "errorStatuses": [
+        503
+      ]
+    },
+    {
+      "name": "GetReadiness",
+      "method": "GET",
+      "route": "/health/ready",
+      "authorization": "Anonymous",
+      "permission": null,
+      "clientVisible": false,
+      "request": null,
+      "response": null,
+      "mutation": false,
+      "idempotent": false,
+      "versioned": false,
+      "deprecated": false,
+      "authentication": "none",
+      "legacyErrors": false,
+      "responseMediaType": "text/plain",
+      "responseSchema": {
+        "type": "string",
+        "enum": [
+          "Healthy",
+          "Degraded",
+          "Unhealthy"
+        ]
+      },
+      "errorStatuses": [
+        503
+      ]
+    },
+    {
+      "name": "GetItem",
+      "method": "GET",
+      "route": "/api/v{version}/t/{tenant}/items/{id}",
+      "authorization": "Permission",
+      "permission": "item.read",
+      "clientVisible": true,
+      "request": null,
+      "response": "ItemView",
+      "mutation": false,
+      "idempotent": false,
+      "versioned": true,
+      "deprecated": false
+    },
+    {
+      "name": "CreateItem",
+      "method": "POST",
+      "route": "/api/v{version}/t/{tenant}/items",
+      "authorization": "Permission",
+      "permission": "item.update",
+      "clientVisible": true,
+      "request": "CreateItemRequest",
+      "response": "ItemView",
+      "mutation": true,
+      "idempotent": true,
+      "versioned": true,
+      "deprecated": false
+    },
+    {
+      "name": "UpdateItem",
+      "method": "PUT",
+      "route": "/api/v{version}/t/{tenant}/items/{id}",
+      "authorization": "Permission",
+      "permission": "item.update",
+      "clientVisible": true,
+      "request": "UpdateItemRequest",
+      "response": "ItemView",
+      "mutation": true,
+      "idempotent": true,
+      "versioned": true,
+      "deprecated": false
+    },
+    {
+      "name": "GetOperation",
+      "method": "GET",
+      "route": "/api/v{version}/t/{tenant}/operations/{id}",
+      "authorization": "Permission",
+      "permission": "item.read",
+      "clientVisible": true,
+      "request": null,
+      "response": "OperationView",
+      "mutation": false,
+      "idempotent": false,
+      "versioned": true,
+      "deprecated": false
+    },
+    {
+      "name": "GetCheckpoint",
+      "method": "GET",
+      "route": "/api/v{version}/t/{tenant}/checkpoints/{id}",
+      "authorization": "Permission",
+      "permission": "item.read",
+      "clientVisible": true,
+      "request": null,
+      "response": "CheckpointView",
+      "mutation": false,
+      "idempotent": false,
+      "versioned": true,
+      "deprecated": false
+    }
+  ]
+}

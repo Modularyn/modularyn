@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Modularyn.Framework.Api.Contracts;
+using Modularyn.Framework.Api;
 
 namespace Modularyn.Framework.Hosting;
 
@@ -17,8 +19,10 @@ public static class ModuleHealthChecks
         string livenessPattern = "/health/live", string readinessPattern = "/health/ready")
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        endpoints.MapHealthChecks(livenessPattern, Options(LivenessTag)).WithMetadata(new HealthEndpoint());
-        endpoints.MapHealthChecks(readinessPattern, Options(ReadinessTag)).WithMetadata(new HealthEndpoint());
+        endpoints.MapHealthChecks(livenessPattern, Options(LivenessTag)).WithMetadata(new HealthEndpoint(), new HttpMethodMetadata(["GET"]))
+            .AllowAnonymous().WithApiContract(FrameworkApi.Endpoint("GetLiveness") with { Route = livenessPattern });
+        endpoints.MapHealthChecks(readinessPattern, Options(ReadinessTag)).WithMetadata(new HealthEndpoint(), new HttpMethodMetadata(["GET"]))
+            .AllowAnonymous().WithApiContract(FrameworkApi.Endpoint("GetReadiness") with { Route = readinessPattern });
         return endpoints;
     }
 
