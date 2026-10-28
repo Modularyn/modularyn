@@ -23,7 +23,7 @@ public sealed class LeakTests(ITestOutputHelper output)
         var password = Generated.Password();
         var wrong = Generated.Password();
         var replacement = Generated.Password();
-        var account = (await accounts.CreateLocalAccountAsync("admin-1", new SecretText(password), Cancellation)).AccountId!.Value;
+        var account = (await accounts.CreateLocalAccountAsync(await server.Administrator.AccountsAsync(), "admin-1", new SecretText(password), Cancellation)).AccountId!.Value;
         var seen = new List<string>();
         async Task Record(HttpResponseMessage response) =>
             seen.Add(response.StatusCode + " " + string.Join("|", response.Headers.Where(header => header.Key != "Set-Cookie").Select(header => header.Key + "=" + string.Join(",", header.Value)))
@@ -38,10 +38,13 @@ public sealed class LeakTests(ITestOutputHelper output)
         await Record(await browser.SendAsync(HttpMethod.Get, IdentityEndpoints.CurrentUserPath, delegation: Guid.NewGuid()));
         var verifier = await database.ScalarAsync<string>("SELECT \"PasswordHash\" FROM " + database.Table("Accounts"));
 
-        var codes = await server.Get<IRecoveryCodes>().GenerateAsync(account, Cancellation);
+        // Recovery codes and seeds are the owner's own to set up, through its own current session.
+        var owner = IdentityAuthority.Owner((await server.Get<ISessionService>().ValidateAsync(SessionToken.TryParse(token, out var parsed) ? parsed
+            : throw new InvalidOperationException("The browser holds no session."), Cancellation))!.ToPrincipal());
+        var codes = await server.Get<IRecoveryCodes>().GenerateAsync(owner, account, Cancellation);
         Assert.Equal(CredentialVerification.Accepted, await server.Get<IRecoveryCodes>().ConsumeAsync(account, codes.Codes[0], "203.0.113.4", Cancellation));
         var seed = RandomNumberGenerator.GetBytes(20);
-        await server.Get<IAuthenticatorSeeds>().StoreAsync(account, seed, Cancellation);
+        await server.Get<IAuthenticatorSeeds>().StoreAsync(owner, account, seed, Cancellation);
         Assert.Equal(CredentialVerification.Accepted, await server.Get<IAuthenticatorSeeds>().VerifyAsync(account, presented => presented.Span.SequenceEqual(seed), "203.0.113.4", Cancellation));
         Assert.Equal(PasswordChangeStatus.CurrentPasswordRejected,
             (await accounts.ChangePasswordAsync(account, new SecretText(wrong), new SecretText(replacement), "203.0.113.4", Cancellation)).Status);
@@ -54,7 +57,7 @@ public sealed class LeakTests(ITestOutputHelper output)
 
         // Exceptions raised by refusals carry no credential either.
         var exceptions = new List<string>();
-        try { await server.Get<IAuthenticatorSeeds>().StoreAsync(account, seed.AsMemory(0, 4), Cancellation); }
+        try { await server.Get<IAuthenticatorSeeds>().StoreAsync(owner, account, seed.AsMemory(0, 4), Cancellation); }
         catch (ArgumentException exception) { exceptions.Add(exception.ToString()); }
         try { new DelegationRequest(account, account, ["item.*"], password, null, server.Clock.Now.AddHours(1)).ToString(); }
         catch (ArgumentException exception) { exceptions.Add(exception.ToString()); }

@@ -65,8 +65,8 @@ public sealed class PasswordVerifierTests(ITestOutputHelper output)
         await using var database = await IdentityDatabase.CreateAsync();
         await using var identity = PostgreSqlIdentity.Create(database);
         var password = Generated.Password();
-        var first = await identity.Get<IAccountService>().CreateLocalAccountAsync("account-1", new Framework.Security.Abstractions.SecretText(password), TestContext.Current.CancellationToken);
-        var second = await identity.Get<IAccountService>().CreateLocalAccountAsync("account-2", new Framework.Security.Abstractions.SecretText(password), TestContext.Current.CancellationToken);
+        var first = await identity.Get<IAccountService>().CreateLocalAccountAsync(await identity.Administrator.AccountsAsync(), "account-1", new Framework.Security.Abstractions.SecretText(password), TestContext.Current.CancellationToken);
+        var second = await identity.Get<IAccountService>().CreateLocalAccountAsync(await identity.Administrator.AccountsAsync(), "account-2", new Framework.Security.Abstractions.SecretText(password), TestContext.Current.CancellationToken);
         var (hashA, _) = await StoredAsync(database, first.AccountId!.Value);
         var (hashB, _) = await StoredAsync(database, second.AccountId!.Value);
         var described = Describe(hashA);

@@ -109,10 +109,14 @@ public enum PasswordChangeStatus
 
 public sealed record PasswordChangeResult(PasswordChangeStatus Status, DateTimeOffset? RetryAt);
 
-/// <summary>Local account administration. Each security-relevant change ends the account's sessions at their next request.</summary>
+/// <summary>
+/// Local account administration. Each security-relevant change ends the account's sessions at their next request. The
+/// administrative writes need an audited host scope granted for <see cref="IdentityHostOperations.Accounts"/>; a password
+/// change needs the current password instead.
+/// </summary>
 public interface IAccountService
 {
-    Task<AccountCreationResult> CreateLocalAccountAsync(string userName, SecretText password, CancellationToken cancellationToken);
+    Task<AccountCreationResult> CreateLocalAccountAsync(IdentityAuthority authority, string userName, SecretText password, CancellationToken cancellationToken);
 
     /// <summary>
     /// Changes the password after verifying the current one, which counts against the same per-account and per-source limits
@@ -122,27 +126,28 @@ public interface IAccountService
         CancellationToken cancellationToken);
 
     /// <summary>Disables the account and ends its sessions. False when the account does not exist.</summary>
-    Task<bool> DisableAsync(Guid accountId, CancellationToken cancellationToken);
+    Task<bool> DisableAsync(IdentityAuthority authority, Guid accountId, CancellationToken cancellationToken);
 
-    Task<bool> EnableAsync(Guid accountId, CancellationToken cancellationToken);
+    Task<bool> EnableAsync(IdentityAuthority authority, Guid accountId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Records a change to the account's security-relevant state made elsewhere, such as a role removal that must not wait for
     /// sessions to expire: the security stamp rotates and every session ends. False when the account does not exist.
     /// </summary>
-    Task<bool> SecurityStateChangedAsync(Guid accountId, CancellationToken cancellationToken);
+    Task<bool> SecurityStateChangedAsync(IdentityAuthority authority, Guid accountId, CancellationToken cancellationToken);
 }
 
 /// <summary>
 /// Global accounts' tenant memberships (the master design's shared account with explicit memberships). Removing a
-/// membership never deletes the account, and takes effect when the next tenant context is established. Who may add or
-/// remove a member is a permission that authorization supplies; no endpoint exposes these operations.
+/// membership never deletes the account, and takes effect when the next tenant context is established. A membership
+/// decides who may establish a tenant context, so it changes only in an audited host scope granted for
+/// <see cref="IdentityHostOperations.Memberships"/>, and is written in that scope. No endpoint exposes these operations.
 /// </summary>
 public interface ITenantMemberships
 {
-    Task<bool> AddMemberAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken);
+    Task<bool> AddMemberAsync(IdentityAuthority authority, Guid accountId, Guid tenantId, CancellationToken cancellationToken);
 
-    Task<bool> RemoveMemberAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken);
+    Task<bool> RemoveMemberAsync(IdentityAuthority authority, Guid accountId, Guid tenantId, CancellationToken cancellationToken);
 
     /// <summary>True only for an existing, enabled account that is currently a member of the tenant.</summary>
     Task<bool> IsMemberAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken);

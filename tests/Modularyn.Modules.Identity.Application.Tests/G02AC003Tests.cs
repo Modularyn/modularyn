@@ -144,7 +144,7 @@ public sealed class G02AC003Tests(ITestOutputHelper output)
         foreach (var name in new[] { "user-1", "support-1", "support-2" })
         {
             passwords[name] = Generated.Password();
-            ids[name] = (await accounts.CreateLocalAccountAsync(name, new SecretText(passwords[name]), Cancellation)).AccountId!.Value;
+            ids[name] = (await accounts.CreateLocalAccountAsync(await server.Administrator.AccountsAsync(), name, new SecretText(passwords[name]), Cancellation)).AccountId!.Value;
         }
         grants[ids["user-1"].ToString("D")] = ["item.read", "item.update"];
         var browsers = new Dictionary<string, Browser>();

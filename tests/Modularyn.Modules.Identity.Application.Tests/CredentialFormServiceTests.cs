@@ -19,12 +19,13 @@ public sealed class CredentialFormServiceTests
     public async Task TM_G02_056_Seeds_are_encrypted_under_versioned_keys_and_survive_rotation()
     {
         using var keys = new CredentialKeyDirectory(1, 2);
-        var account = Guid.NewGuid();
+        Guid account;
         var seed = Bytes.Random(20);
         ProtectedSeed stored;
         await using (var before = UnitIdentity.Create(keys.Settings(1, 1)))
         {
-            await before.Get<IAuthenticatorSeeds>().StoreAsync(account, seed, Cancellation);
+            (account, var owner) = await before.OwnerAsync("admin-1");
+            await before.Get<IAuthenticatorSeeds>().StoreAsync(owner, account, seed, Cancellation);
             stored = before.Stores.Seeds[account];
             Assert.Equal(1, stored.KeyVersion);
             Assert.Equal((12, 16, 20), (stored.Nonce.Length, stored.Tag.Length, stored.Ciphertext.Length));
@@ -39,10 +40,20 @@ public sealed class CredentialFormServiceTests
         after.Stores.Seeds[account] = stored;
         var seeds = after.Get<IAuthenticatorSeeds>();
         Assert.Equal(CredentialVerification.Accepted, await seeds.VerifyAsync(account, Equals(seed), "src-1", Cancellation));
-        var second = Guid.NewGuid();
-        await seeds.StoreAsync(second, seed, Cancellation);
+        var (second, secondOwner) = await after.OwnerAsync("editor-1");
+        await seeds.StoreAsync(secondOwner, second, seed, Cancellation);
         Assert.Equal(2, after.Stores.Seeds[second].KeyVersion);
         Assert.NotEqual(stored.Ciphertext, after.Stores.Seeds[second].Ciphertext);
+        // A seed signs in as its account, so only the owner stores one; an administrator may only remove it.
+        var secondStored = after.Stores.Seeds[second];
+        Assert.Equal(IdentityAuthorityCodes.OwnerRequired, (await Assert.ThrowsAsync<IdentityAuthorityException>(() =>
+            seeds.StoreAsync(secondOwner, account, Bytes.Random(20), Cancellation))).Code);
+        Assert.Equal(IdentityAuthorityCodes.OwnerRequired, (await Assert.ThrowsAsync<IdentityAuthorityException>(async () =>
+            await seeds.StoreAsync(await after.Administrator.CredentialsAsync(), second, Bytes.Random(20), Cancellation))).Code);
+        Assert.Equal(IdentityAuthorityCodes.OwnerOrHostRequired, (await Assert.ThrowsAsync<IdentityAuthorityException>(() =>
+            seeds.RemoveAsync(secondOwner, account, Cancellation))).Code);
+        Assert.Same(secondStored, after.Stores.Seeds[second]);
+        Assert.Same(stored, after.Stores.Seeds[account]);
 
         // The plaintext exists only during the check and is cleared afterwards.
         ReadOnlyMemory<byte> seen = default;
@@ -62,7 +73,7 @@ public sealed class CredentialFormServiceTests
         keys.Remove(1);
         Assert.Equal(CredentialVerification.Unavailable, await seeds.VerifyAsync(account, _ => true, "src-1", Cancellation));
         Assert.Equal(CredentialVerification.Unavailable, await seeds.VerifyAsync(Guid.NewGuid(), _ => true, "src-1", Cancellation));
-        await Assert.ThrowsAsync<ArgumentException>(() => seeds.StoreAsync(account, Bytes.Random(8), Cancellation));
+        await Assert.ThrowsAsync<ArgumentException>(() => seeds.StoreAsync(secondOwner, second, Bytes.Random(8), Cancellation));
     }
 
     [Fact(DisplayName = "TM-G02-056 without a usable key, seeds are neither stored nor verified")]
@@ -70,13 +81,15 @@ public sealed class CredentialFormServiceTests
     {
         await using (var none = UnitIdentity.Create())
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(() => none.Get<IAuthenticatorSeeds>().StoreAsync(Guid.NewGuid(), Bytes.Random(20), Cancellation));
+            var (account, owner) = await none.OwnerAsync("admin-1");
+            await Assert.ThrowsAsync<InvalidOperationException>(() => none.Get<IAuthenticatorSeeds>().StoreAsync(owner, account, Bytes.Random(20), Cancellation));
             Assert.Empty(none.Stores.Seeds);
         }
         using var keys = new CredentialKeyDirectory(1);
         keys.Write(1, Bytes.Random(16));
         await using var shortKey = UnitIdentity.Create(keys.Settings(1, 1));
-        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => shortKey.Get<IAuthenticatorSeeds>().StoreAsync(Guid.NewGuid(), Bytes.Random(20), Cancellation));
+        var (shortAccount, shortOwner) = await shortKey.OwnerAsync("admin-1");
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => shortKey.Get<IAuthenticatorSeeds>().StoreAsync(shortOwner, shortAccount, Bytes.Random(20), Cancellation));
         Assert.Contains("version 1", failure.Message, StringComparison.Ordinal);
         Assert.Empty(shortKey.Stores.Seeds);
     }
@@ -85,9 +98,9 @@ public sealed class CredentialFormServiceTests
     public async Task TM_G02_057_Recovery_codes_are_stored_as_verifiers_and_consumed_once()
     {
         await using var identity = UnitIdentity.Create(UnitIdentity.TestLimits());
-        var (account, _) = await identity.AccountAsync("admin-1");
+        var (account, owner) = await identity.OwnerAsync("admin-1");
         var codes = identity.Get<IRecoveryCodes>();
-        var set = await codes.GenerateAsync(account, Cancellation);
+        var set = await codes.GenerateAsync(owner, account, Cancellation);
         Assert.Equal(RecoveryCodes.CodesPerSet, set.Codes.Count);
         Assert.Equal(set.Codes.Count, set.Codes.Select(code => code.Reveal()).Distinct(StringComparer.Ordinal).Count());
         Assert.DoesNotContain(set.Codes[0].Reveal(), set.ToString(), StringComparison.Ordinal);
@@ -100,7 +113,7 @@ public sealed class CredentialFormServiceTests
         Assert.Equal(CredentialVerification.Rejected, await codes.ConsumeAsync(account, set.Codes[0], "src-1", Cancellation));
         Assert.Equal(9, await codes.CountUsableAsync(account, Cancellation));
 
-        var renewed = await codes.GenerateAsync(account, Cancellation);
+        var renewed = await codes.GenerateAsync(owner, account, Cancellation);
         Assert.Equal(CredentialVerification.Rejected, await codes.ConsumeAsync(account, set.Codes[1], "src-1", Cancellation));
         Assert.Equal(10, await codes.CountUsableAsync(account, Cancellation));
         Assert.Equal(CredentialVerification.Accepted, await codes.ConsumeAsync(account, new SecretText(renewed.Codes[1].Reveal().ToLowerInvariant()), "src-1", Cancellation));
@@ -114,7 +127,13 @@ public sealed class CredentialFormServiceTests
         Assert.Equal(ThrottleCounter.Empty, identity.Stores.Counter(ThrottleKey.ForUserName(ThrottleKind.Password, "admin-1")));
         identity.Clock.Advance(TimeSpan.FromSeconds(2));
         Assert.Equal(CredentialVerification.Accepted, await codes.ConsumeAsync(account, renewed.Codes[2], "src-3", Cancellation));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => codes.GenerateAsync(Guid.NewGuid(), Cancellation));
+        // The codes are shown to whoever generates them, so only the owner may: another account's owner and an identity
+        // administrator in host scope are both refused, and nothing changes.
+        var (_, other) = await identity.OwnerAsync("editor-1");
+        Assert.Equal(IdentityAuthorityCodes.OwnerRequired, (await Assert.ThrowsAsync<IdentityAuthorityException>(() => codes.GenerateAsync(other, account, Cancellation))).Code);
+        Assert.Equal(IdentityAuthorityCodes.OwnerRequired, (await Assert.ThrowsAsync<IdentityAuthorityException>(async () =>
+            await codes.GenerateAsync(await identity.Administrator.CredentialsAsync(), account, Cancellation))).Code);
+        Assert.Equal(8, await codes.CountUsableAsync(account, Cancellation));
     }
 
     [Fact(DisplayName = "TM-G02-058 passkey records verify only while their integrity tag matches the account, credential, relying party and key")]
@@ -123,13 +142,19 @@ public sealed class CredentialFormServiceTests
         using var keys = new CredentialKeyDirectory(1);
         await using var identity = UnitIdentity.Create(keys.Settings(1, 1));
         var passkeys = identity.Get<IPasskeyCredentials>();
-        var admin = Guid.NewGuid();
-        var editor = Guid.NewGuid();
+        var (admin, adminOwner) = await identity.OwnerAsync("admin-1");
+        var (editor, editorOwner) = await identity.OwnerAsync("editor-1");
         var adminCredential = Bytes.Random(32);
         var editorCredential = Bytes.Random(32);
-        Assert.True(await passkeys.EnrollAsync(new PasskeyEnrollment(admin, adminCredential, "app.example.test", Bytes.Random(77), -7), Cancellation));
-        Assert.True(await passkeys.EnrollAsync(new PasskeyEnrollment(editor, editorCredential, "app.example.test", Bytes.Random(77), -7), Cancellation));
-        Assert.False(await passkeys.EnrollAsync(new PasskeyEnrollment(editor, adminCredential, "app.example.test", Bytes.Random(77), -7), Cancellation));
+        Assert.True(await passkeys.EnrollAsync(adminOwner, new PasskeyEnrollment(admin, adminCredential, "app.example.test", Bytes.Random(77), -7), Cancellation));
+        Assert.True(await passkeys.EnrollAsync(editorOwner, new PasskeyEnrollment(editor, editorCredential, "app.example.test", Bytes.Random(77), -7), Cancellation));
+        Assert.False(await passkeys.EnrollAsync(editorOwner, new PasskeyEnrollment(editor, adminCredential, "app.example.test", Bytes.Random(77), -7), Cancellation));
+        // A passkey signs in as its account, so no one but the owner enrolls one: not another owner, not an administrator.
+        Assert.Equal(IdentityAuthorityCodes.OwnerRequired, (await Assert.ThrowsAsync<IdentityAuthorityException>(() =>
+            passkeys.EnrollAsync(editorOwner, new PasskeyEnrollment(admin, Bytes.Random(32), "app.example.test", Bytes.Random(77), -7), Cancellation))).Code);
+        Assert.Equal(IdentityAuthorityCodes.OwnerRequired, (await Assert.ThrowsAsync<IdentityAuthorityException>(async () =>
+            await passkeys.EnrollAsync(await identity.Administrator.CredentialsAsync(), new PasskeyEnrollment(admin, Bytes.Random(32), "app.example.test",
+                Bytes.Random(77), -7), Cancellation))).Code);
 
         var found = await passkeys.FindForSignInAsync(adminCredential, "app.example.test", Cancellation);
         Assert.Equal(PasskeyLookupStatus.Verified, found.Status);
@@ -150,8 +175,12 @@ public sealed class CredentialFormServiceTests
             Assert.Equal(PasskeyLookupStatus.IntegrityFailure, (await passkeys.FindForSignInAsync(adminCredential, "app.example.test", Cancellation)).Status);
         }
         identity.Stores.Passkeys[Convert.ToHexString(adminCredential)] = adminRecord;
-        Assert.False(await passkeys.RevokeAsync(editor, adminCredential, Cancellation));
-        Assert.True(await passkeys.RevokeAsync(admin, adminCredential, Cancellation));
+        Assert.False(await passkeys.RevokeAsync(editorOwner, editor, adminCredential, Cancellation));
+        Assert.Equal(IdentityAuthorityCodes.OwnerOrHostRequired, (await Assert.ThrowsAsync<IdentityAuthorityException>(() =>
+            passkeys.RevokeAsync(editorOwner, admin, adminCredential, Cancellation))).Code);
+        Assert.True(await passkeys.RevokeAsync(adminOwner, admin, adminCredential, Cancellation));
+        // An identity administrator in host scope may revoke another account's passkey, which only removes access.
+        Assert.True(await passkeys.RevokeAsync(await identity.Administrator.CredentialsAsync(), editor, editorCredential, Cancellation));
         Assert.Equal(PasskeyLookupStatus.NotFound, (await passkeys.FindForSignInAsync(adminCredential, "app.example.test", Cancellation)).Status);
     }
 

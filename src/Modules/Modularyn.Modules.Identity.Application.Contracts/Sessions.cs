@@ -136,10 +136,14 @@ public interface ISessionService
     /// <summary>Ends the session the token identifies. False when it was unknown or had already ended.</summary>
     Task<bool> SignOutAsync(SessionToken token, CancellationToken cancellationToken);
 
-    Task<bool> RevokeAsync(Guid sessionId, CancellationToken cancellationToken);
+    /// <summary>Ends one session: the account owner's own, or any in a host scope granted for <see cref="IdentityHostOperations.Sessions"/>.</summary>
+    Task<bool> RevokeAsync(IdentityAuthority authority, Guid sessionId, CancellationToken cancellationToken);
 
-    /// <summary>Ends every session of the account and returns how many were active.</summary>
-    Task<int> RevokeAllAsync(Guid accountId, CancellationToken cancellationToken);
+    /// <summary>
+    /// Ends every session of the account and returns how many were active: the account owner's own, or any account's in a
+    /// host scope granted for <see cref="IdentityHostOperations.Sessions"/>.
+    /// </summary>
+    Task<int> RevokeAllAsync(IdentityAuthority authority, Guid accountId, CancellationToken cancellationToken);
 
     Task<SessionRecordView?> DescribeAsync(Guid sessionId, CancellationToken cancellationToken);
 }

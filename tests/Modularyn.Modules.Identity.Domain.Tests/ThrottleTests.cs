@@ -105,8 +105,9 @@ public sealed class ThrottleTests
         for (var failure = 1; failure <= 12; failure++)
         {
             var at = Start.AddMinutes(failure);
-            subject = VerificationThrottle.SubjectFailed(policy, subject, at);
-            own = VerificationThrottle.SourceOnSubjectFailed(policy, own, at);
+            var before = subject;
+            subject = VerificationThrottle.SubjectFailed(policy, before, at);
+            own = VerificationThrottle.SourceOnSubjectFailed(policy, own, before, at);
             var bySubject = VerificationThrottle.EvaluateSubject(policy, subject, at);
             var byOwn = VerificationThrottle.EvaluateSourceOnSubject(policy, own, at);
             Assert.Equal(bySubject.Allowed, byOwn.Allowed);
@@ -117,8 +118,32 @@ public sealed class ThrottleTests
         var last = Start.AddMinutes(12);
         var later = last + policy.SubjectResetAfter;
         Assert.Equal(1, VerificationThrottle.SubjectFailed(policy, subject, later).Failures);
-        Assert.Equal(13, VerificationThrottle.SourceOnSubjectFailed(policy, own, later).Failures);
-        Assert.Equal(1, VerificationThrottle.SourceOnSubjectFailed(policy, own, last + policy.SubjectResetAfter * 2).Failures);
+        Assert.Equal(13, VerificationThrottle.SourceOnSubjectFailed(policy, own, subject, later).Failures);
+        Assert.Equal(1, VerificationThrottle.SourceOnSubjectFailed(policy, own, subject, last + policy.SubjectResetAfter * 2).Failures);
+    }
+
+    [Fact(DisplayName = "TM-G02-015 a source whose own count lags the subject's is seeded from it, so its delay never ends first")]
+    public void TM_G02_015_A_lagging_source_is_seeded_from_the_subject_s_failures()
+    {
+        var policy = Policy();
+        // The owner's typos put the subject five failures ahead before the attacker's source fails once.
+        var subject = ThrottleCounter.Empty;
+        for (var typo = 1; typo <= 5; typo++) subject = VerificationThrottle.SubjectFailed(policy, subject, Start.AddSeconds(typo));
+        var at = Start.AddMinutes(1);
+        var own = VerificationThrottle.SourceOnSubjectFailed(policy, ThrottleCounter.Empty, subject, at);
+        var after = VerificationThrottle.SubjectFailed(policy, subject, at);
+        // own = max(own, subject) + 1: never below the subject's count, so its delay is at least twice the subject's.
+        Assert.Equal((6, 6), (own.Failures, after.Failures));
+        var bySubject = VerificationThrottle.EvaluateSubject(policy, after, at);
+        var byOwn = VerificationThrottle.EvaluateSourceOnSubject(policy, own, at);
+        Assert.Equal(VerificationThrottle.SubjectDelay(policy, 6) * 2, byOwn.RetryAt!.Value - at);
+        Assert.True(byOwn.RetryAt > bySubject.RetryAt);
+        // At the instant the subject's delay ends, the owner may try, and the lagging source may not.
+        Assert.True(VerificationThrottle.EvaluateSubject(policy, after, bySubject.RetryAt!.Value).Allowed);
+        Assert.False(VerificationThrottle.EvaluateSourceOnSubject(policy, own, bySubject.RetryAt.Value).Allowed);
+        // A source ahead of the subject keeps its own count.
+        var ahead = new ThrottleCounter(9, null, at, null);
+        Assert.Equal(10, VerificationThrottle.SourceOnSubjectFailed(policy, ahead, after, at.AddSeconds(1)).Failures);
     }
 
     [Fact(DisplayName = "TM-G02-015 a source's counter on a subject is keyed by both hashes and by nothing typed")]

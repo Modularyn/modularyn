@@ -58,12 +58,14 @@ internal sealed class VerificationGate(IVerificationLedger ledger, IdentityPolic
             {
                 var policy = policies.Throttling;
                 var counters = new Counters(sourceKey, subject, onSubjectKey);
-                // A blocked source is refused and nothing is recorded; its block already runs.
-                if (sourceKey is not null && VerificationThrottle.EvaluateSource(policy, entry.Get(sourceKey), now) is { Allowed: false } blocked)
-                    return new GateEntry(entry, counters, policy, now, blocked.RetryAt, Release);
                 var bySubject = VerificationThrottle.EvaluateSubject(policy, entry.Get(subject), now);
                 var byOwnCounter = onSubjectKey is null ? ThrottleDecision.Allow
                     : VerificationThrottle.EvaluateSourceOnSubject(policy, entry.Get(onSubjectKey), now);
+                // A blocked source is refused and nothing is recorded; its block already runs. The refusal names the latest of
+                // the block's end, the subject's delay and the source's own delay, so a client that honors it is not refused
+                // again, and counted again, by a limit that outlasts the block.
+                if (sourceKey is not null && VerificationThrottle.EvaluateSource(policy, entry.Get(sourceKey), now) is { Allowed: false } blocked)
+                    return new GateEntry(entry, counters, policy, now, Later(blocked.RetryAt, Later(bySubject.RetryAt, byOwnCounter.RetryAt)), Release);
                 if (bySubject.Allowed && byOwnCounter.Allowed) return new GateEntry(entry, counters, policy, now, null, Release);
 
                 // A refusal the subject's limits caused counts against the source, never against the subject, so a source
@@ -125,9 +127,11 @@ internal sealed class VerificationGate(IVerificationLedger ledger, IdentityPolic
         internal async Task FailedAsync()
         {
             var (held, keys, rules) = Held();
+            // The source's own counter is seeded from the subject's count before this failure, so it never lags the subject.
+            var subjectBefore = held.Get(keys.Subject);
             if (keys.Source is { } source) held.Set(source, VerificationThrottle.SourceFailed(rules, held.Get(source), now));
-            held.Set(keys.Subject, VerificationThrottle.SubjectFailed(rules, held.Get(keys.Subject), now));
-            if (keys.SourceOnSubject is { } own) held.Set(own, VerificationThrottle.SourceOnSubjectFailed(rules, held.Get(own), now));
+            held.Set(keys.Subject, VerificationThrottle.SubjectFailed(rules, subjectBefore, now));
+            if (keys.SourceOnSubject is { } own) held.Set(own, VerificationThrottle.SourceOnSubjectFailed(rules, held.Get(own), subjectBefore, now));
             using var timeout = new CancellationTokenSource(RecordingTimeout);
             await held.CommitAsync(timeout.Token).ConfigureAwait(false);
         }

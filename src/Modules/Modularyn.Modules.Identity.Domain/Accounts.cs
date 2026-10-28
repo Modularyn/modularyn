@@ -1,5 +1,6 @@
 using System.Text;
 using Modularyn.Framework.Security.Abstractions;
+using Modularyn.Framework.Tenancy.Abstractions;
 
 namespace Modularyn.Modules.Identity.Domain;
 
@@ -117,14 +118,16 @@ public interface IAccountDirectory
 
 /// <summary>
 /// Global accounts' memberships of tenants. A membership is a host-level record linking one account to one tenant: tenancy
-/// reads it to establish a tenant context, before any tenant context exists, and reads it afresh every time.
+/// reads it to establish a tenant context, before any tenant context exists, and reads it afresh every time. It decides who
+/// may establish a tenant context, so it is authority data: it changes only in the audited host scope the caller
+/// passes, never in an owner-bound unit.
 /// </summary>
 public interface ITenantMembershipStore
 {
     /// <summary>Adds the membership. False when it exists already or the account does not exist.</summary>
-    Task<bool> AddAsync(Guid accountId, Guid tenantId, DateTimeOffset now, CancellationToken cancellationToken);
+    Task<bool> AddAsync(TenantContext host, Guid accountId, Guid tenantId, DateTimeOffset now, CancellationToken cancellationToken);
 
-    Task<bool> RemoveAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken);
+    Task<bool> RemoveAsync(TenantContext host, Guid accountId, Guid tenantId, CancellationToken cancellationToken);
 
     /// <summary>True only for an existing, enabled account that is currently a member of the tenant.</summary>
     Task<bool> IsMemberAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken);

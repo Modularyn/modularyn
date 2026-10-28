@@ -4,6 +4,9 @@
     "net10.0": {
       "modularyn.framework.security.abstractions": {
         "type": "Project"
+      },
+      "modularyn.framework.tenancy.abstractions": {
+        "type": "Project"
       }
     }
   }

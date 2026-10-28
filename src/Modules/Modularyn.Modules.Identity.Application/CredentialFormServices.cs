@@ -63,13 +63,14 @@ internal sealed class CredentialKeyRing(IOptions<IdentitySecurityOptions> option
 }
 
 /// <summary>One-time-password seeds encrypted with AES-256-GCM under versioned keys (TM-G02-056).</summary>
-internal sealed class AuthenticatorSeedService(IAuthenticatorSeedStore store, CredentialKeyRing keys, VerificationGate gate, IdentityClock clock)
-    : IAuthenticatorSeeds
+internal sealed class AuthenticatorSeedService(IAuthenticatorSeedStore store, CredentialKeyRing keys, VerificationGate gate, IdentityClock clock,
+    IdentityAuthorization authorization) : IAuthenticatorSeeds
 {
-    public async Task StoreAsync(Guid accountId, ReadOnlyMemory<byte> seed, CancellationToken cancellationToken)
+    public async Task StoreAsync(IdentityAuthority authority, Guid accountId, ReadOnlyMemory<byte> seed, CancellationToken cancellationToken)
     {
         if (seed.Length is < ProtectedSeed.MinimumSeedLength or > ProtectedSeed.MaximumSeedLength)
             throw new ArgumentException("A one-time-password seed has from 16 to 64 bytes.", nameof(seed));
+        await authorization.RequireOwnerAsync(authority, accountId, cancellationToken).ConfigureAwait(false);
         var (version, key) = await keys.CurrentAsync(CredentialKeyPurpose.SeedEncryption, cancellationToken).ConfigureAwait(false);
         try
         {
@@ -122,14 +123,21 @@ internal sealed class AuthenticatorSeedService(IAuthenticatorSeedStore store, Cr
         return CredentialVerification.Accepted;
     }
 
-    public Task<bool> RemoveAsync(Guid accountId, CancellationToken cancellationToken) => store.RemoveAsync(accountId, cancellationToken);
+    public async Task<bool> RemoveAsync(IdentityAuthority authority, Guid accountId, CancellationToken cancellationToken)
+    {
+        await authorization.RequireOwnerOrHostAsync(authority, accountId, IdentityHostOperations.CredentialsId, cancellationToken).ConfigureAwait(false);
+        return await store.RemoveAsync(accountId, cancellationToken).ConfigureAwait(false);
+    }
 }
 
 /// <summary>Recovery codes stored only as salted verifiers and consumed once (TM-G02-057).</summary>
-internal sealed class RecoveryCodeService(IRecoveryCodeStore store, IAccountDirectory accounts, VerificationGate gate, IdentityClock clock) : IRecoveryCodes
+internal sealed class RecoveryCodeService(IRecoveryCodeStore store, IAccountDirectory accounts, VerificationGate gate, IdentityClock clock,
+    IdentityAuthorization authorization) : IRecoveryCodes
 {
-    public async Task<RecoveryCodeSet> GenerateAsync(Guid accountId, CancellationToken cancellationToken)
+    public async Task<RecoveryCodeSet> GenerateAsync(IdentityAuthority authority, Guid accountId, CancellationToken cancellationToken)
     {
+        // The codes are shown to whoever generates them, so only the owner may; an administrator who could would hold the account.
+        await authorization.RequireOwnerAsync(authority, accountId, cancellationToken).ConfigureAwait(false);
         if (await accounts.FindAsync(accountId, cancellationToken).ConfigureAwait(false) is null)
             throw new InvalidOperationException("Recovery codes belong to an existing account.");
         var now = clock.Now;
@@ -169,11 +177,14 @@ internal sealed class RecoveryCodeService(IRecoveryCodeStore store, IAccountDire
 }
 
 /// <summary>Passkey records bound to their account, credential and relying party by an integrity tag (TM-G02-058).</summary>
-internal sealed class PasskeyCredentialService(IPasskeyCredentialStore store, CredentialKeyRing keys, IdentityClock clock) : IPasskeyCredentials
+internal sealed class PasskeyCredentialService(IPasskeyCredentialStore store, CredentialKeyRing keys, IdentityClock clock, IdentityAuthorization authorization)
+    : IPasskeyCredentials
 {
-    public async Task<bool> EnrollAsync(PasskeyEnrollment enrollment, CancellationToken cancellationToken)
+    public async Task<bool> EnrollAsync(IdentityAuthority authority, PasskeyEnrollment enrollment, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(enrollment);
+        // A passkey signs in as its account, so only the owner enrolls one: one enrolled by anyone else would hold the account.
+        await authorization.RequireOwnerAsync(authority, enrollment.AccountId, cancellationToken).ConfigureAwait(false);
         var canonical = PasskeyCredentialRecord.CanonicalForm(enrollment.AccountId, enrollment.CredentialId, enrollment.RelyingPartyId,
             enrollment.PublicKey, enrollment.Algorithm);
         var (version, key) = await keys.CurrentAsync(CredentialKeyPurpose.PasskeyIntegrity, cancellationToken).ConfigureAwait(false);
@@ -210,9 +221,10 @@ internal sealed class PasskeyCredentialService(IPasskeyCredentialStore store, Cr
             record.PublicKey.ToArray(), record.Algorithm, record.CreatedAt));
     }
 
-    public Task<bool> RevokeAsync(Guid accountId, byte[] credentialId, CancellationToken cancellationToken)
+    public async Task<bool> RevokeAsync(IdentityAuthority authority, Guid accountId, byte[] credentialId, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(credentialId);
-        return store.RemoveAsync(accountId, credentialId, cancellationToken);
+        await authorization.RequireOwnerOrHostAsync(authority, accountId, IdentityHostOperations.CredentialsId, cancellationToken).ConfigureAwait(false);
+        return await store.RemoveAsync(accountId, credentialId, cancellationToken).ConfigureAwait(false);
     }
 }

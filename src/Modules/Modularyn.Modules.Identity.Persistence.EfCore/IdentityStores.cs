@@ -2,16 +2,18 @@ using Microsoft.EntityFrameworkCore;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
 using Modularyn.Framework.Security.Abstractions;
+using Modularyn.Framework.Tenancy.Abstractions;
 using Modularyn.Modules.Identity.Domain;
 
 namespace Modularyn.Modules.Identity.Persistence.EfCore;
 
 /// <summary>
-/// Opens the module's units of work: an owner-bound transaction for every change, under the store's own owner scope, and
-/// an unbound autocommitted connection for reads. Every query is ordinary LINQ over the module context and every change
-/// a tracked write; there is no raw SQL and no bulk write.
+/// Opens the module's units of work: an owner-bound transaction for every change to identity's own records, under the
+/// store's own owner scope, a transaction in the caller's audited host scope for authority data, and an unbound
+/// autocommitted connection for reads. Every query is ordinary LINQ over the module context and every change a tracked
+/// write; there is no raw SQL and no bulk write.
 /// </summary>
-internal abstract class IdentityStore(PostgreSqlModule module, ModuleOwnerScope owner)
+internal abstract class IdentityStore(PostgreSqlModule module, ModuleOwnerScope? owner)
 {
     // A concurrent writer can win a race a bounded number of times before an operation that retries gives up.
     protected const int Attempts = 4;
@@ -30,7 +32,26 @@ internal abstract class IdentityStore(PostgreSqlModule module, ModuleOwnerScope 
     /// </summary>
     protected async Task<T> WriteAsync<T>(Func<IdentityModuleContext, Task<T>> write, T conflicted, CancellationToken cancellationToken)
     {
-        await using var work = await EfCoreUnitOfWork.BeginOwnedAsync(Module, owner, cancellationToken: cancellationToken).ConfigureAwait(false);
+        var scope = owner ?? throw new InvalidOperationException("This store writes authority data only in an audited host scope.");
+        await using var work = await EfCoreUnitOfWork.BeginOwnedAsync(Module, scope, cancellationToken: cancellationToken).ConfigureAwait(false);
+        return await CommitAsync(work, write, conflicted, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Runs one transactional change in the caller's active host scope, whose operation must reach the entity it changes;
+    /// the persistence adapter refuses any other scope or entity.
+    /// </summary>
+    protected async Task<T> HostWriteAsync<T>(TenantContext host, Func<IdentityModuleContext, Task<T>> write, T conflicted, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        if (host.Scope != TenantScope.Host) throw new InvalidOperationException("Authority data changes only in an audited host scope.");
+        await using var work = await EfCoreUnitOfWork.BeginAsync(Module, host, cancellationToken: cancellationToken).ConfigureAwait(false);
+        return await CommitAsync(work, write, conflicted, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<T> CommitAsync<T>(EfCoreUnitOfWork work, Func<IdentityModuleContext, Task<T>> write, T conflicted,
+        CancellationToken cancellationToken)
+    {
         var result = await write((IdentityModuleContext)work.Context).ConfigureAwait(false);
         var outcome = await work.CompleteAsync(cancellationToken).ConfigureAwait(false);
         if (outcome.State == UnitOfWorkState.Committed) return result;
@@ -419,14 +440,17 @@ internal sealed class PasskeyCredentialStore(PostgreSqlModule module) : Identity
     }
 }
 
-/// <summary>Global accounts' tenant memberships, read afresh for every check.</summary>
-internal sealed class TenantMembershipStore(PostgreSqlModule module) : IdentityStore(module, IdentityOwnerScopes.Memberships), ITenantMembershipStore
+/// <summary>
+/// Global accounts' tenant memberships, read afresh for every check. A membership decides who may establish a tenant
+/// context, so it changes only in the caller's audited host scope, never in an owner-bound unit.
+/// </summary>
+internal sealed class TenantMembershipStore(PostgreSqlModule module) : IdentityStore(module, null), ITenantMembershipStore
 {
-    public async Task<bool> AddAsync(Guid accountId, Guid tenantId, DateTimeOffset now, CancellationToken cancellationToken)
+    public async Task<bool> AddAsync(TenantContext host, Guid accountId, Guid tenantId, DateTimeOffset now, CancellationToken cancellationToken)
     {
         try
         {
-            return await WriteAsync(async context =>
+            return await HostWriteAsync(host, async context =>
             {
                 if (!await context.Set<IdentityAccount>().AnyAsync(account => account.Id == accountId, cancellationToken).ConfigureAwait(false)
                     || await context.Set<TenantMembershipRow>().AnyAsync(row => row.AccountId == accountId && row.TenantId == tenantId, cancellationToken)
@@ -442,7 +466,7 @@ internal sealed class TenantMembershipStore(PostgreSqlModule module) : IdentityS
         }
     }
 
-    public Task<bool> RemoveAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken) => WriteAsync(async context =>
+    public Task<bool> RemoveAsync(TenantContext host, Guid accountId, Guid tenantId, CancellationToken cancellationToken) => HostWriteAsync(host, async context =>
     {
         var row = await context.Set<TenantMembershipRow>().SingleOrDefaultAsync(row => row.AccountId == accountId && row.TenantId == tenantId, cancellationToken)
             .ConfigureAwait(false);

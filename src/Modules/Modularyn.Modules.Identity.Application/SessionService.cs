@@ -7,7 +7,7 @@ namespace Modularyn.Modules.Identity.Application;
 /// Server-side sessions. Every validation reads the record and its account's state from the store, so the declared
 /// freshness bound for sessions and their claims is the next request: nothing about a session is cached.
 /// </summary>
-internal sealed class SessionService(ISessionStore store, IdentityPolicies policies, IdentityClock clock) : ISessionService
+internal sealed class SessionService(ISessionStore store, IdentityPolicies policies, IdentityClock clock, IdentityAuthorization authorization) : ISessionService
 {
     private SessionPolicy Policy => policies.Sessions;
 
@@ -52,11 +52,20 @@ internal sealed class SessionService(ISessionStore store, IdentityPolicies polic
             && await store.EndAsync(lookup.Session.Id, SessionEndReason.SignedOut, clock.Now, cancellationToken).ConfigureAwait(false);
     }
 
-    public Task<bool> RevokeAsync(Guid sessionId, CancellationToken cancellationToken) =>
-        store.EndAsync(sessionId, SessionEndReason.Revoked, clock.Now, cancellationToken);
+    public async Task<bool> RevokeAsync(IdentityAuthority authority, Guid sessionId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(authority);
+        // The owner revokes only its own sessions; an unknown session is refused as another account's would be.
+        var account = (await store.FindAsync(sessionId, cancellationToken).ConfigureAwait(false))?.Session.AccountId ?? Guid.Empty;
+        await authorization.RequireOwnerOrHostAsync(authority, account, IdentityHostOperations.SessionsId, cancellationToken).ConfigureAwait(false);
+        return await store.EndAsync(sessionId, SessionEndReason.Revoked, clock.Now, cancellationToken).ConfigureAwait(false);
+    }
 
-    public Task<int> RevokeAllAsync(Guid accountId, CancellationToken cancellationToken) =>
-        store.EndAllAsync(accountId, SessionEndReason.Revoked, clock.Now, cancellationToken);
+    public async Task<int> RevokeAllAsync(IdentityAuthority authority, Guid accountId, CancellationToken cancellationToken)
+    {
+        await authorization.RequireOwnerOrHostAsync(authority, accountId, IdentityHostOperations.SessionsId, cancellationToken).ConfigureAwait(false);
+        return await store.EndAllAsync(accountId, SessionEndReason.Revoked, clock.Now, cancellationToken).ConfigureAwait(false);
+    }
 
     public async Task<SessionRecordView?> DescribeAsync(Guid sessionId, CancellationToken cancellationToken)
     {

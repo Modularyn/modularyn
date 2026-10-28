@@ -245,13 +245,17 @@
       "modularyn.modules.identity.application.contracts": {
         "type": "Project",
         "dependencies": {
-          "Modularyn.Framework.Security.Abstractions": "[1.0.0, )"
+          "Modularyn.Framework.Authorization.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )"
         }
       },
       "modularyn.modules.identity.domain": {
         "type": "Project",
         "dependencies": {
-          "Modularyn.Framework.Security.Abstractions": "[1.0.0, )"
+          "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )"
         }
       },
       "modularyn.modules.identity.httpapi": {

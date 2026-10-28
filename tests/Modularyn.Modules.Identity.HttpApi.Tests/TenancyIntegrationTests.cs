@@ -45,12 +45,21 @@ public sealed class TenancyIntegrationTests(ITestOutputHelper output)
                 application.MapGet("/t/{tenant}/whoami", (TenantExecution execution) => execution.Context is { } context
                     ? Results.Json(new { tenant = context.TenantId, actor = context.Actor.Subject }) : Results.StatusCode(StatusCodes.Status500InternalServerError))
                     .RequireTenantMember();
-                // Identity changes its own records from inside a tenant request: the tenant context is active, and the
-                // account and session writes run in identity's owner-bound units, not in the tenant's.
+                // A tenant context authorizes nothing in identity: a member's own security-state change from a tenant
+                // endpoint, offering that context as its authority, is refused before anything changes.
                 application.MapPost("/t/{tenant}/security-state", async (TenantExecution execution, IAccountService accounts, CancellationToken cancellation) =>
-                    execution.Context is { IsActive: true } context && await accounts.SecurityStateChangedAsync(Guid.Parse(context.Actor.Subject), cancellation)
-                        ? Results.NoContent() : Results.StatusCode(StatusCodes.Status500InternalServerError))
-                    .RequireTenantMember();
+                {
+                    if (execution.Context is not { IsActive: true } context) return Results.StatusCode(StatusCodes.Status500InternalServerError);
+                    try
+                    {
+                        await accounts.SecurityStateChangedAsync(IdentityAuthority.Host(context), Guid.Parse(context.Actor.Subject), cancellation);
+                        return Results.NoContent();
+                    }
+                    catch (IdentityAuthorityException exception) when (exception.Code == IdentityAuthorityCodes.HostOperationRequired)
+                    {
+                        return Results.StatusCode(StatusCodes.Status403Forbidden);
+                    }
+                }).RequireTenantMember();
             });
             var accounts = server.Get<IAccountService>();
             var memberships = server.Get<ITenantMemberships>();
@@ -59,12 +68,12 @@ public sealed class TenancyIntegrationTests(ITestOutputHelper output)
             foreach (var name in new[] { "member-1", "outsider-1", "support-1", "user-1" })
             {
                 passwords[name] = Generated.Password();
-                ids[name] = (await accounts.CreateLocalAccountAsync(name, new SecretText(passwords[name]), Cancellation)).AccountId!.Value;
+                ids[name] = (await accounts.CreateLocalAccountAsync(await server.Administrator.AccountsAsync(), name, new SecretText(passwords[name]), Cancellation)).AccountId!.Value;
             }
-            Assert.True(await memberships.AddMemberAsync(ids["member-1"], tenantA, Cancellation));
-            Assert.True(await memberships.AddMemberAsync(ids["user-1"], tenantA, Cancellation));
-            Assert.True(await memberships.AddMemberAsync(ids["support-1"], tenantA, Cancellation));
-            Assert.True(await memberships.AddMemberAsync(ids["support-1"], tenantB, Cancellation));
+            Assert.True(await memberships.AddMemberAsync(await server.Administrator.MembershipsAsync(), ids["member-1"], tenantA, Cancellation));
+            Assert.True(await memberships.AddMemberAsync(await server.Administrator.MembershipsAsync(), ids["user-1"], tenantA, Cancellation));
+            Assert.True(await memberships.AddMemberAsync(await server.Administrator.MembershipsAsync(), ids["support-1"], tenantA, Cancellation));
+            Assert.True(await memberships.AddMemberAsync(await server.Administrator.MembershipsAsync(), ids["support-1"], tenantB, Cancellation));
             var browsers = new Dictionary<string, Browser>();
             foreach (var name in passwords.Keys)
             {
@@ -85,7 +94,7 @@ public sealed class TenancyIntegrationTests(ITestOutputHelper output)
             Assert.Equal(HttpStatusCode.Unauthorized, (await WhoAmI(server.Browser(), tenantA)).Status);
 
             // A removed membership is refused at the next request.
-            Assert.True(await memberships.RemoveMemberAsync(ids["member-1"], tenantA, Cancellation));
+            Assert.True(await memberships.RemoveMemberAsync(await server.Administrator.MembershipsAsync(), ids["member-1"], tenantA, Cancellation));
             Assert.Equal(HttpStatusCode.NotFound, (await WhoAmI(browsers["member-1"], tenantA)).Status);
 
             // A delegation into tenant A resolves the actor's own membership and confines the request to tenant A.
@@ -96,16 +105,21 @@ public sealed class TenancyIntegrationTests(ITestOutputHelper output)
             Assert.Equal(HttpStatusCode.NotFound, (await WhoAmI(browsers["support-1"], tenantB, grant)).Status);
             Assert.Equal((HttpStatusCode.OK, ids["support-1"].ToString("D"), tenantB), await WhoAmI(browsers["support-1"], tenantB));
 
-            // A security-state change made from a tenant endpoint rotates the stamp and ends the member's sessions.
+            // A tenant context is no authority for an identity write: the member's request is refused and nothing changes. An
+            // identity administrator's host scope rotates the stamp and ends the member's sessions.
             var stamp = await database.ScalarAsync<string>("SELECT \"SecurityStamp\" FROM " + database.Table("Accounts") + " WHERE \"Id\" = @id",
                 new NpgsqlParameter("id", ids["user-1"]));
-            Assert.Equal(HttpStatusCode.NoContent, (await browsers["user-1"].SendAsync(HttpMethod.Post, "/t/" + tenantA.ToString("D") + "/security-state",
+            Assert.Equal(HttpStatusCode.Forbidden, (await browsers["user-1"].SendAsync(HttpMethod.Post, "/t/" + tenantA.ToString("D") + "/security-state",
                 content: new StringContent(""))).StatusCode);
+            Assert.Equal(stamp, await database.ScalarAsync<string>("SELECT \"SecurityStamp\" FROM " + database.Table("Accounts") + " WHERE \"Id\" = @id",
+                new NpgsqlParameter("id", ids["user-1"])));
+            Assert.Equal(HttpStatusCode.OK, (await WhoAmI(browsers["user-1"], tenantA)).Status);
+            Assert.True(await accounts.SecurityStateChangedAsync(await server.Administrator.AccountsAsync(), ids["user-1"], Cancellation));
             Assert.NotEqual(stamp, await database.ScalarAsync<string>("SELECT \"SecurityStamp\" FROM " + database.Table("Accounts") + " WHERE \"Id\" = @id",
                 new NpgsqlParameter("id", ids["user-1"])));
             Assert.Equal(HttpStatusCode.Unauthorized, (await WhoAmI(browsers["user-1"], tenantA)).Status);
             output.WriteLine("Members resolved their tenant; others, a removed membership and a delegation aimed at another tenant were refused; "
-                + "a security-state change from a tenant endpoint ended the member's session.");
+                + "a tenant context was refused as authority for a security-state change, which an identity administrator's host scope made.");
         }
         finally
         {

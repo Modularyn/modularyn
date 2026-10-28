@@ -30,6 +30,7 @@ public static class IdentityServiceCollectionExtensions
         services.AddSingleton(provider => provider.GetRequiredService<IdentityPolicies>().Passwords);
         services.AddSingleton(provider => new ServiceIdentityRegistry(provider.GetServices<ServiceIdentityDeclaration>()));
         services.AddSingleton<VerificationGate>();
+        services.AddSingleton<IdentityAuthorization>();
         services.AddSingleton<SessionService>();
         services.AddSingleton<ISessionService>(provider => provider.GetRequiredService<SessionService>());
         services.AddSingleton<ISignInService, SignInService>();

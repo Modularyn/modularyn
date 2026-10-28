@@ -30,9 +30,9 @@ public sealed class RevocationTests(ITestOutputHelper output)
         await using var server = await IdentityTestServer.StartAsync(database, endpoints: MapPublish);
         var accounts = server.Get<IAccountService>();
         var password = Generated.Password();
-        var account = (await accounts.CreateLocalAccountAsync("admin-1", new SecretText(password), Cancellation)).AccountId!.Value;
+        var account = (await accounts.CreateLocalAccountAsync(await server.Administrator.AccountsAsync(), "admin-1", new SecretText(password), Cancellation)).AccountId!.Value;
         var bystanderPassword = Generated.Password();
-        await accounts.CreateLocalAccountAsync("editor-1", new SecretText(bystanderPassword), Cancellation);
+        await accounts.CreateLocalAccountAsync(await server.Administrator.AccountsAsync(), "editor-1", new SecretText(bystanderPassword), Cancellation);
         var bystander = server.Browser("198.51.100.7");
         Assert.Equal(HttpStatusCode.OK, (await bystander.SignInAsync("editor-1", bystanderPassword)).StatusCode);
 
@@ -69,16 +69,16 @@ public sealed class RevocationTests(ITestOutputHelper output)
 
         var (_, s4Copy) = await SignedIn();
         var (_, s5Copy) = await SignedIn();
-        Assert.Equal(2, await server.Get<ISessionService>().RevokeAllAsync(account, Cancellation));
+        Assert.Equal(2, await server.Get<ISessionService>().RevokeAllAsync(await server.Administrator.SessionsAsync(), account, Cancellation));
         await Refused(s4Copy, SessionEndCause.Revoked, "Revocation of every admin-1 session");
         await Refused(s5Copy, SessionEndCause.Revoked, "Revocation of every admin-1 session");
 
         var (_, s6Copy) = await SignedIn();
-        Assert.True(await accounts.SecurityStateChangedAsync(account, Cancellation));
+        Assert.True(await accounts.SecurityStateChangedAsync(await server.Administrator.AccountsAsync(), account, Cancellation));
         await Refused(s6Copy, SessionEndCause.SecurityStateChanged, "A security-state change made by another module");
 
         var (_, s7Copy) = await SignedIn();
-        Assert.True(await accounts.DisableAsync(account, Cancellation));
+        Assert.True(await accounts.DisableAsync(await server.Administrator.AccountsAsync(), account, Cancellation));
         await Refused(s7Copy, SessionEndCause.AccountDisabled, "Disabling the account");
         Assert.Equal(HttpStatusCode.Unauthorized, (await server.Browser().SignInAsync("admin-1", password)).StatusCode);
 
@@ -103,13 +103,13 @@ public sealed class RevocationTests(ITestOutputHelper output)
                 return status == FreshnessStatus.Current ? Results.Ok("exported") : Results.Json(new { status = status.ToString() }, statusCode: StatusCodes.Status403Forbidden);
             }));
         var password = Generated.Password();
-        var account = (await server.Get<IAccountService>().CreateLocalAccountAsync("editor-5", new SecretText(password), Cancellation)).AccountId!.Value;
+        var account = (await server.Get<IAccountService>().CreateLocalAccountAsync(await server.Administrator.AccountsAsync(), "editor-5", new SecretText(password), Cancellation)).AccountId!.Value;
         var browser = server.Browser();
         Assert.Equal(HttpStatusCode.OK, (await browser.SignInAsync("editor-5", password)).StatusCode);
 
         var export = browser.SendAsync(HttpMethod.Post, "/export", content: new StringContent(""));
         await entered.Task.WaitAsync(Cancellation);
-        Assert.Equal(1, await server.Get<ISessionService>().RevokeAllAsync(account, Cancellation));
+        Assert.Equal(1, await server.Get<ISessionService>().RevokeAllAsync(await server.Administrator.SessionsAsync(), account, Cancellation));
         release.TrySetResult();
         var response = await export;
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);

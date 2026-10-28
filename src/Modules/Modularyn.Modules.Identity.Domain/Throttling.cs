@@ -103,10 +103,12 @@ public sealed record ThrottleDecision(bool Allowed, DateTimeOffset? RetryAt)
 /// together, then requires a delay after each further failure that starts at <see cref="SubjectBaseDelay"/>, doubles and
 /// stops at <see cref="SubjectMaximumDelay"/>. Every attempt on the subject waits for it, so the subject's failures are
 /// bounded whatever the number of sources.</item>
-/// <item>Each source also has its own counter for each subject, with the same free attempts and twice the subject's delay,
-/// so a source's next attempt is always later than the end of the subject delay its own last failure set. A single
-/// source can therefore renew the subject's delay at most once in every two delays, and in between the subject is open
-/// to every other source, the owner's included.</item>
+/// <item>Each source also has its own counter for each subject, with the same free attempts and twice the subject's delay.
+/// A source whose own count lags the subject's is seeded from it at its next failure, so its own count is never below
+/// the subject's, and a source's next attempt is always later than the end of the subject delay its own last failure
+/// set, whether or not the source caused the subject's earlier failures. A single source can therefore renew the
+/// subject's delay at most once in every two delays, and in between the subject is open to every other source, the
+/// owner's included.</item>
 /// </list>
 /// A subject's failures, and a source's on it, are forgotten after a success from that source or after
 /// <see cref="SubjectResetAfter"/> without a failure; a source's own counter on a subject is kept twice as long, so its
@@ -211,11 +213,20 @@ public static class VerificationThrottle
         return now >= retryAt ? ThrottleDecision.Allow : ThrottleDecision.Refuse(retryAt);
     }
 
-    public static ThrottleCounter SourceOnSubjectFailed(ThrottlePolicy policy, ThrottleCounter counter, DateTimeOffset now)
+    /// <summary>
+    /// Records a failure against a source's own counter on a subject. A source whose own count lags the subject's, because
+    /// the owner's typos or other sources' failures came first, is seeded from the subject's effective failures, as
+    /// own = max(own, subject) + 1, where <paramref name="subject"/> is the subject's counter before this failure. The own
+    /// count is then never below the subject's, so the own delay is never shorter than twice the subject's delay that this
+    /// failure sets, and the source cannot renew the subject's delay at the instant it ends.
+    /// </summary>
+    public static ThrottleCounter SourceOnSubjectFailed(ThrottlePolicy policy, ThrottleCounter counter, ThrottleCounter subject, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(policy);
         ArgumentNullException.ThrowIfNull(counter);
-        return new(EffectiveFailures(counter, now, SourceOnSubjectResetAfter(policy)) + 1, null, now, null);
+        ArgumentNullException.ThrowIfNull(subject);
+        var own = EffectiveFailures(counter, now, SourceOnSubjectResetAfter(policy));
+        return new(Math.Max(own, EffectiveFailures(policy, subject, now)) + 1, null, now, null);
     }
 
     /// <summary>Twice <see cref="SubjectDelay"/>: strictly longer whenever the subject's delay applies.</summary>

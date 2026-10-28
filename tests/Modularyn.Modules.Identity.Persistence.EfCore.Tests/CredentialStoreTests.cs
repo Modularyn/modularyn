@@ -38,8 +38,8 @@ public sealed class CredentialStoreTests(ITestOutputHelper output)
         Guid account;
         await using (var before = PostgreSqlIdentity.Create(database, keys.Settings(1, 1)))
         {
-            account = (await before.AccountAsync("admin-1")).Id;
-            await before.Get<IAuthenticatorSeeds>().StoreAsync(account, seed, Cancellation);
+            (account, var owner) = await before.OwnerAsync("admin-1");
+            await before.Get<IAuthenticatorSeeds>().StoreAsync(owner, account, seed, Cancellation);
         }
         var dump = await database.DumpAsync();
         foreach (var form in new[] { Encoding.ASCII.GetString(seed), Base32(seed), Convert.ToHexStringLower(seed), Convert.ToBase64String(seed) })
@@ -52,8 +52,8 @@ public sealed class CredentialStoreTests(ITestOutputHelper output)
         await using var after = PostgreSqlIdentity.Create(database, keys.Settings(2, 1, 2));
         var seeds = after.Get<IAuthenticatorSeeds>();
         Assert.Equal(CredentialVerification.Accepted, await seeds.VerifyAsync(account, presented => presented.Span.SequenceEqual(seed), "203.0.113.9", Cancellation));
-        var second = (await after.AccountAsync("admin-2")).Id;
-        await seeds.StoreAsync(second, seed, Cancellation);
+        var (second, secondOwner) = await after.OwnerAsync("admin-2");
+        await seeds.StoreAsync(secondOwner, second, seed, Cancellation);
         Assert.Equal(2, await database.ScalarAsync<int>("SELECT \"KeyVersion\" FROM " + database.Table("AuthenticatorSeeds") + " WHERE \"AccountId\" = @id",
             new NpgsqlParameter("id", second)));
 
@@ -74,9 +74,9 @@ public sealed class CredentialStoreTests(ITestOutputHelper output)
     {
         await using var database = await IdentityDatabase.CreateAsync();
         await using var identity = PostgreSqlIdentity.Create(database);
-        var (account, _) = await identity.AccountAsync("admin-1");
+        var (account, owner) = await identity.OwnerAsync("admin-1");
         var codes = identity.Get<IRecoveryCodes>();
-        var set = await codes.GenerateAsync(account, Cancellation);
+        var set = await codes.GenerateAsync(owner, account, Cancellation);
         var dump = await database.DumpAsync();
         foreach (var code in set.Codes)
         {
@@ -101,7 +101,7 @@ public sealed class CredentialStoreTests(ITestOutputHelper output)
         var direct = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => identity.Get<IRecoveryCodeStore>().ConsumeAsync(usable[0].Id, identity.Clock.Now, Cancellation)));
         Assert.Equal(1, direct.Count(consumed => consumed));
 
-        await codes.GenerateAsync(account, Cancellation);
+        await codes.GenerateAsync(owner, account, Cancellation);
         Assert.Equal(8L, await database.ScalarAsync<long>("SELECT count(*) FROM " + database.Table("RecoveryCodes") + " WHERE \"InvalidatedAt\" IS NOT NULL"));
         identity.Clock.Advance(TimeSpan.FromMinutes(1));
         Assert.Equal(CredentialVerification.Rejected, await codes.ConsumeAsync(account, set.Codes[2], "198.51.100.99", Cancellation));
@@ -114,14 +114,14 @@ public sealed class CredentialStoreTests(ITestOutputHelper output)
         await using var database = await IdentityDatabase.CreateAsync();
         using var keys = new CredentialKeyDirectory(1);
         await using var identity = PostgreSqlIdentity.Create(database, keys.Settings(1, 1));
-        var (admin, _) = await identity.AccountAsync("admin-1");
-        var (editor, _) = await identity.AccountAsync("editor-1");
+        var (admin, adminOwner) = await identity.OwnerAsync("admin-1");
+        var (editor, editorOwner) = await identity.OwnerAsync("editor-1");
         var passkeys = identity.Get<IPasskeyCredentials>();
         var adminCredential = Bytes(32);
         var editorCredential = Bytes(32);
-        Assert.True(await passkeys.EnrollAsync(new PasskeyEnrollment(admin, adminCredential, "app.example.test", Bytes(77), -7), Cancellation));
-        Assert.True(await passkeys.EnrollAsync(new PasskeyEnrollment(editor, editorCredential, "app.example.test", Bytes(77), -7), Cancellation));
-        Assert.False(await passkeys.EnrollAsync(new PasskeyEnrollment(editor, adminCredential, "app.example.test", Bytes(77), -7), Cancellation));
+        Assert.True(await passkeys.EnrollAsync(adminOwner, new PasskeyEnrollment(admin, adminCredential, "app.example.test", Bytes(77), -7), Cancellation));
+        Assert.True(await passkeys.EnrollAsync(editorOwner, new PasskeyEnrollment(editor, editorCredential, "app.example.test", Bytes(77), -7), Cancellation));
+        Assert.False(await passkeys.EnrollAsync(editorOwner, new PasskeyEnrollment(editor, adminCredential, "app.example.test", Bytes(77), -7), Cancellation));
         Assert.Equal(PasskeyLookupStatus.Verified, (await passkeys.FindForSignInAsync(adminCredential, "app.example.test", Cancellation)).Status);
 
         var table = database.Table("PasskeyCredentials");
@@ -149,12 +149,13 @@ public sealed class CredentialStoreTests(ITestOutputHelper output)
             Assert.Equal(PasskeyLookupStatus.IntegrityFailure, (await passkeys.FindForSignInAsync(adminCredential, "app.example.test", Cancellation)).Status);
             Assert.Equal(PasskeyLookupStatus.IntegrityFailure, (await passkeys.FindForSignInAsync(adminCredential, "other.example.test", Cancellation)).Status);
             output.WriteLine($"Altered record ({description}) failed integrity verification.");
-            // Restore the enrolled record for the next alteration.
-            Assert.True(await passkeys.RevokeAsync(admin, adminCredential, Cancellation) || await passkeys.RevokeAsync(editor, adminCredential, Cancellation));
-            Assert.True(await passkeys.EnrollAsync(new PasskeyEnrollment(admin, adminCredential, "app.example.test", Bytes(77), -7), Cancellation));
+            // Restore the enrolled record for the next alteration; an identity administrator removes the rebound one.
+            Assert.True(await passkeys.RevokeAsync(adminOwner, admin, adminCredential, Cancellation)
+                || await passkeys.RevokeAsync(await identity.Administrator.CredentialsAsync(), editor, adminCredential, Cancellation));
+            Assert.True(await passkeys.EnrollAsync(adminOwner, new PasskeyEnrollment(admin, adminCredential, "app.example.test", Bytes(77), -7), Cancellation));
         }
         Assert.Equal(PasskeyLookupStatus.Verified, (await passkeys.FindForSignInAsync(editorCredential, "app.example.test", Cancellation)).Status);
-        Assert.True(await passkeys.RevokeAsync(admin, adminCredential, Cancellation));
+        Assert.True(await passkeys.RevokeAsync(adminOwner, admin, adminCredential, Cancellation));
         Assert.Equal(PasskeyLookupStatus.NotFound, (await passkeys.FindForSignInAsync(adminCredential, "app.example.test", Cancellation)).Status);
     }
 
@@ -166,22 +167,41 @@ public sealed class CredentialStoreTests(ITestOutputHelper output)
         var (account, _) = await identity.AccountAsync("member-1");
         var memberships = identity.Get<ITenantMemberships>();
         var tenant = Guid.NewGuid();
-        Assert.True(await memberships.AddMemberAsync(account, tenant, Cancellation));
-        Assert.False(await memberships.AddMemberAsync(account, tenant, Cancellation));
+        Assert.True(await memberships.AddMemberAsync(await identity.Administrator.MembershipsAsync(), account, tenant, Cancellation));
+        Assert.False(await memberships.AddMemberAsync(await identity.Administrator.MembershipsAsync(), account, tenant, Cancellation));
         Assert.True(await memberships.IsMemberAsync(account, tenant, Cancellation));
-        var added = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => memberships.AddMemberAsync(account, Guid.Parse("00000000-0000-0000-0000-00000000000a"), Cancellation)));
+        var added = await Task.WhenAll(Enumerable.Range(0, 4).Select(async _ => await memberships.AddMemberAsync(await identity.Administrator.MembershipsAsync(), account, Guid.Parse("00000000-0000-0000-0000-00000000000a"), Cancellation)));
         Assert.Equal(1, added.Count(result => result));
 
         // A change made directly in the store is seen at the next check: nothing is cached.
         await database.ExecuteAsync("DELETE FROM " + database.Table("TenantMemberships") + " WHERE \"TenantId\" = @tenant", new NpgsqlParameter("tenant", tenant));
         Assert.False(await memberships.IsMemberAsync(account, tenant, Cancellation));
-        Assert.True(await memberships.AddMemberAsync(account, tenant, Cancellation));
-        Assert.True(await identity.Get<IAccountService>().DisableAsync(account, Cancellation));
+        Assert.True(await memberships.AddMemberAsync(await identity.Administrator.MembershipsAsync(), account, tenant, Cancellation));
+        Assert.True(await identity.Get<IAccountService>().DisableAsync(await identity.Administrator.AccountsAsync(), account, Cancellation));
         Assert.False(await memberships.IsMemberAsync(account, tenant, Cancellation));
-        Assert.True(await identity.Get<IAccountService>().EnableAsync(account, Cancellation));
-        Assert.True(await memberships.RemoveMemberAsync(account, tenant, Cancellation));
+        Assert.True(await identity.Get<IAccountService>().EnableAsync(await identity.Administrator.AccountsAsync(), account, Cancellation));
+        Assert.True(await memberships.RemoveMemberAsync(await identity.Administrator.MembershipsAsync(), account, tenant, Cancellation));
         Assert.False(await memberships.IsMemberAsync(account, tenant, Cancellation));
         Assert.Equal(1L, await database.ScalarAsync<long>("SELECT count(*) FROM " + database.Table("Accounts")));
+    }
+
+    [Fact(DisplayName = "TM-G02-028 memberships are written in the audited host scope that reaches them, never in an owner-bound unit")]
+    public async Task TM_G02_028_Memberships_are_written_only_in_a_host_scope_that_reaches_them()
+    {
+        await using var database = await IdentityDatabase.CreateAsync();
+        await using var identity = PostgreSqlIdentity.Create(database);
+        var (account, _) = await identity.AccountAsync("member-1");
+        var store = identity.Get<ITenantMembershipStore>();
+        var tenant = Guid.NewGuid();
+        // A host scope for another identity operation does not reach the membership table, so the adapter refuses the write.
+        var accounts = (await identity.Administrator.AccountsAsync()).HostContext!;
+        Assert.Equal("MPS043", (await Assert.ThrowsAsync<Framework.Persistence.Abstractions.PersistenceContractException>(() =>
+            store.AddAsync(accounts, account, tenant, identity.Clock.Now, Cancellation))).Code);
+        // The memberships operation's scope reaches it; the row is written in that scope, not under an owner scope.
+        var memberships = (await identity.Administrator.MembershipsAsync()).HostContext!;
+        Assert.True(await store.AddAsync(memberships, account, tenant, identity.Clock.Now, Cancellation));
+        Assert.True(await store.RemoveAsync(memberships, account, tenant, Cancellation));
+        Assert.Equal(0L, await database.ScalarAsync<long>("SELECT count(*) FROM " + database.Table("TenantMemberships")));
     }
 
     private static byte[] Bytes(int length) => System.Security.Cryptography.RandomNumberGenerator.GetBytes(length);

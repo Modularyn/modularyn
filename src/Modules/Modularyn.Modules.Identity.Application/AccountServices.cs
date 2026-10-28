@@ -32,8 +32,10 @@ internal sealed class SignInService(IAccountDirectory accounts, VerificationGate
 internal sealed class AccountService(IAccountDirectory accounts, VerificationGate gate, SessionService sessions, IdentityPolicies policies,
     IdentityClock clock) : IAccountService
 {
-    public async Task<AccountCreationResult> CreateLocalAccountAsync(string userName, SecretText password, CancellationToken cancellationToken)
+    public async Task<AccountCreationResult> CreateLocalAccountAsync(IdentityAuthority authority, string userName, SecretText password,
+        CancellationToken cancellationToken)
     {
+        IdentityAuthorization.RequireHost(authority, IdentityHostOperations.AccountsId);
         ArgumentNullException.ThrowIfNull(password);
         if (!UserNames.IsPlausible(userName)) return new(AccountCreationStatus.InvalidUserName, null);
         if (password.Length < policies.Passwords.MinimumLength || password.Length > PasswordPolicy.MaximumLength)
@@ -75,30 +77,48 @@ internal sealed class AccountService(IAccountDirectory accounts, VerificationGat
         }
     }
 
-    public async Task<bool> DisableAsync(Guid accountId, CancellationToken cancellationToken)
+    public async Task<bool> DisableAsync(IdentityAuthority authority, Guid accountId, CancellationToken cancellationToken)
     {
+        IdentityAuthorization.RequireHost(authority, IdentityHostOperations.AccountsId);
         if (!await accounts.SetDisabledAsync(accountId, true, cancellationToken).ConfigureAwait(false)) return false;
         await sessions.EndAllAsync(accountId, SessionEndReason.AccountDisabled, cancellationToken).ConfigureAwait(false);
         return true;
     }
 
-    public Task<bool> EnableAsync(Guid accountId, CancellationToken cancellationToken) => accounts.SetDisabledAsync(accountId, false, cancellationToken);
-
-    public async Task<bool> SecurityStateChangedAsync(Guid accountId, CancellationToken cancellationToken)
+    public Task<bool> EnableAsync(IdentityAuthority authority, Guid accountId, CancellationToken cancellationToken)
     {
+        IdentityAuthorization.RequireHost(authority, IdentityHostOperations.AccountsId);
+        return accounts.SetDisabledAsync(accountId, false, cancellationToken);
+    }
+
+    public async Task<bool> SecurityStateChangedAsync(IdentityAuthority authority, Guid accountId, CancellationToken cancellationToken)
+    {
+        IdentityAuthorization.RequireHost(authority, IdentityHostOperations.AccountsId);
         if (!await accounts.RotateSecurityStampAsync(accountId, cancellationToken).ConfigureAwait(false)) return false;
         await sessions.EndAllAsync(accountId, SessionEndReason.SecurityStateChanged, cancellationToken).ConfigureAwait(false);
         return true;
     }
 }
 
+/// <summary>
+/// Tenant memberships, changed only in an audited host scope granted for the memberships operation and written in that
+/// scope, so a membership, which decides who may establish a tenant context, is authority data behind host authority and
+/// audit, never an owner-bound write.
+/// </summary>
 internal sealed class TenantMembershipService(ITenantMembershipStore store, IdentityClock clock) : ITenantMemberships
 {
-    public Task<bool> AddMemberAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken) =>
-        tenantId == Guid.Empty ? throw new ArgumentException("Name the tenant by its identifier.", nameof(tenantId))
-            : store.AddAsync(accountId, tenantId, clock.Now, cancellationToken);
+    public Task<bool> AddMemberAsync(IdentityAuthority authority, Guid accountId, Guid tenantId, CancellationToken cancellationToken)
+    {
+        var host = IdentityAuthorization.RequireHost(authority, IdentityHostOperations.MembershipsId);
+        return tenantId == Guid.Empty ? throw new ArgumentException("Name the tenant by its identifier.", nameof(tenantId))
+            : store.AddAsync(host, accountId, tenantId, clock.Now, cancellationToken);
+    }
 
-    public Task<bool> RemoveMemberAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken) => store.RemoveAsync(accountId, tenantId, cancellationToken);
+    public Task<bool> RemoveMemberAsync(IdentityAuthority authority, Guid accountId, Guid tenantId, CancellationToken cancellationToken)
+    {
+        var host = IdentityAuthorization.RequireHost(authority, IdentityHostOperations.MembershipsId);
+        return store.RemoveAsync(host, accountId, tenantId, cancellationToken);
+    }
 
     public Task<bool> IsMemberAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken) =>
         tenantId == Guid.Empty ? Task.FromResult(false) : store.IsMemberAsync(accountId, tenantId, cancellationToken);

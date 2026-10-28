@@ -48,23 +48,23 @@ public sealed class FreshnessTests
         await AssertEnded(survivor, SessionEndCause.PasswordChanged);
 
         var (revokedA, revokedB) = await TwoSessions();
-        Assert.Equal(2, await sessions.RevokeAllAsync(accountId, Cancellation));
+        Assert.Equal(2, await sessions.RevokeAllAsync(await identity.Administrator.SessionsAsync(), accountId, Cancellation));
         await AssertEnded(revokedA, SessionEndCause.Revoked);
         await AssertEnded(revokedB, SessionEndCause.Revoked);
 
         var (changedA, _) = await TwoSessions();
-        Assert.True(await accounts.SecurityStateChangedAsync(accountId, Cancellation));
+        Assert.True(await accounts.SecurityStateChangedAsync(await identity.Administrator.AccountsAsync(), accountId, Cancellation));
         await AssertEnded(changedA, SessionEndCause.SecurityStateChanged);
 
         var (disabledA, _) = await TwoSessions();
-        Assert.True(await accounts.DisableAsync(accountId, Cancellation));
+        Assert.True(await accounts.DisableAsync(await identity.Administrator.AccountsAsync(), accountId, Cancellation));
         await AssertEnded(disabledA, SessionEndCause.AccountDisabled);
         Assert.Equal(SignInStatus.Failed, (await identity.Get<ISignInService>().SignInWithPasswordAsync(
             new PasswordSignInRequest("editor-1", new SecretText(password), "src-1"), Cancellation)).Status);
 
         // None of this touched another account's session.
         Assert.NotNull(await sessions.ValidateAsync(other.Token, Cancellation));
-        Assert.False(await accounts.DisableAsync(Guid.NewGuid(), Cancellation));
+        Assert.False(await accounts.DisableAsync(await identity.Administrator.AccountsAsync(), Guid.NewGuid(), Cancellation));
         Assert.NotEqual(accountId, otherId);
     }
 
@@ -78,7 +78,7 @@ public sealed class FreshnessTests
         Assert.Equal(FreshnessStatus.Current, await freshness.RecheckAsync(principal, Cancellation));
 
         // The principal captured at the start of the request is unchanged, but the recheck reads the store.
-        Assert.True(await identity.Get<IAccountService>().SecurityStateChangedAsync(accountId, Cancellation));
+        Assert.True(await identity.Get<IAccountService>().SecurityStateChangedAsync(await identity.Administrator.AccountsAsync(), accountId, Cancellation));
         Assert.Equal(FreshnessStatus.SessionEnded, await freshness.RecheckAsync(principal, Cancellation));
         Assert.Null(await identity.Get<ISessionService>().ValidateAsync(session.Token, Cancellation));
 
