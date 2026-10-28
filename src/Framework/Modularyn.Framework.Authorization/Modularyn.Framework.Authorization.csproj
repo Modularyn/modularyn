@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../Modularyn.Framework.Authorization.Abstractions/Modularyn.Framework.Authorization.Abstractions.csproj" />
+    <ProjectReference Include="../Modularyn.Framework.Configuration/Modularyn.Framework.Configuration.csproj" />
+    <ProjectReference Include="../Modularyn.Framework.Modularity.Abstractions/Modularyn.Framework.Modularity.Abstractions.csproj" />
+    <ProjectReference Include="../Modularyn.Framework.Persistence.Abstractions/Modularyn.Framework.Persistence.Abstractions.csproj" />
+    <ProjectReference Include="../Modularyn.Framework.Persistence.EfCore/Modularyn.Framework.Persistence.EfCore.csproj" />
+    <ProjectReference Include="../Modularyn.Framework.Security.Abstractions/Modularyn.Framework.Security.Abstractions.csproj" />
+    <ProjectReference Include="../Modularyn.Framework.Tenancy.Abstractions/Modularyn.Framework.Tenancy.Abstractions.csproj" />
+    <ProjectReference Include="../Modularyn.Framework.Tenancy/Modularyn.Framework.Tenancy.csproj" />
+  </ItemGroup>
+</Project>
