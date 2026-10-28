@@ -72,10 +72,15 @@ public sealed class AdministrationTests
         Assert.Equal(IdentityAuthorityCodes.OwnerOrHostRequired, await RefusedAsync(async () =>
             await sessions.RevokeAllAsync(await identity.Administrator.AccountsAsync(), second, Cancellation)));
         Assert.NotNull(await sessions.ValidateAsync(secondSession.Token, Cancellation));
-        // A delegated principal is not its subject's owner, whatever the delegation covers.
-        var delegated = ExecutionPrincipal.ForDelegation(secondPrincipal.Actor, secondSession.SessionId, secondSession.AuthenticatedAt, firstPrincipal.Actor,
-            new DelegatedAuthority(Guid.NewGuid(), ["identity.sessions"], "Help member-1", null, identity.Clock.Now.AddMinutes(-1), identity.Clock.Now.AddMinutes(10)));
+        // A current delegated principal is the owner of neither its subject's account nor, while it acts for that subject, its own.
+        var delegations = identity.Get<IDelegationService>();
+        var issued = await delegations.IssueAsync(new DelegationRequest(second, first, ["identity.sessions"], "Help member-1", null, identity.Clock.Now.AddMinutes(10)),
+            firstPrincipal, Cancellation);
+        var delegated = await delegations.ResolveAsync(issued.GrantId!.Value, secondPrincipal, Cancellation);
+        Assert.NotNull(delegated);
         Assert.Equal(IdentityAuthorityCodes.OwnerOrHostRequired, await RefusedAsync(() => sessions.RevokeAllAsync(IdentityAuthority.Owner(delegated), first, Cancellation)));
+        Assert.Equal(IdentityAuthorityCodes.OwnerOrHostRequired, await RefusedAsync(() => sessions.RevokeAllAsync(IdentityAuthority.Owner(delegated), second, Cancellation)));
+        Assert.NotNull(await sessions.ValidateAsync(firstSession.Token, Cancellation));
 
         // The owner ends its own sessions; afterwards its principal is no longer an owner's.
         Assert.True(await sessions.RevokeAsync(firstOwner, firstSession.SessionId, Cancellation));

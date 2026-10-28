@@ -7,6 +7,7 @@ using Modularyn.Framework.Security.Abstractions;
 using Modularyn.Framework.Tenancy;
 using Modularyn.Framework.Tenancy.Abstractions;
 using Modularyn.Framework.Tenancy.Tests;
+using Modularyn.Modules.Identity.Application.Contracts;
 using Npgsql;
 using Xunit;
 
@@ -42,17 +43,19 @@ public sealed class AuthorityTests(ITestOutputHelper output)
         var user = await host.UserAsync("user-1", tenant.Id);
         var outsider = await host.UserAsync("outsider-1");
         var administration = host.Get<AuthorityAdministration>();
-        // The owner defines a role that holds item.delete but may assign only item.read and item.export.
+        // The owner defines a role that holds item.delete but may assign only item.read, item.export and item.update, the last
+        // of which it does not hold.
         Assert.True(await administration.DefineRoleAsync(tenant.OwnerUnit.Context, tenant.OwnerUnit.Principal, "item-admins",
-            [AuthorizationModule.ManagePermission, Items.Read, Items.Export, Items.Delete], [Items.Read, Items.Export], Cancellation));
+            [AuthorizationModule.ManagePermission, Items.Read, Items.Export, Items.Delete], [Items.Read, Items.Export, Items.Update], Cancellation));
         Assert.True(await administration.AssignRoleAsync(tenant.OwnerUnit.Context, tenant.OwnerUnit.Principal, adminA.Actor, "item-admins", Cancellation));
         await using var admin = await host.EnterAsync(adminA, tenant.Id);
 
         Assert.True(await administration.GrantPermissionAsync(admin.Context, admin.Principal, user.Actor, Items.Export, Cancellation));
         Assert.False(await administration.GrantPermissionAsync(admin.Context, admin.Principal, user.Actor, Items.Export, Cancellation));
-        // Held but outside the ceiling; in neither; declared by no composed module.
+        // Held but outside the ceiling; inside the ceiling but not held; in neither; declared by no composed module.
         Assert.Equal(AuthorizationCodes.BeyondCeiling, await RefusedAsync(() => administration.GrantPermissionAsync(admin.Context, admin.Principal, user.Actor, Items.Delete, Cancellation)));
         Assert.Equal(AuthorizationCodes.BeyondCeiling, await RefusedAsync(() => administration.GrantPermissionAsync(admin.Context, admin.Principal, user.Actor, Items.Update, Cancellation)));
+        Assert.Equal(AuthorizationCodes.BeyondCeiling, await RefusedAsync(() => administration.GrantPermissionAsync(admin.Context, admin.Principal, user.Actor, Items.BulkUpdate, Cancellation)));
         Assert.Equal(AuthorizationCodes.ChangeUndefined, await RefusedAsync(() => administration.GrantPermissionAsync(admin.Context, admin.Principal, user.Actor, "absent.read", Cancellation)));
         // A role carrying more than the ceiling can be neither defined, assigned nor removed by the actor.
         Assert.Equal(AuthorizationCodes.BeyondCeiling, await RefusedAsync(() => administration.DefineRoleAsync(admin.Context, admin.Principal, "deleters",
@@ -78,6 +81,16 @@ public sealed class AuthorityTests(ITestOutputHelper output)
             new DelegatedAuthority(Guid.NewGuid(), [AuthorizationModule.ManagePermission], "Administer for admin-a", tenant.Id, DateTimeOffset.UtcNow.AddMinutes(-1),
                 DateTimeOffset.UtcNow.AddMinutes(10)));
         await using (var delegated = await host.EnterAsync(user, tenant.Id, delegation))
+            Assert.Equal(AuthorizationCodes.ChangeNotPermitted, await RefusedAsync(() => administration.GrantPermissionAsync(delegated.Context, delegated.Principal,
+                user.Actor, Items.Read, Cancellation)));
+        // Nor by an administrator acting under a current delegation from someone else, although its own authority would
+        // allow the change.
+        var delegations = host.Get<IDelegationService>();
+        var issued = await delegations.IssueAsync(new DelegationRequest(adminA.Id, user.Id, [AuthorizationModule.ManagePermission, Items.Read], "Act for user-1",
+            tenant.Id, host.Clock.Now.AddMinutes(10)), (await host.SignInAsync(user)).Principal, Cancellation);
+        var acting = await delegations.ResolveAsync(issued.GrantId!.Value, (await host.SignInAsync(adminA)).Principal, Cancellation);
+        Assert.NotNull(acting);
+        await using (var delegated = await host.EnterAsync(adminA, tenant.Id, acting))
             Assert.Equal(AuthorizationCodes.ChangeNotPermitted, await RefusedAsync(() => administration.GrantPermissionAsync(delegated.Context, delegated.Principal,
                 user.Actor, Items.Read, Cancellation)));
 

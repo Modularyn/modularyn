@@ -73,13 +73,16 @@ public sealed partial class G02AC003Tests
         var t0 = clock.Now;
         Assert.Equal((true, AuthorizationSource.Store), Outcome(await reader.AuthorizeAsync(fresh, Items.Read)));
         Assert.Equal((true, AuthorizationSource.Cache), Outcome(await reader.AuthorizeAsync(fresh, Items.Read)));
+        // The revoking process holds a warm entry of its own.
+        await using var revokerUnit = await revoker.EnterAsync(user, tenant);
+        Assert.Equal((true, AuthorizationSource.Store), Outcome(await revoker.AuthorizeAsync(revokerUnit, Items.Read)));
+        Assert.Equal((true, AuthorizationSource.Cache), Outcome(await revoker.AuthorizeAsync(revokerUnit, Items.Read)));
 
-        // The revocation is authoritative when it commits, at t0; the revoking process refuses at once.
+        // The revocation is authoritative when it commits, at t0; the revoking process invalidates its entry and refuses at once.
         await administration.RevokePermissionAsync(owner.Context, owner.Principal, user.Actor, Items.Read, Cancellation);
         var version = await database.ScalarAsync<Guid>("SELECT \"Version\" FROM " + database.Table(database.AuthorizationSchema, "TenantAuthority")
             + " WHERE \"TenantId\" = @tenant", new NpgsqlParameter("tenant", tenant));
-        await using (var revokerUnit = await revoker.EnterAsync(user, tenant))
-            Assert.Equal(AuthorizationCodes.NotHeld, (await revoker.AuthorizeAsync(revokerUnit, Items.Read)).Code);
+        Assert.Equal((false, AuthorizationCodes.NotHeld, AuthorizationSource.Store), Refusal(await revoker.AuthorizeAsync(revokerUnit, Items.Read)));
         output.WriteLine($"Revocation of {Items.Read} committed at t0 = {t0:O}, authority version {version:D}; cache entry {key}.");
 
         // At B minus one second the reader may still permit from its entry, read at t0; at B plus one second it reads the store and refuses.
@@ -144,6 +147,8 @@ public sealed partial class G02AC003Tests
     }
 
     private static (bool, AuthorizationSource) Outcome(AuthorizationDecision decision) => (decision.Permitted, decision.Source);
+
+    private static (bool, string?, AuthorizationSource) Refusal(AuthorizationDecision decision) => (decision.Permitted, decision.Code, decision.Source);
 
     private static Task<long> ExportsAsync(AuthorizationDatabase database, Guid operation) => database.ScalarAsync<long>(
         "SELECT count(*) FROM " + database.Table(database.ItemsSchema, "ItemExports") + " WHERE \"Id\" = @id", new NpgsqlParameter("id", operation));

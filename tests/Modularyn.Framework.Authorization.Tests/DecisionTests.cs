@@ -200,6 +200,10 @@ public sealed class DecisionTests(ITestOutputHelper output)
         // A change invalidates every entry of the tenant at once, both principals' included.
         authorization.Authority.Revoke(tenant, "user-1", Items.Read);
         Assert.Equal(AuthorizationSource.Cache, (await evaluator.AuthorizeAsync(Request(user1, Items.Read), Cancellation)).Source);
+        // The worker entry point decides at the current profile, so a job for user-1 meets the revocation that the entry has not.
+        var job = ExecutionPrincipal.ForService(new PrincipalReference(Items.Service, IdentityKind.Service), [Items.Read]);
+        Assert.Equal((TenantWorkDisposition.Denied, AuthorizationCodes.NotHeld), Disposition(await authorization.Get<AuthorizedWorkRunner>().RunAsync(job,
+            PropagatedTenantContext.Capture(user1.Context).ToJson(), Items.Read, Never, Cancellation)));
         var before = cache.KeyFor(user1.Context, TenantAuthorityCache.Entry(subject1, AuthorizationHost.Bound));
         cache.InvalidateTenant(tenant);
         Assert.NotEqual(before, cache.KeyFor(user1.Context, TenantAuthorityCache.Entry(subject1, AuthorizationHost.Bound)));
