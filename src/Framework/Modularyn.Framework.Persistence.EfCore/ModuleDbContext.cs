@@ -100,14 +100,39 @@ public abstract class ModuleDbContext : DbContext
         ModuleQueryFilterRegistry.Bypass(Set<TEntity>(), bypass);
 
     /// <summary>
-    /// Tenant-scoped rows of every tenant, for a host-scope unit only. Only the tenant predicate is lifted: soft delete and
-    /// module filters remain, each execution still requires the host scope to be active, and the rows cannot be changed.
+    /// Tenant-scoped rows of every tenant, for a host-scope unit only, and only of an entity its grant's operation reaches.
+    /// Only the tenant predicate is lifted: soft delete and module filters remain, each execution still requires the host
+    /// scope to be active, and the rows cannot be changed.
     /// </summary>
     public CrossTenantQuery<TEntity> AcrossTenants<TEntity>() where TEntity : class, ITenantScoped =>
-        ModuleQueryFilterRegistry.BypassTenant(Set<TEntity>(), RequireHostGrant());
+        ModuleQueryFilterRegistry.BypassTenant(Set<TEntity>(), RequireHostGrant(Model.FindEntityType(typeof(TEntity))));
 
-    internal HostScopeGrant RequireHostGrant() => Tenant is { Scope: TenantScope.Host, IsActive: true, HostGrant: { } grant } ? grant
-        : throw new PersistenceContractException("MPS038", "Reading across tenants requires an active, audited host-scope unit of work.");
+    /// <summary>
+    /// The unit's active host grant, when its operation reaches the entity in this module. The elevated policy binds each
+    /// host operation to the entities its owning module declared for it, so every other entity is refused.
+    /// </summary>
+    internal HostScopeGrant RequireHostGrant(IReadOnlyEntityType? entity)
+    {
+        var grant = Tenant is { Scope: TenantScope.Host, IsActive: true, HostGrant: { } active } ? active
+            : throw new PersistenceContractException("MPS038", "Reading across tenants requires an active, audited host-scope unit of work.");
+        RequireReach(grant, entity);
+        return grant;
+    }
+
+    private void RequireReach(HostScopeGrant grant, IReadOnlyEntityType? entity)
+    {
+        if (entity is null || ReachTable(entity) is not { } table || !grant.Reaches(Module.ModuleId, table))
+            throw new PersistenceContractException("MPS043",
+                "The host grant's operation does not reach this entity. A host operation reaches only the entities its module declared for it.");
+    }
+
+    /// <summary>The table an entity is reached by: its root owner's, so an owned type follows the entity that owns it.</summary>
+    internal static string? ReachTable(IReadOnlyEntityType entity)
+    {
+        var root = entity;
+        while (root.IsOwned() && root.FindOwnership() is { } ownership) root = ownership.PrincipalEntityType;
+        return root.GetRootType().GetTableName();
+    }
 
     internal void Bind(TenantContext? tenant, DeploymentScope? deployment, ModuleOwnerScope? owner)
     {
@@ -222,7 +247,7 @@ public abstract class ModuleDbContext : DbContext
         var tenantProperty = TenantModel.TenantProperty(entry.Metadata);
         if (tenantProperty is null)
         {
-            RequireHostWrite();
+            RequireHostWrite(entry.Metadata);
             return;
         }
         var current = RequireTenantWrite();
@@ -240,11 +265,11 @@ public abstract class ModuleDbContext : DbContext
     };
 
     /// <summary>
-    /// Host-scoped data changes only in an active host scope, a named deployment scope or the owning module's owner-bound
-    /// unit, never implicitly. Every entity of this context belongs to its module, so an owner-bound unit reaches only its
-    /// own module's tables.
+    /// Host-scoped data changes only in an active host scope whose operation reaches the entity, a named deployment scope or
+    /// the owning module's owner-bound unit, never implicitly. Every entity of this context belongs to its module, so an
+    /// owner-bound unit reaches only its own module's tables.
     /// </summary>
-    internal void RequireHostWrite()
+    internal void RequireHostWrite(IReadOnlyEntityType entity)
     {
         if (Tenant is { IsActive: false }) throw new PersistenceContractException("MPS035", "The unit's tenant context has ended.");
         if (Tenant is { Scope: TenantScope.Tenant })
@@ -252,6 +277,7 @@ public abstract class ModuleDbContext : DbContext
         if (Tenant is null && Deployment is null && Owner is null)
             throw new PersistenceContractException("MPS040",
                 "Changing host-scoped data requires an audited host scope, a named deployment scope or the owning module's owner-bound unit; a unit without one can only read.");
+        if (Tenant is { Scope: TenantScope.Host, HostGrant: { } grant }) RequireReach(grant, entity);
     }
 
     internal void RequireWork()

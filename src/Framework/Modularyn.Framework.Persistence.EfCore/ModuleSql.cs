@@ -41,10 +41,10 @@ public sealed class ModuleSql
     public BypassedQuery<TEntity> IncludingSoftDeleted<TEntity>(SoftDeleteBypass bypass) where TEntity : class =>
         ModuleQueryFilterRegistry.Bypass(Query<TEntity>(), bypass);
 
-    /// <summary>The direct-SQL read of every tenant's rows, for an active, audited host-scope unit only.</summary>
+    /// <summary>The direct-SQL read of every tenant's rows, for an active, audited host-scope unit whose operation reaches the entity.</summary>
     public CrossTenantQuery<TEntity> AcrossTenants<TEntity>() where TEntity : class, ITenantScoped
     {
-        var grant = context.RequireHostGrant();
+        var grant = context.RequireHostGrant(context.Model.FindEntityType(typeof(TEntity)));
         return ModuleQueryFilterRegistry.BypassTenant(Query<TEntity>(), grant);
     }
 
@@ -81,7 +81,7 @@ public sealed class ModuleSql
             else if (scoped.TenantId != tenant)
                 throw new PersistenceContractException("MPS036", "A unit of work writes only its own tenant's rows.");
         }
-        else context.RequireHostWrite();
+        else context.RequireHostWrite(entity);
         if (row is IConcurrencyTracked tracked) tracked.Version = Guid.NewGuid();
         await using var command = context.Database.GetDbConnection().CreateCommand();
         command.Transaction = context.Database.CurrentTransaction?.GetDbTransaction();
@@ -108,8 +108,9 @@ public sealed class ModuleSql
 
     /// <summary>
     /// Changes one named tenant's row from an active, audited host-scope unit, for records the host keeps about tenant
-    /// work, such as a denied disposition. The tenant is explicit, the version must match, the tenant cannot change, and
-    /// every other filter still applies. It is the only write a host scope can make to tenant-scoped data.
+    /// work, such as a denied disposition, in an entity the unit's host operation reaches. The tenant is explicit, the
+    /// version must match, the tenant cannot change, and every other filter still applies. It is the only write a host
+    /// scope can make to tenant-scoped data.
     /// </summary>
     public Task<SqlWriteResult> UpdateForTenantAsync<TEntity, TKey, TValue>(Guid tenantId, Expression<Func<TEntity, TKey>> key, TKey keyValue,
         Guid expectedVersion, Expression<Func<TEntity, TValue>> column, TValue value, CancellationToken cancellationToken = default)
@@ -142,11 +143,11 @@ public sealed class ModuleSql
         IQueryable<TEntity> source = QueryMarkers.Apply(QueryMarkers.AdapterUpdate, context.Set<TEntity>());
         if (hostTenant is { } named)
         {
-            context.RequireHostGrant();
+            context.RequireHostGrant(entity);
             Expression<Func<TEntity, bool>> ofTenant = row => EF.Property<Guid>(row, TenantModel.TenantMember) == named;
             source = QueryMarkers.Apply(QueryMarkers.TenantBypass, source.IgnoreQueryFilters([ModuleQueryFilterRegistry.Tenant])).Where(ofTenant);
         }
-        else if (tenantProperty is null) context.RequireHostWrite();
+        else if (tenantProperty is null) context.RequireHostWrite(entity);
         else context.RequireTenantWrite();
         // A captured value becomes a provider parameter; it is never concatenated into command text.
         Expression<Func<TKey>> parameter = () => keyValue;

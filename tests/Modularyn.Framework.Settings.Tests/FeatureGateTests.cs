@@ -24,7 +24,7 @@ public sealed class FeatureGateTests
         Assert.False(await features.IsEnabledAsync(a, TestDefinitions.Preview, Cancellation));
         Assert.Empty(gate.Seen);
 
-        var version = await database.Settings.SetAsync(a, TestDefinitions.Preview, ValueSource.Tenant, "true",
+        var version = await database.Settings.SetAsync(a, SettingsDatabase.PrincipalOf(a), TestDefinitions.Preview, ValueSource.Tenant, "true",
             cancellationToken: Cancellation);
         Assert.True(await features.IsEnabledAsync(a, TestDefinitions.Preview, Cancellation));
         // An entitlement or permission withdrawn while the flag stays on refuses at once: the gate's outcome is not cached.
@@ -40,7 +40,7 @@ public sealed class FeatureGateTests
         });
 
         // Turning the flag off refuses although the gate still allows.
-        await database.Settings.SetAsync(a, TestDefinitions.Preview, ValueSource.Tenant, "false", version, Cancellation);
+        await database.Settings.SetAsync(a, SettingsDatabase.PrincipalOf(a), TestDefinitions.Preview, ValueSource.Tenant, "false", version, Cancellation);
         Assert.False(await features.IsEnabledAsync(a, TestDefinitions.Preview, Cancellation));
         Assert.Equal(3, gate.Seen.Count);
     }

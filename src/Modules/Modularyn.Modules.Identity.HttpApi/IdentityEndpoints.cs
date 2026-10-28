@@ -69,7 +69,7 @@ public static class IdentityEndpoints
         }
         if (body is not { UserName: { } userName, Password: { } password }) return Code("invalid_request", StatusCodes.Status400BadRequest);
 
-        var source = ClientSourceAddress.From(context.Connection.RemoteIpAddress);
+        var source = context.RequestServices.GetRequiredService<ClientSourceObserver>().SourceOf(context.Connection);
         var result = await signIn.SignInWithPasswordAsync(new PasswordSignInRequest(userName, new SecretText(password), source), context.RequestAborted)
             .ConfigureAwait(false);
         switch (result.Status)

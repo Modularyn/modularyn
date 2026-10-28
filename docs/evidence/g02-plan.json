@@ -300,14 +300,14 @@
           "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_B01_RevocationMeetsFreshnessAndStopsSensitiveExports_Isolation",
           "layer": "isolation",
           "workOrder": "SEC-05",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
           "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_B01_RevocationMeetsFreshnessAndStopsSensitiveExports_Integration",
           "layer": "real-provider-integration",
           "workOrder": "SEC-05",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -540,21 +540,21 @@
           "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_P01_EveryEntryPointAppliesTheSameGrant_Unit",
           "layer": "unit",
           "workOrder": "SEC-05",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
           "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_P01_EveryEntryPointAppliesTheSameGrant_Contract",
           "layer": "api-contract",
           "workOrder": "SEC-05",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
           "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_P01_EveryEntryPointAppliesTheSameGrant_Isolation",
           "layer": "isolation",
           "workOrder": "SEC-05",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -641,21 +641,21 @@
           "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_R01_RevokedWorkStopsAtTheNextAuthorityCheck_Isolation",
           "layer": "isolation",
           "workOrder": "SEC-05",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
           "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_R01_RevokedWorkStopsAtTheNextAuthorityCheck_Integration",
           "layer": "real-provider-integration",
           "workOrder": "SEC-05",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
           "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_R01_RevokedWorkStopsAtTheNextAuthorityCheck_Recovery",
           "layer": "operational-recovery",
           "workOrder": "SEC-05",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -693,21 +693,21 @@
           "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_R02_CacheOutageAndRestartKeepCurrentAuthorization_Integration",
           "layer": "real-provider-integration",
           "workOrder": "SEC-05",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
           "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_R02_CacheOutageAndRestartKeepCurrentAuthorization_Isolation",
           "layer": "isolation",
           "workOrder": "SEC-05",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
           "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_R02_CacheOutageAndRestartKeepCurrentAuthorization_Recovery",
           "layer": "operational-recovery",
           "workOrder": "SEC-05",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [

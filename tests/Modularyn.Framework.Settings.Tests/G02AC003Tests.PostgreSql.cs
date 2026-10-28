@@ -36,37 +36,37 @@ public sealed partial class G02AC003Tests
             var userValue = flag ? "true" : "";
             await Expect(a, ValueSource.Default, definition.DefaultValue!);
             await Expect(b, ValueSource.Default, definition.DefaultValue!);
-            var globalVersion = await settings.SetAsync(host, definition, ValueSource.Global, globalValue, cancellationToken: Cancellation);
+            var globalVersion = await settings.SetAsync(host, SettingsDatabase.PrincipalOf(host), definition, ValueSource.Global, globalValue, cancellationToken: Cancellation);
             await Expect(a, ValueSource.Global, globalValue);
             var bGlobal = await Expect(b, ValueSource.Global, globalValue);
-            var tenantVersion = await settings.SetAsync(a, definition, ValueSource.Tenant, tenantValue, cancellationToken: Cancellation);
+            var tenantVersion = await settings.SetAsync(a, SettingsDatabase.PrincipalOf(a), definition, ValueSource.Tenant, tenantValue, cancellationToken: Cancellation);
             await Expect(a, ValueSource.Tenant, tenantValue);
             await Expect(other, ValueSource.Tenant, tenantValue);
             Assert.Same(bGlobal, await Expect(b, ValueSource.Global, globalValue));
-            var userVersion = await settings.SetAsync(a, definition, ValueSource.User, userValue, cancellationToken: Cancellation);
+            var userVersion = await settings.SetAsync(a, SettingsDatabase.PrincipalOf(a), definition, ValueSource.User, userValue, cancellationToken: Cancellation);
             var aUser = await Expect(a, ValueSource.User, userValue);
             await Expect(other, ValueSource.Tenant, tenantValue);
             Assert.Same(bGlobal, await Expect(b, ValueSource.Global, globalValue));
 
-            globalVersion = await settings.SetAsync(host, definition, ValueSource.Global, globalReplacement, globalVersion, Cancellation);
+            globalVersion = await settings.SetAsync(host, SettingsDatabase.PrincipalOf(host), definition, ValueSource.Global, globalReplacement, globalVersion, Cancellation);
             Assert.NotSame(aUser, await Expect(a, ValueSource.User, userValue));
             await Expect(other, ValueSource.Tenant, tenantValue);
             await Expect(b, ValueSource.Global, globalReplacement);
-            tenantVersion = await settings.SetAsync(a, definition, ValueSource.Tenant, tenantReplacement, tenantVersion, Cancellation);
+            tenantVersion = await settings.SetAsync(a, SettingsDatabase.PrincipalOf(a), definition, ValueSource.Tenant, tenantReplacement, tenantVersion, Cancellation);
             await Expect(a, ValueSource.User, userValue);
             await Expect(other, ValueSource.Tenant, tenantReplacement);
             await Expect(b, ValueSource.Global, globalReplacement);
 
-            userVersion = await settings.SetAsync(a, definition, ValueSource.User, globalValue, userVersion, Cancellation);
+            userVersion = await settings.SetAsync(a, SettingsDatabase.PrincipalOf(a), definition, ValueSource.User, globalValue, userVersion, Cancellation);
             await Expect(a, ValueSource.User, globalValue);
             await Expect(other, ValueSource.Tenant, tenantReplacement);
             await Expect(b, ValueSource.Global, globalReplacement);
 
-            await settings.ResetAsync(a, definition, ValueSource.User, userVersion, Cancellation);
+            await settings.ResetAsync(a, SettingsDatabase.PrincipalOf(a), definition, ValueSource.User, userVersion, Cancellation);
             await Expect(a, ValueSource.Tenant, tenantReplacement);
-            await settings.ResetAsync(a, definition, ValueSource.Tenant, tenantVersion, Cancellation);
+            await settings.ResetAsync(a, SettingsDatabase.PrincipalOf(a), definition, ValueSource.Tenant, tenantVersion, Cancellation);
             await Expect(a, ValueSource.Global, globalReplacement);
-            await settings.ResetAsync(host, definition, ValueSource.Global, globalVersion, Cancellation);
+            await settings.ResetAsync(host, SettingsDatabase.PrincipalOf(host), definition, ValueSource.Global, globalVersion, Cancellation);
             await Expect(a, ValueSource.Default, definition.DefaultValue!);
             await Expect(b, ValueSource.Default, definition.DefaultValue!);
 
@@ -81,7 +81,7 @@ public sealed partial class G02AC003Tests
                 return resolved;
             }
         }
-        await features.SetAsync(a, TestDefinitions.Preview, ValueSource.Tenant, true, cancellationToken: Cancellation);
+        await features.SetAsync(a, SettingsDatabase.PrincipalOf(a), TestDefinitions.Preview, ValueSource.Tenant, true, cancellationToken: Cancellation);
         Assert.True((await features.ResolveAsync(a, TestDefinitions.Preview, Cancellation)).Get<bool>());
         Assert.False(await features.IsEnabledAsync(a, TestDefinitions.Preview, Cancellation));
         Assert.Single(await database.InventoryAsync());
@@ -95,16 +95,16 @@ public sealed partial class G02AC003Tests
         var a = await database.EnterAsync(database.TenantA);
         var settings = database.Settings;
         var definition = TestDefinitions.PageSize;
-        var version = await settings.SetAsync(a, definition, ValueSource.Tenant, "30", cancellationToken: Cancellation);
+        var version = await settings.SetAsync(a, SettingsDatabase.PrincipalOf(a), definition, ValueSource.Tenant, "30", cancellationToken: Cancellation);
         var cached = await settings.ResolveAsync(a, definition, Cancellation);
         Assert.Equal(30L, cached.Get<long>());
         Assert.Equal(SettingsTimestamp.Normalize(database.Clock.GetUtcNow()), cached.UpdatedAt);
         Assert.Equal(0, cached.UpdatedAt!.Value.Ticks % 10);
         foreach (var invalid in new[] { "0", "101", "01", "1.0", "9223372036854775808" })
-            await Assert.ThrowsAsync<ValueValidationException>(() => settings.SetAsync(a, definition, ValueSource.Tenant, invalid, version, Cancellation));
-        await Assert.ThrowsAsync<ValueConflictException>(() => settings.SetAsync(a, definition, ValueSource.Tenant, "40", cancellationToken: Cancellation));
-        await Assert.ThrowsAsync<ValueConflictException>(() => settings.SetAsync(a, definition, ValueSource.Tenant, "40", Guid.NewGuid(), Cancellation));
-        await Assert.ThrowsAsync<ValueConflictException>(() => settings.ResetAsync(a, definition, ValueSource.Tenant, Guid.NewGuid(), Cancellation));
+            await Assert.ThrowsAsync<ValueValidationException>(() => settings.SetAsync(a, SettingsDatabase.PrincipalOf(a), definition, ValueSource.Tenant, invalid, version, Cancellation));
+        await Assert.ThrowsAsync<ValueConflictException>(() => settings.SetAsync(a, SettingsDatabase.PrincipalOf(a), definition, ValueSource.Tenant, "40", cancellationToken: Cancellation));
+        await Assert.ThrowsAsync<ValueConflictException>(() => settings.SetAsync(a, SettingsDatabase.PrincipalOf(a), definition, ValueSource.Tenant, "40", Guid.NewGuid(), Cancellation));
+        await Assert.ThrowsAsync<ValueConflictException>(() => settings.ResetAsync(a, SettingsDatabase.PrincipalOf(a), definition, ValueSource.Tenant, Guid.NewGuid(), Cancellation));
         Assert.Same(cached, await settings.ResolveAsync(a, definition, Cancellation));
 
         await using (var work = await EfCoreUnitOfWork.BeginAsync(database.Module, a, cancellationToken: Cancellation))
@@ -117,13 +117,13 @@ public sealed partial class G02AC003Tests
         Assert.Equal(version, (await settings.ReadOverrideAsync(a, definition, ValueSource.Tenant, Cancellation))!.Version);
         Assert.Same(cached, await settings.ResolveAsync(a, definition, Cancellation));
         database.Clock.Advance(TimeSpan.FromTicks(23));
-        var updatedVersion = await settings.SetAsync(a, definition, ValueSource.Tenant, "40", version, Cancellation);
+        var updatedVersion = await settings.SetAsync(a, SettingsDatabase.PrincipalOf(a), definition, ValueSource.Tenant, "40", version, Cancellation);
         Assert.NotEqual(version, updatedVersion);
         var updated = await settings.ResolveAsync(a, definition, Cancellation);
         Assert.Equal(40L, updated.Get<long>());
         Assert.Equal(SettingsTimestamp.Normalize(database.Clock.GetUtcNow()), updated.UpdatedAt);
         Assert.Equal(updated.UpdatedAt, (await settings.ReadOverrideAsync(a, definition, ValueSource.Tenant, Cancellation))!.UpdatedAt);
-        await Assert.ThrowsAsync<ValueConflictException>(() => settings.ResetAsync(a, definition, ValueSource.Tenant, version, Cancellation));
+        await Assert.ThrowsAsync<ValueConflictException>(() => settings.ResetAsync(a, SettingsDatabase.PrincipalOf(a), definition, ValueSource.Tenant, version, Cancellation));
         Assert.Same(updated, await settings.ResolveAsync(a, definition, Cancellation));
     }
 
@@ -135,11 +135,11 @@ public sealed partial class G02AC003Tests
         var a = await database.EnterAsync(database.TenantA);
         var host = await database.HostAsync();
         var definition = TestDefinitions.Title;
-        var version = await database.Settings.SetAsync(host, definition, ValueSource.Global, "first", cancellationToken: Cancellation);
+        var version = await database.Settings.SetAsync(host, SettingsDatabase.PrincipalOf(host), definition, ValueSource.Global, "first", cancellationToken: Cancellation);
         var cached = await database.Settings.ResolveAsync(a, definition, Cancellation);
         await using var remoteServices = database.NewServices();
         var remote = remoteServices.GetRequiredService<SettingsService>();
-        await remote.SetAsync(host, definition, ValueSource.Global, "second", version, Cancellation);
+        await remote.SetAsync(host, SettingsDatabase.PrincipalOf(host), definition, ValueSource.Global, "second", version, Cancellation);
         Assert.Same(cached, await database.Settings.ResolveAsync(a, definition, Cancellation));
         Assert.Equal("second", (await remote.ResolveAsync(a, definition, Cancellation)).Get<string>());
         database.Clock.Advance(TestDefinitions.Staleness - TimeSpan.FromTicks(1));
@@ -157,7 +157,7 @@ public sealed partial class G02AC003Tests
         await using var database = await SettingsDatabase.CreateAsync();
         var a = await database.EnterAsync(database.TenantA);
         var definition = TestDefinitions.Title;
-        await database.Settings.SetAsync(a, definition, ValueSource.Tenant, "committed", cancellationToken: Cancellation);
+        await database.Settings.SetAsync(a, SettingsDatabase.PrincipalOf(a), definition, ValueSource.Tenant, "committed", cancellationToken: Cancellation);
         await database.Settings.ResolveAsync(a, definition, Cancellation);
         database.Clock.Advance(TestDefinitions.Staleness);
         await database.ExecuteAsync("ALTER TABLE " + database.Table("TenantValues") + " RENAME TO \"UnavailableValues\"");
@@ -179,14 +179,14 @@ public sealed partial class G02AC003Tests
     {
         await using var database = await SettingsDatabase.CreateAsync();
         var a = await database.EnterAsync(database.TenantA);
-        var version = await database.Settings.SetAsync(a, TestDefinitions.PageSize, ValueSource.Tenant, "30", cancellationToken: Cancellation);
+        var version = await database.Settings.SetAsync(a, SettingsDatabase.PrincipalOf(a), TestDefinitions.PageSize, ValueSource.Tenant, "30", cancellationToken: Cancellation);
         await database.Settings.ResolveAsync(a, TestDefinitions.PageSize, Cancellation);
         // Independent corruption of this fixture's schema exercises validation on the actual provider read path.
         await database.ExecuteAsync("UPDATE " + database.Table("TenantValues") + " SET \"Value\" = @value",
             new Npgsql.NpgsqlParameter("value", "invalid integer"));
         database.Clock.Advance(TestDefinitions.Staleness);
         await Assert.ThrowsAsync<ValueUnavailableException>(() => database.Settings.ResolveAsync(a, TestDefinitions.PageSize, Cancellation));
-        await database.Settings.SetAsync(a, TestDefinitions.PageSize, ValueSource.Tenant, "40", version, Cancellation);
+        await database.Settings.SetAsync(a, SettingsDatabase.PrincipalOf(a), TestDefinitions.PageSize, ValueSource.Tenant, "40", version, Cancellation);
         Assert.Equal(40L, (await database.Settings.ResolveAsync(a, TestDefinitions.PageSize, Cancellation)).Get<long>());
     }
 
@@ -197,29 +197,29 @@ public sealed partial class G02AC003Tests
         await using var database = await SettingsDatabase.CreateAsync();
         var a = await database.EnterAsync(database.TenantA);
         var host = await database.HostAsync();
-        await Assert.ThrowsAsync<InvalidOperationException>(() => database.Settings.SetAsync(a, TestDefinitions.Title, ValueSource.Global, "refused", cancellationToken: Cancellation));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => database.Settings.SetAsync(host, TestDefinitions.Title, ValueSource.Tenant, "refused", cancellationToken: Cancellation));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => database.Settings.SetAsync(a, TestDefinitions.Title, ValueSource.Default, "refused", cancellationToken: Cancellation));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => database.Settings.SetAsync(a, SettingsDatabase.PrincipalOf(a), TestDefinitions.Title, ValueSource.Global, "refused", cancellationToken: Cancellation));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => database.Settings.SetAsync(host, SettingsDatabase.PrincipalOf(host), TestDefinitions.Title, ValueSource.Tenant, "refused", cancellationToken: Cancellation));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => database.Settings.SetAsync(a, SettingsDatabase.PrincipalOf(a), TestDefinitions.Title, ValueSource.Default, "refused", cancellationToken: Cancellation));
         await Assert.ThrowsAsync<InvalidOperationException>(() => database.Settings.ResolveAsync(host, TestDefinitions.Title, Cancellation));
         var (directoryScope, directoryHost) = await Units.EnterHostAsync(database.Services, "host-1", TenantDirectoryAdministration.OperationId);
         await using (directoryScope)
-            await Assert.ThrowsAsync<InvalidOperationException>(() => database.Settings.SetAsync(directoryHost, TestDefinitions.Title,
+            await Assert.ThrowsAsync<InvalidOperationException>(() => database.Settings.SetAsync(directoryHost, SettingsDatabase.PrincipalOf(directoryHost), TestDefinitions.Title,
                 ValueSource.Global, "refused", cancellationToken: Cancellation));
         await using var serviceScope = database.Services.CreateAsyncScope();
         var serviceExecution = serviceScope.ServiceProvider.GetRequiredService<TenantExecution>();
         var serviceDecision = await serviceExecution.EstablishAsync(TenantResolutionRequest.ForMember(TestIdentity.Service("worker"),
             [Candidates.Header(database.TenantA)]), Cancellation);
         Assert.True(serviceDecision.Succeeded);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => database.Settings.SetAsync(serviceDecision.Context!, TestDefinitions.Title, ValueSource.User,
+        await Assert.ThrowsAsync<InvalidOperationException>(() => database.Settings.SetAsync(serviceDecision.Context!, SettingsDatabase.PrincipalOf(serviceDecision.Context!), TestDefinitions.Title, ValueSource.User,
             "refused", cancellationToken: Cancellation));
-        await database.Settings.SetAsync(a, TestDefinitions.Title, ValueSource.User, "user only", cancellationToken: Cancellation);
+        await database.Settings.SetAsync(a, SettingsDatabase.PrincipalOf(a), TestDefinitions.Title, ValueSource.User, "user only", cancellationToken: Cancellation);
         Assert.Equal("default", (await database.Settings.ResolveAsync(serviceDecision.Context!, TestDefinitions.Title, Cancellation)).Get<string>());
 
         var (endedScope, ended) = await Units.EnterAsync(database.Services, "user-a", database.TenantA);
         await database.Settings.ResolveAsync(ended, TestDefinitions.Title, Cancellation);
         await endedScope.DisposeAsync();
         await Assert.ThrowsAsync<InvalidOperationException>(() => database.Settings.ResolveAsync(ended, TestDefinitions.Title, Cancellation));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => database.Settings.SetAsync(ended, TestDefinitions.Title, ValueSource.Tenant, "refused", cancellationToken: Cancellation));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => database.Settings.SetAsync(ended, SettingsDatabase.PrincipalOf(ended), TestDefinitions.Title, ValueSource.Tenant, "refused", cancellationToken: Cancellation));
 
         using var model = database.Module.CreateContext();
         foreach (var entity in model.Model.GetEntityTypes())

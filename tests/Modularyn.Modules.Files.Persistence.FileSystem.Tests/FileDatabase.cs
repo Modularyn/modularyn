@@ -236,10 +236,12 @@ internal sealed class FileDatabase : IAsyncDisposable
 
     private sealed class DatabaseHostBoundary(FileDatabase database) : IHostAuthority, IHostScopeAudit
     {
-        public async ValueTask<bool> IsGrantedAsync(ActorReference actor, string operationId, CancellationToken cancellationToken) =>
-            await database.ScalarAsync<bool>(cancellationToken, "SELECT EXISTS (SELECT 1 FROM " + Quote(database.IdentitySchema)
-                + ".\"HostGrants\" WHERE \"Subject\" = @subject AND \"Operation\" = @operation)",
-                new NpgsqlParameter("subject", actor.Subject), new NpgsqlParameter("operation", operationId));
+        // The fixture grants only directory administration, whose reach is the directory module's own declaration.
+        public async ValueTask<HostOperation?> AuthorizeAsync(ActorReference actor, string operationId, CancellationToken cancellationToken) =>
+            operationId == TenantDirectoryAdministration.OperationId && await database.ScalarAsync<bool>(cancellationToken, "SELECT EXISTS (SELECT 1 FROM "
+                + Quote(database.IdentitySchema) + ".\"HostGrants\" WHERE \"Subject\" = @subject AND \"Operation\" = @operation)",
+                new NpgsqlParameter("subject", actor.Subject), new NpgsqlParameter("operation", operationId))
+                ? TenantDirectoryAdministration.Operation : null;
 
         public async ValueTask RecordAsync(HostScopeAuditRecord record, CancellationToken cancellationToken) =>
             await database.ExecuteAsync(cancellationToken, "INSERT INTO " + Quote(database.IdentitySchema)

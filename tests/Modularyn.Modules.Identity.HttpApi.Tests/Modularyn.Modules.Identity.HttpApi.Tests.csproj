@@ -21,5 +21,7 @@
     <Compile Include="../Modularyn.Framework.Persistence.EfCore.Tests/PostgreSqlTestLock.cs" Link="PostgreSqlTestLock.cs" />
     <Compile Include="../Modularyn.Modules.Identity.Application.Tests/IdentityTestSupport.cs" Link="IdentityTestSupport.cs" />
     <Compile Include="../Modularyn.Modules.Identity.Persistence.EfCore.Tests/IdentityDatabase.cs" Link="IdentityDatabase.cs" />
+    <Compile Include="../Modularyn.Framework.Tenancy.Tests/TestSeams.cs" Link="TestSeams.cs" />
+    <Compile Include="../Modularyn.Modules.Identity.Application.Tests/IdentityAdministrator.cs" Link="IdentityAdministrator.cs" />
   </ItemGroup>
 </Project>

@@ -27,8 +27,8 @@ public sealed record CredentialVerification(CredentialVerificationStatus Status,
 /// </summary>
 public interface IAuthenticatorSeeds
 {
-    /// <summary>Encrypts and stores the account's seed under the current key version, replacing any earlier seed.</summary>
-    Task StoreAsync(Guid accountId, ReadOnlyMemory<byte> seed, CancellationToken cancellationToken);
+    /// <summary>Encrypts and stores the account's seed under the current key version, replacing any earlier seed. Only the account's owner enrolls one.</summary>
+    Task StoreAsync(IdentityAuthority authority, Guid accountId, ReadOnlyMemory<byte> seed, CancellationToken cancellationToken);
 
     /// <summary>
     /// Decrypts the seed for the duration of <paramref name="check"/> and clears it afterward. The attempt counts against the
@@ -36,7 +36,8 @@ public interface IAuthenticatorSeeds
     /// </summary>
     Task<CredentialVerification> VerifyAsync(Guid accountId, Func<ReadOnlyMemory<byte>, bool> check, string source, CancellationToken cancellationToken);
 
-    Task<bool> RemoveAsync(Guid accountId, CancellationToken cancellationToken);
+    /// <summary>Removes the seed: the owner's own, or any in a host scope granted for <see cref="IdentityHostOperations.Credentials"/>.</summary>
+    Task<bool> RemoveAsync(IdentityAuthority authority, Guid accountId, CancellationToken cancellationToken);
 }
 
 /// <summary>A newly generated recovery-code set, to be shown to its owner once. Its codes are never stored or shown again.</summary>
@@ -57,8 +58,11 @@ public sealed class RecoveryCodeSet
 /// <summary>The stored form of recovery codes (TM-G02-057): salted verifiers only, each consumed at most once.</summary>
 public interface IRecoveryCodes
 {
-    /// <summary>Generates a new set and invalidates every unconsumed code of the earlier set in the same transaction.</summary>
-    Task<RecoveryCodeSet> GenerateAsync(Guid accountId, CancellationToken cancellationToken);
+    /// <summary>
+    /// Generates a new set and invalidates every unconsumed code of the earlier set in the same transaction. The codes are
+    /// shown to whoever generates them, so only the account's owner, through its own current session, may.
+    /// </summary>
+    Task<RecoveryCodeSet> GenerateAsync(IdentityAuthority authority, Guid accountId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Accepts an unconsumed code of the current set and marks it consumed in the write that accepts it, so it is accepted
@@ -90,11 +94,15 @@ public sealed record PasskeyLookup(PasskeyLookupStatus Status, PasskeyCredential
 /// </summary>
 public interface IPasskeyCredentials
 {
-    /// <summary>Stores the credential with an integrity tag under the current key version. False when its identifier is already enrolled.</summary>
-    Task<bool> EnrollAsync(PasskeyEnrollment enrollment, CancellationToken cancellationToken);
+    /// <summary>
+    /// Stores the credential with an integrity tag under the current key version. False when its identifier is already
+    /// enrolled. Only the account's owner, through its own current session, enrolls a passkey for its account.
+    /// </summary>
+    Task<bool> EnrollAsync(IdentityAuthority authority, PasskeyEnrollment enrollment, CancellationToken cancellationToken);
 
     /// <summary>Finds the credential for a sign-in at the relying party, verifying its integrity tag first.</summary>
     Task<PasskeyLookup> FindForSignInAsync(byte[] credentialId, string relyingPartyId, CancellationToken cancellationToken);
 
-    Task<bool> RevokeAsync(Guid accountId, byte[] credentialId, CancellationToken cancellationToken);
+    /// <summary>Revokes a passkey: the owner's own, or any in a host scope granted for <see cref="IdentityHostOperations.Credentials"/>.</summary>
+    Task<bool> RevokeAsync(IdentityAuthority authority, Guid accountId, byte[] credentialId, CancellationToken cancellationToken);
 }

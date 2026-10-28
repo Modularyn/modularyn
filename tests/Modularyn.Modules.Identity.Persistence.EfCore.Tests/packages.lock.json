@@ -173,8 +173,22 @@
           "xunit.v3.runner.common": "[4.0.2]"
         }
       },
+      "modularyn.framework.authorization.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )"
+        }
+      },
       "modularyn.framework.configuration": {
         "type": "Project"
+      },
+      "modularyn.framework.ingress": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Configuration": "[1.0.0, )"
+        }
       },
       "modularyn.framework.modularity": {
         "type": "Project",
@@ -204,6 +218,17 @@
       "modularyn.framework.security.abstractions": {
         "type": "Project"
       },
+      "modularyn.framework.tenancy": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Authorization.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Ingress": "[1.0.0, )",
+          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.EfCore": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )"
+        }
+      },
       "modularyn.framework.tenancy.abstractions": {
         "type": "Project"
       },
@@ -220,13 +245,17 @@
       "modularyn.modules.identity.application.contracts": {
         "type": "Project",
         "dependencies": {
-          "Modularyn.Framework.Security.Abstractions": "[1.0.0, )"
+          "Modularyn.Framework.Authorization.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )"
         }
       },
       "modularyn.modules.identity.domain": {
         "type": "Project",
         "dependencies": {
-          "Modularyn.Framework.Security.Abstractions": "[1.0.0, )"
+          "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )"
         }
       },
       "modularyn.modules.identity.persistence.efcore": {

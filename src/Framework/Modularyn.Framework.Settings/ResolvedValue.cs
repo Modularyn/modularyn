@@ -44,3 +44,9 @@ public static class SettingsTimestamp
 
 public sealed class ValueConflictException() : Exception("The override changed. Read its current version before retrying.");
 public sealed class ValueUnavailableException() : Exception("The scoped value could not be resolved. No fallback was cached.");
+
+/// <summary>The caller may not manage the override; the code is the authorization decision's, and nothing was changed.</summary>
+public sealed class ValueAccessDeniedException(string code) : Exception("The caller may not change this override.")
+{
+    public string Code { get; } = code;
+}

@@ -55,16 +55,32 @@ internal sealed class TestMembership : ITenantMembership
     }
 }
 
+/// <summary>
+/// Grants host operations to subjects. An operation's reach is what the test declares for it, as its owning module would;
+/// an operation the test never declares reaches nothing, so host scope granted for it reads and changes no entity.
+/// </summary>
 internal sealed class TestHostAuthority : IHostAuthority
 {
+    private readonly ConcurrentDictionary<string, HostOperation> operations = new(StringComparer.Ordinal)
+    {
+        [TenantDirectoryAdministration.OperationId] = TenantDirectoryAdministration.Operation
+    };
     private readonly ConcurrentDictionary<(string Subject, string Operation), bool> grants = new();
+
+    internal void Declare(HostOperation operation) => operations[operation.Id] = operation;
 
     internal void Grant(string subject, string operation) => grants[(subject, operation)] = true;
 
+    internal void Grant(string subject, HostOperation operation)
+    {
+        Declare(operation);
+        Grant(subject, operation.Id);
+    }
+
     internal void Revoke(string subject, string operation) => grants.TryRemove((subject, operation), out _);
 
-    public ValueTask<bool> IsGrantedAsync(ActorReference actor, string operationId, CancellationToken cancellationToken) =>
-        ValueTask.FromResult(grants.ContainsKey((actor.Subject, operationId)));
+    public ValueTask<HostOperation?> AuthorizeAsync(ActorReference actor, string operationId, CancellationToken cancellationToken) =>
+        ValueTask.FromResult(grants.ContainsKey((actor.Subject, operationId)) ? operations.GetValueOrDefault(operationId) ?? new HostOperation(operationId, []) : null);
 }
 
 internal sealed class RecordingAudit : IHostScopeAudit

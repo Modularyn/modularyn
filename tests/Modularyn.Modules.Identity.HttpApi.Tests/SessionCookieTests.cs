@@ -17,7 +17,7 @@ public sealed class SessionCookieTests(ITestOutputHelper output)
     {
         var password = Generated.Password();
         Assert.Equal(AccountCreationStatus.Created,
-            (await server.Get<IAccountService>().CreateLocalAccountAsync(userName, new SecretText(password), Cancellation)).Status);
+            (await server.Get<IAccountService>().CreateLocalAccountAsync(await server.Administrator.AccountsAsync(), userName, new SecretText(password), Cancellation)).Status);
         return password;
     }
 

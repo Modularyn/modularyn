@@ -69,6 +69,9 @@ internal sealed class IdentityTestServer : IAsyncDisposable
     public HttpClient Client { get; }
     public IServiceProvider Services => application.Services;
 
+    /// <summary>Identity administration in host scope, for the module's administrative writes.</summary>
+    public IdentityAdministrator Administrator { get; } = new();
+
     /// <summary>Identity limits small enough to reach in a test; every other value is the module's default.</summary>
     public static Dictionary<string, string?> TestLimits() => new()
     {
@@ -149,6 +152,7 @@ internal sealed class IdentityTestServer : IAsyncDisposable
         await application.StopAsync();
         await application.DisposeAsync();
         keys.Dispose();
+        await Administrator.DisposeAsync();
     }
 
     private static bool Pinned(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors errors) =>

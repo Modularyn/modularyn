@@ -31,10 +31,10 @@ public sealed class SignInEndpointTests(ITestOutputHelper output)
             ["Modularyn:Identity:Throttling:AccountFreeAttempts"] = "50"
         });
         var accounts = server.Get<IAccountService>();
-        await accounts.CreateLocalAccountAsync("admin-1", new SecretText(Generated.Password()), Cancellation);
+        await accounts.CreateLocalAccountAsync(await server.Administrator.AccountsAsync(), "admin-1", new SecretText(Generated.Password()), Cancellation);
         var disabledPassword = Generated.Password();
-        var disabled = (await accounts.CreateLocalAccountAsync("editor-1", new SecretText(disabledPassword), Cancellation)).AccountId!.Value;
-        Assert.True(await accounts.DisableAsync(disabled, Cancellation));
+        var disabled = (await accounts.CreateLocalAccountAsync(await server.Administrator.AccountsAsync(), "editor-1", new SecretText(disabledPassword), Cancellation)).AccountId!.Value;
+        Assert.True(await accounts.DisableAsync(await server.Administrator.AccountsAsync(), disabled, Cancellation));
 
         var observed = new List<Observed>();
         var timings = new Dictionary<string, List<TimeSpan>>();
@@ -69,8 +69,8 @@ public sealed class SignInEndpointTests(ITestOutputHelper output)
         await using var server = await IdentityTestServer.StartAsync(database);
         var accounts = server.Get<IAccountService>();
         var password = Generated.Password();
-        await accounts.CreateLocalAccountAsync("admin-1", new SecretText(password), Cancellation);
-        foreach (var name in new[] { "user-a", "user-b", "user-c" }) await accounts.CreateLocalAccountAsync(name, new SecretText(Generated.Password()), Cancellation);
+        await accounts.CreateLocalAccountAsync(await server.Administrator.AccountsAsync(), "admin-1", new SecretText(password), Cancellation);
+        foreach (var name in new[] { "user-a", "user-b", "user-c" }) await accounts.CreateLocalAccountAsync(await server.Administrator.AccountsAsync(), name, new SecretText(Generated.Password()), Cancellation);
         var attacker = server.Browser("203.0.113.66");
         foreach (var name in new[] { "user-a", "user-a", "user-b", "user-b", "user-c", "user-c" })
             Assert.Equal(HttpStatusCode.Unauthorized, (await attacker.SignInAsync(name, Generated.Password())).StatusCode);
@@ -94,7 +94,7 @@ public sealed class SignInEndpointTests(ITestOutputHelper output)
         await using var database = await IdentityDatabase.CreateAsync();
         await using var server = await IdentityTestServer.StartAsync(database);
         var password = Generated.Password();
-        await server.Get<IAccountService>().CreateLocalAccountAsync("admin-1", new SecretText(password), Cancellation);
+        await server.Get<IAccountService>().CreateLocalAccountAsync(await server.Administrator.AccountsAsync(), "admin-1", new SecretText(password), Cancellation);
         var cases = new Dictionary<string, string>
         {
             ["/admin/items?page=2"] = "/admin/items?page=2",

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Modularyn.Framework.Features.Abstractions;
+using Modularyn.Framework.Security.Abstractions;
 using Modularyn.Framework.Settings;
 using Modularyn.Framework.Settings.Abstractions;
 using Modularyn.Framework.Tenancy.Abstractions;
@@ -42,10 +43,11 @@ public sealed class FeatureService(SettingsService settings, IFeatureGate? gate 
         return context.IsActive && allowed;
     }
 
-    public Task<Guid> SetAsync(TenantContext context, FeatureDefinition feature, ValueSource scope, bool enabled,
+    /// <summary>Feature management needs the same authority as the settings override at that scope.</summary>
+    public Task<Guid> SetAsync(TenantContext context, ExecutionPrincipal? principal, FeatureDefinition feature, ValueSource scope, bool enabled,
         Guid? expectedVersion = null, CancellationToken cancellationToken = default) =>
-        settings.SetAsync(context, feature, scope, enabled ? "true" : "false", expectedVersion, cancellationToken);
+        settings.SetAsync(context, principal, feature, scope, enabled ? "true" : "false", expectedVersion, cancellationToken);
 
-    public Task ResetAsync(TenantContext context, FeatureDefinition feature, ValueSource scope, Guid expectedVersion,
-        CancellationToken cancellationToken = default) => settings.ResetAsync(context, feature, scope, expectedVersion, cancellationToken);
+    public Task ResetAsync(TenantContext context, ExecutionPrincipal? principal, FeatureDefinition feature, ValueSource scope, Guid expectedVersion,
+        CancellationToken cancellationToken = default) => settings.ResetAsync(context, principal, feature, scope, expectedVersion, cancellationToken);
 }

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Modularyn.Framework.Configuration;
 using Modularyn.Framework.Security.Abstractions;
+using Modularyn.Framework.Tenancy.Abstractions;
 using Modularyn.Modules.Identity.Application.Contracts;
 using Modularyn.Modules.Identity.Domain;
 using Modularyn.Modules.Identity.Testing;
@@ -291,14 +292,22 @@ internal sealed class InMemoryIdentityStores : IAccountDirectory, ISessionStore,
                 && Passkeys.Remove(Convert.ToHexString(credentialId)));
     }
 
-    public Task<bool> AddAsync(Guid accountId, Guid tenantId, DateTimeOffset now, CancellationToken cancellationToken)
+    public Task<bool> AddAsync(TenantContext host, Guid accountId, Guid tenantId, DateTimeOffset now, CancellationToken cancellationToken)
     {
+        RequireHost(host);
         lock (gate) return Task.FromResult(accounts.ContainsKey(accountId) && memberships.Add((accountId, tenantId)));
     }
 
-    public Task<bool> RemoveAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken)
+    public Task<bool> RemoveAsync(TenantContext host, Guid accountId, Guid tenantId, CancellationToken cancellationToken)
     {
+        RequireHost(host);
         lock (gate) return Task.FromResult(memberships.Remove((accountId, tenantId)));
+    }
+
+    // As the PostgreSQL store's unit would, a membership change needs an active host scope.
+    private static void RequireHost(TenantContext host)
+    {
+        if (host is not { Scope: TenantScope.Host, IsActive: true }) throw new InvalidOperationException("Memberships change only in an active host scope.");
     }
 
     public Task<bool> IsMemberAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken)
@@ -321,6 +330,9 @@ internal sealed class UnitIdentity : IAsyncDisposable
 
     public InMemoryIdentityStores Stores { get; }
     public ManualClock Clock { get; }
+
+    /// <summary>Identity administration in host scope, for the module's administrative writes.</summary>
+    public IdentityAdministrator Administrator { get; } = new();
 
     /// <summary>
     /// A unit-test host over in-memory stores. Scopes are validated unless <paramref name="validateScopes"/> is false, as
@@ -366,9 +378,17 @@ internal sealed class UnitIdentity : IAsyncDisposable
     public async Task<(Guid Id, string Password)> AccountAsync(string userName)
     {
         var password = Generated.Password();
-        var created = await Get<IAccountService>().CreateLocalAccountAsync(userName, new SecretText(password), TestContext.Current.CancellationToken);
+        var created = await Get<IAccountService>().CreateLocalAccountAsync(await Administrator.AccountsAsync(), userName, new SecretText(password),
+            TestContext.Current.CancellationToken);
         Assert.Equal(AccountCreationStatus.Created, created.Status);
         return (created.AccountId!.Value, password);
+    }
+
+    /// <summary>A new account and its owner's authority, through a session of its own, for the writes that are the owner's.</summary>
+    public async Task<(Guid Id, IdentityAuthority Owner)> OwnerAsync(string userName)
+    {
+        var (id, password) = await AccountAsync(userName);
+        return (id, IdentityAuthority.Owner((await SignInAsync(userName, password)).Principal));
     }
 
     public async Task<(IssuedSession Session, ExecutionPrincipal Principal)> SignInAsync(string userName, string password, string source = "203.0.113.1")
@@ -380,7 +400,11 @@ internal sealed class UnitIdentity : IAsyncDisposable
         return (result.Session, active!.ToPrincipal());
     }
 
-    public ValueTask DisposeAsync() => provider.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        await provider.DisposeAsync();
+        await Administrator.DisposeAsync();
+    }
 }
 
 internal static class Bytes

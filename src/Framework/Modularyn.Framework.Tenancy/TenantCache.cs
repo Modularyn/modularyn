@@ -46,10 +46,10 @@ public sealed record TenantCacheEntry
 }
 
 /// <summary>
-/// A cache whose keys are built only from a validated context and a declared entry: tenant (or host), module, schema
-/// version, principal for principal-scoped entries, entry name and parts, each length-prefixed so no two distinct
-/// identities share a key. Entries expire at their declared staleness limit; invalidating a tenant or a principal makes
-/// their earlier entries unreachable at once. Concurrent misses for one key share a single factory call, whose failure
+/// A cache whose keys are built only from a validated context and a declared entry: tenant (or host scope and its grant's
+/// operation), module, schema version, principal for principal-scoped entries, entry name and parts, each length-prefixed
+/// so no two distinct identities share a key. Entries expire at their declared staleness limit; invalidating a tenant, a
+/// host operation or a principal makes their earlier entries unreachable at once. Concurrent misses for one key share a single factory call, whose failure
 /// is not cached. The store is this process's memory: during an outage of a dependency the factory fails and nothing is
 /// cached, and it coordinates nothing across processes.
 /// </summary>
@@ -103,8 +103,7 @@ public sealed class TenantCache : IDisposable
         var flight = flights.GetOrAdd(key, candidate);
         var result = await flight.Value!.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
         if (!context.IsActive) throw new InvalidOperationException("The cache context ended while the value was read.");
-        if (time.GetElapsedTime(result.StartedAt) >= entry.MaxStaleness)
-            throw new InvalidOperationException("The cache factory exceeded the entry's declared staleness bound.");
+        if (time.GetElapsedTime(result.StartedAt) >= entry.MaxStaleness) throw new TenantCacheStaleException();
         return Unwrap<T>(result);
     }
 
@@ -116,6 +115,20 @@ public sealed class TenantCache : IDisposable
     {
         ArgumentNullException.ThrowIfNull(actor);
         Bump(PrincipalKey("tenant/" + TenantIdentifier.Format(tenantId), actor));
+    }
+
+    /// <summary>
+    /// Makes every entry built in host scope under the operation unreachable, for a change to what the operation may reach.
+    /// Host entries are keyed by their grant's operation, so an entry built under one operation's reach is never served to
+    /// a host scope granted for another.
+    /// </summary>
+    public void InvalidateHost(string operationId) => Bump(HostKey(operationId));
+
+    /// <summary>Makes the actor's entries built in host scope under the operation unreachable, for a change to the actor's host authority.</summary>
+    public void InvalidateHostPrincipal(string operationId, ActorReference actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        Bump(PrincipalKey(HostKey(operationId), actor));
     }
 
     public void Dispose() => cache.Dispose();
@@ -142,7 +155,11 @@ public sealed class TenantCache : IDisposable
         : throw new InvalidOperationException("A cache entry was declared with another value type.");
 
     private static string ScopeKey(TenantContext context) =>
-        context.Scope == TenantScope.Tenant ? "tenant/" + TenantIdentifier.Format(context.TenantId!.Value) : "host";
+        context.Scope == TenantScope.Tenant ? "tenant/" + TenantIdentifier.Format(context.TenantId!.Value) : HostKey(context.HostGrant!.OperationId);
+
+    // An operation identity holds only letters, digits, '.', '-' and '_', so it cannot run into the principal part.
+    private static string HostKey(string operationId) => PropagatedTenantContext.ValidOperation(operationId) ? "host/" + operationId
+        : throw new ArgumentException("A host operation identity is 1 to 200 letters, digits, '.', '-' or '_'.", nameof(operationId));
 
     private static string PrincipalKey(string scope, ActorReference actor) =>
         scope + "/" + (actor.Kind == ActorKind.User ? "user" : "service") + "/" + actor.Subject.Length.ToString(CultureInfo.InvariantCulture) + ":" + actor.Subject;
@@ -161,3 +178,6 @@ public sealed class TenantCache : IDisposable
         internal Lazy<Task<Stored>>? Value { get; set; }
     }
 }
+
+/// <summary>A cache factory took longer than its entry's declared staleness bound, so its value was neither cached nor delivered.</summary>
+public sealed class TenantCacheStaleException() : InvalidOperationException("The cache factory exceeded the entry's declared staleness bound.");

@@ -1,11 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Caching;
 using Modularyn.Framework.Configuration;
 using Modularyn.Framework.Modularity.Abstractions;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
+using Modularyn.Framework.Security.Abstractions;
 using Modularyn.Framework.Settings.Abstractions;
 using Modularyn.Framework.Tenancy;
 using Modularyn.Framework.Tenancy.Abstractions;
@@ -14,8 +16,9 @@ namespace Modularyn.Framework.Settings;
 
 /// <summary>
 /// Validated scoped overrides. Every write owns a tracked transaction; null expectedVersion creates an override,
-/// and replacement or reset requires the current version. The caller's context supplies the tenant and user.
-/// Authorization of management operations belongs to the calling application boundary.
+/// and replacement or reset requires the current version. The caller's context supplies the tenant and user. Global
+/// overrides need the settings host operation; tenant and user overrides need their management permission, which the
+/// permission evaluator decides for the caller's principal before any unit opens, and refuses while it is absent.
 /// </summary>
 public sealed class SettingsService
 {
@@ -26,9 +29,10 @@ public sealed class SettingsService
     private readonly TenantWorkRunner runner;
     private readonly TimeProvider time;
     private readonly ISecretStore? secrets;
+    private readonly IPermissionEvaluator? permissions;
 
     public SettingsService(PostgreSqlModule module, ValueDefinitionRegistry definitions, ScopedValueCache cache,
-        TenantWorkRunner runner, TimeProvider time, ISecretStore? secrets = null)
+        TenantWorkRunner runner, TimeProvider time, ISecretStore? secrets = null, IPermissionEvaluator? permissions = null)
     {
         SettingsModule.Require(module);
         this.module = module;
@@ -37,26 +41,47 @@ public sealed class SettingsService
         this.runner = runner ?? throw new ArgumentNullException(nameof(runner));
         this.time = time ?? throw new ArgumentNullException(nameof(time));
         this.secrets = secrets;
+        this.permissions = permissions;
     }
 
-    public Task<ResolvedValue> ResolveAsync(TenantContext tenant, ScopedValueDefinition definition, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// The effective value. A fill that overruns its definition's staleness bound is reported as
+    /// <see cref="ValueUnavailableException"/>, like any other unavailable read, and caches nothing.
+    /// </summary>
+    public async Task<ResolvedValue> ResolveAsync(TenantContext tenant, ScopedValueDefinition definition, CancellationToken cancellationToken = default)
     {
         definitions.Require(definition);
         ScopedValueCache.RequireTenant(tenant);
         var propagated = PropagatedTenantContext.Capture(tenant, time);
-        return cache.GetOrCreateAsync(tenant, definition.ModuleId, definition.Version.Value, definition.AssetName,
-            definition.MaxStaleness, async _ =>
-            {
-                // A shared cache miss owns its own revalidated context, even if its first waiter ends or cancels.
-                using var timeout = new CancellationTokenSource(definition.MaxStaleness, time);
-                ResolvedValue? result = null;
-                var outcome = await runner.RunAsync(propagated, async (unit, token) =>
+        try
+        {
+            return await cache.GetOrCreateAsync(tenant, definition.ModuleId, definition.Version.Value, definition.AssetName,
+                definition.MaxStaleness, async _ =>
                 {
-                    result = await LoadAsync(unit.Context, definition, token).ConfigureAwait(false);
-                }, timeout.Token).ConfigureAwait(false);
-                if (outcome.Disposition != TenantWorkDisposition.Completed || result is null) throw new ValueUnavailableException();
-                return result;
-            }, cancellationToken);
+                    // A shared cache miss owns its own revalidated context, even if its first waiter ends or cancels.
+                    using var timeout = new CancellationTokenSource(definition.MaxStaleness, time);
+                    ResolvedValue? result = null;
+                    TenantWorkOutcome outcome;
+                    try
+                    {
+                        outcome = await runner.RunAsync(propagated, async (unit, token) =>
+                        {
+                            result = await LoadAsync(unit.Context, definition, token).ConfigureAwait(false);
+                        }, timeout.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+                    {
+                        // The staleness deadline ended the fill: the value is unavailable, not the caller's cancellation.
+                        throw new ValueUnavailableException();
+                    }
+                    if (outcome.Disposition != TenantWorkDisposition.Completed || result is null) throw new ValueUnavailableException();
+                    return result;
+                }, cancellationToken).ConfigureAwait(false);
+        }
+        catch (TenantCacheStaleException)
+        {
+            throw new ValueUnavailableException();
+        }
     }
 
     /// <summary>Resolves the reference on every call. SecretValue is caller-owned and is never cached.</summary>
@@ -108,16 +133,20 @@ public sealed class SettingsService
         return local is null ? null : Materialize(definition, local.Value, local.Kind, scope, local.Version, local.UpdatedAt);
     }
 
-    public Task<Guid> SetSecretReferenceAsync(TenantContext context, SettingDefinition definition, ValueSource scope,
+    public Task<Guid> SetSecretReferenceAsync(TenantContext context, ExecutionPrincipal? principal, SettingDefinition definition, ValueSource scope,
         SecretReference reference, Guid? expectedVersion = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(reference);
         ArgumentNullException.ThrowIfNull(definition);
         if (!definition.IsSecret || !reference.IsValid) throw new ValueValidationException();
-        return SetAsync(context, definition, scope, reference.ToString(), expectedVersion, cancellationToken);
+        return SetAsync(context, principal, definition, scope, reference.ToString(), expectedVersion, cancellationToken);
     }
 
-    public async Task<Guid> SetAsync(TenantContext context, ScopedValueDefinition definition, ValueSource scope, string value,
+    /// <summary>
+    /// Creates or replaces an override. A tenant or user override needs its management permission for
+    /// <paramref name="principal"/>, the request's own principal; a global one needs the settings host operation.
+    /// </summary>
+    public async Task<Guid> SetAsync(TenantContext context, ExecutionPrincipal? principal, ScopedValueDefinition definition, ValueSource scope, string value,
         Guid? expectedVersion = null, CancellationToken cancellationToken = default)
     {
         RequireScope(context, definition, scope);
@@ -125,6 +154,7 @@ public sealed class SettingsService
         // A reference names a deployment-wide secret, so only a host-granted global override may choose one.
         if (definition.IsSecret && scope != ValueSource.Global)
             throw new InvalidOperationException("Only a global override may set a secret reference.");
+        await RequireManagementAsync(context, principal, scope, cancellationToken).ConfigureAwait(false);
         await using var work = await EfCoreUnitOfWork.BeginAsync(module, context, cancellationToken: cancellationToken).ConfigureAwait(false);
         var db = (SettingsContext)work.Context;
         IConcurrencyTracked changed;
@@ -165,10 +195,12 @@ public sealed class SettingsService
         return changed.Version;
     }
 
-    public async Task ResetAsync(TenantContext context, ScopedValueDefinition definition, ValueSource scope, Guid expectedVersion,
+    /// <summary>Removes an override, exposing the next source; it needs the same authority as a write at that scope.</summary>
+    public async Task ResetAsync(TenantContext context, ExecutionPrincipal? principal, ScopedValueDefinition definition, ValueSource scope, Guid expectedVersion,
         CancellationToken cancellationToken = default)
     {
         RequireScope(context, definition, scope);
+        await RequireManagementAsync(context, principal, scope, cancellationToken).ConfigureAwait(false);
         await using var work = await EfCoreUnitOfWork.BeginAsync(module, context, cancellationToken: cancellationToken).ConfigureAwait(false);
         var db = (SettingsContext)work.Context;
         IConcurrencyTracked? row;
@@ -245,6 +277,22 @@ public sealed class SettingsService
         }
     }
 
+    /// <summary>
+    /// Tenant and user overrides change behavior for others or for oneself, so each needs its permission, decided now from
+    /// the store for the caller's principal (TM-G02-024). A user override is the acting user's own, so it is never written
+    /// under a delegation, whose subject is someone else.
+    /// </summary>
+    private async Task RequireManagementAsync(TenantContext context, ExecutionPrincipal? principal, ValueSource scope, CancellationToken cancellationToken)
+    {
+        if (scope == ValueSource.Global) return;
+        if (scope == ValueSource.User && principal is { IsDelegated: true }) throw new ValueAccessDeniedException(AuthorizationCodes.OutsideCeiling);
+        if (permissions is null) throw new ValueAccessDeniedException(AuthorizationCodes.Unavailable);
+        var permission = scope == ValueSource.Tenant ? SettingsModule.TenantOverridesPermission : SettingsModule.UserOverridesPermission;
+        var decision = await permissions.AuthorizeAsync(new AuthorizationRequest(context, principal, permission) { RequireCurrent = true }, cancellationToken)
+            .ConfigureAwait(false);
+        if (!decision.Permitted) throw new ValueAccessDeniedException(decision.Code!);
+    }
+
     private static string User(TenantContext context, ValueSource scope) => scope == ValueSource.User ? context.Actor.Subject : "";
 
     private static void RequireVersion(IConcurrencyTracked? row, Guid? expected)
@@ -286,7 +334,8 @@ public static class SettingsServiceCollectionExtensions
         services.AddSingleton(definitions);
         services.AddSingleton<ICompositionValidator>(definitions);
         services.AddSingleton(provider => new SettingsService(module, definitions, provider.GetRequiredService<ScopedValueCache>(),
-            provider.GetRequiredService<TenantWorkRunner>(), provider.GetRequiredService<TimeProvider>(), provider.GetService<ISecretStore>()));
+            provider.GetRequiredService<TenantWorkRunner>(), provider.GetRequiredService<TimeProvider>(), provider.GetService<ISecretStore>(),
+            provider.GetService<IPermissionEvaluator>()));
         return services;
     }
 }

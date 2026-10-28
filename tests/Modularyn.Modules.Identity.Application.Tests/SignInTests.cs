@@ -72,7 +72,7 @@ public sealed class SignInTests
         await using var identity = UnitIdentity.Create(UnitIdentity.TestLimits());
         var (_, password) = await identity.AccountAsync("admin-1");
         var (disabledId, disabledPassword) = await identity.AccountAsync("editor-1");
-        Assert.True(await identity.Get<IAccountService>().DisableAsync(disabledId, Cancellation));
+        Assert.True(await identity.Get<IAccountService>().DisableAsync(await identity.Administrator.AccountsAsync(), disabledId, Cancellation));
         var results = new List<SignInResult>();
         foreach (var (name, attempt) in new[] { ("admin-1", Generated.Password()), ("unknown-1", Generated.Password()), ("editor-1", disabledPassword) })
         {
@@ -239,6 +239,78 @@ public sealed class SignInTests
         identity.Clock.Advance(TimeSpan.FromSeconds(1));
         Assert.Equal(SignInStatus.Throttled, (await Attempt(identity, "admin-1", Generated.Password(), "bot")).Status);
         Assert.Equal(SignInStatus.Succeeded, (await Attempt(identity, "admin-1", password, "owner-net")).Status);
+    }
+
+    [Fact(DisplayName = "TM-G02-015 a fresh source cannot renew an account's delay at the instant the owner's refusal names, after the owner's own typos")]
+    public async Task TM_G02_015_A_fresh_source_after_the_owner_s_typos_cannot_renew_the_delay_at_the_owner_s_instant()
+    {
+        // Free failures 3, then account delays of 2, 4, 8 and 16 s, and each source's own delays twice that. A source
+        // threshold no source reaches here, so only the attacker's own counter on the account stands between it and the owner.
+        await using var identity = UnitIdentity.Create(UnitIdentity.TestLimits(new() { ["Modularyn:Identity:Throttling:SourceThreshold"] = "1000" }));
+        var (_, password) = await identity.AccountAsync("admin-1");
+        var start = identity.Clock.Now;
+        var botOnAccount = ThrottleKey.ForSourceOnSubject(ThrottleKey.ForSource("bot"), ThrottleKey.ForUserName(ThrottleKind.Password, "admin-1"));
+
+        // The owner's typos come first: three free failures, then one more once its own delay has passed.
+        foreach (var second in new[] { 0, 1, 2, 6 })
+        {
+            identity.Clock.Set(start.AddSeconds(second));
+            Assert.Equal(SignInStatus.Failed, (await Attempt(identity, "admin-1", Generated.Password(), "owner-net")).Status);
+        }
+        identity.Clock.Set(start.AddSeconds(7));
+        var refused = await Attempt(identity, "admin-1", password, "owner-net");
+        Assert.Equal((SignInStatus.Throttled, start.AddSeconds(14)), (refused.Status, refused.RetryAt));
+
+        // A fresh source tries as soon as the account's 4 s delay ends and is admitted once. Its own count was behind the
+        // account's, so it is seeded from it, own = max(own, account) + 1, and its own delay is twice the 8 s it set.
+        identity.Clock.Set(start.AddSeconds(10));
+        var verified = identity.Stores.Verifications;
+        Assert.Equal(SignInStatus.Failed, (await Attempt(identity, "admin-1", Generated.Password(), "bot")).Status);
+        Assert.Equal(verified + 1, identity.Stores.Verifications);
+        Assert.Equal(5, identity.Stores.Counter(botOnAccount).Failures);
+        identity.Clock.Set(start.AddSeconds(14));
+        refused = await Attempt(identity, "admin-1", password, "owner-net");
+        Assert.Equal((SignInStatus.Throttled, start.AddSeconds(18)), (refused.Status, refused.RetryAt));
+
+        // At the instant the owner's refusal named, the source tries first again and is refused, unverified, by its own
+        // longer delay; the owner signs in. Without the seeding the source's own count would still be within its free
+        // attempts, and it could renew the account's delay at every instant the owner is told.
+        identity.Clock.Set(start.AddSeconds(18));
+        var bot = await Attempt(identity, "admin-1", Generated.Password(), "bot");
+        Assert.Equal((SignInStatus.Throttled, start.AddSeconds(26)), (bot.Status, bot.RetryAt));
+        Assert.Equal(verified + 1, identity.Stores.Verifications);
+        Assert.Equal(SignInStatus.Succeeded, (await Attempt(identity, "admin-1", password, "owner-net")).Status);
+    }
+
+    [Fact(DisplayName = "TM-G02-015 a blocked source is refused until the latest of its block, the account's delay and its own delay")]
+    public async Task TM_G02_015_A_blocked_source_is_told_the_latest_of_its_block_and_both_delays()
+    {
+        // One free failure, then a 2 minute account delay; the source's own delay is twice that. Three failures block the
+        // source for only one minute, so the block ends before both delays.
+        await using var identity = UnitIdentity.Create(new()
+        {
+            ["Modularyn:Identity:Throttling:SourceThreshold"] = "3",
+            ["Modularyn:Identity:Throttling:SourceBlock"] = "00:01:00",
+            ["Modularyn:Identity:Throttling:AccountFreeAttempts"] = "1",
+            ["Modularyn:Identity:Throttling:AccountBaseDelay"] = "00:02:00",
+            ["Modularyn:Identity:Throttling:AccountMaximumDelay"] = "00:16:00"
+        });
+        var (_, password) = await identity.AccountAsync("admin-1");
+        var start = identity.Clock.Now;
+        Assert.Equal(SignInStatus.Failed, (await Attempt(identity, "admin-1", Generated.Password(), "bot")).Status);
+        identity.Clock.Set(start.AddSeconds(1));
+        Assert.Equal(SignInStatus.Throttled, (await Attempt(identity, "admin-1", Generated.Password(), "bot")).Status);
+        identity.Clock.Set(start.AddSeconds(2));
+        Assert.Equal(SignInStatus.Throttled, (await Attempt(identity, "admin-1", Generated.Password(), "bot")).Status);
+        Assert.Equal(start.AddSeconds(62), identity.Stores.Counter(ThrottleKey.ForSource("bot")).BlockedUntil);
+
+        // Refused while blocked, the source is told when every limit has passed, not only its block, so a client that
+        // honors Retry-After is not refused, and counted, again.
+        identity.Clock.Set(start.AddSeconds(3));
+        var blocked = await Attempt(identity, "admin-1", password, "bot");
+        Assert.Equal((SignInStatus.Throttled, start.AddMinutes(4)), (blocked.Status, blocked.RetryAt));
+        identity.Clock.Set(blocked.RetryAt!.Value);
+        Assert.Equal(SignInStatus.Succeeded, (await Attempt(identity, "admin-1", password, "bot")).Status);
     }
 
     [Fact(DisplayName = "TM-G02-015 attempts from an unknown source neither block nor delay one another, and still meet the account's limits")]

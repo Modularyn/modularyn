@@ -121,6 +121,28 @@ internal sealed class SessionAuthenticationHandler(IOptionsMonitor<SessionAuthen
     }
 }
 
+/// <summary>
+/// Derives each sign-in's client source from its connection, and warns once per process, at the first connection that
+/// carries no client address, such as a Unix-socket listener behind a proxy: such attempts all belong to the unknown
+/// source, which has no counters of its own, so per-source limits are then off and only the per-account limits apply.
+/// </summary>
+internal sealed partial class ClientSourceObserver(ILogger<ClientSourceObserver> logger)
+{
+    private int warned;
+
+    internal string SourceOf(ConnectionInfo connection)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        var source = ClientSourceAddress.From(connection.RemoteIpAddress);
+        if (ClientSources.IsUnknown(source) && Interlocked.Exchange(ref warned, 1) == 0) NoClientAddress(logger);
+        return source;
+    }
+
+    [LoggerMessage(EventId = 8210, Level = LogLevel.Warning, Message = "A sign-in arrived on a connection with no client address. Such attempts share "
+        + "the unknown source, which has no per-source limits, so only the per-account limits apply to them. Listen on TCP behind a declared proxy.")]
+    private static partial void NoClientAddress(ILogger logger);
+}
+
 /// <summary>Reduces a client address to the unit a per-source limit applies to: an IPv4 address, or an IPv6 /64 network.</summary>
 internal static class ClientSourceAddress
 {

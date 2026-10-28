@@ -41,12 +41,16 @@ public sealed record ActorReference
     public string Subject { get; }
 }
 
-/// <summary>The separately granted, audited authority under which a host-scope context exists.</summary>
+/// <summary>
+/// The separately granted, audited authority under which a host-scope context exists: one operation, with the entities
+/// its owning module declared that it may reach and nothing more.
+/// </summary>
 public sealed record HostScopeGrant
 {
-    internal HostScopeGrant(string operationId, string reason, DateTimeOffset grantedAt)
+    internal HostScopeGrant(HostOperation operation, string reason, DateTimeOffset grantedAt)
     {
-        OperationId = operationId;
+        OperationId = operation.Id;
+        Reach = operation.Reach;
         Reason = reason;
         GrantedAt = grantedAt;
     }
@@ -54,6 +58,12 @@ public sealed record HostScopeGrant
     public string OperationId { get; }
     public string Reason { get; }
     public DateTimeOffset GrantedAt { get; }
+
+    /// <summary>The entities this grant may reach in host scope; the persistence adapter refuses every other entity.</summary>
+    public IReadOnlySet<HostReach> Reach { get; }
+
+    public bool Reaches(string moduleId, string table) =>
+        moduleId is not null && table is not null && Reach.Any(entity => entity.ModuleId == moduleId && entity.Table == table);
 }
 
 /// <summary>

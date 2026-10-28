@@ -17,21 +17,21 @@ public sealed class TenantMembershipTests
         var tenantA = Guid.NewGuid();
         var tenantB = Guid.NewGuid();
         Assert.False(await memberships.IsMemberAsync(account, tenantA, Cancellation));
-        Assert.True(await memberships.AddMemberAsync(account, tenantA, Cancellation));
-        Assert.False(await memberships.AddMemberAsync(account, tenantA, Cancellation));
-        Assert.False(await memberships.AddMemberAsync(Guid.NewGuid(), tenantA, Cancellation));
+        Assert.True(await memberships.AddMemberAsync(await identity.Administrator.MembershipsAsync(), account, tenantA, Cancellation));
+        Assert.False(await memberships.AddMemberAsync(await identity.Administrator.MembershipsAsync(), account, tenantA, Cancellation));
+        Assert.False(await memberships.AddMemberAsync(await identity.Administrator.MembershipsAsync(), Guid.NewGuid(), tenantA, Cancellation));
         Assert.True(await memberships.IsMemberAsync(account, tenantA, Cancellation));
         Assert.False(await memberships.IsMemberAsync(account, tenantB, Cancellation));
         Assert.False(await memberships.IsMemberAsync(account, Guid.Empty, Cancellation));
-        await Assert.ThrowsAsync<ArgumentException>(() => memberships.AddMemberAsync(account, Guid.Empty, Cancellation));
+        await Assert.ThrowsAsync<ArgumentException>(async () => await memberships.AddMemberAsync(await identity.Administrator.MembershipsAsync(), account, Guid.Empty, Cancellation));
 
-        Assert.True(await identity.Get<IAccountService>().DisableAsync(account, Cancellation));
+        Assert.True(await identity.Get<IAccountService>().DisableAsync(await identity.Administrator.AccountsAsync(), account, Cancellation));
         Assert.False(await memberships.IsMemberAsync(account, tenantA, Cancellation));
-        Assert.True(await identity.Get<IAccountService>().EnableAsync(account, Cancellation));
+        Assert.True(await identity.Get<IAccountService>().EnableAsync(await identity.Administrator.AccountsAsync(), account, Cancellation));
         Assert.True(await memberships.IsMemberAsync(account, tenantA, Cancellation));
-        Assert.True(await memberships.RemoveMemberAsync(account, tenantA, Cancellation));
+        Assert.True(await memberships.RemoveMemberAsync(await identity.Administrator.MembershipsAsync(), account, tenantA, Cancellation));
         Assert.False(await memberships.IsMemberAsync(account, tenantA, Cancellation));
-        Assert.False(await memberships.RemoveMemberAsync(account, tenantA, Cancellation));
+        Assert.False(await memberships.RemoveMemberAsync(await identity.Administrator.MembershipsAsync(), account, tenantA, Cancellation));
         Assert.NotNull((await identity.SignInAsync("member-1", password)).Principal);
     }
 }

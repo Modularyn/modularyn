@@ -212,9 +212,9 @@ internal sealed class IdentityModuleContext(PostgreSqlModule module) : ModuleDbC
 
 /// <summary>
 /// The owner scopes under which the identity module changes its own host-scoped records through its own context. These
-/// records are global: accounts, their credentials, sessions and delegations, the verification throttle and tenant
-/// memberships exist apart from any tenant, so the module writes them in owner-bound units whether or not a request
-/// resolved a tenant, and reaches no tenant data through them.
+/// records are global: accounts, their credentials, sessions and delegations and the verification throttle exist apart
+/// from any tenant, so the module writes them in owner-bound units whether or not a request resolved a tenant, and
+/// reaches no tenant data through them. Tenant memberships are authority data and change only in an audited host scope.
 /// </summary>
 internal static class IdentityOwnerScopes
 {
@@ -223,7 +223,6 @@ internal static class IdentityOwnerScopes
     internal static readonly ModuleOwnerScope VerificationThrottle = ModuleOwnerScope.For<IdentityModuleContext>("identity.verification-throttle");
     internal static readonly ModuleOwnerScope Delegations = ModuleOwnerScope.For<IdentityModuleContext>("identity.delegations");
     internal static readonly ModuleOwnerScope Credentials = ModuleOwnerScope.For<IdentityModuleContext>("identity.credentials");
-    internal static readonly ModuleOwnerScope Memberships = ModuleOwnerScope.For<IdentityModuleContext>("identity.memberships");
 }
 
 public static class IdentityPersistence

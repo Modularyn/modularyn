@@ -22,7 +22,7 @@ public sealed class CacheLifetimeTests
         await using var held = scope;
         var cache = services.GetRequiredService<TenantCache>();
         var entry = new TenantCacheEntry("Preferences", "1", "slow", TimeSpan.FromSeconds(10), true);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => cache.GetOrCreateAsync(context, entry, _ =>
+        await Assert.ThrowsAsync<TenantCacheStaleException>(() => cache.GetOrCreateAsync(context, entry, _ =>
         {
             clock.Advance(TimeSpan.FromSeconds(10));
             return Task.FromResult("expired");

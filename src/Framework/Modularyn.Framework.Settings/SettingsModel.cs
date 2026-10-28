@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Modularity.Abstractions;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
@@ -16,10 +17,30 @@ public static class SettingsModule
 {
     public const string ModuleId = "Modularyn.Framework.Settings";
     public const string DefaultSchema = "modularyn_settings";
+
+    /// <summary>The permission that writes and resets a tenant's overrides.</summary>
+    public const string TenantOverridesPermission = "modularyn.settings.tenant-overrides";
+
+    /// <summary>The permission that writes and resets the acting user's own overrides in a tenant.</summary>
+    public const string UserOverridesPermission = "modularyn.settings.user-overrides";
+
+    /// <summary>The host operation for global overrides, which reaches the global values and nothing else.</summary>
+    public static HostOperation GlobalOperation { get; } = new(SettingsService.GlobalOperationId, [new HostReach(ModuleId, "GlobalValues")]);
+
     public static PostgreSqlModule Create(PostgreSqlPersistenceOptions options, string schema = DefaultSchema) =>
         PostgreSqlModule.Create(ModuleId, schema, options, module => new SettingsContext(module));
 
+    /// <summary>Settings management is configuration authority, so both permissions take the current profile.</summary>
+    public static IReadOnlyList<PermissionDefinition> Permissions(SemanticVersion version) =>
+    [
+        new(ModuleId, TenantOverridesPermission, version, PermissionFreshness.Current),
+        new(ModuleId, UserOverridesPermission, version, PermissionFreshness.Current)
+    ];
+
+    public static IReadOnlyList<HostOperationDefinition> HostOperations(SemanticVersion version) => [new(ModuleId, version, GlobalOperation)];
+
     public static ModuleManifest Manifest(SemanticVersion version) => new(ModuleId, version,
+        definitions: Permissions(version).Select(definition => definition.Declaration).Concat(HostOperations(version).Select(definition => definition.Declaration)),
         migrations: [new ModuleAsset(SettingsInitial.Id, version)]);
 
     internal static void Require(PostgreSqlModule module)

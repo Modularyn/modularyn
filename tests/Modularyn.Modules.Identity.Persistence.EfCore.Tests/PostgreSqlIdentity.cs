@@ -49,6 +49,9 @@ internal sealed class PostgreSqlIdentity : IAsyncDisposable
     public ManualClock Clock { get; }
     public CountingPasswordHasher Hasher { get; }
 
+    /// <summary>Identity administration in host scope, for the module's administrative writes.</summary>
+    public IdentityAdministrator Administrator { get; } = new();
+
     public static PostgreSqlIdentity Create(IdentityDatabase database, Dictionary<string, string?>? settings = null, ManualClock? clock = null)
     {
         var values = new Dictionary<string, string?>
@@ -76,13 +79,27 @@ internal sealed class PostgreSqlIdentity : IAsyncDisposable
     public async Task<(Guid Id, string Password)> AccountAsync(string userName)
     {
         var password = Generated.Password();
-        var created = await Get<IAccountService>().CreateLocalAccountAsync(userName, new SecretText(password), TestContext.Current.CancellationToken);
+        var created = await Get<IAccountService>().CreateLocalAccountAsync(await Administrator.AccountsAsync(), userName, new SecretText(password),
+            TestContext.Current.CancellationToken);
         Assert.Equal(AccountCreationStatus.Created, created.Status);
         return (created.AccountId!.Value, password);
+    }
+
+    /// <summary>A new account and its owner's authority, through a session of its own, for the writes that are the owner's.</summary>
+    public async Task<(Guid Id, IdentityAuthority Owner)> OwnerAsync(string userName)
+    {
+        var (id, password) = await AccountAsync(userName);
+        var session = (await SignInAsync(userName, password)).Session!;
+        return (id, IdentityAuthority.Owner(ExecutionPrincipal.ForUser(new PrincipalReference(id.ToString("D"), IdentityKind.User), session.SessionId,
+            session.AuthenticatedAt)));
     }
 
     public Task<Application.Contracts.SignInResult> SignInAsync(string userName, string password, string source = "203.0.113.1") =>
         Get<ISignInService>().SignInWithPasswordAsync(new PasswordSignInRequest(userName, new SecretText(password), source), TestContext.Current.CancellationToken);
 
-    public ValueTask DisposeAsync() => provider.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        await provider.DisposeAsync();
+        await Administrator.DisposeAsync();
+    }
 }

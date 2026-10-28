@@ -91,6 +91,31 @@ public sealed class HostScopeTests
         Assert.True((await HostAsync(TestIdentity.User("host-1"), Operation, Candidates.Host("app.example.test"))).Succeeded);
         Assert.DoesNotContain(seams.Audit.Records, record => record.Actor.Subject == "ta-admin");
     }
+
+    [Fact]
+    public async Task TM_G02_028_A_host_grant_carries_only_the_reach_of_the_operation_asked_for()
+    {
+        var reach = new HostOperation(Operation, [new HostReach("Items", "Items")]);
+        seams.Authority.Grant("host-1", reach);
+        var granted = await HostAsync(TestIdentity.User("host-1"));
+        Assert.Equal(reach.Reach, granted.Context!.HostGrant!.Reach);
+        Assert.True(granted.Context.HostGrant.Reaches("Items", "Items"));
+        Assert.False(granted.Context.HostGrant.Reaches("Items", "WorkItems"));
+        Assert.False(granted.Context.HostGrant.Reaches("Other", "Items"));
+        // A seam that answers with another operation, or its reach, grants nothing.
+        await using var services = UnitServices.Build(directory, seams, collection =>
+            collection.AddSingleton<IHostAuthority>(new MismatchedAuthority(new HostOperation("test.other", [new HostReach("Items", "Items")]))));
+        await using var scope = services.CreateAsyncScope();
+        var refused = await scope.ServiceProvider.GetRequiredService<TenantExecution>().EstablishAsync(
+            TenantResolutionRequest.ForHostOperation(TestIdentity.User("host-1"), Operation, "Report across tenants"), TestContext.Current.CancellationToken);
+        Assert.Equal(TenancyCodes.HostAuthorityRefused, refused.Code);
+    }
+
+    private sealed class MismatchedAuthority(HostOperation answer) : IHostAuthority
+    {
+        public ValueTask<HostOperation?> AuthorizeAsync(ActorReference actor, string operationId, CancellationToken cancellationToken) =>
+            ValueTask.FromResult<HostOperation?>(answer);
+    }
 }
 
 [Collection(TenancyPostgreSqlCollection.Name)]
@@ -236,6 +261,58 @@ public sealed class HostScopeDatabaseTests
         Assert.Equal(("host-1", TenancyServer.HostReport, "Count items for every tenant"), (record.Actor.Subject, record.OperationId, record.Reason));
         Assert.Equal(record.UnitId, server.Observed.Last().Unit);
         Assert.Null(server.Observed.Last().Tenant);
+    }
+
+    [Fact]
+    public async Task TM_G02_028_A_host_grant_reaches_only_the_entities_its_operation_declares()
+    {
+        await using var database = await TenancyDatabase.CreateAsync();
+        await using var services = database.Services();
+        await database.SeedAsync(services);
+        var item = await AddAsync(database, services, "user-a", database.TenantA, "a-1");
+        // The work operation reaches the work table only; the lookups operation reaches only the host-scoped lookups.
+        database.Seams.Authority.Grant("host-1", new HostOperation("test.reach.work", [new HostReach("Items", "WorkItems")]));
+        database.Seams.Authority.Grant("host-1", new HostOperation("test.reach.lookups", [new HostReach("Items", "Lookups")]));
+        database.Seams.Authority.Grant("host-1", "test.reach.nothing");
+
+        var (workScope, work) = await Units.EnterHostAsync(services, "host-1", "test.reach.work");
+        await using (workScope)
+        await using (var unit = await EfCoreUnitOfWork.BeginAsync(database.Items, work, cancellationToken: Cancellation))
+        {
+            Assert.Equal(new HostReach("Items", "WorkItems"), Assert.Single(work.HostGrant!.Reach));
+            Assert.Equal(0, await unit.Context.AcrossTenants<WorkItem>().Query.CountAsync(Cancellation));
+            Assert.Equal(0, await unit.Sql.AcrossTenants<WorkItem>().Query.CountAsync(Cancellation));
+            // Reading tenant data, recording a named tenant's row and changing host data outside the reach are each refused.
+            Assert.Equal("MPS043", Assert.Throws<PersistenceContractException>(() => unit.Context.AcrossTenants<Item>()).Code);
+            Assert.Equal("MPS043", Assert.Throws<PersistenceContractException>(() => unit.Sql.AcrossTenants<Item>()).Code);
+            Assert.Equal("MPS043", (await Assert.ThrowsAsync<PersistenceContractException>(() => unit.Sql.UpdateForTenantAsync<Item, Guid, string>(
+                database.TenantA, row => row.Id, item, Guid.NewGuid(), row => row.Name, "x", Cancellation))).Code);
+            Assert.Equal("MPS043", (await Assert.ThrowsAsync<PersistenceContractException>(() => unit.Sql.InsertAsync(new Lookup { Id = "direct", Name = "x" },
+                Cancellation))).Code);
+        }
+        var (lookupScope, lookups) = await Units.EnterHostAsync(services, "host-1", "test.reach.lookups");
+        await using (lookupScope)
+        {
+            await using (var unit = await EfCoreUnitOfWork.BeginAsync(database.Items, lookups, cancellationToken: Cancellation))
+            {
+                unit.Context.Add(new Lookup { Id = "reached", Name = "within the reach" });
+                Assert.Equal(UnitOfWorkState.Committed, (await unit.CompleteAsync(Cancellation)).State);
+            }
+            await using (var unit = await EfCoreUnitOfWork.BeginAsync(database.Items, lookups, cancellationToken: Cancellation))
+                Assert.Equal("MPS043", Assert.Throws<PersistenceContractException>(() => unit.Context.AcrossTenants<WorkItem>()).Code);
+        }
+        // An operation whose module declared no reach reaches nothing at all, though its scope exists and was audited.
+        var (nothingScope, nothing) = await Units.EnterHostAsync(services, "host-1", "test.reach.nothing");
+        await using (nothingScope)
+        await using (var unit = await EfCoreUnitOfWork.BeginAsync(database.Items, nothing, cancellationToken: Cancellation))
+        {
+            Assert.Empty(nothing.HostGrant!.Reach);
+            Assert.Equal("MPS043", Assert.Throws<PersistenceContractException>(() => unit.Context.AcrossTenants<WorkItem>()).Code);
+            unit.Context.Add(new Lookup { Id = "unreached", Name = "outside the reach" });
+            Assert.Equal("MPS043", (await Assert.ThrowsAsync<PersistenceContractException>(() => unit.CompleteAsync(Cancellation))).Code);
+        }
+        Assert.Equal("reached", await database.ScalarAsync<string>("SELECT string_agg(\"Id\", ',' ORDER BY \"Id\") FROM \"" + database.ItemsSchema
+            + "\".\"Lookups\" WHERE \"Id\" <> 'core'"));
     }
 
     private static async Task<Guid> AddAsync(TenancyDatabase database, IServiceProvider services, string subject, Guid tenant, string code)
