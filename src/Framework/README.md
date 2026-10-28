@@ -527,6 +527,14 @@ CODE-05 (events and jobs) and CODE-07 (Files) carry tenant context this way:
    payload. The format holds the scope, the tenant, the actor's kind and subject,
    the host operation and reason in host scope, the producing unit and the time:
    references only, never a credential, token, request object or payload value.
+   The stored reference selects the authority the work runs with: a service
+   identity that runs the item acts for the actor it names. So only server code
+   produces one, with `Capture` from the validated context inside the producing
+   unit; never build one, or accept one, from a request, a payload or another
+   row. It carries no integrity tag yet, and revalidation checks the tenant and
+   the actor's membership, not that the named actor produced the item. CODE-05's
+   stores take over the capture, SEC-07 binds the producing unit to its audit
+   record, and SEC-08 tests forged and replayed references.
 2. **Dispatch from host scope.** A dispatcher lists due work across tenants in an
    audited host scope through `AcrossTenants`. It cannot change those rows, except
    to record a disposition on one named tenant's row with `UpdateForTenantAsync`.

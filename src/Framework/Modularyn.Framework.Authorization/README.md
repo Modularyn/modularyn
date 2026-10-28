@@ -162,6 +162,14 @@ delegation. A service identity acts for the producer of propagated work, the use
 that the revalidated context names, within its own scope, or as itself in a
 context it is the actor of, with exactly its scope.
 
+The stored propagated reference therefore decides whose authority a worker
+exercises. Only server code may produce one, with
+`PropagatedTenantContext.Capture` from the validated context in the producing
+unit, as the framework README's propagation contract says. The reference has no
+integrity tag and can be run more than once, each run decided afresh at the
+current profile. Binding it to its audited producing unit is SEC-07's, and the
+adversarial cases are SEC-08's.
+
 `VisibleAsync` answers which resources of one type the subject may see for a
 permission, for lists, counts, previews and exports: those it owns and those it
 holds a current grant on, and none when the tenant-level decision refuses.
