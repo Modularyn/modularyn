@@ -2,6 +2,31 @@
   "version": 2,
   "dependencies": {
     "net10.0": {
+      "Microsoft.NET.Test.Sdk": {
+        "type": "Direct",
+        "requested": "[18.11.0, )",
+        "resolved": "18.11.0",
+        "contentHash": "xf/bR0LNkhK0SnadDRlZIQmC4sac5Wk0e1WAdiQjRN3MSo6gQ9M2c4c1XRNnVGjfOvckh704W5CJ19AL0/Xsdg==",
+        "dependencies": {
+          "Microsoft.CodeCoverage": "18.11.0",
+          "Microsoft.TestPlatform.TestHost": "18.11.0"
+        }
+      },
+      "xunit.runner.visualstudio": {
+        "type": "Direct",
+        "requested": "[4.0.1, )",
+        "resolved": "4.0.1",
+        "contentHash": "8CoAaZkniVekR1ycJyxn+hOz+6ZQCDPcoIsIs6ujd4WyFcBMlxGNU15Qb8Uxd4iO4UmOuETb0M6vzBbwX/mfLA=="
+      },
+      "xunit.v3": {
+        "type": "Direct",
+        "requested": "[4.0.2, )",
+        "resolved": "4.0.2",
+        "contentHash": "TdjM2OAx7w/0E88E6PgaigLoTbQaxbSR3HF/8p92plchTjf29jPHW27ylvEOz+Nx8CvPwWKGQlOR1fDv6/Qh5A==",
+        "dependencies": {
+          "xunit.v3.mtp-v2": "[4.0.2]"
+        }
+      },
       "Microsoft.ApplicationInsights": {
         "type": "Transitive",
         "resolved": "2.23.0",
@@ -17,16 +42,6 @@
         "resolved": "18.11.0",
         "contentHash": "MhN9wpvL1Es4hfIYslrsVgIsUdDFxuOBTbAl9mGIMvFo8PP5CLf4DrGdNrfwWSyn0lqi6sssm+I/qkkLL3MU+g=="
       },
-      "Microsoft.EntityFrameworkCore": {
-        "type": "CentralTransitive",
-        "requested": "[10.0.14, )",
-        "resolved": "10.0.14",
-        "contentHash": "vY3931PYPIDBbKovGHbACmpOWvURvKNyRXfCjMh5yLW+FH6vLWeqUu2xzSCRo4Oz4tgx9GYpd0JlV5LDyAoQdg==",
-        "dependencies": {
-          "Microsoft.EntityFrameworkCore.Abstractions": "10.0.14",
-          "Microsoft.EntityFrameworkCore.Analyzers": "10.0.14"
-        }
-      },
       "Microsoft.EntityFrameworkCore.Abstractions": {
         "type": "Transitive",
         "resolved": "10.0.14",
@@ -36,25 +51,6 @@
         "type": "Transitive",
         "resolved": "10.0.14",
         "contentHash": "gaANlGNTxkgODX2eeVT8jjd3AmlFilQV4DFf8qoW30+wUCm2o4N7nEHtZvnHIwfhaJni2DqcjE47Au7tC0Q5jA=="
-      },
-      "Microsoft.EntityFrameworkCore.Relational": {
-        "type": "CentralTransitive",
-        "requested": "[10.0.14, )",
-        "resolved": "10.0.14",
-        "contentHash": "Ut0kgtfoKX9QElQVEXSEAgdQc79jISWStVWSOhfPDDHNSKMwFzSXG3gtdYFTAbsBoV+8NtXdVaj4xwdqeky8UA==",
-        "dependencies": {
-          "Microsoft.EntityFrameworkCore": "10.0.14"
-        }
-      },
-      "Microsoft.NET.Test.Sdk": {
-        "type": "Direct",
-        "requested": "[18.11.0, )",
-        "resolved": "18.11.0",
-        "contentHash": "xf/bR0LNkhK0SnadDRlZIQmC4sac5Wk0e1WAdiQjRN3MSo6gQ9M2c4c1XRNnVGjfOvckh704W5CJ19AL0/Xsdg==",
-        "dependencies": {
-          "Microsoft.CodeCoverage": "18.11.0",
-          "Microsoft.TestPlatform.TestHost": "18.11.0"
-        }
       },
       "Microsoft.Testing.Extensions.Telemetry": {
         "type": "Transitive",
@@ -104,110 +100,6 @@
         "resolved": "5.0.0",
         "contentHash": "dDoKi0PnDz31yAyETfRntsLArTlVAVzUzCIvvEDsDsucrl33Dl8pIJG06ePTJTI3tGpeyHS9Cq7Foc/s4EeKcg=="
       },
-      "modularyn.framework.caching": {
-        "type": "Project",
-        "dependencies": {
-          "Modularyn.Framework.Tenancy": "[1.0.0, )"
-        }
-      },
-      "modularyn.framework.configuration": {
-        "type": "Project"
-      },
-      "modularyn.framework.features": {
-        "type": "Project",
-        "dependencies": {
-          "Modularyn.Framework.Features.Abstractions": "[1.0.0, )",
-          "Modularyn.Framework.Settings": "[1.0.0, )"
-        }
-      },
-      "modularyn.framework.features.abstractions": {
-        "type": "Project",
-        "dependencies": {
-          "Modularyn.Framework.Settings.Abstractions": "[1.0.0, )"
-        }
-      },
-      "modularyn.framework.ingress": {
-        "type": "Project",
-        "dependencies": {
-          "Modularyn.Framework.Configuration": "[1.0.0, )"
-        }
-      },
-      "modularyn.framework.localization": {
-        "type": "Project",
-        "dependencies": {
-          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )"
-        }
-      },
-      "modularyn.framework.modularity": {
-        "type": "Project",
-        "dependencies": {
-          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )"
-        }
-      },
-      "modularyn.framework.modularity.abstractions": {
-        "type": "Project"
-      },
-      "modularyn.framework.persistence.abstractions": {
-        "type": "Project"
-      },
-      "modularyn.framework.persistence.efcore": {
-        "type": "Project",
-        "dependencies": {
-          "Microsoft.EntityFrameworkCore": "[10.0.14, )",
-          "Microsoft.EntityFrameworkCore.Relational": "[10.0.14, )",
-          "Modularyn.Framework.Modularity": "[1.0.0, )",
-          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
-          "Modularyn.Framework.Persistence.Abstractions": "[1.0.0, )",
-          "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )",
-          "Npgsql": "[10.0.3, )",
-          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
-        }
-      },
-      "modularyn.framework.settings": {
-        "type": "Project",
-        "dependencies": {
-          "Modularyn.Framework.Caching": "[1.0.0, )",
-          "Modularyn.Framework.Configuration": "[1.0.0, )",
-          "Modularyn.Framework.Persistence.EfCore": "[1.0.0, )",
-          "Modularyn.Framework.Settings.Abstractions": "[1.0.0, )"
-        }
-      },
-      "modularyn.framework.settings.abstractions": {
-        "type": "Project",
-        "dependencies": {
-          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )"
-        }
-      },
-      "modularyn.framework.tenancy": {
-        "type": "Project",
-        "dependencies": {
-          "Modularyn.Framework.Ingress": "[1.0.0, )",
-          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
-          "Modularyn.Framework.Persistence.Abstractions": "[1.0.0, )",
-          "Modularyn.Framework.Persistence.EfCore": "[1.0.0, )",
-          "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )"
-        }
-      },
-      "modularyn.framework.tenancy.abstractions": {
-        "type": "Project"
-      },
-      "Npgsql": {
-        "type": "CentralTransitive",
-        "requested": "[10.0.3, )",
-        "resolved": "10.0.3",
-        "contentHash": "7nb5YzXuvWWJxB0J8DiyL3we+X4FOctZrt0fIBnucOIaIevFEEwGQVZKtiu9olXdlNAK1eNgqSral6r/jlhI4w=="
-      },
-      "Npgsql.EntityFrameworkCore.PostgreSQL": {
-        "type": "CentralTransitive",
-        "requested": "[10.0.3, )",
-        "resolved": "10.0.3",
-        "contentHash": "IPGrrZnRkuW7OlHDhUESZz4G5DLkW7Nej/O3Cx+0iTsgyU5XJxBgpsvTHLloo3WWuAKKbDHXBvWPVkX1deRh1Q==",
-        "dependencies": {
-          "Microsoft.EntityFrameworkCore": "[10.0.4, 11.0.0)",
-          "Microsoft.EntityFrameworkCore.Relational": "[10.0.4, 11.0.0)",
-          "Npgsql": "10.0.3"
-        }
-      },
       "System.Security.AccessControl": {
         "type": "Transitive",
         "resolved": "6.0.1",
@@ -217,21 +109,6 @@
         "type": "Transitive",
         "resolved": "2.2.0",
         "contentHash": "dXMIIztipcAyL3a19gtUrih/RLrE33/4VJdICoinYqIXXo1KLtsMPsaQ9dO2pE8xajDguwE2kqVbBqE5/EoJ0Q=="
-      },
-      "xunit.runner.visualstudio": {
-        "type": "Direct",
-        "requested": "[4.0.1, )",
-        "resolved": "4.0.1",
-        "contentHash": "8CoAaZkniVekR1ycJyxn+hOz+6ZQCDPcoIsIs6ujd4WyFcBMlxGNU15Qb8Uxd4iO4UmOuETb0M6vzBbwX/mfLA=="
-      },
-      "xunit.v3": {
-        "type": "Direct",
-        "requested": "[4.0.2, )",
-        "resolved": "4.0.2",
-        "contentHash": "TdjM2OAx7w/0E88E6PgaigLoTbQaxbSR3HF/8p92plchTjf29jPHW27ylvEOz+Nx8CvPwWKGQlOR1fDv6/Qh5A==",
-        "dependencies": {
-          "xunit.v3.mtp-v2": "[4.0.2]"
-        }
       },
       "xunit.v3.assert": {
         "type": "Transitive",
@@ -294,6 +171,142 @@
         "dependencies": {
           "xunit.v3.extensibility.core": "[4.0.2]",
           "xunit.v3.runner.common": "[4.0.2]"
+        }
+      },
+      "modularyn.framework.authorization.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )"
+        }
+      },
+      "modularyn.framework.caching": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Tenancy": "[1.0.0, )"
+        }
+      },
+      "modularyn.framework.configuration": {
+        "type": "Project"
+      },
+      "modularyn.framework.features": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Features.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Settings": "[1.0.0, )"
+        }
+      },
+      "modularyn.framework.features.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Settings.Abstractions": "[1.0.0, )"
+        }
+      },
+      "modularyn.framework.ingress": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Configuration": "[1.0.0, )"
+        }
+      },
+      "modularyn.framework.localization": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )"
+        }
+      },
+      "modularyn.framework.modularity": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )"
+        }
+      },
+      "modularyn.framework.modularity.abstractions": {
+        "type": "Project"
+      },
+      "modularyn.framework.persistence.abstractions": {
+        "type": "Project"
+      },
+      "modularyn.framework.persistence.efcore": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "[10.0.14, )",
+          "Microsoft.EntityFrameworkCore.Relational": "[10.0.14, )",
+          "Modularyn.Framework.Modularity": "[1.0.0, )",
+          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )",
+          "Npgsql": "[10.0.3, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+        }
+      },
+      "modularyn.framework.security.abstractions": {
+        "type": "Project"
+      },
+      "modularyn.framework.settings": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Authorization.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Caching": "[1.0.0, )",
+          "Modularyn.Framework.Configuration": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.EfCore": "[1.0.0, )",
+          "Modularyn.Framework.Settings.Abstractions": "[1.0.0, )"
+        }
+      },
+      "modularyn.framework.settings.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )"
+        }
+      },
+      "modularyn.framework.tenancy": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Authorization.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Ingress": "[1.0.0, )",
+          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.EfCore": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )"
+        }
+      },
+      "modularyn.framework.tenancy.abstractions": {
+        "type": "Project"
+      },
+      "Microsoft.EntityFrameworkCore": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "vY3931PYPIDBbKovGHbACmpOWvURvKNyRXfCjMh5yLW+FH6vLWeqUu2xzSCRo4Oz4tgx9GYpd0JlV5LDyAoQdg==",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore.Abstractions": "10.0.14",
+          "Microsoft.EntityFrameworkCore.Analyzers": "10.0.14"
+        }
+      },
+      "Microsoft.EntityFrameworkCore.Relational": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "Ut0kgtfoKX9QElQVEXSEAgdQc79jISWStVWSOhfPDDHNSKMwFzSXG3gtdYFTAbsBoV+8NtXdVaj4xwdqeky8UA==",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "10.0.14"
+        }
+      },
+      "Npgsql": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.3, )",
+        "resolved": "10.0.3",
+        "contentHash": "7nb5YzXuvWWJxB0J8DiyL3we+X4FOctZrt0fIBnucOIaIevFEEwGQVZKtiu9olXdlNAK1eNgqSral6r/jlhI4w=="
+      },
+      "Npgsql.EntityFrameworkCore.PostgreSQL": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.3, )",
+        "resolved": "10.0.3",
+        "contentHash": "IPGrrZnRkuW7OlHDhUESZz4G5DLkW7Nej/O3Cx+0iTsgyU5XJxBgpsvTHLloo3WWuAKKbDHXBvWPVkX1deRh1Q==",
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "[10.0.4, 11.0.0)",
+          "Microsoft.EntityFrameworkCore.Relational": "[10.0.4, 11.0.0)",
+          "Npgsql": "10.0.3"
         }
       }
     }

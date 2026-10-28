@@ -17,6 +17,7 @@
     <Project Path="src/Framework/Modularyn.Framework.Features/Modularyn.Framework.Features.csproj" />
     <Project Path="src/Framework/Modularyn.Framework.Localization/Modularyn.Framework.Localization.csproj" />
     <Project Path="src/Framework/Modularyn.Framework.Security.Abstractions/Modularyn.Framework.Security.Abstractions.csproj" />
+    <Project Path="src/Framework/Modularyn.Framework.Authorization.Abstractions/Modularyn.Framework.Authorization.Abstractions.csproj" />
   </Folder>
   <Folder Name="/src/Modules/">
     <Project Path="src/Modules/Modularyn.Modules.Identity.Domain/Modularyn.Modules.Identity.Domain.csproj" />

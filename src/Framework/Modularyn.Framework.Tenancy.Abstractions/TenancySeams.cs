@@ -23,11 +23,16 @@ public interface ITenantMembership
 
 /// <summary>
 /// Answers whether an actor currently holds the separately granted host authority, under the elevated policy, for one
-/// host operation. Tenant membership or tenant administration never implies it. Supplied by authorization (SEC-05).
+/// host operation, and what that operation may reach. Tenant membership or tenant administration never implies it.
+/// Supplied by authorization (SEC-05).
 /// </summary>
 public interface IHostAuthority
 {
-    ValueTask<bool> IsGrantedAsync(ActorReference actor, string operationId, CancellationToken cancellationToken);
+    /// <summary>
+    /// The operation as its owning module declared it, with the entities it may reach, when the actor currently holds host
+    /// authority for it; null when the actor does not, or the operation is not declared.
+    /// </summary>
+    ValueTask<HostOperation?> AuthorizeAsync(ActorReference actor, string operationId, CancellationToken cancellationToken);
 }
 
 /// <summary>

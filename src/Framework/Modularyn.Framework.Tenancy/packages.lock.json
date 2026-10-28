@@ -12,6 +12,14 @@
         "resolved": "10.0.14",
         "contentHash": "gaANlGNTxkgODX2eeVT8jjd3AmlFilQV4DFf8qoW30+wUCm2o4N7nEHtZvnHIwfhaJni2DqcjE47Au7tC0Q5jA=="
       },
+      "modularyn.framework.authorization.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )"
+        }
+      },
       "modularyn.framework.configuration": {
         "type": "Project"
       },
@@ -45,6 +53,9 @@
           "Npgsql": "[10.0.3, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
         }
+      },
+      "modularyn.framework.security.abstractions": {
+        "type": "Project"
       },
       "modularyn.framework.tenancy.abstractions": {
         "type": "Project"

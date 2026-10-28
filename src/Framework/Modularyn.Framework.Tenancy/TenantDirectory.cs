@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Ingress;
 using Modularyn.Framework.Modularity.Abstractions;
 using Modularyn.Framework.Persistence.Abstractions;
@@ -37,11 +38,16 @@ public static class TenantDirectoryModule
     public static PostgreSqlModule Create(PostgreSqlPersistenceOptions options, string schema = DefaultSchema) =>
         PostgreSqlModule.Create(ModuleId, schema, options, module => new TenantDirectoryContext(module));
 
-    /// <summary>The directory's manifest, declaring its migrations for composition and the activation gate.</summary>
+    /// <summary>The directory's host operation, as authorization's registry binds it to this manifest.</summary>
+    public static IReadOnlyList<HostOperationDefinition> HostOperations(SemanticVersion version) =>
+        [new(ModuleId, version, TenantDirectoryAdministration.Operation)];
+
+    /// <summary>The directory's manifest, declaring its host operation and migrations for composition and the activation gate.</summary>
     public static ModuleManifest Manifest(SemanticVersion version)
     {
         ArgumentNullException.ThrowIfNull(version);
-        return new(ModuleId, version, migrations: MigrationIds.Select(id => new ModuleAsset(id, version)));
+        return new(ModuleId, version, definitions: HostOperations(version).Select(definition => definition.Declaration),
+            migrations: MigrationIds.Select(id => new ModuleAsset(id, version)));
     }
 
     internal static void Require(PostgreSqlModule module)
@@ -86,6 +92,11 @@ public sealed class TenantDirectory : ITenantDirectory
 public sealed class TenantDirectoryAdministration
 {
     public const string OperationId = "modularyn.tenancy.directory";
+
+    /// <summary>The directory's host operation, which reaches the directory's tenants and domains and nothing else.</summary>
+    public static HostOperation Operation { get; } = new(OperationId,
+        [new HostReach(TenantDirectoryModule.ModuleId, "Tenants"), new HostReach(TenantDirectoryModule.ModuleId, "TenantDomains")]);
+
     private readonly PostgreSqlModule module;
     private readonly PublicOrigins? origins;
 

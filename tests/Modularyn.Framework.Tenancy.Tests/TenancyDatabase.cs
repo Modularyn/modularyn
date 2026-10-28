@@ -6,6 +6,7 @@ using Modularyn.Framework.Modularity;
 using Modularyn.Framework.Modularity.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
 using Modularyn.Framework.Persistence.EfCore.Tests;
+using Modularyn.Framework.Tenancy.Abstractions;
 using Modularyn.Repository.Tests;
 using Npgsql;
 using Xunit;
@@ -44,6 +45,10 @@ internal sealed class TenancyDatabase : IAsyncDisposable
         ItemsSchema = "tn_items_" + suffix;
         Directory = TenantDirectoryModule.Create(options, DirectorySchema);
         Items = PostgreSqlModule.Create("Items", ItemsSchema, options, module => new ItemsContext(module));
+        // The test operations reach the items module's tables they work on, as an owning module would declare them.
+        Seams.Authority.Declare(new HostOperation(TenancyServer.HostReport, [new HostReach("Items", "Items")]));
+        Seams.Authority.Declare(new HostOperation("test.maintenance", [new HostReach("Items", "Items")]));
+        Seams.Authority.Declare(new HostOperation(WorkDispatch.Operation, [new HostReach("Items", "WorkItems")]));
     }
 
     internal PostgreSqlPersistenceOptions Options { get; }

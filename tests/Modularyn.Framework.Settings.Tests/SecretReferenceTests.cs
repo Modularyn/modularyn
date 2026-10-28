@@ -39,18 +39,18 @@ public sealed class SecretReferenceTests
             await File.WriteAllTextAsync(mounted, first, Cancellation);
             var store = new FileSecretStore(Options.Create(new SecretStoreOptions { Directory = directory }));
             var settings = new SettingsService(database.Module, database.Definitions, database.Services.GetRequiredService<ScopedValueCache>(),
-                database.Services.GetRequiredService<TenantWorkRunner>(), database.Clock, store);
+                database.Services.GetRequiredService<TenantWorkRunner>(), database.Clock, store, database.Permissions);
             var errors = new List<string>();
             foreach (var (context, scope) in new[] { (host, ValueSource.Global), (a, ValueSource.Tenant), (a, ValueSource.User) })
             {
-                var exception = await Assert.ThrowsAsync<ValueValidationException>(() => settings.SetAsync(context, TestDefinitions.Secret, scope, first,
+                var exception = await Assert.ThrowsAsync<ValueValidationException>(() => settings.SetAsync(context, SettingsDatabase.PrincipalOf(context), TestDefinitions.Secret, scope, first,
                     cancellationToken: Cancellation));
                 Assert.Null(exception.InnerException);
                 errors.Add(exception.ToString());
             }
             Assert.Empty(await database.InventoryAsync());
             Assert.False((await settings.ResolveAsync(a, TestDefinitions.Secret, Cancellation)).IsSet);
-            var global = await settings.SetSecretReferenceAsync(host, TestDefinitions.Secret, ValueSource.Global, reference, cancellationToken: Cancellation);
+            var global = await settings.SetSecretReferenceAsync(host, SettingsDatabase.PrincipalOf(host), TestDefinitions.Secret, ValueSource.Global, reference, cancellationToken: Cancellation);
             var resolved = await settings.ResolveAsync(a, TestDefinitions.Secret, Cancellation);
             Assert.Equal(ValueSource.Global, resolved.Source);
             Assert.Equal(reference, resolved.Get<SecretReference>());
@@ -82,7 +82,7 @@ public sealed class SecretReferenceTests
             // A reference names a deployment-wide secret, so a tenant or a user may not choose one, and a stored one fails closed.
             var userReference = SecretReference.Parse("secret:user-connection");
             foreach (var scope in new[] { ValueSource.Tenant, ValueSource.User })
-                await Assert.ThrowsAsync<InvalidOperationException>(() => settings.SetSecretReferenceAsync(a, TestDefinitions.Secret, scope,
+                await Assert.ThrowsAsync<InvalidOperationException>(() => settings.SetSecretReferenceAsync(a, SettingsDatabase.PrincipalOf(a), TestDefinitions.Secret, scope,
                     userReference, cancellationToken: Cancellation));
             Assert.Equal(reference, (await settings.ResolveAsync(a, TestDefinitions.Secret, Cancellation)).Get<SecretReference>());
             await database.ExecuteAsync("INSERT INTO " + database.Table("TenantValues")
@@ -100,7 +100,7 @@ public sealed class SecretReferenceTests
             await database.ExecuteAsync("DELETE FROM " + database.Table("TenantValues"));
             cache.InvalidateTenant(database.TenantA);
             Assert.Equal(reference, (await settings.ResolveAsync(a, TestDefinitions.Secret, Cancellation)).Get<SecretReference>());
-            var conflict = await Assert.ThrowsAsync<ValueConflictException>(() => settings.SetSecretReferenceAsync(host, TestDefinitions.Secret,
+            var conflict = await Assert.ThrowsAsync<ValueConflictException>(() => settings.SetSecretReferenceAsync(host, SettingsDatabase.PrincipalOf(host), TestDefinitions.Secret,
                 ValueSource.Global, userReference, Guid.NewGuid(), Cancellation));
             errors.Add(JsonSerializer.Serialize(conflict.Message));
             Assert.NotEqual(Guid.Empty, global);

@@ -250,13 +250,14 @@ public sealed class TenantExecution : IDisposable
         CancellationToken cancellationToken)
     {
         if (services.GetService<IHostAuthority>() is not { } authority) return TenantDecision.Refused(TenancyCodes.SeamUnavailable);
-        bool granted;
-        try { granted = await authority.IsGrantedAsync(actor, operationId, cancellationToken).ConfigureAwait(false); }
+        HostOperation? operation;
+        try { operation = await authority.AuthorizeAsync(actor, operationId, cancellationToken).ConfigureAwait(false); }
         catch (Exception exception) when (!IsCancellation(exception, cancellationToken))
         {
             return TenantDecision.Refused(TenancyCodes.SeamUnavailable);
         }
-        if (!granted) return TenantDecision.Refused(TenancyCodes.HostAuthorityRefused);
+        // The grant carries the reach of exactly the operation asked for, never of another one the seam returned.
+        if (operation is null || operation.Id != operationId) return TenantDecision.Refused(TenancyCodes.HostAuthorityRefused);
         // The record is written before the scope exists; without it there is no scope.
         if (services.GetService<IHostScopeAudit>() is not { } audit) return TenantDecision.Refused(TenancyCodes.AuditUnavailable);
         var unit = Guid.NewGuid();
@@ -270,7 +271,7 @@ public sealed class TenantExecution : IDisposable
         {
             return TenantDecision.Refused(TenancyCodes.AuditUnavailable);
         }
-        return TenantDecision.Established(new(TenantScope.Host, null, actor, new(operationId, reason, at), source, unit));
+        return TenantDecision.Established(new(TenantScope.Host, null, actor, new(operation, reason, at), source, unit));
     }
 
     private ActorReference? ResolveActor(ClaimsPrincipal principal, out TenantDecision? refusal)

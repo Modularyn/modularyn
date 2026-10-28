@@ -2,7 +2,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Modularyn.Framework.Modularity;
 using Modularyn.Framework.Modularity.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
+using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Persistence.EfCore.Tests;
+using Modularyn.Framework.Security.Abstractions;
 using Modularyn.Framework.Tenancy;
 using Modularyn.Framework.Tenancy.Abstractions;
 using Modularyn.Framework.Tenancy.Tests;
@@ -46,6 +48,7 @@ internal sealed class SettingsDatabase : IAsyncDisposable
     internal PostgreSqlModule Module { get; }
     internal ManualTimeProvider Clock { get; } = new();
     internal TestSeams Seams { get; } = new();
+    internal TestPermissions Permissions { get; } = new();
     internal ValueDefinitionRegistry Definitions { get; } = TestDefinitions.Registry();
     internal ServiceProvider Services { get; private set; } = null!;
     internal SettingsService Settings => Services.GetRequiredService<SettingsService>();
@@ -72,7 +75,7 @@ internal sealed class SettingsDatabase : IAsyncDisposable
             Assert.Empty(await new MigrationActivationValidator(registry).ValidateAsync(composition.Plan!.Selection, Cancellation));
             database.Services = database.NewServices();
             database.Seams.Authority.Grant("host-1", TenantDirectoryAdministration.OperationId);
-            database.Seams.Authority.Grant("host-1", SettingsService.GlobalOperationId);
+            database.Seams.Authority.Grant("host-1", SettingsModule.GlobalOperation);
             var (scope, host) = await Units.EnterHostAsync(database.Services, "host-1", TenantDirectoryAdministration.OperationId);
             await using (scope)
             {
@@ -81,7 +84,12 @@ internal sealed class SettingsDatabase : IAsyncDisposable
                 database.TenantB = await directory.CreateTenantAsync(host, "Tenant B", Cancellation);
             }
             foreach (var tenant in new[] { database.TenantA, database.TenantB })
-            foreach (var user in new[] { "user-a", "user-b", "worker" }) database.Seams.Membership.Add(user, tenant);
+            foreach (var user in new[] { "user-a", "user-b", "worker" })
+            {
+                database.Seams.Membership.Add(user, tenant);
+                database.Permissions.Grant(user, tenant, SettingsModule.TenantOverridesPermission);
+                database.Permissions.Grant(user, tenant, SettingsModule.UserOverridesPermission);
+            }
             return database;
         }
         catch
@@ -98,6 +106,7 @@ internal sealed class SettingsDatabase : IAsyncDisposable
         services.AddSingleton<TimeProvider>(Clock);
         services.AddModularynTenancy(Directory);
         Seams.Register(services);
+        services.AddSingleton<IPermissionEvaluator>(Permissions);
         services.AddModularynSettings(Module, Definitions);
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
     }
@@ -108,6 +117,13 @@ internal sealed class SettingsDatabase : IAsyncDisposable
         scopes.Add(scope);
         return context;
     }
+
+    /// <summary>The principal a request in the context would carry: none for host scope, which its grant authorizes.</summary>
+    internal static ExecutionPrincipal? PrincipalOf(TenantContext context) => context.Scope == TenantScope.Host ? null
+        : context.Actor.Kind == ActorKind.User
+            ? ExecutionPrincipal.ForUser(new PrincipalReference(context.Actor.Subject, IdentityKind.User), Guid.NewGuid(), DateTimeOffset.UtcNow)
+            : ExecutionPrincipal.ForService(new PrincipalReference(context.Actor.Subject, IdentityKind.Service),
+                [SettingsModule.TenantOverridesPermission, SettingsModule.UserOverridesPermission]);
 
     internal async Task<TenantContext> HostAsync()
     {

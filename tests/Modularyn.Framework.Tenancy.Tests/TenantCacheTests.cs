@@ -65,6 +65,34 @@ public sealed class TenantCacheTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task TM_G02_033_Host_entries_are_keyed_by_their_grant_s_operation_and_invalidated_with_it()
+    {
+        seams.Authority.Grant("host-1", "test.host.other");
+        var (firstScope, first) = await Units.EnterHostAsync(services, "host-1", "test.host");
+        scopes.Add(firstScope);
+        var (secondScope, second) = await Units.EnterHostAsync(services, "host-1", "test.host.other");
+        scopes.Add(secondScope);
+        // An entry built under one operation's reach is never served to a host scope granted for another.
+        Assert.NotEqual(Cache.KeyFor(first, Entry()), Cache.KeyFor(second, Entry()));
+        Assert.Equal("first", await Cache.GetOrCreateAsync(first, Entry(principal: true), _ => Task.FromResult("first"), Cancellation));
+        Assert.Equal("second", await Cache.GetOrCreateAsync(second, Entry(principal: true), _ => Task.FromResult("second"), Cancellation));
+        // Invalidating the actor's host authority for one operation makes that operation's entries unreachable, and no other's.
+        var shared = Cache.KeyFor(first, Entry());
+        var firstPrincipal = Cache.KeyFor(first, Entry(principal: true));
+        var secondPrincipal = Cache.KeyFor(second, Entry(principal: true));
+        Cache.InvalidateHostPrincipal("test.host", first.Actor);
+        Assert.NotEqual(firstPrincipal, Cache.KeyFor(first, Entry(principal: true)));
+        Assert.Equal((shared, secondPrincipal), (Cache.KeyFor(first, Entry()), Cache.KeyFor(second, Entry(principal: true))));
+        Assert.Equal("rebuilt", await Cache.GetOrCreateAsync(first, Entry(principal: true), _ => Task.FromResult("rebuilt"), Cancellation));
+        Assert.Equal("second", await Cache.GetOrCreateAsync<string>(second, Entry(principal: true), _ => throw new InvalidOperationException("Expected a hit."),
+            Cancellation));
+        // Invalidating the operation makes every entry built under it unreachable, shared ones included.
+        Cache.InvalidateHost("test.host");
+        Assert.NotEqual(shared, Cache.KeyFor(first, Entry()));
+        Assert.Equal(secondPrincipal, Cache.KeyFor(second, Entry(principal: true)));
+    }
+
+    [Fact]
     public async Task TM_G02_033_An_entry_built_in_one_context_is_never_served_to_another()
     {
         var a = await EnterAsync("user-a", tenantA);
