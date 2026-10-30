@@ -35,7 +35,7 @@ public sealed class StorageBoundaryTests
         Assert.Equal(0, await database.CountAsync("Files", database.TenantA));
         Assert.Equal(0, await database.CountAsync("FileUploads", database.TenantA));
         // Accepted names, and an owner reference shaped like a path, stay metadata and never reach a storage location.
-        var names = new[] { "..untouched", "untouched..txt", "résumé (final).pdf", "#1 notes.txt" };
+        var names = new[] { "..untouched", "untouched..txt", "re\u0301sume\u0301 (final).pdf", "#1 notes.txt" };
         foreach (var name in names)
         {
             var service = database.Service();
