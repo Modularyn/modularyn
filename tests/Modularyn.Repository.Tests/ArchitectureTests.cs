@@ -162,7 +162,10 @@ internal sealed class ArchitectureFixture
         policy = ArchitecturePolicy.Load(Files);
         Files.Add("Modularyn.slnx", "<Solution />");
         var test = policy.TestProject;
-        Files.Add(test, original[test]);
+        // Each case declares its own graph. The repository test project's own project references are checked against the real repository.
+        var testProject = XDocument.Parse(original[test]);
+        testProject.Descendants("ProjectReference").Remove();
+        Files.Add(test, testProject.ToString());
         ListProject(test);
         paths.Add("Modularyn.Repository.Tests", test);
     }
