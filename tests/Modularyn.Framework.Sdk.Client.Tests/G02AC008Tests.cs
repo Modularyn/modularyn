@@ -44,7 +44,17 @@ public sealed class G02AC008Tests
     [InlineData("typescript")]
     public Task AC_008_R01_InterruptedResponseReconcilesWithoutDuplicateCreation_Recovery(string client) => RunAsync(client, "restart");
 
+    // The TypeScript scenarios always run on the pinned Node.js with its native type stripping. With
+    // MODULARYN_CLIENT_TEST_VITEST=1 they also run under Vitest, each runner against its own fresh fixture, so adopting Vitest
+    // adds a run rather than replacing the native one.
     private static async Task RunAsync(string language, string scenario)
+    {
+        var runners = language != "typescript" ? ["none"]
+            : Environment.GetEnvironmentVariable("MODULARYN_CLIENT_TEST_VITEST") == "1" ? new[] { "node", "vitest" } : ["node"];
+        foreach (var runner in runners) await RunAsync(language, scenario, runner);
+    }
+
+    private static async Task RunAsync(string language, string scenario, string runner)
     {
         await using var database = await AuthorizationDatabase.CreateAsync();
         var clock = new TestClock();
@@ -74,7 +84,7 @@ public sealed class G02AC008Tests
             }
             else
             {
-                await ExerciseAsync(initial, item, language, scenario, tenant, key, deniedSession, before, after, recovery);
+                await ExerciseAsync(initial, item, language, runner, scenario, tenant, key, deniedSession, before, after, recovery);
                 if (scenario is "recovery" or "concurrent")
                     Assert.True(initial.Requests.Where(request => request.Operation == recovery).Select(request => request.Correlation).Distinct().Count() >= 2);
                 await CountsAsync(host, user, tenant, scenario, before, after, recovery);
@@ -85,7 +95,7 @@ public sealed class G02AC008Tests
         await using var restarted = await ClientServer.StartAsync(database, clock);
         using var restartedTransport = restarted.Transport(key);
         var original = await new FixtureClient(restartedTransport).GetItemAsync(tenant.ToString("D"), itemId.ToString("D"), Cancellation);
-        await ExerciseAsync(restarted, original, language, scenario, tenant, key, deniedSession, before, after, recovery);
+        await ExerciseAsync(restarted, original, language, runner, scenario, tenant, key, deniedSession, before, after, recovery);
         await CountsAsync(host, user, tenant, scenario, before, after, recovery);
     }
 
@@ -104,7 +114,7 @@ public sealed class G02AC008Tests
             Assert.Equal(1, await unit.Context.Set<ApiOperation>().CountAsync(row => row.Id == recovery, Cancellation));
     }
 
-    private static async Task ExerciseAsync(ClientServer server, ItemView item, string language, string scenario,
+    private static async Task ExerciseAsync(ClientServer server, ItemView item, string language, string runner, string scenario,
         Guid tenantId, string session, string deniedSession, Guid before, Guid after, Guid recovery)
     {
         var tenant = tenantId.ToString("D");
@@ -120,7 +130,7 @@ public sealed class G02AC008Tests
         if (scenario == "recovery") server.Pause(recovery, "interrupt");
         if (language == "typescript")
         {
-            await TypeScriptAsync(server, new { origin = server.Origin.Value, tenant, session, deniedSession, item, before, after, recovery, edge, shape, scenario });
+            await TypeScriptAsync(server, runner, new { origin = server.Origin.Value, tenant, session, deniedSession, item, before, after, recovery, edge, shape, scenario });
             return;
         }
         using var transport = server.Transport(session);
@@ -230,13 +240,13 @@ public sealed class G02AC008Tests
         }
     }
 
-    private static async Task TypeScriptAsync(ClientServer server, object fixture)
+    private static async Task TypeScriptAsync(ClientServer server, string runner, object fixture)
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (!File.Exists(Path.Combine(root.FullName, "Modularyn.slnx"))) root = root.Parent ?? throw new InvalidOperationException("The repository is required.");
         var working = Path.Combine(root.FullName, "src", "Framework", "Modularyn.Framework.Sdk.Client", "typescript");
         var start = new ProcessStartInfo("node") { WorkingDirectory = working, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
-        if (Environment.GetEnvironmentVariable("MODULARYN_CLIENT_TEST_VITEST") == "1")
+        if (runner == "vitest")
         {
             start.ArgumentList.Add("node_modules/vitest/vitest.mjs");
             start.ArgumentList.Add("run");
@@ -256,7 +266,7 @@ public sealed class G02AC008Tests
         var stdout = (await output).Replace(JsonSerializer.SerializeToElement(fixture).GetProperty("session").GetString()!, "[redacted]", StringComparison.Ordinal);
         var stderr = (await error).Replace(JsonSerializer.SerializeToElement(fixture).GetProperty("session").GetString()!, "[redacted]", StringComparison.Ordinal);
         var denied = JsonSerializer.SerializeToElement(fixture).GetProperty("deniedSession").GetString()!;
-        Assert.True(process.ExitCode == 0, "TypeScript contract failed: " + stdout.Replace(denied, "[redacted]", StringComparison.Ordinal)
+        Assert.True(process.ExitCode == 0, $"TypeScript contract failed under {runner}: " + stdout.Replace(denied, "[redacted]", StringComparison.Ordinal)
             + stderr.Replace(denied, "[redacted]", StringComparison.Ordinal));
     }
 }

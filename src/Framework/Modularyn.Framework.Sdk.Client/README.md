@@ -46,21 +46,22 @@ metadata. Client registration does not widen the ingress configuration.
 
 ## Builder verification
 
-Restore and build the solution, generating and reviewing the .NET dependency
-locks. Adopt only the exact TypeScript development dependencies declared in
-`typescript/package.json`; generate and review its lock during that adoption.
-The manifest is private. No package publication is part of this work.
+Restore and build the solution with the reviewed .NET dependency locks. The
+exact TypeScript development dependencies declared in `typescript/package.json`
+are adopted with the committed `typescript/package-lock.json`, which the
+dependency register checks; install it with `npm ci --ignore-scripts`. The
+manifest is private. No package publication is part of this work.
 
 Run the repository checks and the `Requires=PostgreSQL` tests using the existing
 database script and `MODULARYN_TEST_POSTGRESQL`. Every AC-008 method runs once for
 each generated client. The ordinary PostgreSQL suite runs the TypeScript
 scenarios through the pinned Node.js runtime with its native type stripping.
-To execute the same scenarios under Vitest after adoption, set
-`MODULARYN_CLIENT_TEST_VITEST=1` for the .NET client test project. That project
-starts each isolated real-provider fixture and supplies it to Vitest; standalone
-TypeScript tests deliberately fail without a live fixture. Run the TypeScript
-`check` script as well. No in-memory data provider or mocked gateway substitutes
-for these tests.
+With `MODULARYN_CLIENT_TEST_VITEST=1`, as CI's `real-provider` job sets it, the
+.NET client test project also runs the same scenarios under Vitest, starting a
+fresh isolated real-provider fixture for each runner and supplying it to the
+runner; standalone TypeScript tests deliberately fail without a live fixture.
+Run the TypeScript `check` script as well, which CI also does. No in-memory data
+provider or mocked gateway substitutes for these tests.
 
 The six evidence-plan methods cover typed round trips, negative cases, version
 and cancellation edges, interrupted responses, concurrent duplicate attempts,

@@ -541,14 +541,27 @@ jobs:
         run: dotnet restore --locked-mode
       - name: Build
         run: dotnet build -c Release --no-restore
+      # The TypeScript client's committed lock, installed with the pinned Node.js and npm before any credential exists.
+      # npm ci fails unless the lock matches package.json, checks every package's SHA-512 integrity, and with
+      # --ignore-scripts runs no install script.
+      - name: Install the TypeScript client's locked packages
+        shell: bash
+        working-directory: src/Framework/Modularyn.Framework.Sdk.Client/typescript
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Type-check the TypeScript client
+        shell: bash
+        working-directory: src/Framework/Modularyn.Framework.Sdk.Client/typescript
+        run: npm run check
       # The database script creates the per-run credentials and runs the tests script with MODULARYN_TEST_POSTGRESQL
       # set, so the credentials exist only in this step. The tests script runs every project's PostgreSQL tests with
-      # detailed output and fails unless at least one ran and all passed.
+      # detailed output and fails unless at least one ran and all passed. MODULARYN_CLIENT_TEST_VITEST makes the client
+      # tests run the TypeScript scenarios under Vitest as well as on Node.js alone; neither runner receives the credentials.
       - name: Test against PostgreSQL
         shell: bash
         env:
           POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
           POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
+          MODULARYN_CLIENT_TEST_VITEST: '1'
         run: bash .github/scripts/postgresql-test-database.sh ci bash .github/scripts/real-provider-tests.sh
 
   # The fixture image on the digest-pinned ASP.NET Core runtime base, built for linux/amd64. Every
