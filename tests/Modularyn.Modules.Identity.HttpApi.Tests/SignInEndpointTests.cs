@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.RegularExpressions;
+using Modularyn.Framework.Api.Contracts;
 using Modularyn.Framework.Security.Abstractions;
 using Modularyn.Modules.Identity.Application.Contracts;
 using Modularyn.Modules.Identity.Testing;
@@ -14,12 +16,19 @@ public sealed class SignInEndpointTests(ITestOutputHelper output)
 {
     private static CancellationToken Cancellation => TestContext.Current.CancellationToken;
 
+    // A W3C trace identifier: 32 lowercase hexadecimal characters, not all zero.
+    private static readonly Regex CorrelationFormat = new("^(?!0{32}$)[0-9a-f]{32}$", RegexOptions.CultureInvariant);
+
     private sealed record Observed(HttpStatusCode Status, string Body, string Headers);
 
-    private static async Task<Observed> ObserveAsync(HttpResponseMessage response) =>
-        new(response.StatusCode, await response.Content.ReadAsStringAsync(Cancellation),
-            string.Join("|", response.Headers.Concat(response.Content.Headers).Where(header => header.Key is not ("Date" or "Set-Cookie"))
-                .OrderBy(header => header.Key, StringComparer.Ordinal).Select(header => header.Key + "=" + string.Join(",", header.Value))));
+    // The correlation is the one header that is fresh for every response, so it is returned beside the observation and
+    // checked by its shape and distinctness; every other header, the status and the body are compared exactly.
+    private static async Task<(Observed Response, string[] Correlation)> ObserveWithCorrelationAsync(HttpResponseMessage response) =>
+        (new(response.StatusCode, await response.Content.ReadAsStringAsync(Cancellation),
+            string.Join("|", response.Headers.Concat(response.Content.Headers)
+                .Where(header => header.Key is not ("Date" or "Set-Cookie" or FrameworkApi.CorrelationHeader))
+                .OrderBy(header => header.Key, StringComparer.Ordinal).Select(header => header.Key + "=" + string.Join(",", header.Value)))),
+            response.Headers.TryGetValues(FrameworkApi.CorrelationHeader, out var correlation) ? correlation.ToArray() : []);
 
     [Fact(DisplayName = "TM-G02-015 unknown accounts, disabled accounts and wrong passwords receive the same status, body and headers")]
     public async Task TM_G02_015_Unknown_disabled_and_wrong_passwords_receive_identical_responses()
@@ -37,23 +46,39 @@ public sealed class SignInEndpointTests(ITestOutputHelper output)
         Assert.True(await accounts.DisableAsync(await server.Administrator.AccountsAsync(), disabled, Cancellation));
 
         var observed = new List<Observed>();
+        var correlations = new Dictionary<string, List<string[]>>();
         var timings = new Dictionary<string, List<TimeSpan>>();
         foreach (var (name, password) in new[] { ("admin-1", Generated.Password()), ("unknown-1", Generated.Password()), ("editor-1", disabledPassword) })
         {
             timings[name] = [];
+            correlations[name] = [];
             for (var attempt = 0; attempt < 7; attempt++)
             {
                 var browser = server.Browser("192.0.2." + (observed.Count + 1));
                 await browser.RefreshTokenAsync();
                 var started = System.Diagnostics.Stopwatch.GetTimestamp();
-                observed.Add(await ObserveAsync(await browser.SignInAsync(name, password)));
+                var (response, correlation) = await ObserveWithCorrelationAsync(await browser.SignInAsync(name, password));
                 timings[name].Add(System.Diagnostics.Stopwatch.GetElapsedTime(started));
+                observed.Add(response);
+                correlations[name].Add(correlation);
             }
         }
+        // Status, body and every header but the correlation are identical whatever the account's state.
         Assert.All(observed, item => Assert.Equal(observed[0], item));
         Assert.Equal(HttpStatusCode.Unauthorized, observed[0].Status);
         Assert.Equal("{\"code\":\"sign_in_failed\"}", observed[0].Body);
-        output.WriteLine($"Every failure: {(int)observed[0].Status} {observed[0].Body}; headers {observed[0].Headers}.");
+        // In every state each response carries exactly one correlation, of one format and one length, and no two responses
+        // share one, so the header neither tells the states apart nor repeats between attempts.
+        foreach (var values in correlations.Values)
+        {
+            Assert.All(values, value => Assert.Matches(CorrelationFormat, Assert.Single(value)));
+        }
+        var issued = correlations.Values.SelectMany(values => values).Select(value => value[0]).ToList();
+        Assert.Equal(observed.Count, issued.Count);
+        Assert.Single(issued.Select(value => value.Length).Distinct());
+        Assert.Equal(issued.Count, issued.Distinct(StringComparer.Ordinal).Count());
+        output.WriteLine($"Every failure: {(int)observed[0].Status} {observed[0].Body}; headers {observed[0].Headers}; "
+            + $"{issued.Count} distinct {FrameworkApi.CorrelationHeader} values of {issued[0].Length} lowercase hexadecimal characters.");
         var medians = timings.ToDictionary(pair => pair.Key, pair => pair.Value.Order().ElementAt(pair.Value.Count / 2));
         output.WriteLine("Median elapsed per attempt, one PBKDF2 verification each: " + string.Join("; ", medians.Select(pair =>
             pair.Key + " " + pair.Value.TotalMilliseconds.ToString("F0", System.Globalization.CultureInfo.InvariantCulture) + " ms")));
