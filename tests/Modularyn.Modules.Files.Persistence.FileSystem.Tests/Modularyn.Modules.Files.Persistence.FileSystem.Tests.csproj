@@ -16,5 +16,6 @@
     <ProjectReference Include="../../src/Modules/Modularyn.Modules.Files.Persistence.FileSystem/Modularyn.Modules.Files.Persistence.FileSystem.csproj" />
     <Compile Include="../Modularyn.Repository.Tests/PostgreSqlProbe.cs" Link="PostgreSqlProbe.cs" />
     <Compile Include="../Modularyn.Framework.Persistence.EfCore.Tests/PostgreSqlTestLock.cs" Link="PostgreSqlTestLock.cs" />
+    <Compile Include="../Modularyn.Framework.Tenancy.Tests/TestSeams.cs" Link="TestSeams.cs" />
   </ItemGroup>
 </Project>
