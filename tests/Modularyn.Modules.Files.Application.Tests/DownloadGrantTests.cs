@@ -69,6 +69,8 @@ public sealed class DownloadGrantTests
         Assert.Equal(version, delivered.Version);
         Assert.Equal(new FileDelivery("text/plain", FileDisposition.Attachment, "notes.txt"), delivered.Delivery);
         Assert.Equal(first, await FilesHost.ReadAllAsync(delivered));
+        // A later version of the same file, created a second after the grant, is not what the grant delivers.
+        host.Clock.Advance(TimeSpan.FromSeconds(1));
         var later = await ReleasedAsync(files, member, FilesHost.Text(80, 's'), version.FileId);
         Assert.Equal(first, await FilesHost.ReadAllAsync(await RedeemAsync(files, member, issued.Token)));
         Assert.Equal(FilesHost.Text(10, 'f'), await FilesHost.ReadAllAsync(await files.RedeemGrantAsync(member.Context, member.Principal, issued.Token,
@@ -88,7 +90,7 @@ public sealed class DownloadGrantTests
         foreach (var lifetime in new[] { TimeSpan.Zero, TimeSpan.FromTicks(-1), FilesPolicy.DefaultMaximumGrantLifetime + TimeSpan.FromTicks(10) })
             await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => files.IssueGrantAsync(member.Context, member.Principal, version.FileId,
                 version.VersionId, FileGrantPurpose.Download, lifetime, Cancellation));
-        host.Clock.Advance(TimeSpan.FromMinutes(10) - TimeSpan.FromTicks(10));
+        host.Clock.Advance(TimeSpan.FromMinutes(10) - TimeSpan.FromSeconds(1) - TimeSpan.FromTicks(10));
         await using (var still = await host.EnterAsync(author, tenantA.Id)) Assert.Equal(first, await FilesHost.ReadAllAsync(await RedeemAsync(files, still, issued.Token)));
         host.Clock.Advance(TimeSpan.FromTicks(10));
         await using var expired = await host.EnterAsync(author, tenantA.Id);
