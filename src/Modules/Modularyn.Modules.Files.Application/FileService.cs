@@ -64,8 +64,12 @@ public sealed class FileService : IFiles
         var container = FileMetadataRules.Container(request.Container);
         var owner = FileMetadataRules.Owner(request.Owner);
         var creator = await AuthorizeUploadAsync(tenant, principal, request.FileId, cancellationToken).ConfigureAwait(false);
+        // Reading the client's body, from its first byte to its last, is bounded by the policy's deadline; an upload that
+        // streams longer is abandoned like any other failed one.
+        using var timeout = new CancellationTokenSource(policy.UploadTimeout, time);
+        using var streaming = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
         // The type is decided from the content's first bytes against the allowed list, before any intent exists.
-        var head = await ReadHeadAsync(content, (int)Math.Min(request.Length, FileContentTypes.SniffLength), cancellationToken).ConfigureAwait(false);
+        var head = await ReadHeadAsync(content, (int)Math.Min(request.Length, FileContentTypes.SniffLength), streaming.Token).ConfigureAwait(false);
         var contentType = FileContentTypes.Detect(head);
         if (!policy.AllowedContentTypes.Contains(contentType)) throw new FileStorageException(FileStorageError.UnsupportedContent);
         var fileId = request.FileId ?? Guid.NewGuid();
@@ -98,10 +102,7 @@ public sealed class FileService : IFiles
             }
             await using (staging)
             {
-                // An upload that streams longer than the policy allows is abandoned like any other failed one.
-                using (var timeout = new CancellationTokenSource(policy.UploadTimeout, time))
-                using (var streaming = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token))
-                    await staging.WriteAsync(new PrefixedStream(head, content), expected, streaming.Token).ConfigureAwait(false);
+                await staging.WriteAsync(new PrefixedStream(head, content), expected, streaming.Token).ConfigureAwait(false);
                 return await PublishAsync(tenant, tenantId, staging, fileId, createdAt, cancellationToken).ConfigureAwait(false);
             }
         }
