@@ -2,13 +2,15 @@
 
 Register `AddModularynApi` and place `UseModularynApi` before the ingress. The
 module host also registers the inventory validator. Apply SEC-05's existing
-`RequirePermission`, `RequireTenantMember` or `RequireHostAuthority` wrapper, or
-explicit anonymous access, and finish the endpoint with `WithApiContract`.
-The final convention preserves those delegates. Its route and method must match
-its declaration, and both startup inventory validation and invocation refuse a
-missing or contradictory authorization classification. An interception-only
-policy is insufficient. The authorization startup report includes member-only
-endpoints as event 8306.
+`RequirePermission`, `RequireTenantMember` or `RequireHostAuthority` wrapper,
+`RequireAuthenticatedPrincipal` for an endpoint that serves only the caller's own
+principal, or explicit anonymous access, and finish the endpoint with
+`WithApiContract`. The final convention preserves those delegates. Its route and
+method must match its declaration, and both startup inventory validation and
+invocation refuse a missing or contradictory authorization classification. An
+interception-only policy is insufficient. The authorization startup report
+includes member-only endpoints as event 8306 and authenticated-only endpoints as
+event 8307.
 
 `ApiEndpoints.Describe` reads every mapped endpoint, including non-client routes,
 and combines its declared schemas. Undeclared routes fail validation. The built-in

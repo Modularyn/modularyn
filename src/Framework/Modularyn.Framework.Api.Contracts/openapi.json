@@ -1059,7 +1059,7 @@
       "get": {
         "operationId": "GetCurrentUserV1",
         "deprecated": false,
-        "x-modularyn-authorization": "Anonymous",
+        "x-modularyn-authorization": "Authenticated",
         "x-modularyn-permission": null,
         "x-modularyn-client-visible": false,
         "x-modularyn-version": 1,

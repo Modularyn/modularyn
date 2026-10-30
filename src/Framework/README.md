@@ -256,6 +256,9 @@ Liveness indicates that the host can answer a probe; it is independent of module
 readiness. Readiness requires a ready module host, open work admission and healthy
 declared checks. Degraded or unhealthy readiness returns HTTP 503; healthy status
 returns HTTP 200. Each response contains only `Healthy`, `Degraded` or `Unhealthy`.
+Both probes answer GET only, other methods receive 405, and they are declared
+anonymous in the API inventory, so a host's fallback authorization policy does
+not cover them.
 The adapter discards check descriptions, exceptions and data before returning
 results to the health service, including its logging. Check implementations remain
 responsible for any logging they perform themselves.

@@ -2,11 +2,11 @@
 
 The endpoint inventory is the input to `ApiGenerator`. It declares every built-in
 route, method, compatibility window, authorization classification, credential
-surface, request and response shape, and client exposure. Identity's session
-probe remains anonymously reachable and requires its existing handler's current
-principal check before returning a view. Its cookie authentication is described
-separately from its authorization classification. Health responses remain status
-text. These existing surfaces are inventoried without generating client methods
+surface, request and response shape, and client exposure. Identity's current-user
+view is classified `Authenticated`: its declaration requires the request's
+server-side principal before the handler runs, and refuses others with 401 and
+`MAZ001`. Its cookie authentication is described separately from its
+authorization classification. Health responses remain status text. These existing surfaces are inventoried without generating client methods
 for them.
 
 `ApiGenerator.OpenApi`, `DotNet` and `TypeScript` produce deterministic text using

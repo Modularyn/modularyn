@@ -150,7 +150,7 @@
       "name": "GetCurrentUser",
       "method": "GET",
       "route": "/identity/current-user",
-      "authorization": "Anonymous",
+      "authorization": "Authenticated",
       "permission": null,
       "clientVisible": false,
       "request": null,

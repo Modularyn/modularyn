@@ -16,6 +16,17 @@ namespace Modularyn.Framework.Authorization;
 public sealed record PermissionEndpointMetadata(string Permission);
 
 /// <summary>
+/// Declares that an endpoint requires an authenticated principal and nothing more. The endpoint itself refuses to run without
+/// the request's server-side principal.
+/// </summary>
+public sealed class AuthenticatedEndpointMetadata
+{
+    internal static AuthenticatedEndpointMetadata Instance { get; } = new();
+
+    private AuthenticatedEndpointMetadata() { }
+}
+
+/// <summary>
 /// The explicit HTTP entry point of authorization (TM-G02-019, TM-G02-023). The declaration wraps the endpoint's request
 /// delegate, so the endpoint runs only after the evaluator permits, whatever the pipeline contains: it does not rely on an
 /// authorization middleware intercepting the request. Declare <c>RequireTenantMember()</c> too, so the request has a
@@ -34,6 +45,25 @@ public static class AuthorizationEndpointConventionBuilderExtensions
             var inner = endpoint.RequestDelegate
                 ?? throw new InvalidOperationException("Authorization cannot guard an endpoint without a request delegate; declare it on a routed endpoint.");
             endpoint.RequestDelegate = context => PermissionEndpointGuard.InvokeAsync(context, declared, inner);
+        });
+        return builder;
+    }
+
+    /// <summary>
+    /// Requires an authenticated principal for an endpoint that acts only on the caller's own principal, such as a current-user
+    /// view, and so needs neither a tenant context nor an operation permission. Like <see cref="RequirePermission"/>, the
+    /// declaration wraps the request delegate: the endpoint runs only when the request's server-side principal holder has a
+    /// principal, whatever the pipeline contains, and otherwise answers 401 with <c>MAZ001</c>.
+    /// </summary>
+    public static TBuilder RequireAuthenticatedPrincipal<TBuilder>(this TBuilder builder) where TBuilder : IEndpointConventionBuilder
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        builder.WithMetadata(AuthenticatedEndpointMetadata.Instance);
+        builder.Add(endpoint =>
+        {
+            var inner = endpoint.RequestDelegate
+                ?? throw new InvalidOperationException("Authorization cannot guard an endpoint without a request delegate; declare it on a routed endpoint.");
+            endpoint.RequestDelegate = context => PermissionEndpointGuard.InvokeAuthenticatedAsync(context, inner);
         });
         return builder;
     }
@@ -64,18 +94,25 @@ internal static partial class PermissionEndpointGuard
             await inner(context).ConfigureAwait(false);
             return;
         }
-        await RefuseAsync(context, decision).ConfigureAwait(false);
+        await RefuseAsync(context, decision.Code!).ConfigureAwait(false);
     }
 
-    internal static Task RefuseAsync(HttpContext context, AuthorizationDecision decision)
+    // The principal comes from the request's server-side holder, which authentication established after validating the
+    // session; nothing the request carries is read here. Without the holder, no principal can exist, so the endpoint refuses.
+    internal static Task InvokeAuthenticatedAsync(HttpContext context, RequestDelegate inner) =>
+        context.RequestServices.GetService<IExecutionPrincipalAccessor>()?.Current is not null
+            ? inner(context)
+            : RefuseAsync(context, AuthorizationCodes.Unauthenticated);
+
+    internal static Task RefuseAsync(HttpContext context, string code)
     {
-        context.Response.StatusCode = Status(decision.Code!);
+        context.Response.StatusCode = Status(code);
         context.Response.Headers.CacheControl = "no-store";
         var correlation = context.Response.Headers[FrameworkApi.CorrelationHeader].ToString();
         if (correlation.Length == 0) correlation = context.TraceIdentifier;
         context.Response.Headers[FrameworkApi.CorrelationHeader] = correlation;
-        return context.Response.WriteAsJsonAsync(new ApiProblem("urn:modularyn:problem:" + decision.Code,
-            "The request was refused.", context.Response.StatusCode, decision.Code!, correlation), options: null,
+        return context.Response.WriteAsJsonAsync(new ApiProblem("urn:modularyn:problem:" + code,
+            "The request was refused.", context.Response.StatusCode, code, correlation), options: null,
             contentType: "application/problem+json", cancellationToken: context.RequestAborted);
     }
 
@@ -147,7 +184,10 @@ public enum AuthorizationEntryPointKind
     InterceptionOnly = 5,
 
     /// <summary>No authorization declaration at all.</summary>
-    Undeclared = 6
+    Undeclared = 6,
+
+    /// <summary>An authenticated principal only, with no tenant context or operation permission; the endpoint itself requires it.</summary>
+    Authenticated = 7
 }
 
 public sealed record AuthorizationEntryPoint(string Route, IReadOnlyList<string> Methods, AuthorizationEntryPointKind Kind, string? Permission);
@@ -174,6 +214,10 @@ public static class AuthorizationEntryPoints
         if (metadata.GetMetadata<PermissionEndpointMetadata>() is { } permission)
             return new(route, methods, AuthorizationEntryPointKind.Permission, permission.Permission);
         if (tenancy is { Access: TenantAccess.Host }) return new(route, methods, AuthorizationEntryPointKind.HostAuthority, null);
+        // The principal requirement holds whatever else is declared, an explicit anonymous marker included; with tenant
+        // membership, which already requires a principal, the endpoint is member-only.
+        if (metadata.GetMetadata<AuthenticatedEndpointMetadata>() is not null)
+            return new(route, methods, tenancy is null ? AuthorizationEntryPointKind.Authenticated : AuthorizationEntryPointKind.MemberOnly, null);
         if (metadata.GetMetadata<IAllowAnonymous>() is not null) return new(route, methods, AuthorizationEntryPointKind.Anonymous, null);
         if (metadata.GetMetadata<IAuthorizeData>() is not null || metadata.GetMetadata<AuthorizationPolicy>() is not null)
             return new(route, methods, AuthorizationEntryPointKind.InterceptionOnly, null);
@@ -202,6 +246,7 @@ internal sealed partial class AuthorizationEntryPointReporter(IServiceProvider s
             if (point.Kind == AuthorizationEntryPointKind.InterceptionOnly) InterceptionOnly(logger, string.Join(",", point.Methods), point.Route);
             else if (point.Kind == AuthorizationEntryPointKind.Undeclared) Undeclared(logger, string.Join(",", point.Methods), point.Route);
             else if (point.Kind == AuthorizationEntryPointKind.MemberOnly) MemberOnly(logger, string.Join(",", point.Methods), point.Route);
+            else if (point.Kind == AuthorizationEntryPointKind.Authenticated) AuthenticatedOnly(logger, string.Join(",", point.Methods), point.Route);
         }
     }
 
@@ -218,4 +263,8 @@ internal sealed partial class AuthorizationEntryPointReporter(IServiceProvider s
     [LoggerMessage(EventId = 8306, Level = LogLevel.Warning,
         Message = "Endpoint {Methods} {Route} requires tenant membership only; no operation permission is declared.")]
     private static partial void MemberOnly(ILogger logger, string methods, string route);
+
+    [LoggerMessage(EventId = 8307, Level = LogLevel.Warning,
+        Message = "Endpoint {Methods} {Route} requires an authenticated principal only; no tenant context or operation permission is declared.")]
+    private static partial void AuthenticatedOnly(ILogger logger, string methods, string route);
 }

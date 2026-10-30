@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Modularyn.Framework.Api.Contracts;
 using Modularyn.Framework.Api;
+using Modularyn.Framework.Authorization;
 using Modularyn.Framework.Ingress;
 using Modularyn.Framework.Modularity.Abstractions;
 using Modularyn.Framework.Security.Abstractions;
@@ -47,8 +48,8 @@ public static class IdentityEndpoints
         group.MapPost(SignInPath, SignInAsync).AllowAnonymous().WithApiContract(FrameworkApi.Endpoint("SignIn"));
         group.MapPost(SignOutPath, SignOutAsync).AllowAnonymous().WithApiContract(FrameworkApi.Endpoint("SignOut"));
         group.MapGet(AntiforgeryPath, IssueAntiforgery).AllowAnonymous().WithApiContract(FrameworkApi.Endpoint("GetAntiforgery"));
-        // This session probe is reachable anonymously and returns 401 unless SEC-03 supplies a current principal.
-        group.MapGet(CurrentUserPath, CurrentUser).AllowAnonymous().WithApiContract(FrameworkApi.Endpoint("GetCurrentUser"));
+        // The view describes the caller's own principal, so it needs an authenticated principal and no tenant or permission.
+        group.MapGet(CurrentUserPath, CurrentUser).RequireAuthenticatedPrincipal().WithApiContract(FrameworkApi.Endpoint("GetCurrentUser"));
         group.AddEndpointFilter(async (context, next) =>
         {
             context.HttpContext.Response.Headers.CacheControl = "no-store";
