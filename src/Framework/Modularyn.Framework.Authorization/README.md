@@ -328,15 +328,19 @@ every control to its evidence.
   the effective tenant, then authorized for its tenant, its owner or a current
   grant, read from the store at every decision, and refused as missing. Tests:
   `DecisionTests.TM_G02_020_*`, `AuthorityTests.TM_G02_020_*` and
-  `G02AC003Tests.AC_003_P01_*_Isolation`. Remaining: file versions and download
-  grants adopting it (SEC-06, CODE-07); adversarial evidence for AC-003-N01 and
+  `G02AC003Tests.AC_003_P01_*_Isolation`. Files adopts it for every file action
+  and download grant, its creator as the owner and a refused file answered as
+  missing (SEC-06; `Modules.Files.Application.Tests` `FileAuthorizationTests`
+  and `DownloadGrantTests`). Remaining: adversarial evidence for AC-003-N01 and
   AC-004 (SEC-08).
 - **TM-G02-021, partly.** Delivered: `ResourceVisibility` composed into list,
   count and export queries as parameters, so hidden rows affect neither content
   nor totals, and nothing visible when the decision refuses. Tests:
-  `AuthorityTests.TM_G02_021_*` and `G02AC003Tests.AC_003_B01_*`. Remaining:
-  bounded paging, sorting and filtering on declared fields (CODE-06); file
-  previews (SEC-06); adversarial evidence for AC-003-N01 (SEC-08).
+  `AuthorityTests.TM_G02_021_*` and `G02AC003Tests.AC_003_B01_*`. File lists
+  compose it into their query (SEC-06; `Modules.Files.Application.Tests`
+  `FileAuthorizationTests.TM_G02_044_*`). Remaining: bounded paging, sorting and
+  filtering on declared fields (CODE-06); adversarial evidence for AC-003-N01
+  (SEC-08).
 - **TM-G02-022, partly.** Delivered: assignment ceilings, so no grant, role or
   share reaches beyond what the grantor holds within its ceiling; every change
   checked against the grantor's authority read under the tenant's lock in the

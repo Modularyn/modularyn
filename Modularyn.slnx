@@ -38,6 +38,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj" />
     <Project Path="tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj" />
+    <Project Path="tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj" />
     <Project Path="tests/Modularyn.Framework.Modularity.Abstractions.Tests/Modularyn.Framework.Modularity.Abstractions.Tests.csproj" />
     <Project Path="tests/Modularyn.Framework.Modularity.Tests/Modularyn.Framework.Modularity.Tests.csproj" />
     <Project Path="tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj" />
