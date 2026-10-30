@@ -455,7 +455,9 @@ In-memory mutations exercise each rule and assert its specific diagnostic withou
 - every `dotnet test` in the `build-test` job to select `Requires!=PostgreSQL`, and any in the `real-provider` job to select `Requires=PostgreSQL`;
 - the `container-build` job to run on `ubuntu-latest`, set `ASPNET_IMAGE` to the register's ASP.NET Core reference and build the fixture with `docker build --platform=linux/amd64`, and every Dockerfile, found by name in any letter case, to have a `FROM` and use only that reference or earlier stages, with no other platform, no parser directive, even behind a byte-order mark, no copy from another image, no `ADD` of a git or ssh source, and no `ADD` of an http(s) or variable source without one source and a pinned `--checksum=sha256:`;
 - every line in the workflows and CI scripts that names docker, or a guarded image variable or docker array, to be one of the exact lines in the contract's allowlist, once, with no `--build-context`, `docker-image://`, URL, git or standard-input context and no `eval`, shell `-c` or pipe into a shell elsewhere, and each guarded variable defined once as a literal in its job's `env` and named nowhere else, as the [CI guide](../ci.md#docker-commands) describes with its limits; and
-- no workflow or CI script to run `playwright install`.
+- no workflow or CI script to run `playwright install`;
+- the `real-provider` job to install the TypeScript client with `npm ci` and `--ignore-scripts` in its directory before the `Test against PostgreSQL` step, and that step to set `MODULARYN_CLIENT_TEST_VITEST` to `'1'`; and
+- every `npm` command in the workflows and CI scripts to be `npm ci` with `--ignore-scripts` or `npm run`.
 
 The checks cannot establish that a version is still current, that an advisory search is complete, that a license analysis is correct or that a pinned hash is the publisher's; the monthly review and the release records provide that, and only a CI run shows that each runner's download matches its pin.
 
