@@ -16,7 +16,7 @@ public sealed class CrossOriginTests
     [Fact(DisplayName = "AC-003-N02 only the listed origin receives credentialed access, and other preflights are refused")]
     public async Task AC_003_N02_Only_the_listed_origin_receives_credentialed_access_and_other_preflights_are_refused()
     {
-        await using var server = await StartAsync(Settings(("CrossOrigin:Origins:0", ListedOrigin), ("CrossOrigin:Methods:0", "GET"),
+        await using var server = await StartAsync(IngressServer.Settings(("CrossOrigin:Origins:0", ListedOrigin), ("CrossOrigin:Methods:0", "GET"),
             ("CrossOrigin:Methods:1", "POST"), ("CrossOrigin:Headers:0", "Content-Type"), ("CrossOrigin:Headers:1", "RequestVerificationToken"),
             ("CrossOrigin:ExposedHeaders:0", "Location")));
 
@@ -62,7 +62,7 @@ public sealed class CrossOriginTests
     [Fact(DisplayName = "TM-G02-059 without configured callers no response grants cross-origin access")]
     public async Task TM_G02_059_Without_configured_callers_no_response_grants_cross_origin_access()
     {
-        await using var server = await StartAsync(Settings());
+        await using var server = await StartAsync(IngressServer.Settings());
         var preflight = await Preflight(server, ListedOrigin, "GET", "");
         Assert.Equal(HttpStatusCode.Forbidden, preflight.StatusCode);
         AssertNoGrant(preflight);

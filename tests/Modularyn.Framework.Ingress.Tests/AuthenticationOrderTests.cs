@@ -37,7 +37,7 @@ public sealed class AuthenticationOrderTests
         public int Calls;
     }
 
-    private static Task<IngressServer> StartAsync(ProbeCounter counter) => IngressServer.StartAsync(Settings(), services =>
+    private static Task<IngressServer> StartAsync(ProbeCounter counter) => IngressServer.StartAsync(IngressServer.Settings(), services =>
     {
         services.AddSingleton(counter);
         services.AddAuthentication(ProbeScheme).AddScheme<AuthenticationSchemeOptions, ProbeHandler>(ProbeScheme, _ => { });
@@ -103,7 +103,7 @@ public sealed class AuthenticationOrderTests
     {
         foreach (var early in new Action<WebApplication>[] { application => application.UseAuthentication(), application => application.UseAuthorization() })
         {
-            await using var application = Build(Settings(), services =>
+            await using var application = Build(IngressServer.Settings(), services =>
             {
                 services.AddAuthentication(ProbeScheme).AddScheme<AuthenticationSchemeOptions, ProbeHandler>(ProbeScheme, _ => { });
                 services.AddSingleton(new ProbeCounter());
@@ -126,12 +126,12 @@ public sealed class AuthenticationOrderTests
         }
 
         // WebApplication would add authorization ahead of the whole pipeline, before the ingress and authentication.
-        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => IngressServer.StartAsync(Settings(), Services,
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => IngressServer.StartAsync(IngressServer.Settings(), Services,
             application => application.MapGet("/protected", () => "content").RequireAuthorization()));
         Assert.Contains("UseAuthorization", refused.Message, StringComparison.Ordinal);
 
         // Placed after the ingress, authorization sees the authenticated user: an anonymous request is challenged.
-        await using var server = await IngressServer.StartAsync(Settings(), Services, application =>
+        await using var server = await IngressServer.StartAsync(IngressServer.Settings(), Services, application =>
         {
             application.UseAuthorization();
             application.MapGet("/protected", (HttpContext context) => context.User.FindFirstValue(ClaimTypes.NameIdentifier)).RequireAuthorization();

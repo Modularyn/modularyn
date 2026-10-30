@@ -1,7 +1,11 @@
 using System.Net;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Modularity.Abstractions;
@@ -139,6 +143,37 @@ public sealed class DecisionTests(ITestOutputHelper output)
     }
 
     private static (HttpStatusCode, string?) Pair(Answer answer) => (answer.Status, answer.Code);
+
+    [Fact]
+    public async Task TM_G02_019_An_endpoint_that_requires_an_authenticated_principal_never_runs_without_one()
+    {
+        // The handlers check nothing themselves, and no authorization middleware runs, so only the declaration can refuse.
+        var ran = 0;
+        IResult Run() { Interlocked.Increment(ref ran); return Results.Json(new { ran = true }); }
+        await using var server = await ContractServer.StartAsync(interception: false, endpoints: application =>
+        {
+            application.MapGet("/me", Run).RequireAuthenticatedPrincipal();
+            // An explicit anonymous marker does not lift the requirement, and the inventory reports the requirement.
+            application.MapGet("/me/marked", Run).AllowAnonymous().RequireAuthenticatedPrincipal();
+            application.MapGet("/t/{tenant}/me", Run).RequireTenantMember().RequireAuthenticatedPrincipal();
+        });
+        var inventory = AuthorizationEntryPoints.Describe(server.Get<EndpointDataSource>()).ToDictionary(point => point.Route, point => point.Kind);
+        Assert.Equal(AuthorizationEntryPointKind.Authenticated, inventory["/me"]);
+        Assert.Equal(AuthorizationEntryPointKind.Authenticated, inventory["/me/marked"]);
+        Assert.Equal(AuthorizationEntryPointKind.MemberOnly, inventory["/t/{tenant}/me"]);
+        Assert.Contains(server.Events.Events, entry => entry.Id == 8307 && entry.Level == LogLevel.Warning && entry.Message.Contains("GET /me ", StringComparison.Ordinal));
+
+        foreach (var path in new[] { "/me", "/me/marked" })
+        {
+            var refused = await server.CallAsync(HttpMethod.Get, path, user: null);
+            Assert.Equal((HttpStatusCode.Unauthorized, AuthorizationCodes.Unauthenticated), Pair(refused));
+            Assert.Equal("urn:modularyn:problem:" + AuthorizationCodes.Unauthenticated, refused.Body!.Value.GetProperty("type").GetString());
+        }
+        Assert.Equal(0, ran);
+        Assert.Equal(HttpStatusCode.OK, (await server.CallAsync(HttpMethod.Get, "/me", "user-1")).Status);
+        Assert.Equal(HttpStatusCode.OK, (await server.CallAsync(HttpMethod.Get, "/me/marked", "user-1")).Status);
+        Assert.Equal(2, ran);
+    }
 
     [Fact]
     public async Task TM_G02_020_A_resource_is_authorized_after_resolution_in_the_effective_tenant()

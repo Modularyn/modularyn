@@ -2,9 +2,9 @@ using System.Diagnostics;
 using System.Net;
 using System.Text;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,6 +12,8 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Modularyn.Framework.Api.Contracts;
+using Modularyn.Framework.Api;
 using Modularyn.Framework.Modularity.Abstractions;
 using Xunit;
 
@@ -133,7 +135,8 @@ public sealed class HealthAndRequestTests
                     await Task.Yield();
                     Assert.Equal(correlation, Activity.Current!.TraceId);
                     await context.Response.WriteAsync(correlation.ToHexString(), context.RequestAborted);
-                });
+                }).AllowAnonymous().WithApiContract(new ApiEndpoint("TestWork", "POST", "/work", "Anonymous", null,
+                    false, null, null, Mutation: true, Versioned: false));
                 await application.StartAsync(Cancellation);
                 var addresses = application.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!;
                 using var client = new HttpClient { BaseAddress = new Uri(Assert.Single(addresses.Addresses)) };

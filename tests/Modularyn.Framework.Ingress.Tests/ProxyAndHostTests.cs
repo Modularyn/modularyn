@@ -14,7 +14,7 @@ public sealed class ProxyAndHostTests
     [Fact(DisplayName = "AC-004-N01 forwarded values from a source that is not the declared proxy are ignored")]
     public async Task AC_004_N01_Forwarded_values_from_a_source_that_is_not_the_declared_proxy_are_ignored()
     {
-        await using var server = await StartAsync(Settings(("Proxies:0", "192.0.2.10")));
+        await using var server = await StartAsync(IngressServer.Settings(("Proxies:0", "192.0.2.10")));
         var echo = await EchoAsync(await server.SendAsync(true, HttpMethod.Get, "/echo", Forge));
         Assert.Equal("https", echo.Scheme);
         Assert.Equal(PublicHost, echo.Host);
@@ -35,7 +35,7 @@ public sealed class ProxyAndHostTests
     [Fact(DisplayName = "AC-004-N01 the declared proxy's scheme, host and client are honored only within configured hosts")]
     public async Task AC_004_N01_The_declared_proxy_s_scheme_host_and_client_are_honored_only_within_configured_hosts()
     {
-        await using var server = await StartAsync(Settings(("Proxies:0", "127.0.0.1")));
+        await using var server = await StartAsync(IngressServer.Settings(("Proxies:0", "127.0.0.1")));
         var forwarded = await server.SendAsync(false, HttpMethod.Get, "/echo", request =>
         {
             request.Headers.Add("X-Forwarded-For", "198.51.100.7");
@@ -74,7 +74,7 @@ public sealed class ProxyAndHostTests
     [Fact(DisplayName = "AC-004-N01 unconfigured and missing hosts are refused before any handler")]
     public async Task AC_004_N01_Unconfigured_and_missing_hosts_are_refused_before_any_handler()
     {
-        await using var server = await StartAsync(Settings(("Proxies:0", "127.0.0.1")));
+        await using var server = await StartAsync(IngressServer.Settings(("Proxies:0", "127.0.0.1")));
         foreach (var https in new[] { true, false })
         {
             var response = await server.SendAsync(https, HttpMethod.Get, "/", host: "attacker.example.net");
@@ -109,7 +109,7 @@ public sealed class ProxyAndHostTests
     [InlineData("projects", false)]
     public async Task AC_004_N01_Return_addresses_outside_the_configured_origins_are_refused(string target, bool allowed)
     {
-        await using var server = await StartAsync(Settings());
+        await using var server = await StartAsync(IngressServer.Settings());
         var origins = server.Services.GetRequiredService<PublicOrigins>();
         Assert.Equal(new[] { "https://" + PublicHost, "https://" + OtherTenantHost }, origins.Values);
         Assert.Equal(allowed, origins.IsAllowedRedirect(target));

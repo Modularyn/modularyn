@@ -235,11 +235,20 @@ interception alone.
   `RequireCurrent`.
 - **Use cases.** A service that changes protected state asks the evaluator
   itself before it opens a unit, as settings management does.
+- **The caller's own principal.** `RequireAuthenticatedPrincipal()` declares an
+  endpoint that describes or acts on the caller's own principal only, such as
+  identity's current-user view, and needs no tenant context or operation
+  permission. It wraps the request delegate the same way: the endpoint runs only
+  when the request's server-side principal holder has a principal, and otherwise
+  answers 401 with `MAZ001`. An explicit anonymous marker does not lift it.
 
 `AuthorizationEntryPoints.Describe` classifies every routed endpoint as
-`Permission`, `HostAuthority`, `Anonymous`, `MemberOnly`, `InterceptionOnly` or
-`Undeclared`. Once the host has started, the package logs each endpoint that
-relies on interception alone (event 8304) or declares nothing (event 8305).
+`Permission`, `HostAuthority`, `Authenticated`, `Anonymous`, `MemberOnly`,
+`InterceptionOnly` or `Undeclared`; an endpoint that requires both a principal
+and tenant membership is `MemberOnly`. Once the host has started, the package
+logs each endpoint that relies on interception alone (event 8304), declares
+nothing (event 8305), requires tenant membership only (event 8306) or requires
+an authenticated principal only (event 8307).
 
 ## Host authority
 
@@ -285,7 +294,8 @@ tenant owner change, the tenant's entries.
 A refusal carries no grant, role or resource detail. Events 8300 to 8302 are
 warnings for unavailable data, a failed cache and a failed invalidation; 8303 is
 an error for a declared endpoint that ran unguarded; 8304 and 8305 are the
-startup warnings for unguarded paths.
+startup warnings for unguarded paths, and 8306 and 8307 those for endpoints that
+declare no operation permission.
 
 ## Threat-model controls
 

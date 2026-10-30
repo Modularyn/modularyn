@@ -1,5 +1,8 @@
 <Solution>
   <Folder Name="/src/Framework/">
+    <Project Path="src/Framework/Modularyn.Framework.Api.Contracts/Modularyn.Framework.Api.Contracts.csproj" />
+    <Project Path="src/Framework/Modularyn.Framework.Api/Modularyn.Framework.Api.csproj" />
+    <Project Path="src/Framework/Modularyn.Framework.Sdk.Client/Modularyn.Framework.Sdk.Client.csproj" />
     <Project Path="src/Framework/Modularyn.Framework.Modularity.Abstractions/Modularyn.Framework.Modularity.Abstractions.csproj" />
     <Project Path="src/Framework/Modularyn.Framework.Modularity/Modularyn.Framework.Modularity.csproj" />
     <Project Path="src/Framework/Modularyn.Framework.Hosting/Modularyn.Framework.Hosting.csproj" />
@@ -33,6 +36,7 @@
     <Project Path="src/Modules/Modularyn.Modules.Files.Persistence.FileSystem/Modularyn.Modules.Files.Persistence.FileSystem.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj" />
     <Project Path="tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj" />
     <Project Path="tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj" />
     <Project Path="tests/Modularyn.Framework.Modularity.Abstractions.Tests/Modularyn.Framework.Modularity.Abstractions.Tests.csproj" />

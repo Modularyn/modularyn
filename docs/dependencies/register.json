@@ -1348,6 +1348,2603 @@
       }
     },
     {
+      "id": "npm:@jridgewell/resolve-uri",
+      "name": "@jridgewell/resolve-uri",
+      "ecosystem": "npm",
+      "version": "3.1.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Resolves a URI against an optional base URI, for source-map tracing. It enters G-02's TypeScript client toolchain through Vitest, @vitest/mocker and @jridgewell/trace-mapping; transitive.",
+      "reason": "@jridgewell/trace-mapping 0.3.31 requires ^3.1.0. The lock resolves 3.1.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2024-02-14",
+        "latestEligible": "3.1.2",
+        "ageException": null,
+        "maintainer": "jridgewell (GitHub user), repository jridgewell/resolve-uri; npm maintainers jridgewell",
+        "activity": "jridgewell/resolve-uri was pushed 2026-03-05. Releases: 3.1.0 (2022-07-05), 3.1.1 (2023-04-07), 3.1.2 (2024-02-14).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @jridgewell/resolve-uri, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@jridgewell/resolve-uri",
+          "https://github.com/jridgewell/resolve-uri",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@jridgewell/resolve-uri"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@jridgewell/sourcemap-codec",
+      "name": "@jridgewell/sourcemap-codec",
+      "ecosystem": "npm",
+      "version": "1.6.0",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Encodes and decodes source-map mappings. It enters G-02's TypeScript client toolchain through Vitest and magic-string; transitive.",
+      "reason": "@jridgewell/trace-mapping 0.3.31 requires ^1.4.14; magic-string 1.4.3 requires ^1.6.0. The lock resolves 1.6.0, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-08-28",
+        "latestEligible": "1.6.0",
+        "ageException": null,
+        "maintainer": "jridgewell (GitHub user), repository jridgewell/sourcemaps; npm maintainers jridgewell",
+        "activity": "jridgewell/sourcemaps was pushed 2026-10-27. Releases: 1.5.4 (2025-07-01), 1.5.5 (2025-08-12), 1.6.0 (2026-08-28).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @jridgewell/sourcemap-codec, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@jridgewell/sourcemap-codec",
+          "https://github.com/jridgewell/sourcemaps",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@jridgewell/sourcemap-codec"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@jridgewell/trace-mapping",
+      "name": "@jridgewell/trace-mapping",
+      "ecosystem": "npm",
+      "version": "0.3.31",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Traces generated positions back through a source map, for test stack traces. It enters G-02's TypeScript client toolchain through Vitest and @vitest/mocker; transitive.",
+      "reason": "@vitest/mocker 5.0.4 requires 0.3.31. The lock resolves 0.3.31, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2025-09-10",
+        "latestEligible": "0.3.31",
+        "ageException": null,
+        "maintainer": "jridgewell (GitHub user), repository jridgewell/sourcemaps; npm maintainers jridgewell",
+        "activity": "jridgewell/sourcemaps was pushed 2026-10-27. Releases: 0.3.29 (2025-07-01), 0.3.30 (2025-08-12), 0.3.31 (2025-09-10).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @jridgewell/trace-mapping, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@jridgewell/trace-mapping",
+          "https://github.com/jridgewell/sourcemaps",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@jridgewell/trace-mapping"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@oxc-project/types",
+      "name": "@oxc-project/types",
+      "ecosystem": "npm",
+      "version": "0.154.0",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "TypeScript types for the Oxc syntax tree that Rolldown exposes. It enters G-02's TypeScript client toolchain through Vite and Rolldown; transitive.",
+      "reason": "rolldown 1.2.14 requires =0.154.0. The lock resolves 0.154.0, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-13",
+        "latestEligible": "0.154.0",
+        "ageException": null,
+        "maintainer": "oxc-project (organization), repository oxc-project/oxc; npm maintainers boshen",
+        "activity": "oxc-project/oxc was pushed 2026-10-30. Releases: 0.154.0 (2026-10-13), 0.155.0 (2026-10-19), 0.156.0 (2026-10-27).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @oxc-project/types, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@oxc-project/types",
+          "https://github.com/oxc-project/oxc",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@oxc-project/types"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@rolldown/binding-android-arm-eabi",
+      "name": "@rolldown/binding-android-arm-eabi",
+      "ecosystem": "npm",
+      "version": "1.2.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Rolldown's native binary for android-arm-eabi, one of the 15 per-platform optional packages of rolldown 1.2.14; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Vite and Rolldown; transitive.",
+      "reason": "rolldown 1.2.14 lists it as an optional dependency at 1.2.14. The lock resolves 1.2.14, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on android arm.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-14",
+        "latestEligible": "1.2.14",
+        "ageException": null,
+        "maintainer": "rolldown (organization), repository rolldown/rolldown; npm maintainers broooooklyn, yyx990803, rolldownbot",
+        "activity": "rolldown/rolldown was pushed 2026-10-30. Releases: 1.2.14 (2026-10-14), 1.2.15 (2026-10-21), 1.2.16 (2026-10-29).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @rolldown/binding-android-arm-eabi, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@rolldown/binding-android-arm-eabi",
+          "https://github.com/rolldown/rolldown",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@rolldown/binding-android-arm-eabi"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@rolldown/binding-android-arm64",
+      "name": "@rolldown/binding-android-arm64",
+      "ecosystem": "npm",
+      "version": "1.2.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Rolldown's native binary for android-arm64, one of the 15 per-platform optional packages of rolldown 1.2.14; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Vite and Rolldown; transitive.",
+      "reason": "rolldown 1.2.14 lists it as an optional dependency at 1.2.14. The lock resolves 1.2.14, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on android arm64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-14",
+        "latestEligible": "1.2.14",
+        "ageException": null,
+        "maintainer": "rolldown (organization), repository rolldown/rolldown; npm maintainers broooooklyn, yyx990803, rolldownbot",
+        "activity": "rolldown/rolldown was pushed 2026-10-30. Releases: 1.2.14 (2026-10-14), 1.2.15 (2026-10-21), 1.2.16 (2026-10-29).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @rolldown/binding-android-arm64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@rolldown/binding-android-arm64",
+          "https://github.com/rolldown/rolldown",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@rolldown/binding-android-arm64"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@rolldown/binding-darwin-arm64",
+      "name": "@rolldown/binding-darwin-arm64",
+      "ecosystem": "npm",
+      "version": "1.2.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Rolldown's native binary for darwin-arm64, one of the 15 per-platform optional packages of rolldown 1.2.14; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Vite and Rolldown; transitive.",
+      "reason": "rolldown 1.2.14 lists it as an optional dependency at 1.2.14. The lock resolves 1.2.14, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on darwin arm64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-14",
+        "latestEligible": "1.2.14",
+        "ageException": null,
+        "maintainer": "rolldown (organization), repository rolldown/rolldown; npm maintainers broooooklyn, yyx990803, rolldownbot",
+        "activity": "rolldown/rolldown was pushed 2026-10-30. Releases: 1.2.14 (2026-10-14), 1.2.15 (2026-10-21), 1.2.16 (2026-10-29).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @rolldown/binding-darwin-arm64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@rolldown/binding-darwin-arm64",
+          "https://github.com/rolldown/rolldown",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@rolldown/binding-darwin-arm64"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@rolldown/binding-darwin-x64",
+      "name": "@rolldown/binding-darwin-x64",
+      "ecosystem": "npm",
+      "version": "1.2.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Rolldown's native binary for darwin-x64, one of the 15 per-platform optional packages of rolldown 1.2.14; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Vite and Rolldown; transitive.",
+      "reason": "rolldown 1.2.14 lists it as an optional dependency at 1.2.14. The lock resolves 1.2.14, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on darwin x64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-14",
+        "latestEligible": "1.2.14",
+        "ageException": null,
+        "maintainer": "rolldown (organization), repository rolldown/rolldown; npm maintainers broooooklyn, yyx990803, rolldownbot",
+        "activity": "rolldown/rolldown was pushed 2026-10-30. Releases: 1.2.14 (2026-10-14), 1.2.15 (2026-10-21), 1.2.16 (2026-10-29).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @rolldown/binding-darwin-x64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@rolldown/binding-darwin-x64",
+          "https://github.com/rolldown/rolldown",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@rolldown/binding-darwin-x64"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@rolldown/binding-freebsd-x64",
+      "name": "@rolldown/binding-freebsd-x64",
+      "ecosystem": "npm",
+      "version": "1.2.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Rolldown's native binary for freebsd-x64, one of the 15 per-platform optional packages of rolldown 1.2.14; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Vite and Rolldown; transitive.",
+      "reason": "rolldown 1.2.14 lists it as an optional dependency at 1.2.14. The lock resolves 1.2.14, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on freebsd x64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-14",
+        "latestEligible": "1.2.14",
+        "ageException": null,
+        "maintainer": "rolldown (organization), repository rolldown/rolldown; npm maintainers broooooklyn, yyx990803, rolldownbot",
+        "activity": "rolldown/rolldown was pushed 2026-10-30. Releases: 1.2.14 (2026-10-14), 1.2.15 (2026-10-21), 1.2.16 (2026-10-29).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @rolldown/binding-freebsd-x64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@rolldown/binding-freebsd-x64",
+          "https://github.com/rolldown/rolldown",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@rolldown/binding-freebsd-x64"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@rolldown/binding-linux-arm-gnueabihf",
+      "name": "@rolldown/binding-linux-arm-gnueabihf",
+      "ecosystem": "npm",
+      "version": "1.2.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Rolldown's native binary for linux-arm-gnueabihf, one of the 15 per-platform optional packages of rolldown 1.2.14; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Vite and Rolldown; transitive.",
+      "reason": "rolldown 1.2.14 lists it as an optional dependency at 1.2.14. The lock resolves 1.2.14, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on linux arm.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-14",
+        "latestEligible": "1.2.14",
+        "ageException": null,
+        "maintainer": "rolldown (organization), repository rolldown/rolldown; npm maintainers broooooklyn, yyx990803, rolldownbot",
+        "activity": "rolldown/rolldown was pushed 2026-10-30. Releases: 1.2.14 (2026-10-14), 1.2.15 (2026-10-21), 1.2.16 (2026-10-29).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @rolldown/binding-linux-arm-gnueabihf, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@rolldown/binding-linux-arm-gnueabihf",
+          "https://github.com/rolldown/rolldown",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@rolldown/binding-linux-arm-gnueabihf"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@rolldown/binding-linux-arm64-gnu",
+      "name": "@rolldown/binding-linux-arm64-gnu",
+      "ecosystem": "npm",
+      "version": "1.2.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Rolldown's native binary for linux-arm64-gnu, one of the 15 per-platform optional packages of rolldown 1.2.14; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Vite and Rolldown; transitive.",
+      "reason": "rolldown 1.2.14 lists it as an optional dependency at 1.2.14. The lock resolves 1.2.14, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on linux arm64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-14",
+        "latestEligible": "1.2.14",
+        "ageException": null,
+        "maintainer": "rolldown (organization), repository rolldown/rolldown; npm maintainers broooooklyn, yyx990803, rolldownbot",
+        "activity": "rolldown/rolldown was pushed 2026-10-30. Releases: 1.2.14 (2026-10-14), 1.2.15 (2026-10-21), 1.2.16 (2026-10-29).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @rolldown/binding-linux-arm64-gnu, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@rolldown/binding-linux-arm64-gnu",
+          "https://github.com/rolldown/rolldown",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@rolldown/binding-linux-arm64-gnu"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@rolldown/binding-linux-arm64-musl",
+      "name": "@rolldown/binding-linux-arm64-musl",
+      "ecosystem": "npm",
+      "version": "1.2.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Rolldown's native binary for linux-arm64-musl, one of the 15 per-platform optional packages of rolldown 1.2.14; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Vite and Rolldown; transitive.",
+      "reason": "rolldown 1.2.14 lists it as an optional dependency at 1.2.14. The lock resolves 1.2.14, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on linux arm64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-14",
+        "latestEligible": "1.2.14",
+        "ageException": null,
+        "maintainer": "rolldown (organization), repository rolldown/rolldown; npm maintainers broooooklyn, yyx990803, rolldownbot",
+        "activity": "rolldown/rolldown was pushed 2026-10-30. Releases: 1.2.14 (2026-10-14), 1.2.15 (2026-10-21), 1.2.16 (2026-10-29).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @rolldown/binding-linux-arm64-musl, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@rolldown/binding-linux-arm64-musl",
+          "https://github.com/rolldown/rolldown",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@rolldown/binding-linux-arm64-musl"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@rolldown/binding-linux-ppc64-gnu",
+      "name": "@rolldown/binding-linux-ppc64-gnu",
+      "ecosystem": "npm",
+      "version": "1.2.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Rolldown's native binary for linux-ppc64-gnu, one of the 15 per-platform optional packages of rolldown 1.2.14; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Vite and Rolldown; transitive.",
+      "reason": "rolldown 1.2.14 lists it as an optional dependency at 1.2.14. The lock resolves 1.2.14, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on linux ppc64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-14",
+        "latestEligible": "1.2.14",
+        "ageException": null,
+        "maintainer": "rolldown (organization), repository rolldown/rolldown; npm maintainers broooooklyn, yyx990803, rolldownbot",
+        "activity": "rolldown/rolldown was pushed 2026-10-30. Releases: 1.2.14 (2026-10-14), 1.2.15 (2026-10-21), 1.2.16 (2026-10-29).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @rolldown/binding-linux-ppc64-gnu, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@rolldown/binding-linux-ppc64-gnu",
+          "https://github.com/rolldown/rolldown",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@rolldown/binding-linux-ppc64-gnu"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@rolldown/binding-linux-s390x-gnu",
+      "name": "@rolldown/binding-linux-s390x-gnu",
+      "ecosystem": "npm",
+      "version": "1.2.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Rolldown's native binary for linux-s390x-gnu, one of the 15 per-platform optional packages of rolldown 1.2.14; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Vite and Rolldown; transitive.",
+      "reason": "rolldown 1.2.14 lists it as an optional dependency at 1.2.14. The lock resolves 1.2.14, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on linux s390x.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-14",
+        "latestEligible": "1.2.14",
+        "ageException": null,
+        "maintainer": "rolldown (organization), repository rolldown/rolldown; npm maintainers broooooklyn, yyx990803, rolldownbot",
+        "activity": "rolldown/rolldown was pushed 2026-10-30. Releases: 1.2.14 (2026-10-14), 1.2.15 (2026-10-21), 1.2.16 (2026-10-29).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @rolldown/binding-linux-s390x-gnu, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@rolldown/binding-linux-s390x-gnu",
+          "https://github.com/rolldown/rolldown",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@rolldown/binding-linux-s390x-gnu"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@rolldown/binding-linux-x64-gnu",
+      "name": "@rolldown/binding-linux-x64-gnu",
+      "ecosystem": "npm",
+      "version": "1.2.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Rolldown's native binary for linux-x64-gnu, one of the 15 per-platform optional packages of rolldown 1.2.14; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Vite and Rolldown; transitive.",
+      "reason": "rolldown 1.2.14 lists it as an optional dependency at 1.2.14. The lock resolves 1.2.14, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on linux x64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-14",
+        "latestEligible": "1.2.14",
+        "ageException": null,
+        "maintainer": "rolldown (organization), repository rolldown/rolldown; npm maintainers broooooklyn, yyx990803, rolldownbot",
+        "activity": "rolldown/rolldown was pushed 2026-10-30. Releases: 1.2.14 (2026-10-14), 1.2.15 (2026-10-21), 1.2.16 (2026-10-29).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @rolldown/binding-linux-x64-gnu, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@rolldown/binding-linux-x64-gnu",
+          "https://github.com/rolldown/rolldown",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@rolldown/binding-linux-x64-gnu"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@rolldown/binding-linux-x64-musl",
+      "name": "@rolldown/binding-linux-x64-musl",
+      "ecosystem": "npm",
+      "version": "1.2.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Rolldown's native binary for linux-x64-musl, one of the 15 per-platform optional packages of rolldown 1.2.14; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Vite and Rolldown; transitive.",
+      "reason": "rolldown 1.2.14 lists it as an optional dependency at 1.2.14. The lock resolves 1.2.14, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on linux x64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-14",
+        "latestEligible": "1.2.14",
+        "ageException": null,
+        "maintainer": "rolldown (organization), repository rolldown/rolldown; npm maintainers broooooklyn, yyx990803, rolldownbot",
+        "activity": "rolldown/rolldown was pushed 2026-10-30. Releases: 1.2.14 (2026-10-14), 1.2.15 (2026-10-21), 1.2.16 (2026-10-29).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @rolldown/binding-linux-x64-musl, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@rolldown/binding-linux-x64-musl",
+          "https://github.com/rolldown/rolldown",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@rolldown/binding-linux-x64-musl"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@rolldown/binding-openharmony-arm64",
+      "name": "@rolldown/binding-openharmony-arm64",
+      "ecosystem": "npm",
+      "version": "1.2.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Rolldown's native binary for openharmony-arm64, one of the 15 per-platform optional packages of rolldown 1.2.14; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Vite and Rolldown; transitive.",
+      "reason": "rolldown 1.2.14 lists it as an optional dependency at 1.2.14. The lock resolves 1.2.14, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on openharmony arm64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-14",
+        "latestEligible": "1.2.14",
+        "ageException": null,
+        "maintainer": "rolldown (organization), repository rolldown/rolldown; npm maintainers broooooklyn, yyx990803, rolldownbot",
+        "activity": "rolldown/rolldown was pushed 2026-10-30. Releases: 1.2.14 (2026-10-14), 1.2.15 (2026-10-21), 1.2.16 (2026-10-29).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @rolldown/binding-openharmony-arm64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@rolldown/binding-openharmony-arm64",
+          "https://github.com/rolldown/rolldown",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@rolldown/binding-openharmony-arm64"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@rolldown/binding-win32-arm64-msvc",
+      "name": "@rolldown/binding-win32-arm64-msvc",
+      "ecosystem": "npm",
+      "version": "1.2.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Rolldown's native binary for win32-arm64-msvc, one of the 15 per-platform optional packages of rolldown 1.2.14; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Vite and Rolldown; transitive.",
+      "reason": "rolldown 1.2.14 lists it as an optional dependency at 1.2.14. The lock resolves 1.2.14, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on win32 arm64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-14",
+        "latestEligible": "1.2.14",
+        "ageException": null,
+        "maintainer": "rolldown (organization), repository rolldown/rolldown; npm maintainers broooooklyn, yyx990803, rolldownbot",
+        "activity": "rolldown/rolldown was pushed 2026-10-30. Releases: 1.2.14 (2026-10-14), 1.2.15 (2026-10-21), 1.2.16 (2026-10-29).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @rolldown/binding-win32-arm64-msvc, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@rolldown/binding-win32-arm64-msvc",
+          "https://github.com/rolldown/rolldown",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@rolldown/binding-win32-arm64-msvc"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@rolldown/binding-win32-x64-msvc",
+      "name": "@rolldown/binding-win32-x64-msvc",
+      "ecosystem": "npm",
+      "version": "1.2.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Rolldown's native binary for win32-x64-msvc, one of the 15 per-platform optional packages of rolldown 1.2.14; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Vite and Rolldown; transitive.",
+      "reason": "rolldown 1.2.14 lists it as an optional dependency at 1.2.14. The lock resolves 1.2.14, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on win32 x64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-14",
+        "latestEligible": "1.2.14",
+        "ageException": null,
+        "maintainer": "rolldown (organization), repository rolldown/rolldown; npm maintainers broooooklyn, yyx990803, rolldownbot",
+        "activity": "rolldown/rolldown was pushed 2026-10-30. Releases: 1.2.14 (2026-10-14), 1.2.15 (2026-10-21), 1.2.16 (2026-10-29).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @rolldown/binding-win32-x64-msvc, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@rolldown/binding-win32-x64-msvc",
+          "https://github.com/rolldown/rolldown",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@rolldown/binding-win32-x64-msvc"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@rolldown/pluginutils",
+      "name": "@rolldown/pluginutils",
+      "ecosystem": "npm",
+      "version": "1.0.1",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Plugin utilities for Rolldown. It enters G-02's TypeScript client toolchain through Vite and Rolldown; transitive.",
+      "reason": "rolldown 1.2.14 requires ^1.0.0. The lock resolves 1.0.1, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-05-13",
+        "latestEligible": "1.0.1",
+        "ageException": null,
+        "maintainer": "rolldown (organization), repository rolldown/plugins; npm maintainers broooooklyn, yyx990803, rolldownbot",
+        "activity": "rolldown/plugins was pushed 2026-10-29. Releases: 1.0.0 (2026-05-07), 1.0.1 (2026-05-13).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @rolldown/pluginutils, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@rolldown/pluginutils",
+          "https://github.com/rolldown/plugins",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@rolldown/pluginutils"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@types/chai",
+      "name": "@types/chai",
+      "ecosystem": "npm",
+      "version": "5.2.3",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "TypeScript declarations for Chai. It enters G-02's TypeScript client toolchain through Vitest; transitive.",
+      "reason": "vitest 5.0.4 requires ^5.2.2. The lock resolves 5.2.3, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2025-10-20",
+        "latestEligible": "5.2.3",
+        "ageException": null,
+        "maintainer": "DefinitelyTyped (organization), repository DefinitelyTyped/DefinitelyTyped; npm maintainers types",
+        "activity": "DefinitelyTyped/DefinitelyTyped was pushed 2026-10-30. Releases: 5.2.1 (2025-03-24), 5.2.2 (2025-05-05), 5.2.3 (2025-10-20).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @types/chai, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@types/chai",
+          "https://github.com/DefinitelyTyped/DefinitelyTyped",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@types/chai"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@types/deep-eql",
+      "name": "@types/deep-eql",
+      "ecosystem": "npm",
+      "version": "4.0.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "TypeScript declarations for deep-eql, which the Chai declarations reference. It enters G-02's TypeScript client toolchain through Vitest and @types/chai; transitive.",
+      "reason": "@types/chai 5.2.3 requires *. The lock resolves 4.0.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2023-11-07",
+        "latestEligible": "4.0.2",
+        "ageException": null,
+        "maintainer": "DefinitelyTyped (organization), repository DefinitelyTyped/DefinitelyTyped; npm maintainers types",
+        "activity": "DefinitelyTyped/DefinitelyTyped was pushed 2026-10-30. Releases: 4.0.0 (2022-06-27), 4.0.1 (2023-10-18), 4.0.2 (2023-11-07).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @types/deep-eql, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@types/deep-eql",
+          "https://github.com/DefinitelyTyped/DefinitelyTyped",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@types/deep-eql"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@types/estree",
+      "name": "@types/estree",
+      "ecosystem": "npm",
+      "version": "1.0.9",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "TypeScript declarations for the ESTree syntax tree. It enters G-02's TypeScript client toolchain through Vitest, @vitest/mocker and estree-walker; transitive.",
+      "reason": "estree-walker 3.0.3 requires ^1.0.0. The lock resolves 1.0.9, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-05-06",
+        "latestEligible": "1.0.9",
+        "ageException": null,
+        "maintainer": "DefinitelyTyped (organization), repository DefinitelyTyped/DefinitelyTyped; npm maintainers types",
+        "activity": "DefinitelyTyped/DefinitelyTyped was pushed 2026-10-30. Releases: 1.0.8 (2025-06-06), 1.0.9 (2026-05-06), 1.0.10 (2026-10-29).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @types/estree, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@types/estree",
+          "https://github.com/DefinitelyTyped/DefinitelyTyped",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@types/estree"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@typescript/typescript-aix-ppc64",
+      "name": "@typescript/typescript-aix-ppc64",
+      "ecosystem": "npm",
+      "version": "7.0.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "build",
+      "purpose": "TypeScript 7's native compiler for aix-ppc64, one of the 20 per-platform optional packages of typescript 7.0.2; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through TypeScript; transitive.",
+      "reason": "typescript 7.0.2 lists it as an optional dependency at 7.0.2. The lock resolves 7.0.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on aix ppc64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-08",
+        "latestEligible": "7.0.2",
+        "ageException": null,
+        "maintainer": "microsoft (organization), repository microsoft/TypeScript; npm maintainers microsoft1es, typescript-bot, weswigham",
+        "activity": "microsoft/TypeScript was pushed 2026-10-30. Releases: 7.0.2 (2026-07-08).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @typescript/typescript-aix-ppc64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@typescript/typescript-aix-ppc64",
+          "https://github.com/microsoft/TypeScript",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@typescript/typescript-aix-ppc64"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A build tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@typescript/typescript-darwin-arm64",
+      "name": "@typescript/typescript-darwin-arm64",
+      "ecosystem": "npm",
+      "version": "7.0.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "build",
+      "purpose": "TypeScript 7's native compiler for darwin-arm64, one of the 20 per-platform optional packages of typescript 7.0.2; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through TypeScript; transitive.",
+      "reason": "typescript 7.0.2 lists it as an optional dependency at 7.0.2. The lock resolves 7.0.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on darwin arm64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-08",
+        "latestEligible": "7.0.2",
+        "ageException": null,
+        "maintainer": "microsoft (organization), repository microsoft/TypeScript; npm maintainers microsoft1es, typescript-bot, weswigham",
+        "activity": "microsoft/TypeScript was pushed 2026-10-30. Releases: 7.0.2 (2026-07-08).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @typescript/typescript-darwin-arm64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@typescript/typescript-darwin-arm64",
+          "https://github.com/microsoft/TypeScript",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@typescript/typescript-darwin-arm64"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A build tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@typescript/typescript-darwin-x64",
+      "name": "@typescript/typescript-darwin-x64",
+      "ecosystem": "npm",
+      "version": "7.0.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "build",
+      "purpose": "TypeScript 7's native compiler for darwin-x64, one of the 20 per-platform optional packages of typescript 7.0.2; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through TypeScript; transitive.",
+      "reason": "typescript 7.0.2 lists it as an optional dependency at 7.0.2. The lock resolves 7.0.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on darwin x64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-08",
+        "latestEligible": "7.0.2",
+        "ageException": null,
+        "maintainer": "microsoft (organization), repository microsoft/TypeScript; npm maintainers microsoft1es, typescript-bot, weswigham",
+        "activity": "microsoft/TypeScript was pushed 2026-10-30. Releases: 7.0.2 (2026-07-08).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @typescript/typescript-darwin-x64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@typescript/typescript-darwin-x64",
+          "https://github.com/microsoft/TypeScript",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@typescript/typescript-darwin-x64"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A build tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@typescript/typescript-freebsd-arm64",
+      "name": "@typescript/typescript-freebsd-arm64",
+      "ecosystem": "npm",
+      "version": "7.0.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "build",
+      "purpose": "TypeScript 7's native compiler for freebsd-arm64, one of the 20 per-platform optional packages of typescript 7.0.2; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through TypeScript; transitive.",
+      "reason": "typescript 7.0.2 lists it as an optional dependency at 7.0.2. The lock resolves 7.0.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on freebsd arm64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-08",
+        "latestEligible": "7.0.2",
+        "ageException": null,
+        "maintainer": "microsoft (organization), repository microsoft/TypeScript; npm maintainers microsoft1es, typescript-bot, weswigham",
+        "activity": "microsoft/TypeScript was pushed 2026-10-30. Releases: 7.0.2 (2026-07-08).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @typescript/typescript-freebsd-arm64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@typescript/typescript-freebsd-arm64",
+          "https://github.com/microsoft/TypeScript",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@typescript/typescript-freebsd-arm64"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A build tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@typescript/typescript-freebsd-x64",
+      "name": "@typescript/typescript-freebsd-x64",
+      "ecosystem": "npm",
+      "version": "7.0.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "build",
+      "purpose": "TypeScript 7's native compiler for freebsd-x64, one of the 20 per-platform optional packages of typescript 7.0.2; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through TypeScript; transitive.",
+      "reason": "typescript 7.0.2 lists it as an optional dependency at 7.0.2. The lock resolves 7.0.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on freebsd x64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-08",
+        "latestEligible": "7.0.2",
+        "ageException": null,
+        "maintainer": "microsoft (organization), repository microsoft/TypeScript; npm maintainers microsoft1es, typescript-bot, weswigham",
+        "activity": "microsoft/TypeScript was pushed 2026-10-30. Releases: 7.0.2 (2026-07-08).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @typescript/typescript-freebsd-x64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@typescript/typescript-freebsd-x64",
+          "https://github.com/microsoft/TypeScript",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@typescript/typescript-freebsd-x64"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A build tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@typescript/typescript-linux-arm",
+      "name": "@typescript/typescript-linux-arm",
+      "ecosystem": "npm",
+      "version": "7.0.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "build",
+      "purpose": "TypeScript 7's native compiler for linux-arm, one of the 20 per-platform optional packages of typescript 7.0.2; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through TypeScript; transitive.",
+      "reason": "typescript 7.0.2 lists it as an optional dependency at 7.0.2. The lock resolves 7.0.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on linux arm.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-08",
+        "latestEligible": "7.0.2",
+        "ageException": null,
+        "maintainer": "microsoft (organization), repository microsoft/TypeScript; npm maintainers microsoft1es, typescript-bot, weswigham",
+        "activity": "microsoft/TypeScript was pushed 2026-10-30. Releases: 7.0.2 (2026-07-08).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @typescript/typescript-linux-arm, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@typescript/typescript-linux-arm",
+          "https://github.com/microsoft/TypeScript",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@typescript/typescript-linux-arm"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A build tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@typescript/typescript-linux-arm64",
+      "name": "@typescript/typescript-linux-arm64",
+      "ecosystem": "npm",
+      "version": "7.0.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "build",
+      "purpose": "TypeScript 7's native compiler for linux-arm64, one of the 20 per-platform optional packages of typescript 7.0.2; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through TypeScript; transitive.",
+      "reason": "typescript 7.0.2 lists it as an optional dependency at 7.0.2. The lock resolves 7.0.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on linux arm64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-08",
+        "latestEligible": "7.0.2",
+        "ageException": null,
+        "maintainer": "microsoft (organization), repository microsoft/TypeScript; npm maintainers microsoft1es, typescript-bot, weswigham",
+        "activity": "microsoft/TypeScript was pushed 2026-10-30. Releases: 7.0.2 (2026-07-08).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @typescript/typescript-linux-arm64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@typescript/typescript-linux-arm64",
+          "https://github.com/microsoft/TypeScript",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@typescript/typescript-linux-arm64"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A build tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@typescript/typescript-linux-loong64",
+      "name": "@typescript/typescript-linux-loong64",
+      "ecosystem": "npm",
+      "version": "7.0.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "build",
+      "purpose": "TypeScript 7's native compiler for linux-loong64, one of the 20 per-platform optional packages of typescript 7.0.2; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through TypeScript; transitive.",
+      "reason": "typescript 7.0.2 lists it as an optional dependency at 7.0.2. The lock resolves 7.0.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on linux loong64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-08",
+        "latestEligible": "7.0.2",
+        "ageException": null,
+        "maintainer": "microsoft (organization), repository microsoft/TypeScript; npm maintainers microsoft1es, typescript-bot, weswigham",
+        "activity": "microsoft/TypeScript was pushed 2026-10-30. Releases: 7.0.2 (2026-07-08).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @typescript/typescript-linux-loong64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@typescript/typescript-linux-loong64",
+          "https://github.com/microsoft/TypeScript",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@typescript/typescript-linux-loong64"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A build tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@typescript/typescript-linux-mips64el",
+      "name": "@typescript/typescript-linux-mips64el",
+      "ecosystem": "npm",
+      "version": "7.0.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "build",
+      "purpose": "TypeScript 7's native compiler for linux-mips64el, one of the 20 per-platform optional packages of typescript 7.0.2; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through TypeScript; transitive.",
+      "reason": "typescript 7.0.2 lists it as an optional dependency at 7.0.2. The lock resolves 7.0.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on linux mips64el.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-08",
+        "latestEligible": "7.0.2",
+        "ageException": null,
+        "maintainer": "microsoft (organization), repository microsoft/TypeScript; npm maintainers microsoft1es, typescript-bot, weswigham",
+        "activity": "microsoft/TypeScript was pushed 2026-10-30. Releases: 7.0.2 (2026-07-08).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @typescript/typescript-linux-mips64el, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@typescript/typescript-linux-mips64el",
+          "https://github.com/microsoft/TypeScript",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@typescript/typescript-linux-mips64el"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A build tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@typescript/typescript-linux-ppc64",
+      "name": "@typescript/typescript-linux-ppc64",
+      "ecosystem": "npm",
+      "version": "7.0.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "build",
+      "purpose": "TypeScript 7's native compiler for linux-ppc64, one of the 20 per-platform optional packages of typescript 7.0.2; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through TypeScript; transitive.",
+      "reason": "typescript 7.0.2 lists it as an optional dependency at 7.0.2. The lock resolves 7.0.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on linux ppc64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-08",
+        "latestEligible": "7.0.2",
+        "ageException": null,
+        "maintainer": "microsoft (organization), repository microsoft/TypeScript; npm maintainers microsoft1es, typescript-bot, weswigham",
+        "activity": "microsoft/TypeScript was pushed 2026-10-30. Releases: 7.0.2 (2026-07-08).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @typescript/typescript-linux-ppc64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@typescript/typescript-linux-ppc64",
+          "https://github.com/microsoft/TypeScript",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@typescript/typescript-linux-ppc64"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A build tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@typescript/typescript-linux-riscv64",
+      "name": "@typescript/typescript-linux-riscv64",
+      "ecosystem": "npm",
+      "version": "7.0.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "build",
+      "purpose": "TypeScript 7's native compiler for linux-riscv64, one of the 20 per-platform optional packages of typescript 7.0.2; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through TypeScript; transitive.",
+      "reason": "typescript 7.0.2 lists it as an optional dependency at 7.0.2. The lock resolves 7.0.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on linux riscv64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-08",
+        "latestEligible": "7.0.2",
+        "ageException": null,
+        "maintainer": "microsoft (organization), repository microsoft/TypeScript; npm maintainers microsoft1es, typescript-bot, weswigham",
+        "activity": "microsoft/TypeScript was pushed 2026-10-30. Releases: 7.0.2 (2026-07-08).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @typescript/typescript-linux-riscv64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@typescript/typescript-linux-riscv64",
+          "https://github.com/microsoft/TypeScript",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@typescript/typescript-linux-riscv64"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A build tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@typescript/typescript-linux-s390x",
+      "name": "@typescript/typescript-linux-s390x",
+      "ecosystem": "npm",
+      "version": "7.0.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "build",
+      "purpose": "TypeScript 7's native compiler for linux-s390x, one of the 20 per-platform optional packages of typescript 7.0.2; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through TypeScript; transitive.",
+      "reason": "typescript 7.0.2 lists it as an optional dependency at 7.0.2. The lock resolves 7.0.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on linux s390x.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-08",
+        "latestEligible": "7.0.2",
+        "ageException": null,
+        "maintainer": "microsoft (organization), repository microsoft/TypeScript; npm maintainers microsoft1es, typescript-bot, weswigham",
+        "activity": "microsoft/TypeScript was pushed 2026-10-30. Releases: 7.0.2 (2026-07-08).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @typescript/typescript-linux-s390x, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@typescript/typescript-linux-s390x",
+          "https://github.com/microsoft/TypeScript",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@typescript/typescript-linux-s390x"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A build tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@typescript/typescript-linux-x64",
+      "name": "@typescript/typescript-linux-x64",
+      "ecosystem": "npm",
+      "version": "7.0.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "build",
+      "purpose": "TypeScript 7's native compiler for linux-x64, one of the 20 per-platform optional packages of typescript 7.0.2; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through TypeScript; transitive.",
+      "reason": "typescript 7.0.2 lists it as an optional dependency at 7.0.2. The lock resolves 7.0.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on linux x64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-08",
+        "latestEligible": "7.0.2",
+        "ageException": null,
+        "maintainer": "microsoft (organization), repository microsoft/TypeScript; npm maintainers microsoft1es, typescript-bot, weswigham",
+        "activity": "microsoft/TypeScript was pushed 2026-10-30. Releases: 7.0.2 (2026-07-08).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @typescript/typescript-linux-x64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@typescript/typescript-linux-x64",
+          "https://github.com/microsoft/TypeScript",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@typescript/typescript-linux-x64"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A build tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@typescript/typescript-netbsd-arm64",
+      "name": "@typescript/typescript-netbsd-arm64",
+      "ecosystem": "npm",
+      "version": "7.0.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "build",
+      "purpose": "TypeScript 7's native compiler for netbsd-arm64, one of the 20 per-platform optional packages of typescript 7.0.2; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through TypeScript; transitive.",
+      "reason": "typescript 7.0.2 lists it as an optional dependency at 7.0.2. The lock resolves 7.0.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on netbsd arm64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-08",
+        "latestEligible": "7.0.2",
+        "ageException": null,
+        "maintainer": "microsoft (organization), repository microsoft/TypeScript; npm maintainers microsoft1es, typescript-bot, weswigham",
+        "activity": "microsoft/TypeScript was pushed 2026-10-30. Releases: 7.0.2 (2026-07-08).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @typescript/typescript-netbsd-arm64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@typescript/typescript-netbsd-arm64",
+          "https://github.com/microsoft/TypeScript",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@typescript/typescript-netbsd-arm64"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A build tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@typescript/typescript-netbsd-x64",
+      "name": "@typescript/typescript-netbsd-x64",
+      "ecosystem": "npm",
+      "version": "7.0.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "build",
+      "purpose": "TypeScript 7's native compiler for netbsd-x64, one of the 20 per-platform optional packages of typescript 7.0.2; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through TypeScript; transitive.",
+      "reason": "typescript 7.0.2 lists it as an optional dependency at 7.0.2. The lock resolves 7.0.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on netbsd x64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-08",
+        "latestEligible": "7.0.2",
+        "ageException": null,
+        "maintainer": "microsoft (organization), repository microsoft/TypeScript; npm maintainers microsoft1es, typescript-bot, weswigham",
+        "activity": "microsoft/TypeScript was pushed 2026-10-30. Releases: 7.0.2 (2026-07-08).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @typescript/typescript-netbsd-x64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@typescript/typescript-netbsd-x64",
+          "https://github.com/microsoft/TypeScript",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@typescript/typescript-netbsd-x64"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A build tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@typescript/typescript-openbsd-arm64",
+      "name": "@typescript/typescript-openbsd-arm64",
+      "ecosystem": "npm",
+      "version": "7.0.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "build",
+      "purpose": "TypeScript 7's native compiler for openbsd-arm64, one of the 20 per-platform optional packages of typescript 7.0.2; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through TypeScript; transitive.",
+      "reason": "typescript 7.0.2 lists it as an optional dependency at 7.0.2. The lock resolves 7.0.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on openbsd arm64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-08",
+        "latestEligible": "7.0.2",
+        "ageException": null,
+        "maintainer": "microsoft (organization), repository microsoft/TypeScript; npm maintainers microsoft1es, typescript-bot, weswigham",
+        "activity": "microsoft/TypeScript was pushed 2026-10-30. Releases: 7.0.2 (2026-07-08).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @typescript/typescript-openbsd-arm64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@typescript/typescript-openbsd-arm64",
+          "https://github.com/microsoft/TypeScript",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@typescript/typescript-openbsd-arm64"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A build tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@typescript/typescript-openbsd-x64",
+      "name": "@typescript/typescript-openbsd-x64",
+      "ecosystem": "npm",
+      "version": "7.0.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "build",
+      "purpose": "TypeScript 7's native compiler for openbsd-x64, one of the 20 per-platform optional packages of typescript 7.0.2; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through TypeScript; transitive.",
+      "reason": "typescript 7.0.2 lists it as an optional dependency at 7.0.2. The lock resolves 7.0.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on openbsd x64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-08",
+        "latestEligible": "7.0.2",
+        "ageException": null,
+        "maintainer": "microsoft (organization), repository microsoft/TypeScript; npm maintainers microsoft1es, typescript-bot, weswigham",
+        "activity": "microsoft/TypeScript was pushed 2026-10-30. Releases: 7.0.2 (2026-07-08).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @typescript/typescript-openbsd-x64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@typescript/typescript-openbsd-x64",
+          "https://github.com/microsoft/TypeScript",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@typescript/typescript-openbsd-x64"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A build tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@typescript/typescript-sunos-x64",
+      "name": "@typescript/typescript-sunos-x64",
+      "ecosystem": "npm",
+      "version": "7.0.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "build",
+      "purpose": "TypeScript 7's native compiler for sunos-x64, one of the 20 per-platform optional packages of typescript 7.0.2; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through TypeScript; transitive.",
+      "reason": "typescript 7.0.2 lists it as an optional dependency at 7.0.2. The lock resolves 7.0.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on sunos x64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-08",
+        "latestEligible": "7.0.2",
+        "ageException": null,
+        "maintainer": "microsoft (organization), repository microsoft/TypeScript; npm maintainers microsoft1es, typescript-bot, weswigham",
+        "activity": "microsoft/TypeScript was pushed 2026-10-30. Releases: 7.0.2 (2026-07-08).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @typescript/typescript-sunos-x64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@typescript/typescript-sunos-x64",
+          "https://github.com/microsoft/TypeScript",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@typescript/typescript-sunos-x64"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A build tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@typescript/typescript-win32-arm64",
+      "name": "@typescript/typescript-win32-arm64",
+      "ecosystem": "npm",
+      "version": "7.0.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "build",
+      "purpose": "TypeScript 7's native compiler for win32-arm64, one of the 20 per-platform optional packages of typescript 7.0.2; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through TypeScript; transitive.",
+      "reason": "typescript 7.0.2 lists it as an optional dependency at 7.0.2. The lock resolves 7.0.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on win32 arm64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-08",
+        "latestEligible": "7.0.2",
+        "ageException": null,
+        "maintainer": "microsoft (organization), repository microsoft/TypeScript; npm maintainers microsoft1es, typescript-bot, weswigham",
+        "activity": "microsoft/TypeScript was pushed 2026-10-30. Releases: 7.0.2 (2026-07-08).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @typescript/typescript-win32-arm64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@typescript/typescript-win32-arm64",
+          "https://github.com/microsoft/TypeScript",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@typescript/typescript-win32-arm64"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A build tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@typescript/typescript-win32-x64",
+      "name": "@typescript/typescript-win32-x64",
+      "ecosystem": "npm",
+      "version": "7.0.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "build",
+      "purpose": "TypeScript 7's native compiler for win32-x64, one of the 20 per-platform optional packages of typescript 7.0.2; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through TypeScript; transitive.",
+      "reason": "typescript 7.0.2 lists it as an optional dependency at 7.0.2. The lock resolves 7.0.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on win32 x64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-08",
+        "latestEligible": "7.0.2",
+        "ageException": null,
+        "maintainer": "microsoft (organization), repository microsoft/TypeScript; npm maintainers microsoft1es, typescript-bot, weswigham",
+        "activity": "microsoft/TypeScript was pushed 2026-10-30. Releases: 7.0.2 (2026-07-08).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @typescript/typescript-win32-x64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@typescript/typescript-win32-x64",
+          "https://github.com/microsoft/TypeScript",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@typescript/typescript-win32-x64"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A build tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@vitest/mocker",
+      "name": "@vitest/mocker",
+      "ecosystem": "npm",
+      "version": "5.0.4",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Vitest's module mocker. It enters G-02's TypeScript client toolchain through Vitest; transitive.",
+      "reason": "vitest 5.0.4 requires 5.0.4. The lock resolves 5.0.4, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-12",
+        "latestEligible": "5.0.4",
+        "ageException": null,
+        "maintainer": "vitest-dev (organization), repository vitest-dev/vitest; npm maintainers ariperkkio, antfu, hiogawa",
+        "activity": "vitest-dev/vitest was pushed 2026-10-30. Releases: 5.0.3 (2026-09-30), 5.0.4 (2026-10-12), 5.0.5 (2026-10-15).",
+        "advisories": "No advisory affects 5.0.4. The GitHub Advisory Database lists 3 for @vitest/mocker, none of which affects that version: GHSA-qxg6-89mg-rqv8, GHSA-xp26-3454-mjgp, GHSA-82fw-gwwq-j7x9. npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@vitest/mocker",
+          "https://github.com/vitest-dev/vitest",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@vitest/mocker"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:@vitest/spy",
+      "name": "@vitest/spy",
+      "ecosystem": "npm",
+      "version": "5.0.4",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Vitest's spy and mock functions. It enters G-02's TypeScript client toolchain through Vitest and @vitest/mocker; transitive.",
+      "reason": "@vitest/mocker 5.0.4 requires 5.0.4. The lock resolves 5.0.4, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-12",
+        "latestEligible": "5.0.4",
+        "ageException": null,
+        "maintainer": "vitest-dev (organization), repository vitest-dev/vitest; npm maintainers ariperkkio, antfu, hiogawa",
+        "activity": "vitest-dev/vitest was pushed 2026-10-30. Releases: 5.0.3 (2026-09-30), 5.0.4 (2026-10-12), 5.0.5 (2026-10-15).",
+        "advisories": "The GitHub Advisory Database lists no advisory for @vitest/spy, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/@vitest/spy",
+          "https://github.com/vitest-dev/vitest",
+          "https://api.github.com/advisories?ecosystem=npm&affects=@vitest/spy"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:assertion-error",
+      "name": "assertion-error",
+      "ecosystem": "npm",
+      "version": "2.0.1",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "The AssertionError type that Chai throws. It enters G-02's TypeScript client toolchain through Vitest and @types/chai; transitive.",
+      "reason": "@types/chai 5.2.3 requires ^2.0.1. The lock resolves 2.0.1, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2023-10-18",
+        "latestEligible": "2.0.1",
+        "ageException": null,
+        "maintainer": "chaijs (organization), repository chaijs/assertion-error; npm maintainers chaijs, keithamus",
+        "activity": "chaijs/assertion-error was pushed 2026-05-25. Releases: 2.0.0 (2021-10-05), 2.0.1 (2023-10-18).",
+        "advisories": "The GitHub Advisory Database lists no advisory for assertion-error, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/assertion-error",
+          "https://github.com/chaijs/assertion-error",
+          "https://api.github.com/advisories?ecosystem=npm&affects=assertion-error"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:chai",
+      "name": "chai",
+      "ecosystem": "npm",
+      "version": "6.3.0",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "The assertion library behind Vitest's expect. It enters G-02's TypeScript client toolchain through Vitest; transitive.",
+      "reason": "vitest 5.0.4 requires ^6.3.0. The lock resolves 6.3.0, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-09-30",
+        "latestEligible": "6.3.0",
+        "ageException": null,
+        "maintainer": "chaijs (organization), repository chaijs/chai; npm maintainers chaijs",
+        "activity": "chaijs/chai was pushed 2026-10-28. Releases: 6.2.1 (2025-11-11), 6.2.2 (2025-12-22), 6.3.0 (2026-09-30).",
+        "advisories": "The GitHub Advisory Database lists no advisory for chai, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/chai",
+          "https://github.com/chaijs/chai",
+          "https://api.github.com/advisories?ecosystem=npm&affects=chai"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:detect-libc",
+      "name": "detect-libc",
+      "ecosystem": "npm",
+      "version": "2.1.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Detects a Linux system's C library, so that Lightning CSS loads the matching native binary. It enters G-02's TypeScript client toolchain through Lightning CSS; transitive.",
+      "reason": "lightningcss 1.33.0 requires ^2.0.3. The lock resolves 2.1.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2025-10-05",
+        "latestEligible": "2.1.2",
+        "ageException": null,
+        "maintainer": "lovell (GitHub user), repository lovell/detect-libc; npm maintainers lovell",
+        "activity": "lovell/detect-libc was pushed 2025-10-05. Releases: 2.1.0 (2025-09-14), 2.1.1 (2025-09-24), 2.1.2 (2025-10-05). Neither a release nor a push in the last 12 months: a stable, final package that the maintained lightningcss requires, recorded as such.",
+        "advisories": "The GitHub Advisory Database lists no advisory for detect-libc, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/detect-libc",
+          "https://github.com/lovell/detect-libc",
+          "https://api.github.com/advisories?ecosystem=npm&affects=detect-libc"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:es-module-lexer",
+      "name": "es-module-lexer",
+      "ecosystem": "npm",
+      "version": "2.3.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Lexes the imports and exports of ES modules, for Vitest. It enters G-02's TypeScript client toolchain through Vitest; transitive.",
+      "reason": "vitest 5.0.4 requires ^2.3.2. The lock resolves 2.3.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-08-17",
+        "latestEligible": "2.3.2",
+        "ageException": null,
+        "maintainer": "guybedford (GitHub user), repository guybedford/es-module-lexer; npm maintainers guybedford",
+        "activity": "guybedford/es-module-lexer was pushed 2026-10-15. Releases: 2.3.0 (2026-07-02), 2.3.1 (2026-07-12), 2.3.2 (2026-08-17). The newest release is 3.0.4 (2026-10-15).",
+        "advisories": "The GitHub Advisory Database lists no advisory for es-module-lexer, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/es-module-lexer",
+          "https://github.com/guybedford/es-module-lexer",
+          "https://api.github.com/advisories?ecosystem=npm&affects=es-module-lexer"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:estree-walker",
+      "name": "estree-walker",
+      "ecosystem": "npm",
+      "version": "3.0.3",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Walks an ESTree syntax tree, for Vitest's module mocker. It enters G-02's TypeScript client toolchain through Vitest and @vitest/mocker; transitive.",
+      "reason": "@vitest/mocker 5.0.4 requires ^3.0.3. The lock resolves 3.0.3, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2023-01-20",
+        "latestEligible": "3.0.3",
+        "ageException": null,
+        "maintainer": "Rich-Harris (GitHub user), repository Rich-Harris/estree-walker; npm maintainers rich_harris",
+        "activity": "Rich-Harris/estree-walker was pushed 2025-09-07. Releases: 3.0.1 (2021-12-20), 3.0.2 (2023-01-03), 3.0.3 (2023-01-20). Neither a release nor a push in the last 12 months: a stable, final package that the maintained @vitest/mocker requires, recorded as such.",
+        "advisories": "The GitHub Advisory Database lists no advisory for estree-walker, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/estree-walker",
+          "https://github.com/Rich-Harris/estree-walker",
+          "https://api.github.com/advisories?ecosystem=npm&affects=estree-walker"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:expect-type",
+      "name": "expect-type",
+      "ecosystem": "npm",
+      "version": "1.4.0",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Compile-time type assertions behind Vitest's expectTypeOf. It enters G-02's TypeScript client toolchain through Vitest; transitive.",
+      "reason": "vitest 5.0.4 requires ^1.4.0. The lock resolves 1.4.0, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-06-25",
+        "latestEligible": "1.4.0",
+        "ageException": null,
+        "maintainer": "mmkal (GitHub user), repository mmkal/expect-type; npm maintainers mmkale",
+        "activity": "mmkal/expect-type was pushed 2026-10-30. Releases: 1.2.2 (2025-07-06), 1.3.0 (2025-12-08), 1.4.0 (2026-06-25).",
+        "advisories": "The GitHub Advisory Database lists no advisory for expect-type, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/expect-type",
+          "https://github.com/mmkal/expect-type",
+          "https://api.github.com/advisories?ecosystem=npm&affects=expect-type"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:fdir",
+      "name": "fdir",
+      "ecosystem": "npm",
+      "version": "6.5.0",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Directory crawler that tinyglobby uses. It enters G-02's TypeScript client toolchain through Vite and tinyglobby; transitive.",
+      "reason": "tinyglobby 0.2.17 requires ^6.5.0. The lock resolves 6.5.0, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2025-08-14",
+        "latestEligible": "6.5.0",
+        "ageException": null,
+        "maintainer": "thecodrr (GitHub user), repository thecodrr/fdir; npm maintainers thecodrr",
+        "activity": "thecodrr/fdir was pushed 2025-08-16. Releases: 6.4.5 (2025-05-28), 6.4.6 (2025-06-10), 6.5.0 (2025-08-14). Neither a release nor a push in the last 12 months: a stable, final package that the maintained tinyglobby requires, recorded as such.",
+        "advisories": "The GitHub Advisory Database lists no advisory for fdir, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/fdir",
+          "https://github.com/thecodrr/fdir",
+          "https://api.github.com/advisories?ecosystem=npm&affects=fdir"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:fsevents",
+      "name": "fsevents",
+      "ecosystem": "npm",
+      "version": "2.3.3",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Native access to macOS file-system events, for Vite's file watcher on macOS. It enters G-02's TypeScript client toolchain through Vite; transitive.",
+      "reason": "vite 8.3.4 lists it as an optional dependency at ~2.3.3. The lock resolves 2.3.3, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on darwin. Its install script runs node-gyp rebuild; CI installs with npm ci --ignore-scripts, so it never runs, and the package carries its prebuilt binary.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2023-08-21",
+        "latestEligible": "2.3.3",
+        "ageException": null,
+        "maintainer": "fsevents (organization), repository fsevents/fsevents; npm maintainers pipobscure, paulmillr",
+        "activity": "fsevents/fsevents was pushed 2024-09-03. Releases: 2.3.1 (2021-01-05), 2.3.2 (2021-02-05), 2.3.3 (2023-08-21). Neither a release nor a push in the last 12 months: a stable, final package that the maintained vite requires, recorded as such.",
+        "advisories": "No advisory affects 2.3.3. The GitHub Advisory Database lists 1 for fsevents, none of which affects that version: GHSA-8r6j-v8pm-fqw3. npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/fsevents",
+          "https://github.com/fsevents/fsevents",
+          "https://api.github.com/advisories?ecosystem=npm&affects=fsevents"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:lightningcss",
+      "name": "lightningcss",
+      "ecosystem": "npm",
+      "version": "1.33.0",
+      "unpinned": null,
+      "digests": null,
+      "license": "MPL-2.0",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "CSS parser, transformer and minifier that Vite 8 depends on, with 11 per-platform native packages under the same license. It enters G-02's TypeScript client toolchain through Vitest and Vite, and the Admin's build runs it.",
+      "reason": "Vite 8.3.4 depends on it at 1.33.0 or a later 1.x. It is recorded as its own entry because MPL-2.0 is not on the allowlist; the resolved G-02 toolchain and Admin closures have no other license outside it. CODE-06 adopted it on 2026-10-30 and keeps it an exact devDependency, so the lock stays at 1.33.0 whatever later 1.x Vite's range admits; the lock holds one copy, which Vite uses.",
+      "maintenance": {
+        "reviewedAt": "2026-10-26",
+        "published": "2026-07-20",
+        "latestEligible": "1.33.0",
+        "ageException": null,
+        "maintainer": "Parcel (parcel-bundler organization); npm maintainer devongovett",
+        "activity": "parcel-bundler/lightningcss was pushed 2026-10-25. Releases: 1.31.0 (2026-01-20), 1.32.0 (2026-03-09) and 1.33.0 (2026-07-20).",
+        "advisories": "The GitHub Advisory Database lists no advisory for lightningcss.",
+        "sources": [
+          "https://registry.npmjs.org/lightningcss",
+          "https://github.com/parcel-bundler/lightningcss",
+          "https://api.github.com/advisories?ecosystem=npm&affects=lightningcss"
+        ]
+      },
+      "clearance": {
+        "community": "flagged",
+        "paid": "flagged",
+        "note": "MPL-2.0 is file-level weak copyleft. As an unmodified build and test tool that Modularyn does not redistribute it imposes no obligation, and the output it produces is not covered. Modifying its files, or shipping them in any distribution, requires a review and source availability for those files under MPL-2.0."
+      }
+    },
+    {
+      "id": "npm:lightningcss-android-arm64",
+      "name": "lightningcss-android-arm64",
+      "ecosystem": "npm",
+      "version": "1.33.0",
+      "unpinned": null,
+      "digests": null,
+      "license": "MPL-2.0",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Lightning CSS's native binary for android-arm64, one of the 11 per-platform optional packages of lightningcss 1.33.0; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Lightning CSS; transitive.",
+      "reason": "lightningcss 1.33.0 lists it as an optional dependency at 1.33.0. The lock resolves 1.33.0, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on android arm64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-20",
+        "latestEligible": "1.33.0",
+        "ageException": null,
+        "maintainer": "parcel-bundler (organization), repository parcel-bundler/lightningcss; npm maintainers devongovett",
+        "activity": "parcel-bundler/lightningcss was pushed 2026-10-30. Releases: 1.31.1 (2026-01-21), 1.32.0 (2026-03-09), 1.33.0 (2026-07-20).",
+        "advisories": "The GitHub Advisory Database lists no advisory for lightningcss-android-arm64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/lightningcss-android-arm64",
+          "https://github.com/parcel-bundler/lightningcss",
+          "https://api.github.com/advisories?ecosystem=npm&affects=lightningcss-android-arm64"
+        ]
+      },
+      "clearance": {
+        "community": "flagged",
+        "paid": "flagged",
+        "note": "MPL-2.0 is file-level weak copyleft. As an unmodified build and test tool that Modularyn does not redistribute it imposes no obligation, and the output it produces is not covered. Modifying its files, or shipping them in any distribution, requires a review and source availability for those files under MPL-2.0."
+      }
+    },
+    {
+      "id": "npm:lightningcss-darwin-arm64",
+      "name": "lightningcss-darwin-arm64",
+      "ecosystem": "npm",
+      "version": "1.33.0",
+      "unpinned": null,
+      "digests": null,
+      "license": "MPL-2.0",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Lightning CSS's native binary for darwin-arm64, one of the 11 per-platform optional packages of lightningcss 1.33.0; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Lightning CSS; transitive.",
+      "reason": "lightningcss 1.33.0 lists it as an optional dependency at 1.33.0. The lock resolves 1.33.0, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on darwin arm64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-20",
+        "latestEligible": "1.33.0",
+        "ageException": null,
+        "maintainer": "parcel-bundler (organization), repository parcel-bundler/lightningcss; npm maintainers devongovett",
+        "activity": "parcel-bundler/lightningcss was pushed 2026-10-30. Releases: 1.31.1 (2026-01-21), 1.32.0 (2026-03-09), 1.33.0 (2026-07-20).",
+        "advisories": "The GitHub Advisory Database lists no advisory for lightningcss-darwin-arm64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/lightningcss-darwin-arm64",
+          "https://github.com/parcel-bundler/lightningcss",
+          "https://api.github.com/advisories?ecosystem=npm&affects=lightningcss-darwin-arm64"
+        ]
+      },
+      "clearance": {
+        "community": "flagged",
+        "paid": "flagged",
+        "note": "MPL-2.0 is file-level weak copyleft. As an unmodified build and test tool that Modularyn does not redistribute it imposes no obligation, and the output it produces is not covered. Modifying its files, or shipping them in any distribution, requires a review and source availability for those files under MPL-2.0."
+      }
+    },
+    {
+      "id": "npm:lightningcss-darwin-x64",
+      "name": "lightningcss-darwin-x64",
+      "ecosystem": "npm",
+      "version": "1.33.0",
+      "unpinned": null,
+      "digests": null,
+      "license": "MPL-2.0",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Lightning CSS's native binary for darwin-x64, one of the 11 per-platform optional packages of lightningcss 1.33.0; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Lightning CSS; transitive.",
+      "reason": "lightningcss 1.33.0 lists it as an optional dependency at 1.33.0. The lock resolves 1.33.0, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on darwin x64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-20",
+        "latestEligible": "1.33.0",
+        "ageException": null,
+        "maintainer": "parcel-bundler (organization), repository parcel-bundler/lightningcss; npm maintainers devongovett",
+        "activity": "parcel-bundler/lightningcss was pushed 2026-10-30. Releases: 1.31.1 (2026-01-21), 1.32.0 (2026-03-09), 1.33.0 (2026-07-20).",
+        "advisories": "The GitHub Advisory Database lists no advisory for lightningcss-darwin-x64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/lightningcss-darwin-x64",
+          "https://github.com/parcel-bundler/lightningcss",
+          "https://api.github.com/advisories?ecosystem=npm&affects=lightningcss-darwin-x64"
+        ]
+      },
+      "clearance": {
+        "community": "flagged",
+        "paid": "flagged",
+        "note": "MPL-2.0 is file-level weak copyleft. As an unmodified build and test tool that Modularyn does not redistribute it imposes no obligation, and the output it produces is not covered. Modifying its files, or shipping them in any distribution, requires a review and source availability for those files under MPL-2.0."
+      }
+    },
+    {
+      "id": "npm:lightningcss-freebsd-x64",
+      "name": "lightningcss-freebsd-x64",
+      "ecosystem": "npm",
+      "version": "1.33.0",
+      "unpinned": null,
+      "digests": null,
+      "license": "MPL-2.0",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Lightning CSS's native binary for freebsd-x64, one of the 11 per-platform optional packages of lightningcss 1.33.0; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Lightning CSS; transitive.",
+      "reason": "lightningcss 1.33.0 lists it as an optional dependency at 1.33.0. The lock resolves 1.33.0, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on freebsd x64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-20",
+        "latestEligible": "1.33.0",
+        "ageException": null,
+        "maintainer": "parcel-bundler (organization), repository parcel-bundler/lightningcss; npm maintainers devongovett",
+        "activity": "parcel-bundler/lightningcss was pushed 2026-10-30. Releases: 1.31.1 (2026-01-21), 1.32.0 (2026-03-09), 1.33.0 (2026-07-20).",
+        "advisories": "The GitHub Advisory Database lists no advisory for lightningcss-freebsd-x64, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/lightningcss-freebsd-x64",
+          "https://github.com/parcel-bundler/lightningcss",
+          "https://api.github.com/advisories?ecosystem=npm&affects=lightningcss-freebsd-x64"
+        ]
+      },
+      "clearance": {
+        "community": "flagged",
+        "paid": "flagged",
+        "note": "MPL-2.0 is file-level weak copyleft. As an unmodified build and test tool that Modularyn does not redistribute it imposes no obligation, and the output it produces is not covered. Modifying its files, or shipping them in any distribution, requires a review and source availability for those files under MPL-2.0."
+      }
+    },
+    {
+      "id": "npm:lightningcss-linux-arm-gnueabihf",
+      "name": "lightningcss-linux-arm-gnueabihf",
+      "ecosystem": "npm",
+      "version": "1.33.0",
+      "unpinned": null,
+      "digests": null,
+      "license": "MPL-2.0",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Lightning CSS's native binary for linux-arm-gnueabihf, one of the 11 per-platform optional packages of lightningcss 1.33.0; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Lightning CSS; transitive.",
+      "reason": "lightningcss 1.33.0 lists it as an optional dependency at 1.33.0. The lock resolves 1.33.0, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on linux arm.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-20",
+        "latestEligible": "1.33.0",
+        "ageException": null,
+        "maintainer": "parcel-bundler (organization), repository parcel-bundler/lightningcss; npm maintainers devongovett",
+        "activity": "parcel-bundler/lightningcss was pushed 2026-10-30. Releases: 1.31.1 (2026-01-21), 1.32.0 (2026-03-09), 1.33.0 (2026-07-20).",
+        "advisories": "The GitHub Advisory Database lists no advisory for lightningcss-linux-arm-gnueabihf, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/lightningcss-linux-arm-gnueabihf",
+          "https://github.com/parcel-bundler/lightningcss",
+          "https://api.github.com/advisories?ecosystem=npm&affects=lightningcss-linux-arm-gnueabihf"
+        ]
+      },
+      "clearance": {
+        "community": "flagged",
+        "paid": "flagged",
+        "note": "MPL-2.0 is file-level weak copyleft. As an unmodified build and test tool that Modularyn does not redistribute it imposes no obligation, and the output it produces is not covered. Modifying its files, or shipping them in any distribution, requires a review and source availability for those files under MPL-2.0."
+      }
+    },
+    {
+      "id": "npm:lightningcss-linux-arm64-gnu",
+      "name": "lightningcss-linux-arm64-gnu",
+      "ecosystem": "npm",
+      "version": "1.33.0",
+      "unpinned": null,
+      "digests": null,
+      "license": "MPL-2.0",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Lightning CSS's native binary for linux-arm64-gnu, one of the 11 per-platform optional packages of lightningcss 1.33.0; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Lightning CSS; transitive.",
+      "reason": "lightningcss 1.33.0 lists it as an optional dependency at 1.33.0. The lock resolves 1.33.0, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on linux arm64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-20",
+        "latestEligible": "1.33.0",
+        "ageException": null,
+        "maintainer": "parcel-bundler (organization), repository parcel-bundler/lightningcss; npm maintainers devongovett",
+        "activity": "parcel-bundler/lightningcss was pushed 2026-10-30. Releases: 1.31.1 (2026-01-21), 1.32.0 (2026-03-09), 1.33.0 (2026-07-20).",
+        "advisories": "The GitHub Advisory Database lists no advisory for lightningcss-linux-arm64-gnu, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/lightningcss-linux-arm64-gnu",
+          "https://github.com/parcel-bundler/lightningcss",
+          "https://api.github.com/advisories?ecosystem=npm&affects=lightningcss-linux-arm64-gnu"
+        ]
+      },
+      "clearance": {
+        "community": "flagged",
+        "paid": "flagged",
+        "note": "MPL-2.0 is file-level weak copyleft. As an unmodified build and test tool that Modularyn does not redistribute it imposes no obligation, and the output it produces is not covered. Modifying its files, or shipping them in any distribution, requires a review and source availability for those files under MPL-2.0."
+      }
+    },
+    {
+      "id": "npm:lightningcss-linux-arm64-musl",
+      "name": "lightningcss-linux-arm64-musl",
+      "ecosystem": "npm",
+      "version": "1.33.0",
+      "unpinned": null,
+      "digests": null,
+      "license": "MPL-2.0",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Lightning CSS's native binary for linux-arm64-musl, one of the 11 per-platform optional packages of lightningcss 1.33.0; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Lightning CSS; transitive.",
+      "reason": "lightningcss 1.33.0 lists it as an optional dependency at 1.33.0. The lock resolves 1.33.0, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on linux arm64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-20",
+        "latestEligible": "1.33.0",
+        "ageException": null,
+        "maintainer": "parcel-bundler (organization), repository parcel-bundler/lightningcss; npm maintainers devongovett",
+        "activity": "parcel-bundler/lightningcss was pushed 2026-10-30. Releases: 1.31.1 (2026-01-21), 1.32.0 (2026-03-09), 1.33.0 (2026-07-20).",
+        "advisories": "The GitHub Advisory Database lists no advisory for lightningcss-linux-arm64-musl, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/lightningcss-linux-arm64-musl",
+          "https://github.com/parcel-bundler/lightningcss",
+          "https://api.github.com/advisories?ecosystem=npm&affects=lightningcss-linux-arm64-musl"
+        ]
+      },
+      "clearance": {
+        "community": "flagged",
+        "paid": "flagged",
+        "note": "MPL-2.0 is file-level weak copyleft. As an unmodified build and test tool that Modularyn does not redistribute it imposes no obligation, and the output it produces is not covered. Modifying its files, or shipping them in any distribution, requires a review and source availability for those files under MPL-2.0."
+      }
+    },
+    {
+      "id": "npm:lightningcss-linux-x64-gnu",
+      "name": "lightningcss-linux-x64-gnu",
+      "ecosystem": "npm",
+      "version": "1.33.0",
+      "unpinned": null,
+      "digests": null,
+      "license": "MPL-2.0",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Lightning CSS's native binary for linux-x64-gnu, one of the 11 per-platform optional packages of lightningcss 1.33.0; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Lightning CSS; transitive.",
+      "reason": "lightningcss 1.33.0 lists it as an optional dependency at 1.33.0. The lock resolves 1.33.0, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on linux x64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-20",
+        "latestEligible": "1.33.0",
+        "ageException": null,
+        "maintainer": "parcel-bundler (organization), repository parcel-bundler/lightningcss; npm maintainers devongovett",
+        "activity": "parcel-bundler/lightningcss was pushed 2026-10-30. Releases: 1.31.1 (2026-01-21), 1.32.0 (2026-03-09), 1.33.0 (2026-07-20).",
+        "advisories": "The GitHub Advisory Database lists no advisory for lightningcss-linux-x64-gnu, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/lightningcss-linux-x64-gnu",
+          "https://github.com/parcel-bundler/lightningcss",
+          "https://api.github.com/advisories?ecosystem=npm&affects=lightningcss-linux-x64-gnu"
+        ]
+      },
+      "clearance": {
+        "community": "flagged",
+        "paid": "flagged",
+        "note": "MPL-2.0 is file-level weak copyleft. As an unmodified build and test tool that Modularyn does not redistribute it imposes no obligation, and the output it produces is not covered. Modifying its files, or shipping them in any distribution, requires a review and source availability for those files under MPL-2.0."
+      }
+    },
+    {
+      "id": "npm:lightningcss-linux-x64-musl",
+      "name": "lightningcss-linux-x64-musl",
+      "ecosystem": "npm",
+      "version": "1.33.0",
+      "unpinned": null,
+      "digests": null,
+      "license": "MPL-2.0",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Lightning CSS's native binary for linux-x64-musl, one of the 11 per-platform optional packages of lightningcss 1.33.0; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Lightning CSS; transitive.",
+      "reason": "lightningcss 1.33.0 lists it as an optional dependency at 1.33.0. The lock resolves 1.33.0, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on linux x64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-20",
+        "latestEligible": "1.33.0",
+        "ageException": null,
+        "maintainer": "parcel-bundler (organization), repository parcel-bundler/lightningcss; npm maintainers devongovett",
+        "activity": "parcel-bundler/lightningcss was pushed 2026-10-30. Releases: 1.31.1 (2026-01-21), 1.32.0 (2026-03-09), 1.33.0 (2026-07-20).",
+        "advisories": "The GitHub Advisory Database lists no advisory for lightningcss-linux-x64-musl, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/lightningcss-linux-x64-musl",
+          "https://github.com/parcel-bundler/lightningcss",
+          "https://api.github.com/advisories?ecosystem=npm&affects=lightningcss-linux-x64-musl"
+        ]
+      },
+      "clearance": {
+        "community": "flagged",
+        "paid": "flagged",
+        "note": "MPL-2.0 is file-level weak copyleft. As an unmodified build and test tool that Modularyn does not redistribute it imposes no obligation, and the output it produces is not covered. Modifying its files, or shipping them in any distribution, requires a review and source availability for those files under MPL-2.0."
+      }
+    },
+    {
+      "id": "npm:lightningcss-win32-arm64-msvc",
+      "name": "lightningcss-win32-arm64-msvc",
+      "ecosystem": "npm",
+      "version": "1.33.0",
+      "unpinned": null,
+      "digests": null,
+      "license": "MPL-2.0",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Lightning CSS's native binary for win32-arm64-msvc, one of the 11 per-platform optional packages of lightningcss 1.33.0; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Lightning CSS; transitive.",
+      "reason": "lightningcss 1.33.0 lists it as an optional dependency at 1.33.0. The lock resolves 1.33.0, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on win32 arm64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-20",
+        "latestEligible": "1.33.0",
+        "ageException": null,
+        "maintainer": "parcel-bundler (organization), repository parcel-bundler/lightningcss; npm maintainers devongovett",
+        "activity": "parcel-bundler/lightningcss was pushed 2026-10-30. Releases: 1.31.1 (2026-01-21), 1.32.0 (2026-03-09), 1.33.0 (2026-07-20).",
+        "advisories": "The GitHub Advisory Database lists no advisory for lightningcss-win32-arm64-msvc, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/lightningcss-win32-arm64-msvc",
+          "https://github.com/parcel-bundler/lightningcss",
+          "https://api.github.com/advisories?ecosystem=npm&affects=lightningcss-win32-arm64-msvc"
+        ]
+      },
+      "clearance": {
+        "community": "flagged",
+        "paid": "flagged",
+        "note": "MPL-2.0 is file-level weak copyleft. As an unmodified build and test tool that Modularyn does not redistribute it imposes no obligation, and the output it produces is not covered. Modifying its files, or shipping them in any distribution, requires a review and source availability for those files under MPL-2.0."
+      }
+    },
+    {
+      "id": "npm:lightningcss-win32-x64-msvc",
+      "name": "lightningcss-win32-x64-msvc",
+      "ecosystem": "npm",
+      "version": "1.33.0",
+      "unpinned": null,
+      "digests": null,
+      "license": "MPL-2.0",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Lightning CSS's native binary for win32-x64-msvc, one of the 11 per-platform optional packages of lightningcss 1.33.0; npm installs only the one that matches the machine. It enters G-02's TypeScript client toolchain through Lightning CSS; transitive.",
+      "reason": "lightningcss 1.33.0 lists it as an optional dependency at 1.33.0. The lock resolves 1.33.0, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity; npm installs it only on win32 x64.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-07-20",
+        "latestEligible": "1.33.0",
+        "ageException": null,
+        "maintainer": "parcel-bundler (organization), repository parcel-bundler/lightningcss; npm maintainers devongovett",
+        "activity": "parcel-bundler/lightningcss was pushed 2026-10-30. Releases: 1.31.1 (2026-01-21), 1.32.0 (2026-03-09), 1.33.0 (2026-07-20).",
+        "advisories": "The GitHub Advisory Database lists no advisory for lightningcss-win32-x64-msvc, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/lightningcss-win32-x64-msvc",
+          "https://github.com/parcel-bundler/lightningcss",
+          "https://api.github.com/advisories?ecosystem=npm&affects=lightningcss-win32-x64-msvc"
+        ]
+      },
+      "clearance": {
+        "community": "flagged",
+        "paid": "flagged",
+        "note": "MPL-2.0 is file-level weak copyleft. As an unmodified build and test tool that Modularyn does not redistribute it imposes no obligation, and the output it produces is not covered. Modifying its files, or shipping them in any distribution, requires a review and source availability for those files under MPL-2.0."
+      }
+    },
+    {
+      "id": "npm:magic-string",
+      "name": "magic-string",
+      "ecosystem": "npm",
+      "version": "1.4.3",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Edits source text while keeping its source map, for Vitest's transforms. It enters G-02's TypeScript client toolchain through Vitest; transitive.",
+      "reason": "@vitest/mocker 5.0.4 requires ^1.4.3; vitest 5.0.4 requires ^1.4.3. The lock resolves 1.4.3, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-05",
+        "latestEligible": "1.4.3",
+        "ageException": null,
+        "maintainer": "Rich-Harris (GitHub user), repository Rich-Harris/magic-string; npm maintainers mourner, rich_harris, alangpierce",
+        "activity": "Rich-Harris/magic-string was pushed 2026-10-27. Releases: 1.4.3 (2026-10-05), 1.4.4 (2026-10-26), 1.4.5 (2026-10-27).",
+        "advisories": "The GitHub Advisory Database lists no advisory for magic-string, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/magic-string",
+          "https://github.com/Rich-Harris/magic-string",
+          "https://api.github.com/advisories?ecosystem=npm&affects=magic-string"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:nanoid",
+      "name": "nanoid",
+      "ecosystem": "npm",
+      "version": "3.3.20",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Generates unique identifiers, for PostCSS. It enters G-02's TypeScript client toolchain through Vite and PostCSS; transitive.",
+      "reason": "postcss 8.5.30 requires ^3.3.20. The lock resolves 3.3.20, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-05",
+        "latestEligible": "3.3.20",
+        "ageException": null,
+        "maintainer": "ai (GitHub user), repository ai/nanoid; npm maintainers ai",
+        "activity": "ai/nanoid was pushed 2026-10-16. Releases: 3.3.18 (2026-08-07), 3.3.19 (2026-09-10), 3.3.20 (2026-10-05). The newest release is 6.0.2 (2026-10-05).",
+        "advisories": "No advisory affects 3.3.20. The GitHub Advisory Database lists 5 for nanoid, none of which affects that version: GHSA-xwg4-73v4-xw9w, GHSA-28wg-ghj8-5hjv, GHSA-2v37-7h3g-55p8, GHSA-mwcw-c2x4-8c55, GHSA-qrpm-p2h7-hrv2. npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/nanoid",
+          "https://github.com/ai/nanoid",
+          "https://api.github.com/advisories?ecosystem=npm&affects=nanoid"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:obug",
+      "name": "obug",
+      "ecosystem": "npm",
+      "version": "3.0.0",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Debug logging utility used by Vitest. It enters G-02's TypeScript client toolchain through Vitest; transitive.",
+      "reason": "vitest 5.0.4 requires ^3.0.0. The lock resolves 3.0.0, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-09-09",
+        "latestEligible": "3.0.0",
+        "ageException": null,
+        "maintainer": "sxzz (GitHub user), repository sxzz/obug; npm maintainers sxzz",
+        "activity": "sxzz/obug was pushed 2026-09-18. Releases: 3.0.0 (2026-09-09).",
+        "advisories": "The GitHub Advisory Database lists no advisory for obug, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/obug",
+          "https://github.com/sxzz/obug",
+          "https://api.github.com/advisories?ecosystem=npm&affects=obug"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:picocolors",
+      "name": "picocolors",
+      "ecosystem": "npm",
+      "version": "1.1.1",
+      "unpinned": null,
+      "digests": null,
+      "license": "ISC",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Formats terminal output with colours, for PostCSS. It enters G-02's TypeScript client toolchain through Vite and PostCSS; transitive.",
+      "reason": "postcss 8.5.30 requires ^1.1.1. The lock resolves 1.1.1, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2024-10-16",
+        "latestEligible": "1.1.1",
+        "ageException": null,
+        "maintainer": "alexeyraspopov (GitHub user), repository alexeyraspopov/picocolors; npm maintainers alexeyraspopov",
+        "activity": "alexeyraspopov/picocolors was pushed 2024-11-18. Releases: 1.0.1 (2024-05-14), 1.1.0 (2024-09-02), 1.1.1 (2024-10-16). Neither a release nor a push in the last 12 months: a stable, final package that the maintained postcss requires, recorded as such.",
+        "advisories": "The GitHub Advisory Database lists no advisory for picocolors, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/picocolors",
+          "https://github.com/alexeyraspopov/picocolors",
+          "https://api.github.com/advisories?ecosystem=npm&affects=picocolors"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "ISC. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:picomatch",
+      "name": "picomatch",
+      "ecosystem": "npm",
+      "version": "4.0.7",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Glob matcher used by Vite, Vitest and tinyglobby. It enters G-02's TypeScript client toolchain through Vite; transitive.",
+      "reason": "fdir 6.5.0 accepts it as a peer at ^3 || ^4; tinyglobby 0.2.17 requires ^4.0.4; vite 8.3.4 requires ^4.0.7; vitest 5.0.4 requires ^4.0.7. The lock resolves 4.0.7, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-08-24",
+        "latestEligible": "4.0.7",
+        "ageException": null,
+        "maintainer": "micromatch (organization), repository micromatch/picomatch; npm maintainers mrmlnc, jonschlinkert, doowb",
+        "activity": "micromatch/picomatch was pushed 2026-10-08. Releases: 4.0.5 (2026-07-02), 4.0.6 (2026-08-24), 4.0.7 (2026-08-24).",
+        "advisories": "No advisory affects 4.0.7. The GitHub Advisory Database lists 2 for picomatch, none of which affects that version: GHSA-3v7f-55p6-f55p, GHSA-c2c7-rcm5-vvqj. npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/picomatch",
+          "https://github.com/micromatch/picomatch",
+          "https://api.github.com/advisories?ecosystem=npm&affects=picomatch"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:postcss",
+      "name": "postcss",
+      "ecosystem": "npm",
+      "version": "8.5.30",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "CSS transformer that Vite runs on stylesheets. It enters G-02's TypeScript client toolchain through Vite; transitive.",
+      "reason": "vite 8.3.4 requires ^8.5.29. The lock resolves 8.5.30, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-12",
+        "latestEligible": "8.5.30",
+        "ageException": null,
+        "maintainer": "postcss (organization), repository postcss/postcss; npm maintainers ai",
+        "activity": "postcss/postcss was pushed 2026-10-26. Releases: 8.5.30 (2026-10-12), 8.5.31 (2026-10-18), 8.5.32 (2026-10-26).",
+        "advisories": "No advisory affects 8.5.30. The GitHub Advisory Database lists 7 for postcss, none of which affects that version: GHSA-fxqj-rqcc-2cmp, GHSA-r28c-9q8g-f849, GHSA-6g55-p6wh-862q, GHSA-qx2v-qp2m-jg93, GHSA-7fh5-64p2-3v2j, GHSA-566m-qj78-rww5, GHSA-hwj9-h5mp-3pm3. npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/postcss",
+          "https://github.com/postcss/postcss",
+          "https://api.github.com/advisories?ecosystem=npm&affects=postcss"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:rolldown",
+      "name": "rolldown",
+      "ecosystem": "npm",
+      "version": "1.2.14",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "The bundler that Vite 8 uses to transform and bundle modules. It enters G-02's TypeScript client toolchain through Vite; transitive.",
+      "reason": "vite 8.3.4 requires ~1.2.12. The lock resolves 1.2.14, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-14",
+        "latestEligible": "1.2.14",
+        "ageException": null,
+        "maintainer": "rolldown (organization), repository rolldown/rolldown; npm maintainers broooooklyn, yyx990803, rolldownbot",
+        "activity": "rolldown/rolldown was pushed 2026-10-30. Releases: 1.2.14 (2026-10-14), 1.2.15 (2026-10-21), 1.2.16 (2026-10-29).",
+        "advisories": "The GitHub Advisory Database lists no advisory for rolldown, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/rolldown",
+          "https://github.com/rolldown/rolldown",
+          "https://api.github.com/advisories?ecosystem=npm&affects=rolldown"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:source-map-js",
+      "name": "source-map-js",
+      "ecosystem": "npm",
+      "version": "1.2.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "BSD-3-Clause",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Generates and consumes source maps, for PostCSS. It enters G-02's TypeScript client toolchain through Vite and PostCSS; transitive.",
+      "reason": "postcss 8.5.30 requires ^1.2.2. The lock resolves 1.2.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-09-30",
+        "latestEligible": "1.2.2",
+        "ageException": null,
+        "maintainer": "7rulnik (GitHub user), repository 7rulnik/source-map-js; npm maintainers 7rulnik",
+        "activity": "7rulnik/source-map-js was pushed 2026-09-30. Releases: 1.2.0 (2024-03-19), 1.2.1 (2024-09-08), 1.2.2 (2026-09-30).",
+        "advisories": "No advisory affects 1.2.2. The GitHub Advisory Database lists 1 for source-map-js, none of which affects that version: GHSA-68fv-2mgg-jv7q. npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/source-map-js",
+          "https://github.com/7rulnik/source-map-js",
+          "https://api.github.com/advisories?ecosystem=npm&affects=source-map-js"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "BSD-3-Clause. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:std-env",
+      "name": "std-env",
+      "ecosystem": "npm",
+      "version": "4.3.0",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Detects the runtime environment, such as CI, for Vitest. It enters G-02's TypeScript client toolchain through Vitest; transitive.",
+      "reason": "vitest 5.0.4 requires ^4.3.0. The lock resolves 4.3.0, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-09-29",
+        "latestEligible": "4.3.0",
+        "ageException": null,
+        "maintainer": "unjs (organization), repository unjs/std-env; npm maintainers pi0",
+        "activity": "unjs/std-env was pushed 2026-10-30. Releases: 4.1.0 (2026-04-15), 4.2.0 (2026-07-07), 4.3.0 (2026-09-29).",
+        "advisories": "The GitHub Advisory Database lists no advisory for std-env, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/std-env",
+          "https://github.com/unjs/std-env",
+          "https://api.github.com/advisories?ecosystem=npm&affects=std-env"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:tinybench",
+      "name": "tinybench",
+      "ecosystem": "npm",
+      "version": "6.2.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Benchmarking library behind Vitest's bench mode, which G-02 does not use. It enters G-02's TypeScript client toolchain through Vitest; transitive.",
+      "reason": "vitest 5.0.4 requires ^6.2.2. The lock resolves 6.2.2, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-10-10",
+        "latestEligible": "6.2.2",
+        "ageException": null,
+        "maintainer": "tinylibs (organization), repository tinylibs/tinybench; npm maintainers aslemammad, uzlopak, fraggle",
+        "activity": "tinylibs/tinybench was pushed 2026-10-30. Releases: 6.2.0 (2026-09-09), 6.2.1 (2026-10-06), 6.2.2 (2026-10-10).",
+        "advisories": "The GitHub Advisory Database lists no advisory for tinybench, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/tinybench",
+          "https://github.com/tinylibs/tinybench",
+          "https://api.github.com/advisories?ecosystem=npm&affects=tinybench"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:tinyexec",
+      "name": "tinyexec",
+      "ecosystem": "npm",
+      "version": "1.3.1",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Runs child processes for Vitest. It enters G-02's TypeScript client toolchain through Vitest; transitive.",
+      "reason": "vitest 5.0.4 requires ^1.3.1. The lock resolves 1.3.1, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-09-03",
+        "latestEligible": "1.3.1",
+        "ageException": null,
+        "maintainer": "tinylibs (organization), repository tinylibs/tinyexec; npm maintainers 43081j",
+        "activity": "tinylibs/tinyexec was pushed 2026-10-28. Releases: 1.2.4 (2026-05-31), 1.3.0 (2026-08-01), 1.3.1 (2026-09-03).",
+        "advisories": "The GitHub Advisory Database lists no advisory for tinyexec, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/tinyexec",
+          "https://github.com/tinylibs/tinyexec",
+          "https://api.github.com/advisories?ecosystem=npm&affects=tinyexec"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:tinyglobby",
+      "name": "tinyglobby",
+      "ecosystem": "npm",
+      "version": "0.2.17",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Glob file search that Vite and Vitest use to find files. It enters G-02's TypeScript client toolchain through Vite; transitive.",
+      "reason": "vite 8.3.4 requires ^0.2.17; vitest 5.0.4 requires ^0.2.17. The lock resolves 0.2.17, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2026-05-30",
+        "latestEligible": "0.2.17",
+        "ageException": null,
+        "maintainer": "SuperchupuDev (GitHub user), repository SuperchupuDev/tinyglobby; npm maintainers superchupu",
+        "activity": "SuperchupuDev/tinyglobby was pushed 2026-10-30. Releases: 0.2.15 (2025-09-06), 0.2.16 (2026-04-07), 0.2.17 (2026-05-30).",
+        "advisories": "The GitHub Advisory Database lists no advisory for tinyglobby, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/tinyglobby",
+          "https://github.com/SuperchupuDev/tinyglobby",
+          "https://api.github.com/advisories?ecosystem=npm&affects=tinyglobby"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:typescript",
+      "name": "typescript",
+      "ecosystem": "npm",
+      "version": "7.0.2",
+      "unpinned": null,
+      "digests": null,
+      "license": "Apache-2.0",
+      "status": "in-use",
+      "area": "build",
+      "purpose": "TypeScript compiler and type checker for G-02's generated TypeScript API client and later the Admin. Version 7 is the native compiler, delivered through optional per-platform packages.",
+      "reason": "G-02 builds a generated TypeScript client (AC-008), and D-06 requires TypeScript for the Admin. 7.0.2 is the newest stable release; its 20 per-platform packages are Apache-2.0, and none runs an install script. CODE-06 adopted it on 2026-10-30 as an exact devDependency of the TypeScript client, whose committed lock resolves it and the platform packages from the npm registry with SHA-512 integrity; no advisory affects 7.0.2.",
+      "maintenance": {
+        "reviewedAt": "2026-10-26",
+        "published": "2026-07-08",
+        "latestEligible": "7.0.2",
+        "ageException": null,
+        "maintainer": "Microsoft (microsoft/TypeScript)",
+        "activity": "microsoft/TypeScript was pushed 2026-10-26. Stable releases: 6.0.2 (2026-03-23), 6.0.3 (2026-04-16) and 7.0.2 (2026-07-08); 7.1.0 is in beta.",
+        "advisories": "The GitHub Advisory Database lists no advisory for typescript, and npm audit of the resolved G-02 toolchain closure reports none.",
+        "sources": [
+          "https://registry.npmjs.org/typescript",
+          "https://github.com/microsoft/TypeScript",
+          "https://api.github.com/advisories?ecosystem=npm&affects=typescript"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "Apache-2.0. A build tool whose output carries no TypeScript license; it is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:vite",
+      "name": "vite",
+      "ecosystem": "npm",
+      "version": "8.3.4",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Build tool and development server. Vitest runs G-02's TypeScript client tests on it, and the Admin will use it as its build tool.",
+      "reason": "Vitest 5 requires Vite as a peer dependency, so G-02's TypeScript client toolchain includes it, and T-015 names Vite for the Admin. 8.3.5 (2026-10-21) is under 14 days old and no advisory affects 8.3.4, so the rule selects 8.3.4. CODE-06 adopted it on 2026-10-30; the committed lock resolves its dependencies at the newest versions at least 14 days old, among them Rolldown 1.2.14, PostCSS 8.5.30 and Lightning CSS 1.33.0.",
+      "maintenance": {
+        "reviewedAt": "2026-10-26",
+        "published": "2026-10-08",
+        "latestEligible": "8.3.4",
+        "ageException": null,
+        "maintainer": "Vite team (vitejs organization); npm maintainers yyx990803 and vitebot",
+        "activity": "vitejs/vite was pushed 2026-10-26. 8.3.x releases: 8.3.0 (2026-09-10), 8.3.1 (2026-09-24), 8.3.2 (2026-10-01), 8.3.3 (2026-10-06), 8.3.4 (2026-10-08) and 8.3.5 (2026-10-21).",
+        "advisories": "No advisory affects 8.3.4. The development-server and launch-editor advisories of 2026-10-20 and 2026-10-21, including GHSA-587h-7wmj-h5pm (high), GHSA-rq7h-c2jc-7f22, GHSA-vfpm-58rq-9qcg and GHSA-9jrq-w75r-8gcw, affect 8.3.x through 8.3.2 and are fixed in 8.3.3.",
+        "sources": [
+          "https://registry.npmjs.org/vite",
+          "https://github.com/vitejs/vite",
+          "https://github.com/advisories/GHSA-587h-7wmj-h5pm",
+          "https://github.com/advisories/GHSA-rq7h-c2jc-7f22",
+          "https://github.com/advisories/GHSA-vfpm-58rq-9qcg",
+          "https://api.github.com/advisories?ecosystem=npm&affects=vite"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A build tool that is not redistributed; Lightning CSS in its closure is MPL-2.0 and has its own flagged entry."
+      }
+    },
+    {
+      "id": "npm:vitest",
+      "name": "vitest",
+      "ecosystem": "npm",
+      "version": "5.0.4",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Unit test runner for G-02's generated TypeScript API client, and later for the Admin. It runs on Vite, which it requires as a peer dependency.",
+      "reason": "T-058 and DEV-023 call for pinned frontend test tools, and AC-008 needs the TypeScript client's contract tests. 5.0.4 reached the 14-day age on the review date; 5.0.5 (2026-10-15) is younger and fixes no advisory, so the rule selects 5.0.4. Its Vite peer range, 6.4 through 8.x, admits the vite entry's 8.3.4. CODE-06 adopted 5.0.4 on 2026-10-30 with the committed lock. 5.0.5 reached the 14-day age on 2026-10-29 and names no security fix; the next review decides on it.",
+      "maintenance": {
+        "reviewedAt": "2026-10-26",
+        "published": "2026-10-12",
+        "latestEligible": "5.0.4",
+        "ageException": null,
+        "maintainer": "Vitest team (vitest-dev organization); npm maintainers include antfu and ariperkkio",
+        "activity": "vitest-dev/vitest was pushed 2026-10-26. 5.0.x releases: 5.0.0 (2026-09-03), 5.0.1 (2026-09-15), 5.0.2 (2026-09-25), 5.0.3 (2026-09-30), 5.0.4 (2026-10-12) and 5.0.5 (2026-10-15); 5.1.0 is in beta. The registry records a provenance attestation for 5.0.4.",
+        "advisories": "No advisory affects 5.0.4. GHSA-82fw-gwwq-j7x9 affects 2.1.0 through 4.1.10 and 5.0.0 prereleases before rc.2; GHSA-5xrq-8626-4rwp (critical) affects versions before 3.2.6 and 4.0.x before 4.1.0. 5.0.5 hardens the UI server's file access without an advisory; G-02 needs neither the UI nor the API server.",
+        "sources": [
+          "https://registry.npmjs.org/vitest",
+          "https://github.com/vitest-dev/vitest",
+          "https://github.com/vitest-dev/vitest/releases/tag/v5.0.4",
+          "https://github.com/advisories/GHSA-82fw-gwwq-j7x9",
+          "https://api.github.com/advisories?ecosystem=npm&affects=vitest"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. Test-only and not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
+      "id": "npm:why-is-node-running",
+      "name": "why-is-node-running",
+      "ecosystem": "npm",
+      "version": "3.2.1",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Reports what keeps a Node.js process alive, for Vitest's report of hanging processes. It enters G-02's TypeScript client toolchain through Vitest; transitive.",
+      "reason": "vitest 5.0.4 requires 3.2.1. The lock resolves 3.2.1, the newest version those ranges admit that was published at least 14 days before review, from the npm registry with its SHA-512 integrity.",
+      "maintenance": {
+        "reviewedAt": "2026-10-30",
+        "published": "2024-10-29",
+        "latestEligible": "3.2.1",
+        "ageException": null,
+        "maintainer": "mafintosh (GitHub user), repository mafintosh/why-is-node-running; npm maintainers mafintosh, yoshuawuyts, jkoops",
+        "activity": "mafintosh/why-is-node-running was pushed 2026-10-09. Releases: 3.2.1 (2024-10-29), 3.2.2 (2025-01-08), 3.2.3 (2026-10-09).",
+        "advisories": "The GitHub Advisory Database lists no advisory for why-is-node-running, and npm audit of the lock reports none.",
+        "sources": [
+          "https://registry.npmjs.org/why-is-node-running",
+          "https://github.com/mafintosh/why-is-node-running",
+          "https://api.github.com/advisories?ecosystem=npm&affects=why-is-node-running"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. A test tool that is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
+      }
+    },
+    {
       "id": "github-action:actions/checkout",
       "name": "actions/checkout",
       "ecosystem": "github-action",
@@ -2069,38 +4666,6 @@
       }
     },
     {
-      "id": "npm:lightningcss",
-      "name": "lightningcss",
-      "ecosystem": "npm",
-      "version": "1.33.0",
-      "unpinned": null,
-      "digests": null,
-      "license": "MPL-2.0",
-      "status": "candidate",
-      "area": "test",
-      "purpose": "CSS parser, transformer and minifier that Vite 8 depends on, with 11 per-platform native packages under the same license. It enters G-02's TypeScript client toolchain through Vitest and Vite, and the Admin's build runs it.",
-      "reason": "Vite 8.3.4 depends on it at 1.33.0 or a later 1.x. It is recorded as its own entry because MPL-2.0 is not on the allowlist; the resolved G-02 toolchain and Admin closures have no other license outside it.",
-      "maintenance": {
-        "reviewedAt": "2026-10-26",
-        "published": "2026-07-20",
-        "latestEligible": "1.33.0",
-        "ageException": null,
-        "maintainer": "Parcel (parcel-bundler organization); npm maintainer devongovett",
-        "activity": "parcel-bundler/lightningcss was pushed 2026-10-25. Releases: 1.31.0 (2026-01-20), 1.32.0 (2026-03-09) and 1.33.0 (2026-07-20).",
-        "advisories": "The GitHub Advisory Database lists no advisory for lightningcss.",
-        "sources": [
-          "https://registry.npmjs.org/lightningcss",
-          "https://github.com/parcel-bundler/lightningcss",
-          "https://api.github.com/advisories?ecosystem=npm&affects=lightningcss"
-        ]
-      },
-      "clearance": {
-        "community": "flagged",
-        "paid": "flagged",
-        "note": "MPL-2.0 is file-level weak copyleft. As an unmodified build and test tool that Modularyn does not redistribute it imposes no obligation, and the output it produces is not covered. Modifying its files, or shipping them in any distribution, requires a review and source availability for those files under MPL-2.0."
-      }
-    },
-    {
       "id": "npm:react",
       "name": "react",
       "ecosystem": "npm",
@@ -2197,107 +4762,6 @@
         "community": "cleared",
         "paid": "cleared",
         "note": "MIT. Its runtime closure, cookie-es and @remix-run/route-pattern, is MIT. It ships in the Admin bundle, so the Admin's THIRD-PARTY-NOTICES lists all three."
-      }
-    },
-    {
-      "id": "npm:typescript",
-      "name": "typescript",
-      "ecosystem": "npm",
-      "version": "7.0.2",
-      "unpinned": null,
-      "digests": null,
-      "license": "Apache-2.0",
-      "status": "candidate",
-      "area": "build",
-      "purpose": "TypeScript compiler and type checker for G-02's generated TypeScript API client and later the Admin. Version 7 is the native compiler, delivered through optional per-platform packages.",
-      "reason": "G-02 builds a generated TypeScript client (AC-008), and D-06 requires TypeScript for the Admin. 7.0.2 is the newest stable release; its 20 per-platform packages are Apache-2.0, and none runs an install script.",
-      "maintenance": {
-        "reviewedAt": "2026-10-26",
-        "published": "2026-07-08",
-        "latestEligible": "7.0.2",
-        "ageException": null,
-        "maintainer": "Microsoft (microsoft/TypeScript)",
-        "activity": "microsoft/TypeScript was pushed 2026-10-26. Stable releases: 6.0.2 (2026-03-23), 6.0.3 (2026-04-16) and 7.0.2 (2026-07-08); 7.1.0 is in beta.",
-        "advisories": "The GitHub Advisory Database lists no advisory for typescript, and npm audit of the resolved G-02 toolchain closure reports none.",
-        "sources": [
-          "https://registry.npmjs.org/typescript",
-          "https://github.com/microsoft/TypeScript",
-          "https://api.github.com/advisories?ecosystem=npm&affects=typescript"
-        ]
-      },
-      "clearance": {
-        "community": "cleared",
-        "paid": "cleared",
-        "note": "Apache-2.0. A build tool whose output carries no TypeScript license; it is not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
-      }
-    },
-    {
-      "id": "npm:vite",
-      "name": "vite",
-      "ecosystem": "npm",
-      "version": "8.3.4",
-      "unpinned": null,
-      "digests": null,
-      "license": "MIT",
-      "status": "candidate",
-      "area": "test",
-      "purpose": "Build tool and development server. Vitest runs G-02's TypeScript client tests on it, and the Admin will use it as its build tool.",
-      "reason": "Vitest 5 requires Vite as a peer dependency, so G-02's TypeScript client toolchain includes it, and T-015 names Vite for the Admin. 8.3.5 (2026-10-21) is under 14 days old and no advisory affects 8.3.4, so the rule selects 8.3.4. Its dependencies include Rolldown 1.2.15, PostCSS and Lightning CSS.",
-      "maintenance": {
-        "reviewedAt": "2026-10-26",
-        "published": "2026-10-08",
-        "latestEligible": "8.3.4",
-        "ageException": null,
-        "maintainer": "Vite team (vitejs organization); npm maintainers yyx990803 and vitebot",
-        "activity": "vitejs/vite was pushed 2026-10-26. 8.3.x releases: 8.3.0 (2026-09-10), 8.3.1 (2026-09-24), 8.3.2 (2026-10-01), 8.3.3 (2026-10-06), 8.3.4 (2026-10-08) and 8.3.5 (2026-10-21).",
-        "advisories": "No advisory affects 8.3.4. The development-server and launch-editor advisories of 2026-10-20 and 2026-10-21, including GHSA-587h-7wmj-h5pm (high), GHSA-rq7h-c2jc-7f22, GHSA-vfpm-58rq-9qcg and GHSA-9jrq-w75r-8gcw, affect 8.3.x through 8.3.2 and are fixed in 8.3.3.",
-        "sources": [
-          "https://registry.npmjs.org/vite",
-          "https://github.com/vitejs/vite",
-          "https://github.com/advisories/GHSA-587h-7wmj-h5pm",
-          "https://github.com/advisories/GHSA-rq7h-c2jc-7f22",
-          "https://github.com/advisories/GHSA-vfpm-58rq-9qcg",
-          "https://api.github.com/advisories?ecosystem=npm&affects=vite"
-        ]
-      },
-      "clearance": {
-        "community": "cleared",
-        "paid": "cleared",
-        "note": "MIT. A build tool that is not redistributed; Lightning CSS in its closure is MPL-2.0 and has its own flagged entry."
-      }
-    },
-    {
-      "id": "npm:vitest",
-      "name": "vitest",
-      "ecosystem": "npm",
-      "version": "5.0.4",
-      "unpinned": null,
-      "digests": null,
-      "license": "MIT",
-      "status": "candidate",
-      "area": "test",
-      "purpose": "Unit test runner for G-02's generated TypeScript API client, and later for the Admin. It runs on Vite, which it requires as a peer dependency.",
-      "reason": "T-058 and DEV-023 call for pinned frontend test tools, and AC-008 needs the TypeScript client's contract tests. 5.0.4 reached the 14-day age on the review date; 5.0.5 (2026-10-15) is younger and fixes no advisory, so the rule selects 5.0.4. Its Vite peer range, 6.4 through 8.x, admits the vite entry's 8.3.4.",
-      "maintenance": {
-        "reviewedAt": "2026-10-26",
-        "published": "2026-10-12",
-        "latestEligible": "5.0.4",
-        "ageException": null,
-        "maintainer": "Vitest team (vitest-dev organization); npm maintainers include antfu and ariperkkio",
-        "activity": "vitest-dev/vitest was pushed 2026-10-26. 5.0.x releases: 5.0.0 (2026-09-03), 5.0.1 (2026-09-15), 5.0.2 (2026-09-25), 5.0.3 (2026-09-30), 5.0.4 (2026-10-12) and 5.0.5 (2026-10-15); 5.1.0 is in beta. The registry records a provenance attestation for 5.0.4.",
-        "advisories": "No advisory affects 5.0.4. GHSA-82fw-gwwq-j7x9 affects 2.1.0 through 4.1.10 and 5.0.0 prereleases before rc.2; GHSA-5xrq-8626-4rwp (critical) affects versions before 3.2.6 and 4.0.x before 4.1.0. 5.0.5 hardens the UI server's file access without an advisory; G-02 needs neither the UI nor the API server.",
-        "sources": [
-          "https://registry.npmjs.org/vitest",
-          "https://github.com/vitest-dev/vitest",
-          "https://github.com/vitest-dev/vitest/releases/tag/v5.0.4",
-          "https://github.com/advisories/GHSA-82fw-gwwq-j7x9",
-          "https://api.github.com/advisories?ecosystem=npm&affects=vitest"
-        ]
-      },
-      "clearance": {
-        "community": "cleared",
-        "paid": "cleared",
-        "note": "MIT. Test-only and not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
       }
     }
   ]

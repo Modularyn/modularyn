@@ -21,6 +21,8 @@ internal static partial class ToolPinContract
     public const string LinuxPlatform = "linux/amd64";
     public static readonly string RealProviderFilter = $"--filter \"{PostgreSqlEnvironmentTests.RequiresTrait}={PostgreSqlEnvironmentTests.PostgreSql}\"";
     public static readonly string UnitFilter = $"--filter \"{PostgreSqlEnvironmentTests.RequiresTrait}!={PostgreSqlEnvironmentTests.PostgreSql}\"";
+    public const string ClientDirectory = "src/Framework/Modularyn.Framework.Sdk.Client/typescript";
+    public const string VitestSwitch = "MODULARYN_CLIENT_TEST_VITEST";
 
     // The steps that the real-provider job copies from build-test; their run blocks must stay identical.
     public static readonly string[] SharedLinuxSteps =
@@ -49,6 +51,12 @@ internal static partial class ToolPinContract
     private static readonly Regex GitSource = new("(?:git://|ssh://|[a-z0-9._-]+@[a-z0-9.-]+:)", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     private static readonly Regex AddChecksum = new(@"(?:^|\s)--checksum=(?<value>\S*)", RegexOptions.CultureInvariant);
     private static readonly Regex Continued = new(@"\\\s*$", RegexOptions.CultureInvariant);
+    // npm in a command position: at the start of a line, after a run key, a separator or an opening substitution, or after a
+    // shell keyword. npm in a message, such as "npm is not on PATH", is not a command.
+    private static readonly Regex NpmCommand = new(
+        @"(?:^|[;&|(`]\s*|\brun:[ \t]+|\b(?:then|do|else)\s+)npm(?:\.cmd)?\s+(?<arguments>[^;&|)`#]*)", RegexOptions.CultureInvariant);
+    private static readonly Regex NpmClean = new(@"^npm ci(?:\s|$)", RegexOptions.CultureInvariant);
+    private static readonly Regex EnvEntry = new(@"^          (?<name>[A-Za-z_][A-Za-z0-9_]*):\s*(?<value>.*?)\s*$", RegexOptions.CultureInvariant);
 
     // Dockerfiles as the container-build job finds them: by file name, in any letter case.
     public static bool IsDockerfile(string path)
@@ -517,7 +525,86 @@ internal static partial class ToolPinContract
         }
 
         errors.AddRange(DockerCommandErrors(files));
+        errors.AddRange(NpmCommandErrors(files));
     }
+
+    // npm runs a package's install scripts unless told not to, and npm install may rewrite the lock, so the workflows and CI
+    // scripts install packages only with npm ci --ignore-scripts and otherwise only run the manifest's own scripts. Like the
+    // docker rules, this reads tokens: it is a drift guard, and review is the control for a command assembled another way.
+    public static IEnumerable<string> NpmCommandErrors(IReadOnlyDictionary<string, string> files)
+    {
+        foreach (var (path, text) in files.Where(pair => InDockerScope(pair.Key)).OrderBy(pair => pair.Key, StringComparer.Ordinal))
+        {
+            var lines = text.Replace("\r\n", "\n").Split('\n');
+            for (var index = 0; index < lines.Length; index++)
+            {
+                var line = lines[index].Trim();
+                if (line.StartsWith('#'))
+                {
+                    continue;
+                }
+
+                foreach (Match command in NpmCommand.Matches(line))
+                {
+                    var words = command.Groups["arguments"].Value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+                    var subcommand = words.FirstOrDefault(word => !word.StartsWith('-'));
+                    if (subcommand is null or "run" or "run-script" || subcommand == "ci" && words.Contains("--ignore-scripts"))
+                    {
+                        continue;
+                    }
+
+                    yield return $"{path}:{index + 1}: npm may only install packages with npm ci --ignore-scripts, or run the manifest's own "
+                        + "scripts with npm run.";
+                }
+            }
+        }
+    }
+
+    // The lines of the named step after its name line, up to the next step.
+    private static IEnumerable<string> StepLines(string job, string stepName)
+    {
+        var lines = job.Split('\n');
+        var start = Array.IndexOf(lines, $"      - name: {stepName}");
+        return start < 0 ? [] : lines.Skip(start + 1).TakeWhile(line => !line.StartsWith("      - ", StringComparison.Ordinal));
+    }
+
+    // The value of a step's own "key: value" property, unquoted, or null.
+    public static string? StepValue(string job, string stepName, string key)
+    {
+        var prefix = $"        {key}:";
+        var line = StepLines(job, stepName).FirstOrDefault(line => line.StartsWith(prefix, StringComparison.Ordinal));
+        return line is null ? null : Unquote(line[prefix.Length..].Trim());
+    }
+
+    // The entries of a step's env mapping, unquoted.
+    public static Dictionary<string, string> StepEnv(string job, string stepName)
+    {
+        var entries = new Dictionary<string, string>(StringComparer.Ordinal);
+        var inEnv = false;
+        foreach (var line in StepLines(job, stepName))
+        {
+            if (line == "        env:")
+            {
+                inEnv = true;
+                continue;
+            }
+
+            var entry = EnvEntry.Match(line);
+            if (inEnv && entry.Success)
+            {
+                entries[entry.Groups["name"].Value] = Unquote(entry.Groups["value"].Value);
+            }
+            else if (!line.StartsWith("          ", StringComparison.Ordinal))
+            {
+                inEnv = false;
+            }
+        }
+
+        return entries;
+    }
+
+    private static string Unquote(string value) =>
+        value.Length >= 2 && value[0] is '"' or '\'' && value[^1] == value[0] ? value[1..^1] : Regex.Replace(value, @"\s+#.*$", "", RegexOptions.CultureInvariant);
 
     // The step names of a job, in order.
     public static List<string> StepNames(string job) =>
@@ -602,6 +689,24 @@ internal static partial class ToolPinContract
         {
             errors.Add($"{CiPath}: the {RealProviderJob} job's '{RealProviderTestStep}' step must come after its Build step and run "
                 + $"{RealProviderTestRun}.");
+        }
+
+        // The TypeScript client installs exactly its committed lock, with no install script, in its own directory and before the
+        // credentials exist, and the client tests also run its scenarios under Vitest.
+        var testIndex = steps.IndexOf(RealProviderTestStep);
+        var installed = steps.Take(Math.Max(testIndex, 0)).Any(step => StepValue(job, step, "working-directory") == ClientDirectory
+            && (Run(job, step) ?? "").Split('\n').Select(line => line.Trim()).Any(line => NpmClean.IsMatch(line)
+                && line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Contains("--ignore-scripts")));
+        if (!installed)
+        {
+            errors.Add($"{CiPath}: the {RealProviderJob} job must install the TypeScript client with npm ci --ignore-scripts in {ClientDirectory} "
+                + $"before its '{RealProviderTestStep}' step.");
+        }
+
+        if (!StepEnv(job, RealProviderTestStep).TryGetValue(VitestSwitch, out var vitest) || vitest != "1")
+        {
+            errors.Add($"{CiPath}: the {RealProviderJob} job's '{RealProviderTestStep}' step must set {VitestSwitch} to '1', so the client tests "
+                + "also run the TypeScript scenarios under Vitest.");
         }
 
         if (job.Split('\n').Count(line => line.Contains(DatabaseScriptPath, StringComparison.Ordinal)) != 1)

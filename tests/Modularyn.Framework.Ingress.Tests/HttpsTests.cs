@@ -10,7 +10,7 @@ public sealed class HttpsTests
     [Fact(DisplayName = "AC-031-P01 plain HTTP is redirected before any processing and serves no content or cookies")]
     public async Task AC_031_P01_Plain_HTTP_is_redirected_before_any_processing_and_serves_no_content_or_cookies()
     {
-        await using var server = await StartAsync(Settings());
+        await using var server = await StartAsync(IngressServer.Settings());
         foreach (var method in new[] { HttpMethod.Get, HttpMethod.Post, HttpMethod.Delete })
         {
             var response = await server.SendAsync(false, method, method == HttpMethod.Get ? "/?q=1" : "/change", request =>
@@ -25,7 +25,7 @@ public sealed class HttpsTests
         Assert.Equal(0, server.Handled);
         Assert.Equal(0, server.Changes);
 
-        await using var custom = await StartAsync(Settings(("HttpsPort", "8443")));
+        await using var custom = await StartAsync(IngressServer.Settings(("HttpsPort", "8443")));
         var redirected = await custom.SendAsync(false, HttpMethod.Get, "/echo");
         Assert.Equal("https://" + PublicHost + ":8443/echo", redirected.Headers.Location!.OriginalString);
     }
@@ -33,7 +33,7 @@ public sealed class HttpsTests
     [Fact(DisplayName = "AC-031-P01 every HTTPS response for a configured host carries the declared HSTS lifetime")]
     public async Task AC_031_P01_Every_HTTPS_response_for_a_configured_host_carries_the_declared_HSTS_lifetime()
     {
-        await using var server = await StartAsync(Settings(("Limits:MaxRequestBodyBytes", "16"), ("Limits:MaxFormValueBytes", "16")));
+        await using var server = await StartAsync(IngressServer.Settings(("Limits:MaxRequestBodyBytes", "16"), ("Limits:MaxFormValueBytes", "16")));
         var responses = new[]
         {
             await server.SendAsync(true, HttpMethod.Get, "/"),
@@ -53,7 +53,7 @@ public sealed class HttpsTests
         Assert.Equal(413, oversized.Status);
         Assert.Equal("max-age=31536000", oversized.Headers["Strict-Transport-Security"]);
 
-        await using var preload = await StartAsync(Settings(("HstsMaxAge", "730.00:00:00"), ("HstsIncludeSubDomains", "true"), ("HstsPreload", "true")));
+        await using var preload = await StartAsync(IngressServer.Settings(("HstsMaxAge", "730.00:00:00"), ("HstsIncludeSubDomains", "true"), ("HstsPreload", "true")));
         Assert.Equal("max-age=63072000; includeSubDomains; preload",
             Assert.Single((await preload.SendAsync(true, HttpMethod.Get, "/")).Headers.GetValues("Strict-Transport-Security")));
     }
@@ -64,7 +64,7 @@ public sealed class HttpsTests
     [InlineData(null, false)]
     public async Task AC_031_P01_A_forwarded_HTTPS_scheme_counts_only_from_the_declared_proxy(string? proxy, bool honored)
     {
-        await using var server = await StartAsync(proxy is null ? Settings() : Settings(("Proxies:0", proxy)));
+        await using var server = await StartAsync(proxy is null ? IngressServer.Settings() : IngressServer.Settings(("Proxies:0", proxy)));
         var response = await server.SendAsync(false, HttpMethod.Get, "/", request => request.Headers.Add("X-Forwarded-Proto", "https"));
         if (honored)
         {

@@ -1,11 +1,14 @@
 using System.Globalization;
-using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Modularyn.Framework.Api.Contracts;
+using Modularyn.Framework.Api;
+using Modularyn.Framework.Authorization;
 using Modularyn.Framework.Ingress;
 using Modularyn.Framework.Modularity.Abstractions;
 using Modularyn.Framework.Security.Abstractions;
@@ -42,11 +45,11 @@ public static class IdentityEndpoints
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         var group = endpoints.MapGroup("");
-        group.MapPost(SignInPath, SignInAsync).AllowAnonymous();
-        group.MapPost(SignOutPath, SignOutAsync).AllowAnonymous();
-        group.MapGet(AntiforgeryPath, IssueAntiforgery).AllowAnonymous();
-        // The handler itself requires a principal; endpoint authorization policies belong to authorization.
-        group.MapGet(CurrentUserPath, CurrentUser);
+        group.MapPost(SignInPath, SignInAsync).AllowAnonymous().WithApiContract(FrameworkApi.Endpoint("SignIn"));
+        group.MapPost(SignOutPath, SignOutAsync).AllowAnonymous().WithApiContract(FrameworkApi.Endpoint("SignOut"));
+        group.MapGet(AntiforgeryPath, IssueAntiforgery).AllowAnonymous().WithApiContract(FrameworkApi.Endpoint("GetAntiforgery"));
+        // The view describes the caller's own principal, so it needs an authenticated principal and no tenant or permission.
+        group.MapGet(CurrentUserPath, CurrentUser).RequireAuthenticatedPrincipal().WithApiContract(FrameworkApi.Endpoint("GetCurrentUser"));
         group.AddEndpointFilter(async (context, next) =>
         {
             context.HttpContext.Response.Headers.CacheControl = "no-store";
