@@ -173,9 +173,13 @@
           "xunit.v3.runner.common": "[4.0.2]"
         }
       },
+      "modularyn.framework.api.contracts": {
+        "type": "Project"
+      },
       "modularyn.framework.authorization": {
         "type": "Project",
         "dependencies": {
+          "Modularyn.Framework.Api.Contracts": "[1.0.0, )",
           "Modularyn.Framework.Authorization.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Configuration": "[1.0.0, )",
           "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
