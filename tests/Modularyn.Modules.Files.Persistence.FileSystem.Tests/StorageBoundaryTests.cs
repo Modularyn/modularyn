@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Modularyn.Framework.Persistence.Abstractions;
@@ -27,30 +28,38 @@ public sealed class StorageBoundaryTests
         var marker = Path.Combine(outside, "untouched");
         var content = FileDatabase.Bytes(123);
         await File.WriteAllBytesAsync(marker, content, Cancellation);
-        var names = new[] { "../../untouched", "..\\..\\untouched", marker, "name:stream", "CON", "a/b\\c" };
+        // Names that could act as paths, streams or devices are refused before anything is reserved or written.
+        foreach (var name in new[] { "../../untouched", "..\\..\\untouched", marker, "name:stream", "CON", "a/b\\c" })
+            Assert.Equal(FileStorageError.InvalidName, (await Assert.ThrowsAsync<FileStorageException>(() => database.Service().UploadAsync(tenantA.Context,
+                tenantA.Principal, FileDatabase.Request(content, name: name), new MemoryStream(content), Cancellation))).Code);
+        Assert.Equal(0, await database.CountAsync("Files", database.TenantA));
+        Assert.Equal(0, await database.CountAsync("FileUploads", database.TenantA));
+        // Accepted names, and an owner reference shaped like a path, stay metadata and never reach a storage location.
+        var names = new[] { "..untouched", "untouched..txt", "re\u0301sume\u0301 (final).pdf", "#1 notes.txt" };
         foreach (var name in names)
         {
             var service = database.Service();
-            var request = FileDatabase.Request(content, name: name) with { Container = name, Owner = name };
-            var version = await service.UploadAsync(tenantA.Context, request, new MemoryStream(content), Cancellation);
+            var request = FileDatabase.Request(content, name: name) with { Owner = "../../untouched" };
+            var version = await service.UploadAsync(tenantA.Context, tenantA.Principal, request, new MemoryStream(content), Cancellation);
             await using (var unit = await database.Metadata.BeginAsync(tenantA.Context, Cancellation))
             {
                 var file = await unit.FindFileAsync(version.FileId, Cancellation);
                 Assert.NotNull(file);
-                Assert.Equal(name, file.Name);
-                Assert.Equal(name, file.Container);
-                Assert.Equal(name, file.Owner);
+                Assert.Equal(name.Normalize(NormalizationForm.FormC), file.Name);
+                Assert.Equal("documents", file.Container);
+                Assert.Equal("../../untouched", file.Owner);
             }
-            Assert.Empty(await service.ListAsync(tenantB.Context, version.FileId, Cancellation));
-            Assert.Empty(await service.ListDeletedAsync(tenantB.Context, version.FileId, Cancellation));
-            Assert.Equal(FileStorageError.NotFound, (await Assert.ThrowsAsync<FileStorageException>(() =>
-                service.ReadAsync(tenantB.Context, version.FileId, version.VersionId, cancellationToken: Cancellation))).Code);
-            Assert.Equal(FileStorageError.NotFound, (await Assert.ThrowsAsync<FileStorageException>(() =>
-                service.DeleteAsync(tenantB.Context, version.FileId, version.VersionId, version.ConcurrencyVersion, Cancellation))).Code);
-            Assert.Equal(FileStorageError.NotFound, (await Assert.ThrowsAsync<FileStorageException>(() =>
-                service.RestoreAsync(tenantB.Context, version.FileId, version.VersionId, version.ConcurrencyVersion, Cancellation))).Code);
-            Assert.Equal(FileStorageError.NotFound, (await Assert.ThrowsAsync<FileStorageException>(() =>
-                service.UploadAsync(tenantB.Context, request with { FileId = version.FileId }, new MemoryStream(content), Cancellation))).Code);
+            foreach (var refused in new Func<Task>[]
+            {
+                () => service.ListAsync(tenantB.Context, tenantB.Principal, version.FileId, Cancellation),
+                () => service.ListDeletedAsync(tenantB.Context, tenantB.Principal, version.FileId, Cancellation),
+                () => service.ReadAsync(tenantB.Context, tenantB.Principal, version.FileId, version.VersionId, cancellationToken: Cancellation),
+                () => service.DeleteAsync(tenantB.Context, tenantB.Principal, version.FileId, version.VersionId, version.ConcurrencyVersion, Cancellation),
+                () => service.RestoreAsync(tenantB.Context, tenantB.Principal, version.FileId, version.VersionId, version.ConcurrencyVersion, Cancellation),
+                () => service.ReleaseAsync(tenantB.Context, tenantB.Principal, version.FileId, version.VersionId, Cancellation),
+                () => service.UploadAsync(tenantB.Context, tenantB.Principal, request with { FileId = version.FileId }, new MemoryStream(content), Cancellation)
+            })
+                Assert.Equal(FileStorageError.NotFound, (await Assert.ThrowsAsync<FileStorageException>(refused)).Code);
             Assert.True(File.Exists(database.Blob(database.TenantA, version.VersionId)));
         }
         Assert.Equal(content, await File.ReadAllBytesAsync(marker, Cancellation));
@@ -75,7 +84,8 @@ public sealed class StorageBoundaryTests
             await new FileSystemBlobStore(database.Root, 1024).OpenAsync(tenant.Context, Cancellation))).Code);
         Directory.Delete(tenantPath);
         var content = FileDatabase.Bytes(16);
-        var version = await database.Service().UploadAsync(tenant.Context, FileDatabase.Request(content), new MemoryStream(content), Cancellation);
+        var version = await FileDatabase.ReleasedAsync(database.Service(), tenant, await database.Service().UploadAsync(tenant.Context, tenant.Principal,
+            FileDatabase.Request(content), new MemoryStream(content), Cancellation));
         var location = database.Blob(database.TenantA, version.VersionId);
         var external = Path.Combine(outside, "original");
         File.Move(location, external);
@@ -83,7 +93,7 @@ public sealed class StorageBoundaryTests
         {
             File.CreateSymbolicLink(location, target);
             Assert.Equal(FileStorageError.UnsafeLocation, (await Assert.ThrowsAsync<FileStorageException>(() =>
-                database.Service().ReadAsync(tenant.Context, version.FileId, version.VersionId, cancellationToken: Cancellation))).Code);
+                database.Service().ReadAsync(tenant.Context, tenant.Principal, version.FileId, version.VersionId, cancellationToken: Cancellation))).Code);
             File.Delete(location);
         }
         Assert.Equal(content, await File.ReadAllBytesAsync(external, Cancellation));
@@ -101,7 +111,7 @@ public sealed class StorageBoundaryTests
         var content = FileDatabase.Bytes(32);
         await File.WriteAllBytesAsync(marker, content, Cancellation);
         var stop = new StopAt(FileStorageStage.IntentCommitted);
-        await Assert.ThrowsAsync<StorageInterruption>(() => database.Service(stop).UploadAsync(tenant.Context,
+        await Assert.ThrowsAsync<StorageInterruption>(() => database.Service(stop).UploadAsync(tenant.Context, tenant.Principal,
             FileDatabase.Request(content), new MemoryStream(content), Cancellation));
         var staging = Path.ChangeExtension(database.Blob(database.TenantA, stop.VersionId), ".pending");
         File.CreateSymbolicLink(staging, marker);
@@ -129,29 +139,36 @@ public sealed class StorageBoundaryTests
         {
             var request = FileDatabase.Request(bytes) with { Length = length };
             Assert.Equal(FileStorageError.IntegrityMismatch, (await Assert.ThrowsAsync<FileStorageException>(() =>
-                database.Service().UploadAsync(tenant.Context, request, new MemoryStream(bytes), Cancellation))).Code);
+                database.Service().UploadAsync(tenant.Context, tenant.Principal, request, new MemoryStream(bytes), Cancellation))).Code);
             Assert.Equal(1, await database.Service().RecoverAsync(tenant.Context, Cancellation));
         }
+        // A declaration above the store's limit is refused before any intent exists, so recovery has nothing to do.
         Assert.Equal(FileStorageError.InvalidLength, (await Assert.ThrowsAsync<FileStorageException>(() =>
-            database.Service(maximumLength: 63).UploadAsync(tenant.Context, FileDatabase.Request(bytes), new MemoryStream(bytes), Cancellation))).Code);
-        Assert.Equal(1, await database.Service().RecoverAsync(tenant.Context, Cancellation));
+            database.Service(maximumLength: 63).UploadAsync(tenant.Context, tenant.Principal, FileDatabase.Request(bytes), new MemoryStream(bytes),
+                Cancellation))).Code);
+        Assert.Equal(0, await database.CountAsync("FileUploads", database.TenantA));
+        Assert.Equal(0, await database.Service().RecoverAsync(tenant.Context, Cancellation));
         using (var cancelled = CancellationTokenSource.CreateLinkedTokenSource(Cancellation))
         {
             cancelled.Cancel();
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => database.Service().UploadAsync(tenant.Context,
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => database.Service().UploadAsync(tenant.Context, tenant.Principal,
                 FileDatabase.Request(bytes), new MemoryStream(bytes), cancelled.Token));
             Assert.Equal(0, await database.CountAsync("FileUploads", database.TenantA));
         }
+        // Cancelled after the bytes read for type detection, while the staged content is being written.
+        var large = FileDatabase.Bytes(4096);
         using (var cancelled = CancellationTokenSource.CreateLinkedTokenSource(Cancellation))
         {
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => database.Service().UploadAsync(tenant.Context,
-                FileDatabase.Request(bytes), new CancellingStream(bytes, cancelled), cancelled.Token));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => database.Service().UploadAsync(tenant.Context, tenant.Principal,
+                FileDatabase.Request(large), new CancellingStream(large, 2048, cancelled), cancelled.Token));
             Assert.Equal(1, await database.Service().RecoverAsync(tenant.Context, Cancellation));
         }
         Assert.Equal(0, await database.CountAsync("FileRevisions", database.TenantA));
         Assert.Empty(database.Objects(database.TenantA));
-        var complete = await database.Service(maximumLength: 64).UploadAsync(tenant.Context, FileDatabase.Request(bytes), new MemoryStream(bytes), Cancellation);
-        Assert.Equal(bytes, await FileDatabase.ReadAllAsync(await database.Service().ReadAsync(tenant.Context, complete.FileId, complete.VersionId, cancellationToken: Cancellation)));
+        var complete = await FileDatabase.ReleasedAsync(database.Service(), tenant, await database.Service(maximumLength: 64).UploadAsync(tenant.Context,
+            tenant.Principal, FileDatabase.Request(bytes), new MemoryStream(bytes), Cancellation));
+        Assert.Equal(bytes, await FileDatabase.ReadAllAsync(await database.Service().ReadAsync(tenant.Context, tenant.Principal, complete.FileId,
+            complete.VersionId, cancellationToken: Cancellation)));
     }
 
     [Fact]
@@ -161,14 +178,15 @@ public sealed class StorageBoundaryTests
         await using var tenant = await database.EnterAsync(database.TenantA);
         var bytes = FileDatabase.Bytes(512);
         var service = database.Service();
-        var version = await service.UploadAsync(tenant.Context, FileDatabase.Request(bytes), new MemoryStream(bytes), Cancellation);
-        var snapshot = await service.ReadAsync(tenant.Context, version.FileId, version.VersionId, cancellationToken: Cancellation);
+        var version = await FileDatabase.ReleasedAsync(service, tenant,
+            await service.UploadAsync(tenant.Context, tenant.Principal, FileDatabase.Request(bytes), new MemoryStream(bytes), Cancellation));
+        var snapshot = await service.ReadAsync(tenant.Context, tenant.Principal, version.FileId, version.VersionId, cancellationToken: Cancellation);
         var damaged = FileDatabase.Bytes(512, 2);
         await File.WriteAllBytesAsync(database.Blob(database.TenantA, version.VersionId), damaged, Cancellation);
         Assert.Equal(bytes, await FileDatabase.ReadAllAsync(snapshot));
-        var deleted = await service.DeleteAsync(tenant.Context, version.FileId, version.VersionId, version.ConcurrencyVersion, Cancellation);
+        var deleted = await service.DeleteAsync(tenant.Context, tenant.Principal, version.FileId, version.VersionId, version.ConcurrencyVersion, Cancellation);
         Assert.Equal(FileStorageError.IntegrityMismatch, (await Assert.ThrowsAsync<FileStorageException>(() =>
-            service.RestoreAsync(tenant.Context, version.FileId, version.VersionId, deleted.ConcurrencyVersion, Cancellation))).Code);
+            service.RestoreAsync(tenant.Context, tenant.Principal, version.FileId, version.VersionId, deleted.ConcurrencyVersion, Cancellation))).Code);
         await using (var unit = await database.Metadata.BeginAsync(tenant.Context, Cancellation))
         {
             var row = await unit.FindRevisionAsync(version.FileId, version.VersionId, true, Cancellation);
@@ -178,11 +196,11 @@ public sealed class StorageBoundaryTests
         }
         await File.WriteAllBytesAsync(database.Blob(database.TenantA, version.VersionId), bytes[..^1], Cancellation);
         Assert.Equal(FileStorageError.IntegrityMismatch, (await Assert.ThrowsAsync<FileStorageException>(() =>
-            service.RestoreAsync(tenant.Context, version.FileId, version.VersionId, deleted.ConcurrencyVersion, Cancellation))).Code);
+            service.RestoreAsync(tenant.Context, tenant.Principal, version.FileId, version.VersionId, deleted.ConcurrencyVersion, Cancellation))).Code);
         await File.WriteAllBytesAsync(database.Blob(database.TenantA, version.VersionId), bytes, Cancellation);
-        var restored = await service.RestoreAsync(tenant.Context, version.FileId, version.VersionId, deleted.ConcurrencyVersion, Cancellation);
+        var restored = await service.RestoreAsync(tenant.Context, tenant.Principal, version.FileId, version.VersionId, deleted.ConcurrencyVersion, Cancellation);
         Assert.Equal(FileStorageError.Conflict, (await Assert.ThrowsAsync<FileStorageException>(() =>
-            service.DeleteAsync(tenant.Context, version.FileId, version.VersionId, version.ConcurrencyVersion, Cancellation))).Code);
+            service.DeleteAsync(tenant.Context, tenant.Principal, version.FileId, version.VersionId, version.ConcurrencyVersion, Cancellation))).Code);
         Assert.False(restored.IsDeleted);
     }
 
@@ -192,27 +210,31 @@ public sealed class StorageBoundaryTests
         await using var database = await FileDatabase.CreateAsync();
         await using var tenant = await database.EnterAsync(database.TenantA);
         var bytes = FileDatabase.Bytes(20);
-        var version = await database.Service().UploadAsync(tenant.Context, FileDatabase.Request(bytes), new MemoryStream(bytes), Cancellation);
+        var version = await database.Service().UploadAsync(tenant.Context, tenant.Principal, FileDatabase.Request(bytes), new MemoryStream(bytes), Cancellation);
         var stop = new StopAt(FileStorageStage.MetadataCommitted);
-        await Assert.ThrowsAsync<StorageInterruption>(() => database.Service(stop).UploadAsync(tenant.Context,
+        await Assert.ThrowsAsync<StorageInterruption>(() => database.Service(stop).UploadAsync(tenant.Context, tenant.Principal,
             FileDatabase.Request(bytes, version.FileId), new MemoryStream(bytes), Cancellation));
         Assert.Equal(0, await database.Service().RecoverAsync(tenant.Context, Cancellation));
-        var committed = Assert.Single(await database.Service().ListAsync(tenant.Context, version.FileId, Cancellation), row => row.VersionId == stop.VersionId);
-        var deleted = await database.Service().DeleteAsync(tenant.Context, version.FileId, committed.VersionId, committed.ConcurrencyVersion, Cancellation);
+        var committed = Assert.Single(await database.Service().ListAsync(tenant.Context, tenant.Principal, version.FileId, Cancellation),
+            row => row.VersionId == stop.VersionId);
+        var deleted = await database.Service().DeleteAsync(tenant.Context, tenant.Principal, version.FileId, committed.VersionId, committed.ConcurrencyVersion,
+            Cancellation);
         // A retained intent must not make reconciliation discard a referenced, soft-deleted version.
         await using (var unit = await database.Metadata.BeginAsync(tenant.Context, Cancellation))
         {
             var otherFileId = Guid.NewGuid();
             unit.Add(new FileAsset { TenantId = database.TenantA, Id = otherFileId, Name = "other.bin", Container = "documents",
-                Owner = "file-owner", CreatedAt = committed.CreatedAt });
+                Owner = "file-owner", CreatedBy = "file-owner", CreatedAt = committed.CreatedAt });
             unit.Add(new FileUpload { TenantId = database.TenantA, Id = committed.VersionId, FileId = otherFileId,
-                Length = committed.Length, Sha256 = committed.Sha256, CreatedAt = committed.CreatedAt,
-                PropagatedContext = PropagatedTenantContext.Capture(tenant.Context).ToJson() });
+                Length = committed.Length, Sha256 = committed.Sha256, ContentType = committed.ContentType, CreatedAt = committed.CreatedAt,
+                PropagatedContext = PropagatedTenantContext.Capture(tenant.Context, database.Clock).ToJson() });
             await unit.CommitAsync(Cancellation);
         }
         Assert.Equal(1, await database.Service().RecoverAsync(tenant.Context, Cancellation));
-        var restored = await database.Service().RestoreAsync(tenant.Context, version.FileId, committed.VersionId, deleted.ConcurrencyVersion, Cancellation);
-        Assert.Equal(bytes, await FileDatabase.ReadAllAsync(await database.Service().ReadAsync(tenant.Context,
+        var restored = await database.Service().RestoreAsync(tenant.Context, tenant.Principal, version.FileId, committed.VersionId, deleted.ConcurrencyVersion,
+            Cancellation);
+        restored = await FileDatabase.ReleasedAsync(database.Service(), tenant, restored);
+        Assert.Equal(bytes, await FileDatabase.ReadAllAsync(await database.Service().ReadAsync(tenant.Context, tenant.Principal,
             restored.FileId, restored.VersionId, cancellationToken: Cancellation)));
         Assert.Equal(2, database.Objects(database.TenantA).Length);
     }
@@ -242,10 +264,11 @@ public sealed class StorageBoundaryTests
         await using var tenant = await database.EnterAsync(database.TenantA);
         var bytes = FileDatabase.Bytes(300000, 7);
         using var input = new NonseekableInput(bytes);
-        var version = await database.Service().UploadAsync(tenant.Context, FileDatabase.Request(bytes), input, Cancellation);
+        var version = await FileDatabase.ReleasedAsync(database.Service(), tenant,
+            await database.Service().UploadAsync(tenant.Context, tenant.Principal, FileDatabase.Request(bytes), input, Cancellation));
         Assert.True(input.CanRead);
         Assert.True(input.Reads > 1);
-        Assert.Equal(bytes, await FileDatabase.ReadAllAsync(await database.Service().ReadAsync(tenant.Context,
+        Assert.Equal(bytes, await FileDatabase.ReadAllAsync(await database.Service().ReadAsync(tenant.Context, tenant.Principal,
             version.FileId, version.VersionId, cancellationToken: Cancellation)));
         await using var session = await new FileSystemBlobStore(database.Root, 1024 * 1024).OpenAsync(tenant.Context, Cancellation);
         var replacement = FileDatabase.Bytes(12, 9);
@@ -261,13 +284,18 @@ public sealed class StorageBoundaryTests
         await using var database = await FileDatabase.CreateAsync();
         await using var tenant = await database.EnterAsync(database.TenantA);
         var bytes = FileDatabase.Bytes(30);
-        var version = await database.Service().UploadAsync(tenant.Context, FileDatabase.Request(bytes), new MemoryStream(bytes), Cancellation);
-        var read = await database.Service().ReadAsync(tenant.Context, version.FileId, version.VersionId, cancellationToken: Cancellation);
-        var orphan = Path.ChangeExtension(database.Blob(database.TenantA, Guid.NewGuid()), ".read");
-        await File.WriteAllBytesAsync(orphan, bytes, Cancellation);
+        var version = await FileDatabase.ReleasedAsync(database.Service(), tenant,
+            await database.Service().UploadAsync(tenant.Context, tenant.Principal, FileDatabase.Request(bytes), new MemoryStream(bytes), Cancellation));
+        var read = await database.Service().ReadAsync(tenant.Context, tenant.Principal, version.FileId, version.VersionId, cancellationToken: Cancellation);
+        // Every other slot is left with bytes and no holder, as a reader that ended without disposing its stream leaves it.
+        var held = Enumerable.Range(0, FileSystemBlobStore.DefaultReadSlots).Single(slot => FileDatabase.IsHeld(database.ReadSlot(database.TenantA, slot)));
+        foreach (var slot in Enumerable.Range(0, FileSystemBlobStore.DefaultReadSlots).Where(slot => slot != held))
+            await File.WriteAllBytesAsync(database.ReadSlot(database.TenantA, slot), bytes, Cancellation);
         Assert.Equal(0, await database.Service().RecoverAsync(tenant.Context, Cancellation));
-        Assert.False(File.Exists(orphan));
+        Assert.Equal(bytes.Length, new FileInfo(database.ReadSlot(database.TenantA, held)).Length);
+        Assert.Equal(FileSystemBlobStore.DefaultReadSlots - 1, database.ReadSlotLengths(database.TenantA).Count(length => length == 0));
         Assert.Equal(bytes, await FileDatabase.ReadAllAsync(read));
+        Assert.All(database.ReadSlotLengths(database.TenantA), length => Assert.Equal(0, length));
         Assert.Single(database.Objects(database.TenantA));
     }
 
@@ -277,13 +305,15 @@ public sealed class StorageBoundaryTests
         await using var database = await FileDatabase.CreateAsync();
         await using var tenant = await database.EnterAsync(database.TenantA);
         var bytes = FileDatabase.Bytes(5);
-        var version = await database.Service().UploadAsync(tenant.Context, FileDatabase.Request(bytes), new MemoryStream(bytes), Cancellation);
-        await using var read = await database.Service().ReadAsync(tenant.Context, version.FileId, version.VersionId, cancellationToken: Cancellation);
+        var version = await FileDatabase.ReleasedAsync(database.Service(), tenant,
+            await database.Service().UploadAsync(tenant.Context, tenant.Principal, FileDatabase.Request(bytes), new MemoryStream(bytes), Cancellation));
+        await using var read = await database.Service().ReadAsync(tenant.Context, tenant.Principal, version.FileId, version.VersionId,
+            cancellationToken: Cancellation);
         await tenant.DisposeAsync();
         Assert.Equal(FileStorageError.InvalidScope, (await Assert.ThrowsAsync<FileStorageException>(async () =>
             await read.Content.ReadExactlyAsync(new byte[1], Cancellation))).Code);
         Assert.Equal(FileStorageError.InvalidScope, (await Assert.ThrowsAsync<FileStorageException>(() =>
-            database.Service().ListAsync(tenant.Context, version.FileId, Cancellation))).Code);
+            database.Service().ListAsync(tenant.Context, tenant.Principal, version.FileId, Cancellation))).Code);
         Assert.Equal(FileStorageError.InvalidScope, (await Assert.ThrowsAsync<FileStorageException>(async () =>
             await new FileSystemBlobStore(database.Root, 1024).OpenAsync(tenant.Context, Cancellation))).Code);
     }
@@ -296,7 +326,7 @@ public sealed class StorageBoundaryTests
         var tenant = await database.EnterAsync(database.TenantA);
         var bytes = FileDatabase.Bytes(20);
         var stop = new StopAt(FileStorageStage.ContentFlushed);
-        await Assert.ThrowsAsync<StorageInterruption>(() => database.Service(stop).UploadAsync(tenant.Context,
+        await Assert.ThrowsAsync<StorageInterruption>(() => database.Service(stop).UploadAsync(tenant.Context, tenant.Principal,
             FileDatabase.Request(bytes), new MemoryStream(bytes), Cancellation));
         PropagatedTenantContext propagated;
         await using (var unit = await database.Metadata.BeginAsync(tenant.Context, Cancellation))
@@ -310,7 +340,7 @@ public sealed class StorageBoundaryTests
         Assert.Equal(TenantWorkDisposition.Completed, recovered.Disposition);
         Assert.False(recovered.Context!.IsActive);
         await using (var next = await database.EnterAsync(database.TenantA))
-            await Assert.ThrowsAsync<StorageInterruption>(() => database.Service(stop).UploadAsync(next.Context,
+            await Assert.ThrowsAsync<StorageInterruption>(() => database.Service(stop).UploadAsync(next.Context, next.Principal,
                 FileDatabase.Request(bytes), new MemoryStream(bytes), Cancellation));
         await database.ExecuteAsync("DELETE FROM " + FileDatabase.Quote(database.IdentitySchema) + ".\"Members\" WHERE \"TenantId\" = @tenant",
             new NpgsqlParameter("tenant", database.TenantA));
@@ -327,7 +357,7 @@ public sealed class StorageBoundaryTests
         await using var database = await FileDatabase.CreateAsync();
         await using var tenant = await database.EnterAsync(database.TenantA);
         var bytes = FileDatabase.Bytes(8);
-        var version = await database.Service().UploadAsync(tenant.Context, FileDatabase.Request(bytes), new MemoryStream(bytes), Cancellation);
+        var version = await database.Service().UploadAsync(tenant.Context, tenant.Principal, FileDatabase.Request(bytes), new MemoryStream(bytes), Cancellation);
         await using (var work = await EfCoreUnitOfWork.BeginAsync(database.FilesModule, tenant.Context, cancellationToken: Cancellation))
         {
             var context = (FilesContext)work.Context;
@@ -355,12 +385,13 @@ public sealed class StorageBoundaryTests
     }
 }
 
-internal sealed class CancellingStream(byte[] bytes, CancellationTokenSource cancellation) : MemoryStream(bytes)
+/// <summary>Delivers bytes eight at a time and cancels its token once <paramref name="after"/> bytes have been read.</summary>
+internal sealed class CancellingStream(byte[] bytes, int after, CancellationTokenSource cancellation) : MemoryStream(bytes)
 {
     public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
         var read = await base.ReadAsync(buffer[..Math.Min(8, buffer.Length)], cancellationToken);
-        cancellation.Cancel();
+        if (Position >= after) cancellation.Cancel();
         return read;
     }
 }
