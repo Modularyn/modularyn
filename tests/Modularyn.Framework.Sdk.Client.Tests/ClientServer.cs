@@ -143,9 +143,9 @@ internal sealed class ClientServer : IAsyncDisposable
         var fixture = new ClientServer(app, certificate, directory, origin, database, events);
         try
         {
+            // Routing is left to WebApplication, which places it first, so the ingress sees each endpoint's antiforgery declaration.
             app.UseModularynApi();
             app.UseModularynIngress();
-            app.UseRouting();
             app.UseModularynTenancy();
             app.UseAuthorization();
             app.MapModularynIdentityEndpoints();
