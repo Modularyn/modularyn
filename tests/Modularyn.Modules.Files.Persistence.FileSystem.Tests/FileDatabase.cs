@@ -1,10 +1,12 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
 using Microsoft.Extensions.DependencyInjection;
+using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Modularity;
 using Modularyn.Framework.Modularity.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
 using Modularyn.Framework.Persistence.EfCore.Tests;
+using Modularyn.Framework.Security.Abstractions;
 using Modularyn.Framework.Tenancy;
 using Modularyn.Framework.Tenancy.Abstractions;
 using Modularyn.Modules.Files.Application;
@@ -102,8 +104,18 @@ internal sealed class FileDatabase : IAsyncDisposable
         catch { await database.DisposeAsync(); throw; }
     }
 
+    /// <summary>The storage tests accept opaque binary content as well as the default types, as a deployment may.</summary>
+    internal static FilesPolicy Policy { get; } = new(allowedContentTypes: [.. FilesPolicy.DefaultAllowedContentTypes, FileContentTypes.Binary]);
+
     internal FileService Service(IFileStorageObserver? observer = null, long maximumLength = 1024 * 1024) =>
-        new(Metadata, new FileSystemBlobStore(Root, maximumLength, observer), Clock, observer);
+        Service(Metadata, new FileSystemBlobStore(Root, maximumLength, observer), observer);
+
+    internal FileService Service(IFileMetadataStore metadata, IFileBlobStore blobs, IFileStorageObserver? observer = null) =>
+        new(metadata, blobs, new FixtureEvaluator(), Clock, Policy, new ReleaseEverything(), observer: observer);
+
+    /// <summary>Releases the version through the fixture's release policy, as reads of storage content require.</summary>
+    internal static Task<FileVersionInfo> ReleasedAsync(IFiles service, TenantLease tenant, FileVersionInfo version) =>
+        service.ReleaseAsync(tenant.Context, tenant.Principal, version.FileId, version.VersionId, Cancellation);
 
     internal async Task<TenantLease> EnterAsync(Guid tenant)
     {
@@ -114,7 +126,8 @@ internal sealed class FileDatabase : IAsyncDisposable
             var decision = await scope.ServiceProvider.GetRequiredService<TenantExecution>().EstablishAsync(
                 TenantResolutionRequest.ForMember(principal, [new(TenantCandidateSource.Header, TenantIdentifier.Format(tenant))]), Cancellation);
             Assert.True(decision.Succeeded, decision.Code);
-            return new(scope, decision.Context!);
+            return new(scope, decision.Context!, ExecutionPrincipal.ForUser(new PrincipalReference("file-owner", IdentityKind.User), Guid.NewGuid(),
+                Clock.GetUtcNow()));
         }
         catch { await scope.DisposeAsync(); throw; }
     }
@@ -155,8 +168,31 @@ internal sealed class FileDatabase : IAsyncDisposable
     }
 
     internal string Blob(Guid tenant, Guid version) => Path.Combine(Root, tenant.ToString("N"), version.ToString("N") + ".blob");
+
+    /// <summary>The tenant's content and staging files, without the store's own lease and read slots, whose names begin with a dot.</summary>
     internal string[] Objects(Guid tenant) => Directory.Exists(Path.Combine(Root, tenant.ToString("N")))
-        ? Directory.GetFiles(Path.Combine(Root, tenant.ToString("N"))).Where(path => Path.GetFileName(path) != ".lease").ToArray() : [];
+        ? Directory.GetFiles(Path.Combine(Root, tenant.ToString("N"))).Where(path => !Path.GetFileName(path).StartsWith('.')).ToArray() : [];
+
+    internal string ReadSlot(Guid tenant, int slot) => Path.Combine(Root, tenant.ToString("N"), ".read-" + slot);
+
+    /// <summary>The lengths of the tenant's read slot files; a slot that no reader holds is empty after its reader or recovery.</summary>
+    internal long[] ReadSlotLengths(Guid tenant) => Enumerable.Range(0, FileSystemBlobStore.MaxReadSlots).Select(slot => ReadSlot(tenant, slot))
+        .Where(File.Exists).Select(path => new FileInfo(path).Length).ToArray();
+
+    /// <summary>Whether another open holds the file exclusively, as a live reader holds its read slot.</summary>
+    internal static bool IsHeld(string path)
+    {
+        if (!File.Exists(path)) return false;
+        try
+        {
+            using var probe = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            return false;
+        }
+        catch (IOException)
+        {
+            return true;
+        }
+    }
 
     internal async Task<long> CountAsync(string table, Guid tenant) => await ScalarAsync<long>(
         "SELECT COUNT(*) FROM " + Quote(FilesModule.Schema) + "." + Quote(table) + " WHERE \"TenantId\" = @tenant", new NpgsqlParameter("tenant", tenant));
@@ -256,8 +292,41 @@ internal sealed class FileDatabase : IAsyncDisposable
     }
 }
 
-internal sealed class TenantLease(AsyncServiceScope scope, TenantContext context) : IAsyncDisposable
+internal sealed class TenantLease(AsyncServiceScope scope, TenantContext context, ExecutionPrincipal principal) : IAsyncDisposable
 {
     internal TenantContext Context { get; } = context;
+    internal ExecutionPrincipal Principal { get; } = principal;
     public ValueTask DisposeAsync() => scope.DisposeAsync();
+}
+
+/// <summary>
+/// Permits every action of an authenticated principal in an active tenant context, on a resource of that tenant, in place
+/// of SEC-05's evaluator. The storage tests exercise integrity, not authorization; the Files application tests decide every
+/// action with the real evaluator.
+/// </summary>
+internal sealed class FixtureEvaluator : IPermissionEvaluator
+{
+    public ValueTask<AuthorizationDecision> AuthorizeAsync(AuthorizationRequest request, CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var code = !request.Context.IsActive || request.Context.Scope != TenantScope.Tenant ? AuthorizationCodes.NoTenantContext
+            : request.Principal is null ? AuthorizationCodes.Unauthenticated
+            : request.Resource is { } resource && resource.TenantId != request.Context.TenantId ? AuthorizationCodes.ResourceNotFound : null;
+        return ValueTask.FromResult(code is null
+            ? AuthorizationDecision.Permit(request.Permission, now, PermissionFreshness.Current, AuthorizationSource.Store, null, now)
+            : AuthorizationDecision.Deny(code, request.Permission, now, PermissionFreshness.Current));
+    }
+
+    public async ValueTask<ResourceVisibility> VisibleAsync(AuthorizationRequest request, string resourceType, CancellationToken cancellationToken) =>
+        new(await AuthorizeAsync(request, cancellationToken), request.Principal?.EffectiveSubject.Id, []);
+
+    public ValueTask<EffectiveAuthority?> DescribeAsync(TenantContext context, ExecutionPrincipal? principal, CancellationToken cancellationToken) =>
+        ValueTask.FromResult<EffectiveAuthority?>(null);
+}
+
+/// <summary>A release policy that releases every version it is asked about, so storage tests can read what they wrote.</summary>
+internal sealed class ReleaseEverything : IFileReleasePolicy
+{
+    public ValueTask<FileReleaseVerdict> DecideAsync(FileReleaseCandidate candidate, Stream content, CancellationToken cancellationToken) =>
+        ValueTask.FromResult(FileReleaseVerdict.Release);
 }

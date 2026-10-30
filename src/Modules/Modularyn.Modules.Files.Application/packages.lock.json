@@ -74,12 +74,16 @@
       "modularyn.modules.files.application.contracts": {
         "type": "Project",
         "dependencies": {
+          "Modularyn.Framework.Authorization.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )"
         }
       },
       "modularyn.modules.files.domain": {
         "type": "Project",
         "dependencies": {
+          "Modularyn.Framework.Authorization.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )"
         }
       },

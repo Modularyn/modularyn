@@ -3,6 +3,9 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Authorization.Abstractions/Modularyn.Framework.Authorization.Abstractions.csproj" />
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Modularity.Abstractions/Modularyn.Framework.Modularity.Abstractions.csproj" />
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Security.Abstractions/Modularyn.Framework.Security.Abstractions.csproj" />
     <ProjectReference Include="../../Framework/Modularyn.Framework.Tenancy.Abstractions/Modularyn.Framework.Tenancy.Abstractions.csproj" />
   </ItemGroup>
 </Project>
