@@ -84,8 +84,10 @@ public static class ApiEndpoints
         {
             if (endpoint is not RouteEndpointBuilder route || route.RoutePattern.RawText != contract.Route)
                 throw new InvalidOperationException("The endpoint route must match its inventory declaration.");
+            // A GET declaration may also answer HEAD, which HTTP defines as GET without the response body.
             var methods = endpoint.Metadata.OfType<IHttpMethodMetadata>().LastOrDefault()?.HttpMethods;
-            if (methods is null || methods.Count != 1 || methods[0] != contract.Method)
+            if (methods is null || !(methods.Count == 1 && methods[0] == contract.Method
+                || contract.Method == "GET" && methods.Count == 2 && methods.Contains("GET") && methods.Contains("HEAD")))
                 throw new InvalidOperationException("The endpoint method must match its inventory declaration.");
             var inner = endpoint.RequestDelegate ?? throw new InvalidOperationException("An API endpoint needs a handler.");
             endpoint.RequestDelegate = context => InvokeAsync(context, declared, inner);

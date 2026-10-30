@@ -16,7 +16,8 @@ endpoint while the host builds its request pipeline, after the application's
 endpoints are added to routing and before the server starts, so a host with an
 undeclared or misclassified endpoint never listens and no endpoint answers. A
 host that captures startup errors, as one hosted in IIS does, serves only its
-startup error page instead.
+startup error page instead. A GET declaration may also answer HEAD, as the
+health probes do.
 
 `ApiEndpoints.Describe` reads every mapped endpoint, including non-client routes,
 and combines its declared schemas. Undeclared routes fail validation. The built-in

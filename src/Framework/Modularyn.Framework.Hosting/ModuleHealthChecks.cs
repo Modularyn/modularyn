@@ -19,9 +19,11 @@ public static class ModuleHealthChecks
         string livenessPattern = "/health/live", string readinessPattern = "/health/ready")
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        endpoints.MapHealthChecks(livenessPattern, Options(LivenessTag)).WithMetadata(new HealthEndpoint(), new HttpMethodMetadata(["GET"]))
+        // Probes are deliberately anonymous, so a host's fallback authorization policy does not cover them, and they answer GET
+        // and HEAD, for probes that send either, with the status text only.
+        endpoints.MapHealthChecks(livenessPattern, Options(LivenessTag)).WithMetadata(new HealthEndpoint(), new HttpMethodMetadata(["GET", "HEAD"]))
             .AllowAnonymous().WithApiContract(FrameworkApi.Endpoint("GetLiveness") with { Route = livenessPattern });
-        endpoints.MapHealthChecks(readinessPattern, Options(ReadinessTag)).WithMetadata(new HealthEndpoint(), new HttpMethodMetadata(["GET"]))
+        endpoints.MapHealthChecks(readinessPattern, Options(ReadinessTag)).WithMetadata(new HealthEndpoint(), new HttpMethodMetadata(["GET", "HEAD"]))
             .AllowAnonymous().WithApiContract(FrameworkApi.Endpoint("GetReadiness") with { Route = readinessPattern });
         return endpoints;
     }
