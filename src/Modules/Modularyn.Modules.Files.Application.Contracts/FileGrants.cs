@@ -69,6 +69,11 @@ public sealed class FileGrantToken
             if (!Base64Url.TryDecodeFromChars(secret, decoded, out var written) || written != SecretLength
                 || !secret.SequenceEqual(Base64Url.EncodeToString(decoded))) return false;
         }
+        catch (FormatException)
+        {
+            // The decoder throws, rather than returning false, when the final character's unused bits are set.
+            return false;
+        }
         finally { CryptographicOperations.ZeroMemory(decoded); }
         token = new(grantId, text);
         return true;
