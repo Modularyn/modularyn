@@ -24,6 +24,18 @@ public sealed class ApiGenerationTests
     }
 
     [Fact]
+    public void Generated_contracts_use_line_feeds_on_every_platform()
+    {
+        var inventory = ApiInventory.Read(RepositoryFiles.Current[Contracts + "endpoint-inventory.json"]);
+        foreach (var generated in new[]
+        {
+            ApiGenerator.OpenApi(inventory), ApiGenerator.DotNet(inventory, "Modularyn.Framework.Sdk.Client", "ModularynClient"),
+            ApiGenerator.TypeScript(inventory, "ModularynClient")
+        })
+            Assert.DoesNotContain('\r', generated);
+    }
+
+    [Fact]
     public void The_OpenAPI_document_states_which_credentials_production_hosts_accept()
     {
         // FND-027: until the authorization server issues tokens, production hosts accept the session cookie, not the explicit credential.

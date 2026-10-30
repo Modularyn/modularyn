@@ -20,6 +20,8 @@ public sealed record ApiInventory(int OldestVersion, int CurrentVersion, IReadOn
     public static JsonSerializerOptions Json { get; } = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true,
+        // Generated contracts are byte-identical on every platform; indented JSON otherwise uses the platform's newline.
+        NewLine = "\n",
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
     };
 
