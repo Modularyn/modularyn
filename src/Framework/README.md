@@ -650,7 +650,10 @@ TM-G02-028 and TM-G02-033, in
   (`TM_G02_009_*`) and `HttpsTests`. Remaining: whole-request time limits and
   field lengths in JSON bodies (CODE-06); bounded paging, sorting and filtering on
   declared fields (CODE-06, with CODE-03 for query translation); per-endpoint
-  upload limits (SEC-06); per-tenant resource governance (OPS-018, G-08).
+  limits on the Files upload endpoint, whose service already refuses a declared
+  size above the store's maximum before any intent and bounds the streamed bytes
+  (SEC-06; see [the Files module](../Modules/Modularyn.Modules.Files.Persistence.FileSystem/README.md#validation)),
+  when CODE-06 declares it; per-tenant resource governance (OPS-018, G-08).
 - **TM-G02-010, deferred.** Stable public error codes with correlation (CODE-06,
   with CODE-08's correlation). Ingress refusals are bare status codes with no
   detail.
