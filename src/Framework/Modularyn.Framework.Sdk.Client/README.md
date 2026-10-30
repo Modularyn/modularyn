@@ -15,12 +15,18 @@ refuse automatic redirects. They do not retry authentication challenges or
 mutations automatically. A caller may resolve a redirect explicitly and create
 a new transport for that origin, which must obtain its own credential.
 
-These are explicit-credential clients. SEC-03's shipping HTTP adapter accepts
-session cookies; it does not implement bearer authentication. The real-provider
-contract fixture uses a test transport adapter that validates the explicit
-credential through SEC-03's actual session service. This qualifies neither a
-production bearer adapter nor a browser cookie mode. Production authentication
-integration and its security acceptance remain Builder work.
+These are explicit-credential clients, and today no production host accepts an
+explicit credential. SEC-03's shipping HTTP adapter accepts only the browser's
+same-origin `__Host-Modularyn-Session` cookie, which these clients deliberately
+never send, and it implements no bearer authentication. Credentials for
+generated clients wait for G-03's authorization server, which issues tokens and
+validates them; until then the generated clients cannot authenticate against a
+production host. The real-provider contract fixture uses a test-only transport
+adapter that validates the explicit credential through SEC-03's actual session
+service. It is never registered by production code, and it qualifies neither a
+production bearer adapter nor a browser cookie mode, so AC-008's authentication
+cases are qualified against the fixture only, with AC-002 unmet. The OpenAPI
+document's security schemes state the same limit.
 
 Validation, concurrency, authentication, authorization, compatibility, missing
 resources, unavailable services, conflicting operation identities and unknown

@@ -101,8 +101,15 @@ public static class ApiGenerator
                 ["securitySchemes"] = new JsonObject
                 {
                     ["explicitCredential"] = new JsonObject { ["type"] = "apiKey", ["in"] = "header", ["name"] = "Authorization",
-                        ["description"] = "Explicit credential obtained for this origin from the host's credential provider." },
-                    ["session"] = new JsonObject { ["type"] = "apiKey", ["in"] = "cookie", ["name"] = "__Host-Modularyn-Session" }
+                        ["description"] = "An explicit credential, such as a bearer token, that the caller's credential provider supplies for this "
+                            + "origin. Production hosts do not accept one yet: credentials for generated clients wait for Modularyn's authorization "
+                            + "server to issue tokens. Until then only a test adapter of the contract fixture accepts one, and production hosts "
+                            + "authenticate the operations that list it through the session cookie instead." },
+                    ["session"] = new JsonObject { ["type"] = "apiKey", ["in"] = "cookie", ["name"] = "__Host-Modularyn-Session",
+                        ["description"] = "The browser's same-origin session cookie that identity's sign-in sets: Secure, HttpOnly, SameSite=Strict "
+                            + "and host-only. It is the credential production hosts accept today, including for operations that list only the "
+                            + "explicit credential. A state-changing request that carries it also needs the antiforgery token in the "
+                            + "RequestVerificationToken header." }
                 }
             }
         }.ToJsonString(ApiInventory.Json) + "\n";

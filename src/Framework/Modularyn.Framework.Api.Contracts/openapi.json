@@ -1548,12 +1548,13 @@
         "type": "apiKey",
         "in": "header",
         "name": "Authorization",
-        "description": "Explicit credential obtained for this origin from the host\u0027s credential provider."
+        "description": "An explicit credential, such as a bearer token, that the caller\u0027s credential provider supplies for this origin. Production hosts do not accept one yet: credentials for generated clients wait for Modularyn\u0027s authorization server to issue tokens. Until then only a test adapter of the contract fixture accepts one, and production hosts authenticate the operations that list it through the session cookie instead."
       },
       "session": {
         "type": "apiKey",
         "in": "cookie",
-        "name": "__Host-Modularyn-Session"
+        "name": "__Host-Modularyn-Session",
+        "description": "The browser\u0027s same-origin session cookie that identity\u0027s sign-in sets: Secure, HttpOnly, SameSite=Strict and host-only. It is the credential production hosts accept today, including for operations that list only the explicit credential. A state-changing request that carries it also needs the antiforgery token in the RequestVerificationToken header."
       }
     }
   }

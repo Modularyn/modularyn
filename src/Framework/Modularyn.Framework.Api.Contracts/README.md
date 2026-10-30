@@ -6,8 +6,17 @@ surface, request and response shape, and client exposure. Identity's current-use
 view is classified `Authenticated`: its declaration requires the request's
 server-side principal before the handler runs, and refuses others with 401 and
 `MAZ001`. Its cookie authentication is described separately from its
-authorization classification. Health responses remain status text. These existing surfaces are inventoried without generating client methods
-for them.
+authorization classification. Health responses remain status text. These
+existing surfaces are inventoried without generating client methods for them.
+
+An entry's authentication names the credential its client is meant to present.
+`explicitCredential`, the default for client endpoints, is the credential that a
+credential provider supplies, and no production host accepts one until G-03's
+authorization server issues tokens. Until then a production host authenticates
+those endpoints only through the browser's same-origin `__Host-Modularyn-Session`
+cookie, as the OpenAPI document's security schemes state. The operations still
+list only the explicit credential: listing the cookie as an accepted alternative
+is a generator change, not a description, and is left to a reviewed decision.
 
 `ApiGenerator.OpenApi`, `DotNet` and `TypeScript` produce deterministic text using
 only the shared framework and System.Text.Json. The checked OpenAPI document and

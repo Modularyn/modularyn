@@ -33,7 +33,11 @@ SEC-05's refusal codes retain their meanings. Existing identity code responses
 and health text are separately represented in OpenAPI. Requests have a 30-second
 endpoint deadline; the request cancellation token reaches the handler and its
 unit. Validation precedes writes. The shared ingress retains its body, header,
-JSON depth and antiforgery limits. Explicit-credential mutation endpoints declare
+JSON depth and antiforgery limits. Production hosts authenticate API requests
+today only through the browser's same-origin `__Host-Modularyn-Session` cookie.
+An endpoint whose inventory entry names the explicit credential accepts one only
+once G-03's authorization server issues tokens; the contract fixture's bearer
+adapter is test-only. Explicit-credential mutation endpoints declare
 the ingress's existing cookie-free antiforgery exemption deliberately. Even on
 such an endpoint, a request carrying any cookie must pass antiforgery validation.
 The real-provider fixture includes that refusal case.

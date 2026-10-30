@@ -24,6 +24,20 @@ public sealed class ApiGenerationTests
     }
 
     [Fact]
+    public void The_OpenAPI_document_states_which_credentials_production_hosts_accept()
+    {
+        // FND-027: until the authorization server issues tokens, production hosts accept the session cookie, not the explicit credential.
+        using var document = JsonDocument.Parse(ApiGenerator.OpenApi(FrameworkApi.Inventory));
+        var schemes = document.RootElement.GetProperty("components").GetProperty("securitySchemes");
+        var explicitCredential = schemes.GetProperty("explicitCredential").GetProperty("description").GetString()!;
+        Assert.Contains("Production hosts do not accept one yet", explicitCredential, StringComparison.Ordinal);
+        Assert.Contains("authorization server", explicitCredential, StringComparison.Ordinal);
+        var session = schemes.GetProperty("session");
+        Assert.Equal("__Host-Modularyn-Session", session.GetProperty("name").GetString());
+        Assert.Contains("the credential production hosts accept today", session.GetProperty("description").GetString()!, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void A_supported_version_cannot_silently_change_a_binding_or_a_field()
     {
         var inventory = FrameworkApi.Inventory;
