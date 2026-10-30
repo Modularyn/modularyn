@@ -21,7 +21,7 @@ public sealed class CompatibilityFailure(ApiProblem problem, JsonElement? author
 }
 public sealed class OutcomeUnknownFailure(ApiProblem problem) : ApiFailure(problem)
 {
-    public OutcomeUnknownFailure(Guid operationId) : this(new("urn:modularyn:problem:" + ApiCodes.OutcomeUnknown,
+    public OutcomeUnknownFailure(Guid operationId) : this(new ApiProblem("urn:modularyn:problem:" + ApiCodes.OutcomeUnknown,
         "Reconcile this operation before retrying with the same identity.", 0, ApiCodes.OutcomeUnknown, "", operationId)) { }
 }
 public sealed class ProtocolFailure(ApiProblem problem, JsonElement? authoritativeResponse = null) : ApiFailure(problem)
