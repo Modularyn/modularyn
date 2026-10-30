@@ -52,6 +52,16 @@ public sealed class FileCapacityTests
         var quick = await ReleasedAsync(files, member, other);
         Assert.Equal(other, await FilesHost.ReadAllAsync(await files.ReadAsync(member.Context, member.Principal, quick.FileId, quick.VersionId,
             cancellationToken: Cancellation)));
+        // Reads, deletes and restores take no lease at all: they complete while the tenant's lease is held, as recovery holds it.
+        await using (await new Persistence.FileSystem.FileSystemBlobStore(host.Root, 1024).OpenAsync(member.Context, Cancellation))
+        {
+            Assert.Equal(existing, await FilesHost.ReadAllAsync(await files.ReadAsync(member.Context, member.Principal, version.FileId, version.VersionId,
+                cancellationToken: Cancellation)));
+            var removed = await files.DeleteAsync(member.Context, member.Principal, version.FileId, version.VersionId, restored.ConcurrencyVersion,
+                Cancellation);
+            Assert.False((await files.RestoreAsync(member.Context, member.Principal, version.FileId, version.VersionId, removed.ConcurrencyVersion,
+                Cancellation)).IsDeleted);
+        }
         // Recovery runs under the lease meanwhile and leaves the live upload's held staging file and intent alone.
         Assert.Equal(0, await files.RecoverAsync(member.Context, Cancellation));
         Assert.Equal(1, await host.CountAsync("FileUploads", tenant.Id));
@@ -178,6 +188,13 @@ public sealed class FileCapacityTests
         Assert.Equal(host.Clock.Now, propagated.CapturedAt);
         Assert.Equal(1, await host.CountAsync("FileUploads", tenant.Id));
         Assert.Single(host.Objects(tenant.Id));
+        // The intent's own reference is captured the same way, with the injected clock.
+        await using (var unit = await host.Metadata.BeginAsync(member.Context, Cancellation))
+        {
+            Assert.True(PropagatedTenantContext.TryParse(Assert.Single(await unit.ListUploadsAsync(Cancellation)).PropagatedContext, out var stored));
+            Assert.Equal(host.Clock.Now, stored!.CapturedAt);
+            Assert.Equal(member.User.Actor, stored.Actor);
+        }
         // The scheduled reference runs recovery in a revalidated unit of its own, which removes the failed first upload's file too.
         var outcome = await files.RecoverAsync(reference, host.Get<TenantWorkRunner>(), Cancellation);
         Assert.Equal(TenantWorkDisposition.Completed, outcome.Disposition);
