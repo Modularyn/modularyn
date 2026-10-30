@@ -3,10 +3,11 @@ using System.Globalization;
 using System.Text.Json.Serialization;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Modularyn.Framework.Api.Contracts;
 using Modularyn.Framework.Authorization;
 using Modularyn.Framework.Tenancy;
@@ -44,9 +45,13 @@ public static class ApiEndpoints
             ?? throw new ApiException(ApiCodes.Validation, 400);
     }
 
+    /// <summary>
+    /// Registers the inventory check, which refuses a host whose routed endpoints are not all declared with a matching
+    /// authorization classification while the host builds its request pipeline, before the server accepts any request.
+    /// </summary>
     public static IServiceCollection AddModularynApi(this IServiceCollection services)
     {
-        services.AddHostedService<ApiInventoryValidator>();
+        services.TryAddEnumerable(ServiceDescriptor.Transient<IStartupFilter, ApiInventoryStartupCheck>());
         return services;
     }
 
@@ -183,16 +188,16 @@ public static class ApiEndpoints
     }
 }
 
-internal sealed class ApiInventoryValidator(IServiceProvider services) : IHostedLifecycleService
+/// <summary>
+/// Validates the complete inventory as the host builds its request pipeline. The web host runs every startup filter, and
+/// with them the application's pipeline, which is where WebApplication adds its endpoint data sources to routing, before it
+/// starts the server; so a refusal here means the server never listens and no endpoint answers any request.
+/// </summary>
+internal sealed class ApiInventoryStartupCheck(IServiceProvider services) : IStartupFilter
 {
-    public Task StartedAsync(CancellationToken cancellationToken)
+    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => builder =>
     {
+        next(builder);
         if (services.GetService<EndpointDataSource>() is { } endpoints) _ = ApiEndpoints.Describe(endpoints);
-        return Task.CompletedTask;
-    }
-    public Task StartingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-    public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-    public Task StoppingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-    public Task StoppedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    };
 }
