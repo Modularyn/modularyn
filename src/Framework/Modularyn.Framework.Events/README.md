@@ -84,7 +84,9 @@ and the consumer permission in its manifest and authorization registry. There is
 no HTTP endpoint.
 
 `IEventObserver` leaves a seam for audit and diagnostics without choosing their
-policy. Tests inject interruption before producer commit, before dispatch, after
+policy. SEC-07 owns the record of who replayed an event or cancelled a job and
+when, and the rules that keep secrets and personal data out of event and job
+payloads and quarantined rows. Tests inject interruption before producer commit, before dispatch, after
 receipt before dispatch acknowledgement, after flushed consumer writes before
 commit, and after consumer commit before acknowledgement. The PostgreSQL test
 project also covers duplicates through retention, ordering, quarantine, replay,
