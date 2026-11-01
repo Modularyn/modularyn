@@ -55,7 +55,9 @@ authorization deferrals; exhaustion disables the schedule while retaining its
 cursor, deferral count and last refusal code for inspection.
 
 Schedules are daily civil times in IANA zones evaluated through `TimeZoneInfo`.
-A nonexistent local time is visibly skipped; an ambiguous time selects the first
+On a host running in globalization's invariant mode, IANA lookups need the
+operating system's time-zone database, as on Linux, and a Windows host in
+invariant mode cannot declare a schedule. A nonexistent local time is visibly skipped; an ambiguous time selects the first
 UTC occurrence. No machine-local time participates. Every instant is normalized
 through `UtcMicroseconds` before storage or comparison; clocks are `TimeProvider`.
 The due occurrence, job and cursor share a transaction, with tenant-qualified

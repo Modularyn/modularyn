@@ -8,11 +8,14 @@ public sealed class DailySchedule
     private readonly TimeZoneInfo zone;
     public DailySchedule(string timeZone, TimeOnly localTime, MisfirePolicy misfire = MisfirePolicy.CatchUpOnce)
     {
-        if (!TimeZoneInfo.TryConvertIanaIdToWindowsId(timeZone, out _))
+        // The system time-zone database must know the identifier as an IANA zone, exactly as written. This needs no ICU
+        // data, so it holds in globalization's invariant mode wherever the operating system supplies that database.
+        if (string.IsNullOrWhiteSpace(timeZone) || !TimeZoneInfo.TryFindSystemTimeZoneById(timeZone, out var found)
+            || !found.HasIanaId || !string.Equals(found.Id, timeZone, StringComparison.Ordinal))
             throw new ArgumentException("Declare an IANA time-zone identifier.", nameof(timeZone));
         if (localTime.Ticks % TimeSpan.TicksPerMicrosecond != 0) throw new ArgumentOutOfRangeException(nameof(localTime));
         if (!Enum.IsDefined(misfire)) throw new ArgumentOutOfRangeException(nameof(misfire));
-        zone = TimeZoneInfo.FindSystemTimeZoneById(timeZone);
+        zone = found;
         TimeZone = timeZone;
         LocalTime = localTime;
         Misfire = misfire;

@@ -30,4 +30,13 @@ public sealed class ScheduleTests
         Assert.Equal(new DateTimeOffset(2026, 4, 4, 14, 45, 0, TimeSpan.Zero),
             new DailySchedule("Australia/Lord_Howe", new(1, 45)).Resolve(new(2026, 4, 5)));
     }
+
+    [Fact]
+    public void Only_an_IANA_identifier_declares_a_schedule_zone()
+    {
+        foreach (var refused in new[] { "Eastern Standard Time", "unrecognized-zone", "", "   ", "../etc/passwd" })
+            Assert.Throws<ArgumentException>(() => new DailySchedule(refused, new(1, 30)));
+        Assert.Throws<ArgumentException>(() => new DailySchedule(null!, new(1, 30)));
+        Assert.Equal("America/New_York", new DailySchedule("America/New_York", new(1, 30)).TimeZone);
+    }
 }
