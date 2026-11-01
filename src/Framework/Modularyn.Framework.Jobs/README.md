@@ -92,6 +92,14 @@ its cursor for inspection instead of silently dropping history. An operator can
 stop it and create a replacement schedule with an explicit first date. Stopping a
 schedule prevents future materialization; existing jobs have separate cancellation.
 
+Job history has no retention yet, and nothing removes it. Jobs grow by one row
+per enqueue and per queued or caught-up occurrence, job attempts by one row per
+claim, and schedule occurrences by one row per schedule for every civil date it
+evaluates, skipped and missed dates included, so a daily schedule adds about 365
+rows a year. The job worker's and the materializer's cross-tenant scans read every
+tenant's rows, and every index leads with the tenant, so the cost of each pass
+grows with that history across all tenants.
+
 The PostgreSQL tests cover once-per-due-time execution, leases and restart,
 renewal, failure, both cancellation outcomes, schedule transitions, misfires and
 current authorization. They require Builder execution before provider qualification.

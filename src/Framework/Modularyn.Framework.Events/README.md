@@ -52,6 +52,14 @@ projection effect because the watermark survives. Ordering keys must never be
 reused for a different stream with reset positions. Outbox history and watermarks
 remain until the owning module supplies its lifecycle policy.
 
+Outbox rows have no retention yet: the outbox grows by one row per event and
+never shrinks. The inbox keeps every pending, denied and poison receipt, and its
+completed receipts until a tenant maintenance unit prunes them, which nothing
+runs on its own. Positions grow by one row per tenant, consumer and ordering key.
+The dispatcher's and the consumer's cross-tenant scans read every tenant's rows
+for their consumer, and every index leads with the tenant, so the cost of each
+pass grows with that history across all tenants.
+
 The default failure budget is three attempts, with exponential delays starting
 at one second. Unsupported kinds or versions and handler failures retain their
 payload and cause code; exhaustion quarantines the inbox as `Poison`.
