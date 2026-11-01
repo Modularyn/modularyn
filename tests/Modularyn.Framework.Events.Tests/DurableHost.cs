@@ -167,10 +167,10 @@ internal sealed class DurableHost : IAsyncDisposable
             Assert.True(await Get<AuthorityAdministration>().GrantPermissionAsync(owner.Context, owner.Principal, member.Actor, permission, Token));
     }
 
-    internal EventPump Pump(IEventObserver? observer = null, EventOrdering ordering = EventOrdering.MonotonicSnapshot) =>
+    internal EventPump Pump(IEventObserver? observer = null, EventOrdering ordering = EventOrdering.MonotonicSnapshot, EventRetryPolicy? retry = null) =>
         new(Outbox, Inbox, new EventConsumer(DurableModel.Consumer, DurableModel.Apply,
             [new("item.changed", 1, (execution, token) => DurableModel.EffectAsync(execution.Work, execution.Event.OrderingKey, execution.Event.Position, token))], ordering),
-            Get<AuthorizedWorkRunner>(), Clock, new EventRetryPolicy(), observer);
+            Get<AuthorizedWorkRunner>(), Clock, retry ?? new EventRetryPolicy(), observer);
 
     internal JobWorker Worker(Func<JobExecution, CancellationToken, Task>? handler = null) => new(JobStore, Get<AuthorizedWorkRunner>(), Get<IPermissionEvaluator>(),
         [new("durable.counter", DurableModel.Apply, handler ?? ((execution, token) => DurableModel.EffectAsync(execution.Work, execution.Payload, 1, token)))]);

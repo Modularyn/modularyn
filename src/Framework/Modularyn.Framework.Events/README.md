@@ -38,6 +38,12 @@ transaction. `MonotonicSnapshot` applies only positions higher than the durable
 watermark; handlers implement replacement projections. `Contiguous` applies only
 the next position, starting at one; a missing or poisoned position holds later
 positions on that key while other keys remain eligible. Positions never expire.
+A held receipt waits with the retry policy's exponential delays and counts each
+finding in its own `GapWaits`, apart from handler attempts. The finding that
+reaches the gap-wait budget, ten by default, so nine waits totalling 511 seconds
+at the default one-second delay, quarantines it as `Poison` with the code
+`OrderingGapExhausted`, visible for inspection. An operator replays it once the
+predecessor is resolved. No action skips a position or replays a denied one.
 
 Completed inbox receipts are retained for at least 24 hours. A tenant maintenance
 unit may prune them in batches of at most 1,000. Active, denied and poison rows
@@ -56,7 +62,7 @@ transaction as a handler failure.
 
 `ReplayAsync` and `ReplayDispatchAsync` are application services for quarantined
 inbox and outbox rows. Both require the current `events.replay` permission through
-the evaluator, reset the bounded retry budget and preserve the producer. Replay
+the evaluator, reset the bounded retry and gap-wait budgets and preserve the producer. Replay
 always goes through delivery, inbox deduplication, ordering and current authority;
 it never invokes a handler directly. The composing module declares this permission
 and the consumer permission in its manifest and authorization registry. There is

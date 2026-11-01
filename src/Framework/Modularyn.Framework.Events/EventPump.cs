@@ -17,6 +17,11 @@ namespace Modularyn.Framework.Events;
 public sealed class EventPump(EventStore producer, EventStore receiver, EventConsumer consumer, AuthorizedWorkRunner runner,
     TimeProvider clock, EventRetryPolicy retry, IEventObserver? observer = null)
 {
+    /// <summary>A contiguous receipt waiting for its missing predecessor.</summary>
+    public const string GapCode = "OrderingGap";
+    /// <summary>A contiguous receipt quarantined after its gap-wait budget.</summary>
+    public const string GapExhaustedCode = "OrderingGapExhausted";
+
     public async Task<int> DispatchAsync(TenantContext host, ExecutionPrincipal principal, int limit = 100, CancellationToken cancellationToken = default)
     {
         ValidateLimit(limit);
@@ -92,8 +97,20 @@ public sealed class EventPump(EventStore producer, EventStore receiver, EventCon
                     {
                         if (consumer.Ordering == EventOrdering.Contiguous && row.Position != position.Position + 1)
                         {
-                            row.Code = "OrderingGap";
-                            row.DueAt = UtcMicroseconds.Now(clock) + retry.InitialDelay;
+                            // The missing predecessor gets a bounded wait with the retry policy's delays, counted apart
+                            // from handler attempts. At the budget the receipt is quarantined, visibly, so an operator
+                            // can replay it once the predecessor is resolved.
+                            row.GapWaits++;
+                            if (row.GapWaits >= retry.GapWaits)
+                            {
+                                row.State = EventState.Poison;
+                                row.Code = GapExhaustedCode;
+                            }
+                            else
+                            {
+                                row.Code = GapCode;
+                                row.DueAt = UtcMicroseconds.Now(clock) + retry.Delay(row.GapWaits);
+                            }
                             await work.CompleteAsync(token).ConfigureAwait(false);
                             return;
                         }

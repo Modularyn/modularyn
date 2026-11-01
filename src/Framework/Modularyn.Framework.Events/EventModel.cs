@@ -47,7 +47,8 @@ public static class EventModel
             OrderingKey = table.Column<string>("text"), Position = table.Column<long>("bigint"), Payload = table.Column<string>("text"),
             Propagated = table.Column<string>("text"), ReceivedAt = table.Column<DateTimeOffset>("timestamp with time zone"),
             DueAt = table.Column<DateTimeOffset>("timestamp with time zone"), CompletedAt = table.Column<DateTimeOffset>("timestamp with time zone", nullable: true),
-            State = table.Column<int>("integer"), Attempts = table.Column<int>("integer"), Code = table.Column<string>("text"), Version = table.Column<Guid>("uuid")
+            State = table.Column<int>("integer"), Attempts = table.Column<int>("integer"), GapWaits = table.Column<int>("integer"),
+            Code = table.Column<string>("text"), Version = table.Column<Guid>("uuid")
         }, constraints: table => table.PrimaryKey("PK_InboxEvents", row => new { row.TenantId, row.Id }));
         migration.CreateTable("EventPositions", schema: schema, columns: table => new
         {

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Modularyn.Framework.Authorization;
+using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
 using Npgsql;
@@ -118,6 +119,53 @@ public sealed class EventRecoveryTests
         Assert.Equal(2, ordered.Count);
         Assert.Equal(2, ordered.Position);
         Assert.Equal(1, Assert.Single(effects, row => row.Key == "independent").Count);
+    }
+
+    [Fact]
+    public async Task A_contiguous_gap_backs_off_then_quarantines_for_replay_once_the_predecessor_arrives()
+    {
+        await using var database = await DurableDatabase.CreateAsync();
+        var clock = new DurableClock();
+        await using var host = DurableHost.Create(database, clock);
+        var tenant = await host.TenantAsync();
+        await using var source = await host.EnterServiceAsync(tenant);
+        var waiting = await host.ProduceAsync(source, "ordered", 2);
+        var dispatch = await host.HostAsync();
+        var principal = host.WorkerPrincipal();
+        var policy = new EventRetryPolicy(gapWaits: 3);
+        var pump = host.Pump(ordering: EventOrdering.Contiguous, retry: policy);
+        Assert.Equal(1, await pump.DispatchAsync(dispatch, principal, cancellationToken: Token));
+        for (var wait = 1; wait <= policy.GapWaits; wait++)
+        {
+            Assert.Equal(0, await pump.ConsumeAsync(dispatch, principal, cancellationToken: Token));
+            var row = Assert.Single(await host.RowsAsync<InboxEvent>(database.Consumer, source.Context));
+            Assert.Equal((wait, 0), (row.GapWaits, row.Attempts));
+            if (wait == policy.GapWaits)
+            {
+                Assert.Equal((EventState.Poison, EventPump.GapExhaustedCode), (row.State, row.Code));
+                break;
+            }
+            Assert.Equal((EventState.Pending, EventPump.GapCode, clock.Now + policy.Delay(wait)), (row.State, row.Code, row.DueAt));
+            // Not due before its backed-off delay: the wait is not counted again.
+            clock.Advance(policy.Delay(wait) - TimeSpan.FromMicroseconds(1));
+            Assert.Equal(0, await pump.ConsumeAsync(dispatch, principal, cancellationToken: Token));
+            Assert.Equal(wait, Assert.Single(await host.RowsAsync<InboxEvent>(database.Consumer, source.Context)).GapWaits);
+            clock.Advance(TimeSpan.FromMicroseconds(1));
+        }
+        clock.Advance(TimeSpan.FromHours(1));
+        Assert.Equal(0, await pump.ConsumeAsync(dispatch, principal, cancellationToken: Token));
+        Assert.Empty(await host.RowsAsync<DurableEffect>(database.Consumer, source.Context));
+        // The predecessor arrives and applies; an operator then replays the quarantined receipt with a fresh budget.
+        await host.ProduceAsync(source, "ordered", 1);
+        Assert.Equal(1, await pump.DispatchAsync(dispatch, principal, cancellationToken: Token));
+        Assert.Equal(1, await pump.ConsumeAsync(dispatch, principal, cancellationToken: Token));
+        await using var operation = await host.EnterServiceAsync(tenant);
+        Assert.True(await host.Inbox.ReplayAsync(operation.Context, operation.Principal, host.Get<IPermissionEvaluator>(), waiting, Token));
+        var replayed = Assert.Single(await host.RowsAsync<InboxEvent>(database.Consumer, source.Context), row => row.Id == waiting);
+        Assert.Equal((EventState.Pending, 0, 0), (replayed.State, replayed.GapWaits, replayed.Attempts));
+        Assert.Equal(1, await pump.ConsumeAsync(dispatch, principal, cancellationToken: Token));
+        var effect = Assert.Single(await host.RowsAsync<DurableEffect>(database.Consumer, source.Context));
+        Assert.Equal((2, 2L), (effect.Count, effect.Position));
     }
 
     [Fact]
