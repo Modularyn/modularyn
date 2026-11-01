@@ -54,7 +54,7 @@ public sealed class ValueValidation
 public abstract class ScopedValueDefinition
 {
     protected ScopedValueDefinition(string moduleId, string name, SemanticVersion version, ValueCategory category,
-        ValueKind kind, string? defaultValue, TimeSpan maxStaleness, ValueValidation? validation = null)
+        ValueKind kind, string? defaultValue, TimeSpan maxStaleness, ValueValidation? validation = null, bool clientVisible = false)
     {
         ModuleId = ValidName(moduleId);
         Name = ValidName(name);
@@ -65,13 +65,14 @@ public abstract class ScopedValueDefinition
         Validation = validation ?? new();
         if (kind == ValueKind.SecretReference)
         {
-            if (defaultValue is not null || validation is not null)
+            if (defaultValue is not null || validation is not null || clientVisible)
                 throw new ValueValidationException();
         }
         else if (defaultValue is null || !Validation.Accepts(kind, defaultValue)) throw new ValueValidationException();
         if (kind != ValueKind.Integer && (Validation.Minimum is not null || Validation.Maximum is not null))
             throw new ArgumentException("Numeric bounds apply only to integer definitions.");
         if (Validation.AllowedValues.Any(value => !Validation.Accepts(kind, value))) throw new ValueValidationException();
+        ClientVisible = clientVisible;
         Category = category;
         Kind = kind;
         DefaultValue = defaultValue;
@@ -83,6 +84,7 @@ public abstract class ScopedValueDefinition
     public SemanticVersion Version { get; }
     public ValueCategory Category { get; }
     public ValueKind Kind { get; }
+    public bool ClientVisible { get; }
     public bool IsSecret => Kind == ValueKind.SecretReference;
     public string? DefaultValue { get; }
     public TimeSpan MaxStaleness { get; }
@@ -100,8 +102,8 @@ public abstract class ScopedValueDefinition
 }
 
 public sealed class SettingDefinition(string moduleId, string name, SemanticVersion version, ValueKind kind,
-    string? defaultValue, TimeSpan maxStaleness, ValueValidation? validation = null)
-    : ScopedValueDefinition(moduleId, name, version, ValueCategory.Setting, kind, defaultValue, maxStaleness, validation);
+    string? defaultValue, TimeSpan maxStaleness, ValueValidation? validation = null, bool clientVisible = false)
+    : ScopedValueDefinition(moduleId, name, version, ValueCategory.Setting, kind, defaultValue, maxStaleness, validation, clientVisible);
 
 /// <summary>Validation never retains a submitted value or an inner exception.</summary>
 public sealed class ValueValidationException() : Exception("The value does not satisfy its declared type or validation rules.");

@@ -173,6 +173,32 @@
           "xunit.v3.runner.common": "[4.0.2]"
         }
       },
+      "modularyn.framework.api": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Api.Contracts": "[1.0.0, )",
+          "Modularyn.Framework.Authorization": "[1.0.0, )",
+          "Modularyn.Framework.Features": "[1.0.0, )",
+          "Modularyn.Framework.Settings": "[1.0.0, )"
+        }
+      },
+      "modularyn.framework.api.contracts": {
+        "type": "Project"
+      },
+      "modularyn.framework.authorization": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Api.Contracts": "[1.0.0, )",
+          "Modularyn.Framework.Authorization.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Configuration": "[1.0.0, )",
+          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.EfCore": "[1.0.0, )",
+          "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )"
+        }
+      },
       "modularyn.framework.authorization.abstractions": {
         "type": "Project",
         "dependencies": {
@@ -181,8 +207,27 @@
           "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )"
         }
       },
+      "modularyn.framework.caching": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Tenancy": "[1.0.0, )"
+        }
+      },
       "modularyn.framework.configuration": {
         "type": "Project"
+      },
+      "modularyn.framework.features": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Features.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Settings": "[1.0.0, )"
+        }
+      },
+      "modularyn.framework.features.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Settings.Abstractions": "[1.0.0, )"
+        }
       },
       "modularyn.framework.ingress": {
         "type": "Project",
@@ -217,6 +262,22 @@
       },
       "modularyn.framework.security.abstractions": {
         "type": "Project"
+      },
+      "modularyn.framework.settings": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Authorization.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Caching": "[1.0.0, )",
+          "Modularyn.Framework.Configuration": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.EfCore": "[1.0.0, )",
+          "Modularyn.Framework.Settings.Abstractions": "[1.0.0, )"
+        }
+      },
+      "modularyn.framework.settings.abstractions": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )"
+        }
       },
       "modularyn.framework.tenancy": {
         "type": "Project",
@@ -261,6 +322,7 @@
       "modularyn.modules.identity.httpapi": {
         "type": "Project",
         "dependencies": {
+          "Modularyn.Framework.Api": "[1.0.0, )",
           "Modularyn.Framework.Ingress": "[1.0.0, )",
           "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",

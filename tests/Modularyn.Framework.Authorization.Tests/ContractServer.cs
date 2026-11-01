@@ -54,8 +54,9 @@ internal sealed class ContractServer : IAsyncDisposable
     /// <summary>
     /// Starts the server. With <paramref name="interception"/> false, the pipeline has no authorization middleware and the
     /// endpoint middleware does not insist on one, so only the endpoints' own declarations stand between a request and them.
+    /// <paramref name="endpoints"/> maps further endpoints beside the fixture's own.
     /// </summary>
-    public static async Task<ContractServer> StartAsync(bool interception = true, bool evaluator = true)
+    public static async Task<ContractServer> StartAsync(bool interception = true, bool evaluator = true, Action<WebApplication>? endpoints = null)
     {
         var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { EnvironmentName = "Production" });
         builder.Configuration.Sources.Clear();
@@ -103,6 +104,7 @@ internal sealed class ContractServer : IAsyncDisposable
             application.MapGet(LegacyRoute, (string code) => Results.Json(new { read = code })).RequireTenantMember()
                 .RequireAuthorization(PermissionRequirement.Policy(Items.Read));
             application.MapGet("/status", () => Results.Ok()).AllowAnonymous();
+            endpoints?.Invoke(application);
             await application.StartAsync(TestContext.Current.CancellationToken);
         }
         catch

@@ -10,7 +10,7 @@ public sealed class AntiforgeryTests
     [Fact(DisplayName = "AC-003-N02 state changes without a valid antiforgery token are refused")]
     public async Task AC_003_N02_State_changes_without_a_valid_antiforgery_token_are_refused()
     {
-        await using var server = await StartAsync(Settings());
+        await using var server = await StartAsync(IngressServer.Settings());
         var (cookie, token) = await IssueAsync(server);
         var (otherCookie, otherToken) = await IssueAsync(server);
 
@@ -35,7 +35,7 @@ public sealed class AntiforgeryTests
     [Fact(DisplayName = "TM-G02-007 only an explicit exemption without cookies skips antiforgery")]
     public async Task TM_G02_007_Only_an_explicit_exemption_without_cookies_skips_antiforgery()
     {
-        await using var server = await StartAsync(Settings());
+        await using var server = await StartAsync(IngressServer.Settings());
         Assert.Equal(HttpStatusCode.NoContent, (await Change(server, "/bearer", null, null)).StatusCode);
         Assert.Equal(1, server.Changes);
         Assert.Equal(HttpStatusCode.BadRequest, (await Change(server, "/bearer", "session=present", null)).StatusCode);
@@ -47,7 +47,7 @@ public sealed class AntiforgeryTests
     [Fact(DisplayName = "TM-G02-007 the antiforgery cookie is host-only, Secure, HttpOnly and SameSite=Strict")]
     public async Task TM_G02_007_The_antiforgery_cookie_is_host_only_secure_http_only_and_same_site_strict()
     {
-        await using var server = await StartAsync(Settings());
+        await using var server = await StartAsync(IngressServer.Settings());
         var response = await server.SendAsync(true, HttpMethod.Get, "/token");
         var cookie = Assert.Single(response.Headers.GetValues("Set-Cookie"), value => value.StartsWith(IngressServiceCollectionExtensions.AntiforgeryCookieName + "=", StringComparison.Ordinal));
         var attributes = cookie.Split(';').Skip(1).Select(part => part.Trim().ToLowerInvariant()).ToArray();

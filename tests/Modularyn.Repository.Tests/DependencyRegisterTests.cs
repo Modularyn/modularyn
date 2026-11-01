@@ -156,7 +156,18 @@ public sealed class DependencyRegisterTests
     [InlineData("unpinned-without-note", "record in unpinned")]
     [InlineData("needless-unpinned", "unpinned must be null")]
     [InlineData("pinned-binary-note", "unpinned must be null")]
-    [InlineData("in-use-npm", "lock-file check")]
+    [InlineData("in-use-npm", "absent from every package-lock.json")]
+    [InlineData("candidate-npm-package", "needs an in-use npm entry with the locked version")]
+    [InlineData("npm-lock-mismatch", "needs an in-use npm entry with the locked version")]
+    [InlineData("unregistered-npm-package", "needs an in-use npm entry with the locked version")]
+    [InlineData("npm-git-source", "must be resolved from the npm registry")]
+    [InlineData("npm-weak-integrity", "must record a SHA-512 integrity")]
+    [InlineData("npm-link", "not a link or workspace")]
+    [InlineData("npm-range-manifest", "must name an exact version")]
+    [InlineData("npm-manifest-drift", "must equal the package.json beside it")]
+    [InlineData("npm-lock-version", "lockfileVersion 3")]
+    [InlineData("npm-missing-lock", "needs a committed package-lock.json")]
+    [InlineData("npm-orphan-lock", "needs the package.json it was generated from")]
     [InlineData("unlisted-license", "must be flagged for both distributions")]
     [InlineData("partly-flagged-license", "must be flagged for both distributions")]
     [InlineData("invalid-license", "SPDX license expression")]
@@ -230,6 +241,16 @@ public sealed class DependencyRegisterTests
         var platform = First(imageDigests, digest => Value(digest, "target") == "linux/amd64");
         var runtime = DependencyRegister.PinnedRuntime(files[PinPath])
             ?? throw new InvalidOperationException("The SDK pin must name its runtime release.");
+        var npmLock = files.Keys.Where(path => Path.GetFileName(path) == DependencyRegister.NpmLock).Order(StringComparer.Ordinal).First();
+        var npmManifest = npmLock[..^DependencyRegister.NpmLock.Length] + DependencyRegister.NpmManifest;
+        void MutateNpm(string path, Action<JsonObject> mutate)
+        {
+            var document = JsonNode.Parse(files[path])!.AsObject();
+            mutate(document);
+            files[path] = document.ToJsonString();
+        }
+        JsonNode FirstLocked(JsonObject document) =>
+            document["packages"]!.AsObject().First(package => package.Key.Length > 0).Value!;
         switch (mutation)
         {
             case "missing-register": Assert.True(files.Remove(RegisterPath)); break;
@@ -354,6 +375,49 @@ public sealed class DependencyRegisterTests
                 npm["maintenance"]!["latestEligible"] = "1.0.0";
                 entries.Add(npm);
                 break;
+            case "candidate-npm-package":
+                Set(First(entries, entry => Value(entry, "ecosystem") == "npm" && Value(entry, "status") == "in-use"), "status", "candidate");
+                break;
+            case "npm-lock-mismatch": MutateNpm(npmLock, document => Set(FirstLocked(document), "version", Bump(Value(FirstLocked(document), "version")))); break;
+            case "unregistered-npm-package":
+                MutateNpm(npmLock, document => Add(document["packages"]!, "node_modules/unreviewed-package", new JsonObject
+                {
+                    ["version"] = "1.0.0",
+                    ["resolved"] = DependencyRegister.NpmRegistry + "unreviewed-package/-/unreviewed-package-1.0.0.tgz",
+                    ["integrity"] = "sha512-" + Convert.ToBase64String(new byte[64]),
+                    ["dev"] = true
+                }));
+                break;
+            case "npm-git-source":
+                MutateNpm(npmLock, document => Set(FirstLocked(document), "resolved", "git+https://github.com/unreviewed/package.git#" + new string('a', 40)));
+                break;
+            case "npm-weak-integrity":
+                MutateNpm(npmLock, document => Set(FirstLocked(document), "integrity", "sha1-" + Convert.ToBase64String(new byte[20])));
+                break;
+            case "npm-link":
+                MutateNpm(npmLock, document => Add(document["packages"]!, "node_modules/local-package", new JsonObject
+                {
+                    ["resolved"] = "../local-package",
+                    ["link"] = true
+                }));
+                break;
+            case "npm-range-manifest":
+                MutateNpm(npmManifest, document =>
+                {
+                    var declared = document["devDependencies"]!.AsObject().First();
+                    Set(document["devDependencies"]!, declared.Key, "^" + declared.Value!.GetValue<string>());
+                });
+                break;
+            case "npm-manifest-drift":
+                MutateNpm(npmLock, document =>
+                {
+                    var declared = document["packages"]![""]!["devDependencies"]!.AsObject().First();
+                    Set(document["packages"]![""]!["devDependencies"]!, declared.Key, Bump(declared.Value!.GetValue<string>()));
+                });
+                break;
+            case "npm-lock-version": MutateNpm(npmLock, document => Set(document, "lockfileVersion", 2)); break;
+            case "npm-missing-lock": Assert.True(files.Remove(npmLock)); break;
+            case "npm-orphan-lock": files["docs/unreviewed/" + DependencyRegister.NpmLock] = files[npmLock]; break;
             case "unlisted-license":
                 Set(nuget, "license", "GPL-3.0-only");
                 nuget["clearance"]!["community"] = "cleared";
@@ -732,6 +796,11 @@ internal static class DependencyRegister
 
     private static readonly Regex Name = new("^[A-Za-z0-9@][A-Za-z0-9@._/-]*$", RegexOptions.CultureInvariant);
     public static readonly Regex Sha256Digest = new("^sha256:[0-9a-f]{64}$", RegexOptions.CultureInvariant);
+    public const string NpmManifest = "package.json";
+    public const string NpmLock = "package-lock.json";
+    public const string NpmRegistry = "https://registry.npmjs.org/";
+    private static readonly string[] NpmDependencySections = ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"];
+    private static readonly Regex NpmIntegrity = new("^sha512-[A-Za-z0-9+/]{86}==$", RegexOptions.CultureInvariant);
     private static readonly Regex ImageName = new(
         "^(?<registry>[a-z0-9-]+(?:\\.[a-z0-9-]+)+)/(?<repository>[a-z0-9]+(?:[._-][a-z0-9]+)*(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)*)$",
         RegexOptions.CultureInvariant);
@@ -1305,15 +1374,140 @@ internal static class DependencyRegister
             errors.Add($"{dependency.Id}: in-use nuget entry is absent from every lock file at its version.");
         }
 
-        foreach (var dependency in inUse.Where(dependency => dependency.Ecosystem == "npm"))
-        {
-            errors.Add($"{dependency.Id}: in-use npm entries require a lock-file check that this register does not have yet.");
-        }
-
+        ValidateNpmLocks(files, inUse, errors);
         ValidateImages(files, inUse, errors);
         ValidateTestcontainers(files, inUse, errors);
         ValidateWorkflows(files, inUse, errors);
     }
+
+    // A package.json that declares npm dependencies is an npm manifest; content-package manifests share the file name but
+    // declare none. An npm manifest pins exact versions and has a committed lock generated from it, and every package in the
+    // lock comes from the npm registry with a SHA-512 integrity and has an in-use npm entry at its locked version, as NuGet
+    // locks do.
+    private static void ValidateNpmLocks(IReadOnlyDictionary<string, string> files, List<Dependency> inUse, List<string> errors)
+    {
+        var npm = inUse.Where(dependency => dependency.Ecosystem == "npm")
+            .GroupBy(dependency => dependency.Name, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First().Version, StringComparer.Ordinal);
+        var locked = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var manifest in files.Keys.Where(path => Path.GetFileName(path) == NpmManifest && IsNpmManifest(files[path]))
+                     .Order(StringComparer.Ordinal))
+        {
+            var lockPath = manifest[..^NpmManifest.Length] + NpmLock;
+            if (!files.TryGetValue(lockPath, out var lockText))
+            {
+                errors.Add($"{manifest}: an npm manifest needs a committed {NpmLock} beside it.");
+                continue;
+            }
+
+            try
+            {
+                using var manifestDocument = JsonDocument.Parse(files[manifest]);
+                using var lockDocument = JsonDocument.Parse(lockText);
+                var lockRoot = lockDocument.RootElement;
+                if (!lockRoot.TryGetProperty("lockfileVersion", out var lockVersion) || lockVersion.ValueKind != JsonValueKind.Number
+                    || lockVersion.GetInt32() != 3)
+                {
+                    errors.Add($"{lockPath}: the lock must be lockfileVersion 3.");
+                }
+
+                var packages = lockRoot.GetProperty("packages");
+                var root = packages.GetProperty("");
+                foreach (var section in NpmDependencySections)
+                {
+                    var declared = Section(manifestDocument.RootElement, section);
+                    foreach (var (name, spec) in declared.Where(pair => !ExactVersions["npm"].IsMatch(pair.Value)))
+                    {
+                        errors.Add($"{manifest}: {section} {name} must name an exact version, not {spec}.");
+                    }
+
+                    var recorded = Section(root, section);
+                    if (declared.Count != recorded.Count || declared.Any(pair => !recorded.TryGetValue(pair.Key, out var value) || value != pair.Value))
+                    {
+                        errors.Add($"{lockPath}: the lock's {section} must equal the {NpmManifest} beside it; regenerate the lock from the manifest.");
+                    }
+                }
+
+                foreach (var package in packages.EnumerateObject().Where(package => package.Name.Length > 0))
+                {
+                    ValidateNpmPackage(lockPath, package, npm, locked, errors);
+                }
+            }
+            catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException or FormatException)
+            {
+                errors.Add($"{lockPath}: invalid npm manifest or lock.");
+            }
+        }
+
+        foreach (var path in files.Keys.Where(path => Path.GetFileName(path) == NpmLock
+                     && !(files.TryGetValue(path[..^NpmLock.Length] + NpmManifest, out var manifest) && IsNpmManifest(manifest))))
+        {
+            errors.Add($"{path}: an npm lock needs the {NpmManifest} it was generated from.");
+        }
+
+        foreach (var dependency in inUse.Where(dependency => dependency.Ecosystem == "npm" && !locked.Contains($"{dependency.Name}@{dependency.Version}")))
+        {
+            errors.Add($"{dependency.Id}: in-use npm entry is absent from every {NpmLock} at its version.");
+        }
+    }
+
+    private static void ValidateNpmPackage(string lockPath, JsonProperty package, Dictionary<string, string> npm, HashSet<string> locked,
+        List<string> errors)
+    {
+        const string prefix = "node_modules/";
+        var value = package.Value;
+        var marker = package.Name.LastIndexOf(prefix, StringComparison.Ordinal);
+        if (!package.Name.StartsWith(prefix, StringComparison.Ordinal) || value.TryGetProperty("link", out _))
+        {
+            errors.Add($"{lockPath}: {package.Name} must be an installed registry package under {prefix}, not a link or workspace.");
+            return;
+        }
+
+        var name = package.Name[(marker + prefix.Length)..];
+        var version = value.TryGetProperty("version", out var versionValue) ? versionValue.GetString() ?? "" : "";
+        var resolved = value.TryGetProperty("resolved", out var resolvedValue) ? resolvedValue.GetString() ?? "" : "";
+        var integrity = value.TryGetProperty("integrity", out var integrityValue) ? integrityValue.GetString() ?? "" : "";
+        if (!ExactVersions["npm"].IsMatch(version))
+        {
+            errors.Add($"{lockPath}: {name} must lock an exact version.");
+        }
+
+        var file = name[(name.LastIndexOf('/') + 1)..];
+        if (resolved != $"{NpmRegistry}{name}/-/{file}-{version}.tgz")
+        {
+            errors.Add($"{lockPath}: {name} {version} must be resolved from the npm registry at {NpmRegistry}{name}/-/{file}-{version}.tgz.");
+        }
+
+        if (!NpmIntegrity.IsMatch(integrity))
+        {
+            errors.Add($"{lockPath}: {name} {version} must record a SHA-512 integrity.");
+        }
+
+        locked.Add($"{name}@{version}");
+        if (!npm.TryGetValue(name, out var registered) || registered != version)
+        {
+            errors.Add($"{lockPath}: {name} {version} needs an in-use npm entry with the locked version.");
+        }
+    }
+
+    private static bool IsNpmManifest(string text)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(text);
+            return document.RootElement.ValueKind == JsonValueKind.Object
+                && NpmDependencySections.Any(section => document.RootElement.TryGetProperty(section, out _));
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static Dictionary<string, string> Section(JsonElement element, string section) =>
+        element.TryGetProperty(section, out var value) && value.ValueKind == JsonValueKind.Object
+            ? value.EnumerateObject().ToDictionary(property => property.Name, property => property.Value.GetString() ?? "", StringComparer.Ordinal)
+            : new Dictionary<string, string>(StringComparer.Ordinal);
 
     // Every image reference in a workflow or Dockerfile names an in-use entry by its tag and index digest, and every
     // in-use image is pulled somewhere at that reference, as action SHAs and tool versions agree with their entries.

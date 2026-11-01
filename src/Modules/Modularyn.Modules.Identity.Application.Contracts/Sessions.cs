@@ -43,6 +43,11 @@ public sealed class SessionToken
             if (!Base64Url.TryDecodeFromChars(text, decoded, out var written) || written != SecretLength
                 || !string.Equals(Base64Url.EncodeToString(decoded), text, StringComparison.Ordinal)) return false;
         }
+        catch (FormatException)
+        {
+            // The decoder throws, rather than returning false, when the final character's unused bits are set.
+            return false;
+        }
         finally { CryptographicOperations.ZeroMemory(decoded); }
         token = new SessionToken(text);
         return true;

@@ -50,7 +50,7 @@ public sealed class IngressOptionsTests
     [InlineData("unknown-key", "contains keys that its options do not declare: 'Proxy'.")]
     public async Task TM_G02_048_Invalid_ingress_options_refuse_startup_before_the_server_listens(string mutation, string expected)
     {
-        var configuration = Settings();
+        var configuration = IngressServer.Settings();
         var key = "Modularyn:Ingress:";
         switch (mutation)
         {
@@ -119,7 +119,7 @@ public sealed class IngressOptionsTests
     {
         var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { EnvironmentName = "Production" });
         builder.Configuration.Sources.Clear();
-        builder.Configuration.AddInMemoryCollection(Settings(("Proxies:0", "192.0.2.10")));
+        builder.Configuration.AddInMemoryCollection(IngressServer.Settings(("Proxies:0", "192.0.2.10")));
         builder.WebHost.ConfigureKestrel(kestrel => kestrel.Listen(System.Net.IPAddress.Loopback, 0));
         if (mutation != "no-key-ring") builder.Services.AddModularynDataProtection(builder.Configuration);
         builder.Services.AddModularynIngress(builder.Configuration);

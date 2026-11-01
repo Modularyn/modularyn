@@ -1,0 +1,2 @@
+# Installed development packages stay out of the repository.
+node_modules/

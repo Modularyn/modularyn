@@ -1,17 +1,17 @@
 using System.Collections.Concurrent;
-using System.Net;
 using System.Net.Http.Json;
 using System.Net.Security;
+using System.Net;
 using System.Security.Claims;
-using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Security.Cryptography;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,8 +21,8 @@ using Microsoft.Net.Http.Headers;
 using Modularyn.Framework.Configuration;
 using Modularyn.Framework.Ingress;
 using Modularyn.Framework.Security.Abstractions;
-using Modularyn.Framework.Tenancy;
 using Modularyn.Framework.Tenancy.Tests;
+using Modularyn.Framework.Tenancy;
 using Modularyn.Modules.Identity.HttpApi;
 using Xunit;
 
@@ -225,7 +225,7 @@ internal sealed class Browser(AuthorizationServer server)
     {
         var response = await SendAsync(method, path, body is null ? (method == HttpMethod.Get ? null : new StringContent("")) : JsonContent.Create(body));
         var text = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        if (text.Length == 0 || response.Content.Headers.ContentType?.MediaType != "application/json") return new(response.StatusCode, null, null);
+        if (text.Length == 0 || response.Content.Headers.ContentType?.MediaType is not ("application/json" or "application/problem+json")) return new(response.StatusCode, null, null);
         using var document = JsonDocument.Parse(text);
         var root = document.RootElement.Clone();
         return new(response.StatusCode, root.ValueKind == JsonValueKind.Object && root.TryGetProperty("code", out var code) ? code.GetString() : null, root);

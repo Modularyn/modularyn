@@ -420,6 +420,19 @@ public sealed class ToolPinTests
     [InlineData("tests-script-allows-failures", "require at least one PostgreSQL test to have run")]
     [InlineData("tests-script-shared-results", "require at least one PostgreSQL test to have run")]
     [InlineData("tests-script-some-projects", "require at least one PostgreSQL test to have run")]
+    [InlineData("npm-without-ignore-scripts", "must install the TypeScript client with npm ci --ignore-scripts")]
+    [InlineData("npm-without-ignore-scripts", "npm may only install packages with npm ci --ignore-scripts")]
+    [InlineData("npm-install-instead-of-ci", "must install the TypeScript client with npm ci --ignore-scripts")]
+    [InlineData("npm-install-instead-of-ci", "npm may only install packages with npm ci --ignore-scripts")]
+    [InlineData("npm-other-directory", "must install the TypeScript client with npm ci --ignore-scripts")]
+    [InlineData("npm-after-tests", "must install the TypeScript client with npm ci --ignore-scripts")]
+    [InlineData("missing-npm-install", "must install the TypeScript client with npm ci --ignore-scripts")]
+    [InlineData("npm-install-elsewhere", "npm may only install packages with npm ci --ignore-scripts")]
+    [InlineData("npm-install-in-script", "npm may only install packages with npm ci --ignore-scripts")]
+    [InlineData("npm-exec-in-block", "npm may only install packages with npm ci --ignore-scripts")]
+    [InlineData("vitest-switch-missing", "must set MODULARYN_CLIENT_TEST_VITEST to '1'")]
+    [InlineData("vitest-switch-off", "must set MODULARYN_CLIENT_TEST_VITEST to '1'")]
+    [InlineData("vitest-switch-on-job", "must set MODULARYN_CLIENT_TEST_VITEST to '1'")]
     [InlineData("build-test-unfiltered", "every dotnet test in the build-test job must select its tests")]
     [InlineData("build-test-real-provider-filter", "every dotnet test in the build-test job must select its tests")]
     [InlineData("build-test-without-tests", "the build-test job must run dotnet test")]
@@ -677,6 +690,44 @@ public sealed class ToolPinTests
                 break;
             case "tests-script-some-projects":
                 files[TestsScriptPath] = ReplaceText(files[TestsScriptPath], "'tests/*/*.Tests.csproj'", "'tests/Modularyn.Repository.Tests/*.csproj'");
+                break;
+            case "npm-without-ignore-scripts":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, "run: npm ci --ignore-scripts", "run: npm ci");
+                break;
+            case "npm-install-instead-of-ci":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, "run: npm ci --ignore-scripts", "run: npm install --ignore-scripts");
+                break;
+            case "npm-other-directory":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, $"working-directory: {ToolPinContract.ClientDirectory}\n        run: npm ci",
+                    $"working-directory: {ToolPinContract.ClientDirectory[..ToolPinContract.ClientDirectory.LastIndexOf('/')]}\n        run: npm ci");
+                break;
+            case "npm-after-tests":
+                var install = ClientInstallStep(ci);
+                var moved = ReplaceInJob(ci, ToolPinContract.RealProviderJob, install, "");
+                files[CiPath] = ReplaceInJob(moved, ToolPinContract.RealProviderJob, "        run: " + ToolPinContract.RealProviderTestRun + "\n",
+                    "        run: " + ToolPinContract.RealProviderTestRun + "\n" + install);
+                break;
+            case "missing-npm-install": files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, ClientInstallStep(ci), ""); break;
+            case "npm-install-elsewhere":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.BuildTestJob, "      - name: Restore locked dependencies",
+                    "      - name: Install tools\n        run: npm install --global typescript\n      - name: Restore locked dependencies");
+                break;
+            case "npm-install-in-script": files[".github/scripts/tools.sh"] = "#!/usr/bin/env bash\nset -euo pipefail\nnpm i left-pad\n"; break;
+            case "npm-exec-in-block":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.BuildTestJob, "      - name: Restore locked dependencies",
+                    "      - name: Generate\n        shell: bash\n        run: |\n          set -euo pipefail\n          cd tools && npm exec --yes generator\n"
+                    + "      - name: Restore locked dependencies");
+                break;
+            case "vitest-switch-missing":
+                files[CiPath] = ReplaceLine(ci, $"          {ToolPinContract.VitestSwitch}: '1'", $"          UNRELATED_SWITCH: '1'");
+                break;
+            case "vitest-switch-off":
+                files[CiPath] = ReplaceLine(ci, $"          {ToolPinContract.VitestSwitch}: '1'", $"          {ToolPinContract.VitestSwitch}: '0'");
+                break;
+            case "vitest-switch-on-job":
+                // The switch belongs to the test step itself; a job-level value is not what the contract reads.
+                var withoutSwitch = ReplaceLine(ci, $"          {ToolPinContract.VitestSwitch}: '1'", $"          UNRELATED_SWITCH: '1'");
+                files[CiPath] = ReplaceInJob(withoutSwitch, ToolPinContract.RealProviderJob, "    env:" + "\n", "    env:" + $"\n      {ToolPinContract.VitestSwitch}: '1'\n");
                 break;
             case "build-test-unfiltered": files[CiPath] = ReplaceInJob(ci, ToolPinContract.BuildTestJob, " " + ToolPinContract.UnitFilter, ""); break;
             case "build-test-real-provider-filter":
@@ -985,6 +1036,17 @@ public sealed class ToolPinTests
         var error = process.StandardError.ReadToEndAsync();
         Assert.True(process.WaitForExit(30_000), $"{script} did not finish within 30 seconds.");
         return (process.ExitCode, output.GetAwaiter().GetResult() + error.GetAwaiter().GetResult());
+    }
+
+    // The client's install step in the real-provider job, from its name line through its run line.
+    private static string ClientInstallStep(string workflow)
+    {
+        var start = workflow.IndexOf("      - name: Install the TypeScript client's locked packages\n", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The real-provider job must install the TypeScript client.");
+        var run = workflow.IndexOf("        run: npm ci", start, StringComparison.Ordinal);
+        Assert.True(run > start, "The install step must run npm ci.");
+        var end = workflow.IndexOf('\n', run) + 1;
+        return workflow[start..end];
     }
 
     private static string ReplaceText(string text, string value, string replacement)

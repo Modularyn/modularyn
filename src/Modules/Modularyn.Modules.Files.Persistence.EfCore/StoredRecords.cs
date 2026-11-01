@@ -7,3 +7,4 @@ namespace Modularyn.Modules.Files.Persistence.EfCore;
 public sealed class StoredFileAsset : FileAsset, IConcurrencyTracked { }
 public sealed class StoredFileRevision : FileRevision, ISoftDeleted, IConcurrencyTracked { }
 public sealed class StoredFileUpload : FileUpload, IConcurrencyTracked { }
+public sealed class StoredFileGrant : FileGrant, IConcurrencyTracked { }

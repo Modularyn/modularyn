@@ -3,8 +3,8 @@ using Modularyn.Modules.Files.Domain;
 
 namespace Modularyn.Modules.Files.Persistence.FileSystem;
 
-/// <summary>A read-only, nonseekable interval over a private verified snapshot.</summary>
-internal sealed class VerifiedRangeStream(FileStream snapshot, long length, TenantContext tenant) : Stream
+/// <summary>A read-only, nonseekable interval over a verified snapshot in a held read slot, which disposal frees.</summary>
+internal sealed class VerifiedRangeStream(FileStream slot, long length, TenantContext tenant) : Stream
 {
     private long position;
     private bool disposed;
@@ -19,7 +19,7 @@ internal sealed class VerifiedRangeStream(FileStream snapshot, long length, Tena
     public override int Read(Span<byte> buffer)
     {
         Require();
-        var read = snapshot.Read(buffer[..(int)Math.Min(buffer.Length, length - position)]);
+        var read = slot.Read(buffer[..(int)Math.Min(buffer.Length, length - position)]);
         position += read;
         return read;
     }
@@ -31,7 +31,7 @@ internal sealed class VerifiedRangeStream(FileStream snapshot, long length, Tena
     {
         Require();
         cancellationToken.ThrowIfCancellationRequested();
-        var read = await snapshot.ReadAsync(buffer[..(int)Math.Min(buffer.Length, length - position)], cancellationToken).ConfigureAwait(false);
+        var read = await slot.ReadAsync(buffer[..(int)Math.Min(buffer.Length, length - position)], cancellationToken).ConfigureAwait(false);
         position += read;
         return read;
     }
@@ -49,13 +49,25 @@ internal sealed class VerifiedRangeStream(FileStream snapshot, long length, Tena
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing && !disposed) { disposed = true; snapshot.Dispose(); }
+        if (disposing && !disposed) { disposed = true; Release(slot); }
         base.Dispose(disposing);
     }
 
-    public override async ValueTask DisposeAsync()
+    public override ValueTask DisposeAsync()
     {
-        if (!disposed) { disposed = true; await snapshot.DisposeAsync().ConfigureAwait(false); }
+        if (!disposed) { disposed = true; Release(slot); }
         GC.SuppressFinalize(this);
+        return ValueTask.CompletedTask;
+    }
+
+    /// <summary>Empties the slot and closes it, which frees it for the tenant's next reader.</summary>
+    internal static void Release(FileStream slot)
+    {
+        try { slot.SetLength(0); }
+        catch (IOException)
+        {
+            // The slot keeps its bytes until its next reader or recovery truncates it; its count still bounds the tenant.
+        }
+        finally { slot.Dispose(); }
     }
 }

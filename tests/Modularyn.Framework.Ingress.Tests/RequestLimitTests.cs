@@ -12,7 +12,7 @@ public sealed class RequestLimitTests
     [Fact(DisplayName = "TM-G02-009 bodies beyond the declared limit are refused before the handler, or at the limit while it reads")]
     public async Task TM_G02_009_Bodies_beyond_the_declared_limit_are_refused_before_the_handler_or_at_the_limit_while_it_reads()
     {
-        await using var server = await StartAsync(Settings(("Limits:MaxRequestBodyBytes", "1024"), ("Limits:MaxFormValueBytes", "1024")));
+        await using var server = await StartAsync(IngressServer.Settings(("Limits:MaxRequestBodyBytes", "1024"), ("Limits:MaxFormValueBytes", "1024")));
         var declared = await server.RawHttpsAsync(Head("POST /upload", "Content-Length: 2048"), new byte[2048]);
         Assert.Equal(413, declared.Status);
         Assert.Equal(0, server.Handled);
@@ -37,7 +37,7 @@ public sealed class RequestLimitTests
     [Fact(DisplayName = "TM-G02-009 oversized request lines, headers and header counts are refused by the server")]
     public async Task TM_G02_009_Oversized_request_lines_headers_and_header_counts_are_refused_by_the_server()
     {
-        await using var server = await StartAsync(Settings(("Limits:MaxRequestHeadersTotalBytes", "4096"), ("Limits:MaxRequestHeaderCount", "20"),
+        await using var server = await StartAsync(IngressServer.Settings(("Limits:MaxRequestHeadersTotalBytes", "4096"), ("Limits:MaxRequestHeaderCount", "20"),
             ("Limits:MaxRequestLineBytes", "1024")));
         Assert.Equal(431, (await server.RawHttpsAsync(Head("GET /", "X-Large: " + new string('a', 8192)))).Status);
         Assert.Equal(431, (await server.RawHttpsAsync(Head("GET /", Enumerable.Range(0, 30).Select(index => $"X-Header-{index}: v").ToArray()))).Status);
@@ -51,7 +51,7 @@ public sealed class RequestLimitTests
     [Fact(DisplayName = "TM-G02-009 JSON and form bodies beyond their declared structure are refused")]
     public async Task TM_G02_009_Json_and_form_bodies_beyond_their_declared_structure_are_refused()
     {
-        await using var server = await StartAsync(Settings(("Limits:MaxJsonDepth", "8"), ("Limits:MaxFormValueCount", "4")));
+        await using var server = await StartAsync(IngressServer.Settings(("Limits:MaxJsonDepth", "8"), ("Limits:MaxFormValueCount", "4")));
         var shallow = await server.SendAsync(true, HttpMethod.Post, "/json", request => request.Content = Json(4));
         Assert.Equal(HttpStatusCode.OK, shallow.StatusCode);
         var deep = await server.SendAsync(true, HttpMethod.Post, "/json", request => request.Content = Json(20));

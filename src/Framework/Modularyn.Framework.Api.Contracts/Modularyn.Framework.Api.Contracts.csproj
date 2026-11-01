@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <EmbeddedResource Include="endpoint-inventory.json" />
+  </ItemGroup>
+</Project>

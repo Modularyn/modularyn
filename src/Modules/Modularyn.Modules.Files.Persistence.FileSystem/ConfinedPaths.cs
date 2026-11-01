@@ -37,6 +37,23 @@ internal sealed class ConfinedPaths
 
     internal string Lease(Guid tenant) => Entry(tenant, ".lease");
 
+    /// <summary>One of the tenant's fixed read slots, named only by its server-chosen index.</summary>
+    internal string ReadSlot(Guid tenant, int slot)
+    {
+        if (slot is < 0 or >= FileSystemBlobStore.MaxReadSlots) throw new FileStorageException(FileStorageError.UnsafeLocation);
+        return Entry(tenant, ".read-" + slot.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>A startup check's own locking probe under the root, named by a server identity.</summary>
+    internal string Probe(Guid id)
+    {
+        if (id == Guid.Empty) throw new FileStorageException(FileStorageError.UnsafeLocation);
+        CheckDirectory(root);
+        var path = UnderRoot(".locking-" + id.ToString("N"));
+        CheckEntry(path, directory: false, required: false);
+        return path;
+    }
+
     private string Entry(Guid tenant, string name)
     {
         var directory = UnderRoot(tenant.ToString("N"));

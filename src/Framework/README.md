@@ -256,6 +256,11 @@ Liveness indicates that the host can answer a probe; it is independent of module
 readiness. Readiness requires a ready module host, open work admission and healthy
 declared checks. Degraded or unhealthy readiness returns HTTP 503; healthy status
 returns HTTP 200. Each response contains only `Healthy`, `Degraded` or `Unhealthy`.
+Both probes answer GET and HEAD, the latter with the same status and no body, and
+other methods receive 405. They are deliberately anonymous: a load balancer or
+orchestrator probes without credentials, and the responses carry nothing but
+the status. They are declared anonymous in the API inventory, so a host's
+fallback authorization policy does not cover them.
 The adapter discards check descriptions, exceptions and data before returning
 results to the health service, including its logging. Check implementations remain
 responsible for any logging they perform themselves.
@@ -650,7 +655,10 @@ TM-G02-028 and TM-G02-033, in
   (`TM_G02_009_*`) and `HttpsTests`. Remaining: whole-request time limits and
   field lengths in JSON bodies (CODE-06); bounded paging, sorting and filtering on
   declared fields (CODE-06, with CODE-03 for query translation); per-endpoint
-  upload limits (SEC-06); per-tenant resource governance (OPS-018, G-08).
+  limits on the Files upload endpoint, whose service already refuses a declared
+  size above the store's maximum before any intent and bounds the streamed bytes
+  (SEC-06; see [the Files module](../Modules/Modularyn.Modules.Files.Persistence.FileSystem/README.md#validation)),
+  when CODE-06 declares it; per-tenant resource governance (OPS-018, G-08).
 - **TM-G02-010, deferred.** Stable public error codes with correlation (CODE-06,
   with CODE-08's correlation). Ingress refusals are bare status codes with no
   detail.

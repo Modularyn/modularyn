@@ -235,11 +235,20 @@ interception alone.
   `RequireCurrent`.
 - **Use cases.** A service that changes protected state asks the evaluator
   itself before it opens a unit, as settings management does.
+- **The caller's own principal.** `RequireAuthenticatedPrincipal()` declares an
+  endpoint that describes or acts on the caller's own principal only, such as
+  identity's current-user view, and needs no tenant context or operation
+  permission. It wraps the request delegate the same way: the endpoint runs only
+  when the request's server-side principal holder has a principal, and otherwise
+  answers 401 with `MAZ001`. An explicit anonymous marker does not lift it.
 
 `AuthorizationEntryPoints.Describe` classifies every routed endpoint as
-`Permission`, `HostAuthority`, `Anonymous`, `MemberOnly`, `InterceptionOnly` or
-`Undeclared`. Once the host has started, the package logs each endpoint that
-relies on interception alone (event 8304) or declares nothing (event 8305).
+`Permission`, `HostAuthority`, `Authenticated`, `Anonymous`, `MemberOnly`,
+`InterceptionOnly` or `Undeclared`; an endpoint that requires both a principal
+and tenant membership is `MemberOnly`. Once the host has started, the package
+logs each endpoint that relies on interception alone (event 8304), declares
+nothing (event 8305), requires tenant membership only (event 8306) or requires
+an authenticated principal only (event 8307).
 
 ## Host authority
 
@@ -285,7 +294,8 @@ tenant owner change, the tenant's entries.
 A refusal carries no grant, role or resource detail. Events 8300 to 8302 are
 warnings for unavailable data, a failed cache and a failed invalidation; 8303 is
 an error for a declared endpoint that ran unguarded; 8304 and 8305 are the
-startup warnings for unguarded paths.
+startup warnings for unguarded paths, and 8306 and 8307 those for endpoints that
+declare no operation permission.
 
 ## Threat-model controls
 
@@ -318,15 +328,19 @@ every control to its evidence.
   the effective tenant, then authorized for its tenant, its owner or a current
   grant, read from the store at every decision, and refused as missing. Tests:
   `DecisionTests.TM_G02_020_*`, `AuthorityTests.TM_G02_020_*` and
-  `G02AC003Tests.AC_003_P01_*_Isolation`. Remaining: file versions and download
-  grants adopting it (SEC-06, CODE-07); adversarial evidence for AC-003-N01 and
+  `G02AC003Tests.AC_003_P01_*_Isolation`. Files adopts it for every file action
+  and download grant, its creator as the owner and a refused file answered as
+  missing (SEC-06; `Modules.Files.Application.Tests` `FileAuthorizationTests`
+  and `DownloadGrantTests`). Remaining: adversarial evidence for AC-003-N01 and
   AC-004 (SEC-08).
 - **TM-G02-021, partly.** Delivered: `ResourceVisibility` composed into list,
   count and export queries as parameters, so hidden rows affect neither content
   nor totals, and nothing visible when the decision refuses. Tests:
-  `AuthorityTests.TM_G02_021_*` and `G02AC003Tests.AC_003_B01_*`. Remaining:
-  bounded paging, sorting and filtering on declared fields (CODE-06); file
-  previews (SEC-06); adversarial evidence for AC-003-N01 (SEC-08).
+  `AuthorityTests.TM_G02_021_*` and `G02AC003Tests.AC_003_B01_*`. File lists
+  compose it into their query (SEC-06; `Modules.Files.Application.Tests`
+  `FileAuthorizationTests.TM_G02_044_*`). Remaining: bounded paging, sorting and
+  filtering on declared fields (CODE-06); adversarial evidence for AC-003-N01
+  (SEC-08).
 - **TM-G02-022, partly.** Delivered: assignment ceilings, so no grant, role or
   share reaches beyond what the grantor holds within its ceiling; every change
   checked against the grantor's authority read under the tenant's lock in the
