@@ -61,13 +61,20 @@ bounded deferrals with the code `ScheduleFailed`, so it never ends the pass for
 other schedules.
 
 Schedules are daily civil times in IANA zones evaluated through `TimeZoneInfo`.
-A zone is accepted only in the form of an IANA zone or link name and only when the
-host's database knows it exactly as written; a path that the database merely
-resolves, such as a doubled separator, `posixrules`, `localtime` or the `posix`
-and `right` copies of the database, is refused. On a host running in globalization's invariant mode, IANA lookups need the
-operating system's time-zone database, as on Linux, and a Windows host in
-invariant mode cannot declare a schedule. A nonexistent local time is visibly skipped; an ambiguous time selects the first
-UTC occurrence. No machine-local time participates. Every instant is normalized
+A zone is accepted only in the form of an IANA zone or link name, such as
+`America/Chicago`, `Etc/UTC` or `US/Eastern`, and only when the host's time-zone
+database matches it; a path that the database merely resolves, such as a doubled
+separator, `posixrules`, `localtime` or the `posix` and `right` copies of the
+database, is refused. Zone names are matched by the host's time-zone database, so
+on a case-insensitive file system, such as a default macOS volume, a letter-case
+variant such as `america/chicago` resolves to the same zone and is accepted.
+Linux, the qualified host, is case-sensitive and refuses that variant, so a
+schedule declared with one stops resolving there and defers as described above;
+declare names in the database's own letter case. On a host running in
+globalization's invariant mode, IANA lookups need the operating system's
+time-zone database, as on Linux, and a Windows host in invariant mode cannot
+declare a schedule. A nonexistent local time is visibly skipped; an ambiguous
+time selects the first UTC occurrence. No machine-local time participates. Every instant is normalized
 through `UtcMicroseconds` before storage or comparison; clocks are `TimeProvider`.
 The due occurrence, job and cursor share a transaction, with tenant-qualified
 unique keys for schedule/date and schedule/due time. Restart or competing
