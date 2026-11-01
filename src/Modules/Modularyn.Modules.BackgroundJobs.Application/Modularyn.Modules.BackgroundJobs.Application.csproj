@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../Modularyn.Modules.BackgroundJobs.Domain/Modularyn.Modules.BackgroundJobs.Domain.csproj" />
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Jobs/Modularyn.Framework.Jobs.csproj" />
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Hosting/Modularyn.Framework.Hosting.csproj" />
+  </ItemGroup>
+</Project>

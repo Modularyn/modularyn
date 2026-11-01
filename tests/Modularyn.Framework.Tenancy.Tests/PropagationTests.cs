@@ -163,7 +163,63 @@ public sealed class PropagationTests
             (record.UnitId, record.Source, record.Actor.Subject, record.OperationId));
     }
 
+    [Fact]
+    public async Task TM_G02_027_A_disposed_service_registry_defers_service_work_instead_of_denying_it()
+    {
+        await using var services = UnitServices.Build(directory, seams);
+        var runner = services.GetRequiredService<TenantWorkRunner>();
+        var reference = await CaptureServiceAsync(services, "worker");
+        var runs = 0;
+        Task Work(TenantWorkUnit unit, CancellationToken token)
+        {
+            runs++;
+            return Task.CompletedTask;
+        }
+
+        Assert.Equal((TenantWorkDisposition.Completed, (string?)null), Disposition(await runner.RunAsync(reference, Work, Cancellation)));
+        // A provider disposed during shutdown is an unavailable seam: the item is retried later, never denied.
+        seams.ServiceIdentities.Disposed = true;
+        Assert.Equal((TenantWorkDisposition.Deferred, TenancyCodes.SeamUnavailable), Disposition(await runner.RunAsync(reference, Work, Cancellation)));
+        seams.ServiceIdentities.Disposed = false;
+        // A service identity that is no longer declared stays a terminal refusal.
+        seams.ServiceIdentities.Retire("worker");
+        Assert.Equal((TenantWorkDisposition.Denied, TenancyCodes.Unauthenticated), Disposition(await runner.RunAsync(reference, Work, Cancellation)));
+        Assert.Equal(1, runs);
+    }
+
+    [Fact]
+    public async Task TM_G02_027_A_host_reference_of_a_retired_service_is_denied_before_host_authority()
+    {
+        await using var services = UnitServices.Build(directory, seams);
+        var runner = services.GetRequiredService<TenantWorkRunner>();
+        var reference = await CaptureHostAsync(services);
+        Assert.Equal(ActorKind.Service, reference.Actor.Kind);
+        static Task Work(TenantWorkUnit unit, CancellationToken token) => Task.CompletedTask;
+
+        // The host operator grant still names the service, but the service is no longer a current declared identity, so no
+        // host scope is granted and nothing is audited.
+        seams.ServiceIdentities.Retire("maintenance");
+        var before = seams.Audit.Records.Count;
+        Assert.Equal((TenantWorkDisposition.Denied, TenancyCodes.Unauthenticated), Disposition(await runner.RunAsync(reference, Work, Cancellation)));
+        Assert.Equal(before, seams.Audit.Records.Count);
+        seams.ServiceIdentities.Disposed = true;
+        Assert.Equal((TenantWorkDisposition.Deferred, TenancyCodes.SeamUnavailable), Disposition(await runner.RunAsync(reference, Work, Cancellation)));
+        seams.ServiceIdentities.Disposed = false;
+        seams.ServiceIdentities.Restore("maintenance");
+        Assert.Equal(TenantWorkDisposition.Completed, (await runner.RunAsync(reference, Work, Cancellation)).Disposition);
+        Assert.Equal(before + 1, seams.Audit.Records.Count);
+    }
+
     private async Task<PropagatedTenantContext> CaptureHostAsync(IServiceProvider services) => await CaptureAsync(services, host: true);
+
+    private async Task<PropagatedTenantContext> CaptureServiceAsync(IServiceProvider services, string subject)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var decision = await scope.ServiceProvider.GetRequiredService<TenantExecution>().EstablishServiceAsync(TestServiceIdentities.Principal(subject),
+            tenantA, Cancellation);
+        Assert.True(decision.Succeeded, decision.Code);
+        return PropagatedTenantContext.Capture(decision.Context!);
+    }
 
     private static (TenantWorkDisposition, string?) Disposition(TenantWorkOutcome outcome) => (outcome.Disposition, outcome.Code);
 }

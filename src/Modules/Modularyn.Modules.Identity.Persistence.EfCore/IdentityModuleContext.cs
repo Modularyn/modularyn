@@ -157,6 +157,8 @@ internal sealed class IdentityModuleContext(PostgreSqlModule module) : ModuleDbC
             entity.ToTable("VerificationThrottle");
             entity.HasKey(row => row.Key).HasName("PK_VerificationThrottle");
             entity.Property(row => row.Key).ValueGeneratedNever();
+            // Retention cannot erase a counter that a verification acquired after retention read it.
+            entity.Property(row => row.UpdatedAt).IsConcurrencyToken();
         });
         modelBuilder.Entity<DelegationRow>(entity =>
         {

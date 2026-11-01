@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Security.Claims;
 using Microsoft.Extensions.DependencyInjection;
+using Modularyn.Framework.Security.Abstractions;
 using Modularyn.Framework.Tenancy.Abstractions;
 
 namespace Modularyn.Framework.Tenancy;
@@ -138,7 +139,8 @@ public sealed class TenantExecution : IDisposable
 
     /// <summary>
     /// Reconstructs a propagated context after revalidating it now: the tenant must still be active and the actor still
-    /// a member, or, for host scope, still hold host authority, with a new audit record. The payload is never consulted.
+    /// a member, or, for host scope, still hold host authority, with a new audit record. A service actor must, in either
+    /// scope, still be a current declared identity. The payload is never consulted.
     /// </summary>
     public async ValueTask<TenantDecision> EstablishPropagatedAsync(PropagatedTenantContext propagated, CancellationToken cancellationToken = default)
     {
@@ -149,13 +151,96 @@ public sealed class TenantExecution : IDisposable
         {
             var tenantId = propagated.TenantId!.Value;
             var refusal = await CheckTenantAsync(tenantId, cancellationToken).ConfigureAwait(false)
-                ?? await CheckMembershipAsync(propagated.Actor, tenantId, cancellationToken).ConfigureAwait(false);
+                ?? await CheckProducerAsync(propagated.Actor, tenantId, cancellationToken).ConfigureAwait(false);
             decision = refusal ?? TenantDecision.Established(new(TenantScope.Tenant, tenantId, propagated.Actor, null,
                 TenantContextSource.Propagated, Guid.NewGuid()));
         }
-        else decision = await GrantHostAsync(propagated.Actor, propagated.OperationId!, propagated.Reason!,
-            TenantContextSource.Propagated, cancellationToken).ConfigureAwait(false);
+        else
+        {
+            // A service actor's host work is rechecked against the current identity registry and freshness, as its tenant
+            // work is, before host authority is asked again.
+            var refusal = propagated.Actor.Kind == ActorKind.Service
+                ? await CheckServiceActorAsync(propagated.Actor, cancellationToken).ConfigureAwait(false) : null;
+            decision = refusal ?? await GrantHostAsync(propagated.Actor, propagated.OperationId!, propagated.Reason!,
+                TenantContextSource.Propagated, cancellationToken).ConfigureAwait(false);
+        }
         return Publish(decision);
+    }
+
+    /// <summary>
+    /// Server-only production route for service identities, which are never tenant members. The current identity
+    /// registry and freshness seam validate the principal; the caller must still authorize each producing use case.
+    /// No request adapter calls this method and no stored row supplies the principal or its scope. The tenant comes from
+    /// server state the caller already holds, never from a request, a payload or a stored row.
+    /// </summary>
+    public async ValueTask<TenantDecision> EstablishServiceAsync(ExecutionPrincipal principal, Guid tenantId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(principal);
+        Begin();
+        if (principal.ServiceScope is null || principal.Actor.Kind != IdentityKind.Service || tenantId == Guid.Empty)
+            return TenantDecision.Refused(TenancyCodes.Unauthenticated);
+        var actor = new ActorReference(ActorKind.Service, principal.Actor.Id);
+        var refusal = await CheckTenantAsync(tenantId, cancellationToken).ConfigureAwait(false)
+            ?? await CheckServicePrincipalAsync(principal, cancellationToken).ConfigureAwait(false);
+        return Publish(refusal ?? TenantDecision.Established(new(TenantScope.Tenant, tenantId, actor, null,
+            TenantContextSource.Service, Guid.NewGuid())));
+    }
+
+    private async ValueTask<TenantDecision?> CheckProducerAsync(ActorReference actor, Guid tenantId, CancellationToken cancellationToken) =>
+        actor.Kind == ActorKind.User
+            ? await CheckMembershipAsync(actor, tenantId, cancellationToken).ConfigureAwait(false)
+            : await CheckServiceActorAsync(actor, cancellationToken).ConfigureAwait(false);
+
+    private async ValueTask<TenantDecision?> CheckServiceActorAsync(ActorReference actor, CancellationToken cancellationToken)
+    {
+        if (services.GetService<IServiceIdentityScopes>() is not { } identities)
+            return TenantDecision.Refused(TenancyCodes.SeamUnavailable);
+        try
+        {
+            await using var identity = identities.Begin(actor.Subject);
+            return await CheckServicePrincipalAsync(identity.Principal, cancellationToken).ConfigureAwait(false);
+        }
+        // An undeclared identity is terminal. A disposed provider, which also derives from InvalidOperationException, is a
+        // shutdown race: like any unavailable seam it is transient, so the item is retried later instead of denied.
+        catch (InvalidOperationException exception) when (exception is not ObjectDisposedException)
+        {
+            return TenantDecision.Refused(TenancyCodes.Unauthenticated);
+        }
+        catch (Exception exception) when (!IsCancellation(exception, cancellationToken))
+        {
+            return TenantDecision.Refused(TenancyCodes.SeamUnavailable);
+        }
+    }
+
+    /// <summary>Begins a separately authorized and audited host operation for a current declared service identity.</summary>
+    public async ValueTask<TenantDecision> EstablishServiceHostAsync(ExecutionPrincipal principal, string operationId, string reason,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(principal);
+        if (!PropagatedTenantContext.ValidOperation(operationId) || !PropagatedTenantContext.ValidReason(reason))
+            throw new ArgumentException("Name the host operation and its reason.");
+        Begin();
+        if (principal.ServiceScope is null || principal.Actor.Kind != IdentityKind.Service)
+            return TenantDecision.Refused(TenancyCodes.Unauthenticated);
+        var actor = new ActorReference(ActorKind.Service, principal.Actor.Id);
+        var refusal = await CheckServicePrincipalAsync(principal, cancellationToken).ConfigureAwait(false);
+        return Publish(refusal ?? await GrantHostAsync(actor, operationId, reason, TenantContextSource.HostAuthority, cancellationToken).ConfigureAwait(false));
+    }
+
+    private async ValueTask<TenantDecision?> CheckServicePrincipalAsync(ExecutionPrincipal principal, CancellationToken cancellationToken)
+    {
+        if (services.GetService<IPrincipalFreshness>() is not { } freshness)
+            return TenantDecision.Refused(TenancyCodes.SeamUnavailable);
+        try
+        {
+            return await freshness.RecheckAsync(principal, cancellationToken).ConfigureAwait(false) == FreshnessStatus.Current
+                ? null : TenantDecision.Refused(TenancyCodes.Unauthenticated);
+        }
+        catch (Exception exception) when (!IsCancellation(exception, cancellationToken))
+        {
+            return TenantDecision.Refused(TenancyCodes.SeamUnavailable);
+        }
     }
 
     /// <summary>Ends the unit's context. Idempotent; called by the owning scope on every path.</summary>
@@ -205,6 +290,9 @@ public sealed class TenantExecution : IDisposable
         }
         var actor = ResolveActor(request.Principal, out var actorRefusal);
         if (actor is null) return actorRefusal!;
+        // Only a user can be a tenant member, whatever a membership seam would answer. A service identity's tenant work
+        // takes the server route, EstablishServiceAsync, which checks the current identity registry and freshness.
+        if (actor.Kind != ActorKind.User) return TenantDecision.Refused(TenancyCodes.NotMember);
         if (host is not null)
         {
             Guid? domainTenant;

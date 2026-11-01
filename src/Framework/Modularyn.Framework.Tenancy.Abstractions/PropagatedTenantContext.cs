@@ -46,7 +46,7 @@ public sealed class PropagatedTenantContext
         ArgumentNullException.ThrowIfNull(context);
         if (!context.IsActive)
             throw new InvalidOperationException("Capture the tenant context while its unit of work is active.");
-        var at = TruncateToMicroseconds((clock ?? TimeProvider.System).GetUtcNow());
+        var at = UtcMicroseconds.Now(clock ?? TimeProvider.System);
         return context.Scope == TenantScope.Tenant
             ? new(TenantScope.Tenant, context.TenantId, null, null, context.Actor, context.UnitId, at)
             : new(TenantScope.Host, null, context.HostGrant!.OperationId, context.HostGrant.Reason, context.Actor, context.UnitId, at);
@@ -124,12 +124,6 @@ public sealed class PropagatedTenantContext
 
     internal static bool ValidReason(string? value) => !string.IsNullOrWhiteSpace(value) && value.Length <= MaxReasonLength
         && value == value.Trim() && !value.Any(char.IsControl);
-
-    private static DateTimeOffset TruncateToMicroseconds(DateTimeOffset value)
-    {
-        var utc = value.ToUniversalTime();
-        return new DateTimeOffset(utc.Ticks - utc.Ticks % 10, TimeSpan.Zero);
-    }
 
     private static bool Properties(JsonElement element, out Dictionary<string, JsonElement> properties)
     {

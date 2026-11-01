@@ -14,7 +14,9 @@ public enum TenantContextSource
     /// <summary>Reconstructed from a propagated reference after the receiver revalidated it.</summary>
     Propagated,
     /// <summary>Granted under separately checked host authority and recorded in audit.</summary>
-    HostAuthority
+    HostAuthority,
+    /// <summary>A declared, current service identity selecting an active tenant in server code.</summary>
+    Service
 }
 
 public enum ActorKind { User, Service }

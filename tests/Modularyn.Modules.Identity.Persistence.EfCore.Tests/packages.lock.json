@@ -173,6 +173,23 @@
           "xunit.v3.runner.common": "[4.0.2]"
         }
       },
+      "modularyn.framework.api.contracts": {
+        "type": "Project"
+      },
+      "modularyn.framework.authorization": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Api.Contracts": "[1.0.0, )",
+          "Modularyn.Framework.Authorization.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Configuration": "[1.0.0, )",
+          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.EfCore": "[1.0.0, )",
+          "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )"
+        }
+      },
       "modularyn.framework.authorization.abstractions": {
         "type": "Project",
         "dependencies": {
@@ -188,6 +205,13 @@
         "type": "Project",
         "dependencies": {
           "Modularyn.Framework.Configuration": "[1.0.0, )"
+        }
+      },
+      "modularyn.framework.jobs": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Authorization": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.EfCore": "[1.0.0, )"
         }
       },
       "modularyn.framework.modularity": {
@@ -236,6 +260,7 @@
         "type": "Project",
         "dependencies": {
           "Modularyn.Framework.Configuration": "[1.0.0, )",
+          "Modularyn.Framework.Jobs": "[1.0.0, )",
           "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )",
           "Modularyn.Modules.Identity.Application.Contracts": "[1.0.0, )",
