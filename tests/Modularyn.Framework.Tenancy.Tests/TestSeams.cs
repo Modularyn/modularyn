@@ -126,11 +126,29 @@ internal sealed class TestServiceIdentities : IServiceIdentityScopes, IPrincipal
     }
 }
 
-internal sealed class RecordingAudit : IHostScopeAudit, IFilterBypassAudit
+internal sealed class RecordingAudit : IHostScopeAudit, IFilterBypassAudit, Audit.IAuditTrail
 {
     internal ConcurrentQueue<HostScopeAuditRecord> Records { get; } = new();
     internal ConcurrentQueue<FilterBypassRecord> Bypasses { get; } = new();
+    internal ConcurrentQueue<Audit.AuditEntry> Changes { get; } = new();
     internal bool Failing { get; set; }
+
+    /// <summary>Fails only the change records, so a context can still be entered while its changes cannot be recorded.</summary>
+    internal bool ChangesFailing { get; set; }
+
+    public ValueTask RecordAsync(Persistence.Abstractions.IUnitOfWork work, Audit.AuditEntry entry, CancellationToken cancellationToken)
+    {
+        if (Failing || ChangesFailing) throw new InvalidOperationException("The audit store is unavailable.");
+        Changes.Enqueue(entry);
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask RecordAccessAsync(Audit.AuditEntry entry, CancellationToken cancellationToken)
+    {
+        if (Failing || ChangesFailing) throw new InvalidOperationException("The audit store is unavailable.");
+        Changes.Enqueue(entry);
+        return ValueTask.CompletedTask;
+    }
 
     public ValueTask RecordAsync(HostScopeAuditRecord record, CancellationToken cancellationToken)
     {
@@ -200,6 +218,7 @@ internal sealed class TestSeams
         if (!audit) return;
         services.AddSingleton<IHostScopeAudit>(Audit);
         services.AddSingleton<IFilterBypassAudit>(Audit);
+        services.TryAddSingleton<Audit.IAuditTrail>(Audit);
     }
 }
 

@@ -69,11 +69,57 @@ public sealed class ManagementTests
 
         // With no evaluator registered, tenant and user management is refused; global management still needs only its host grant.
         var unguarded = new SettingsService(database.Module, database.Definitions, database.Services.GetRequiredService<ScopedValueCache>(),
-            database.Services.GetRequiredService<TenantWorkRunner>(), database.Clock);
+            database.Services.GetRequiredService<TenantWorkRunner>(), database.Clock, audit: database.Services.GetRequiredService<Audit.IAuditTrail>());
         Assert.Equal(AuthorizationCodes.Unavailable, (await Assert.ThrowsAsync<ValueAccessDeniedException>(() =>
             unguarded.SetAsync(a, principal, TestDefinitions.PageSize, ValueSource.Tenant, "30", cancellationToken: Cancellation))).Code);
         var host = await database.HostAsync();
         Assert.NotEqual(Guid.Empty, await unguarded.SetAsync(host, null, TestDefinitions.PageSize, ValueSource.Global, "30", cancellationToken: Cancellation));
+    }
+
+    [Fact]
+    [Trait("Requires", "PostgreSQL")]
+    public async Task TM_G02_051_Each_override_change_commits_with_its_record_or_not_at_all()
+    {
+        await using var database = await SettingsDatabase.CreateAsync();
+        var a = await database.EnterAsync(database.TenantA);
+        var principal = SettingsDatabase.PrincipalOf(a);
+        var audit = database.Seams.Audit;
+        audit.Changes.Clear();
+
+        // A set and a reset each record who changed which setting at which scope, never the value.
+        var version = await database.Settings.SetAsync(a, principal, TestDefinitions.Title, ValueSource.Tenant, "tenant title", cancellationToken: Cancellation);
+        var set = Assert.Single(audit.Changes);
+        Assert.Equal(SettingsService.ValueSetAction, set.Action);
+        Assert.Equal(database.TenantA, set.TenantId);
+        Assert.Equal(a.Actor, set.Actor);
+        Assert.Equal(a.UnitId, set.UnitId);
+        Assert.Equal("setting", set.ResourceType);
+        Assert.Equal(TestDefinitions.Title.ModuleId + "/" + TestDefinitions.Title.AssetName, set.ResourceId);
+        Assert.Equal("scope Tenant", set.Detail);
+        Assert.DoesNotContain("tenant title", set.ToString(), StringComparison.Ordinal);
+        await database.Settings.ResetAsync(a, principal, TestDefinitions.Title, ValueSource.Tenant, version, Cancellation);
+        Assert.Equal([SettingsService.ValueSetAction, SettingsService.ValueResetAction], audit.Changes.Select(entry => entry.Action));
+
+        // A change whose record cannot be written is refused and leaves the committed state as it was.
+        version = await database.Settings.SetAsync(a, principal, TestDefinitions.Title, ValueSource.Tenant, "kept", cancellationToken: Cancellation);
+        audit.ChangesFailing = true;
+        Assert.Equal(AuthorizationCodes.AuditUnavailable, (await Assert.ThrowsAsync<ValueAccessDeniedException>(() =>
+            database.Settings.SetAsync(a, principal, TestDefinitions.Title, ValueSource.Tenant, "lost", version, Cancellation))).Code);
+        Assert.Equal(AuthorizationCodes.AuditUnavailable, (await Assert.ThrowsAsync<ValueAccessDeniedException>(() =>
+            database.Settings.ResetAsync(a, principal, TestDefinitions.Title, ValueSource.Tenant, version, Cancellation))).Code);
+        audit.ChangesFailing = false;
+        // A fresh host reads the committed state, not a cache.
+        await using var restarted = database.NewServices();
+        var kept = await restarted.GetRequiredService<SettingsService>().ResolveAsync(a, TestDefinitions.Title, Cancellation);
+        Assert.Equal(ValueSource.Tenant, kept.Source);
+        Assert.Equal("kept", kept.Get<string>());
+        Assert.Equal(version, kept.Version);
+
+        // Without an audit trail no override changes at all.
+        var unaudited = new SettingsService(database.Module, database.Definitions, database.Services.GetRequiredService<ScopedValueCache>(),
+            database.Services.GetRequiredService<TenantWorkRunner>(), database.Clock, permissions: database.Permissions);
+        Assert.Equal(AuthorizationCodes.AuditUnavailable, (await Assert.ThrowsAsync<ValueAccessDeniedException>(() =>
+            unaudited.SetAsync(a, principal, TestDefinitions.Title, ValueSource.Tenant, "lost", version, Cancellation))).Code);
     }
 
     [Fact]

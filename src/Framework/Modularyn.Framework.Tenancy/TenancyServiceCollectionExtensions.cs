@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Modularyn.Framework.Audit;
 using Modularyn.Framework.Ingress;
 using Modularyn.Framework.Persistence.EfCore;
 
@@ -20,7 +21,7 @@ public static class TenancyServiceCollectionExtensions
             throw new InvalidOperationException("Register tenancy once, with its one directory module.");
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<ITenantDirectory>(new TenantDirectory(directory));
-        services.AddSingleton(provider => new TenantDirectoryAdministration(directory, provider.GetService<PublicOrigins>()));
+        services.AddSingleton(provider => new TenantDirectoryAdministration(directory, provider.GetService<PublicOrigins>(), provider.GetService<IAuditTrail>()));
         services.AddScoped<TenantExecution>();
         services.AddSingleton<TenantWorkRunner>();
         services.AddSingleton<TenantCache>();

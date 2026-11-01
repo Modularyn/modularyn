@@ -1,12 +1,14 @@
 using Microsoft.Extensions.DependencyInjection;
+using Modularyn.Framework.Audit;
 using Modularyn.Framework.Security.Abstractions;
+using Modularyn.Framework.Tenancy.Abstractions;
 using Modularyn.Modules.Identity.Application.Contracts;
 using Modularyn.Modules.Identity.Domain;
 
 namespace Modularyn.Modules.Identity.Application;
 
-internal sealed class DelegationService(IDelegationStore store, IAccountDirectory accounts, IdentityPolicies policies, IdentityClock clock)
-    : IDelegationService
+internal sealed class DelegationService(IDelegationStore store, IAccountDirectory accounts, IdentityPolicies policies, IdentityClock clock,
+    IServiceProvider services) : IDelegationService
 {
     public async Task<DelegationIssueResult> IssueAsync(DelegationRequest request, ExecutionPrincipal issuedBy, CancellationToken cancellationToken)
     {
@@ -35,7 +37,7 @@ internal sealed class DelegationService(IDelegationStore store, IAccountDirector
         {
             return new(DelegationIssueStatus.InvalidWindow, null);
         }
-        await store.CreateAsync(grant, cancellationToken).ConfigureAwait(false);
+        await IdentityAudited.RunAsync(() => store.CreateAsync(grant, IdentityAuthorization.ActorOf(issuedBy), cancellationToken)).ConfigureAwait(false);
         return new(DelegationIssueStatus.Issued, grant.Id);
     }
 
@@ -45,7 +47,8 @@ internal sealed class DelegationService(IDelegationStore store, IAccountDirector
         var grant = await store.FindAsync(grantId, cancellationToken).ConfigureAwait(false);
         // Either party may end a delegation; revoking only ever removes authority.
         if (grant is null || (revokedBy.Actor != grant.Actor && revokedBy.Actor != grant.Subject)) return false;
-        return await store.RevokeAsync(grantId, revokedBy.Actor, clock.Now, cancellationToken).ConfigureAwait(false);
+        return await IdentityAudited.RunAsync(() => store.RevokeAsync(grantId, revokedBy.Actor, clock.Now, IdentityAuthorization.ActorOf(revokedBy), cancellationToken))
+            .ConfigureAwait(false);
     }
 
     public async Task<ExecutionPrincipal?> ResolveAsync(Guid grantId, ExecutionPrincipal actor, CancellationToken cancellationToken)
@@ -59,6 +62,21 @@ internal sealed class DelegationService(IDelegationStore store, IAccountDirector
         if (!Guid.TryParseExact(grant.Subject.Id, "D", out var subjectId)
             || await accounts.FindAsync(subjectId, cancellationToken).ConfigureAwait(false) is not { Disabled: false })
             return null;
+        // Acting under a delegation is privileged: each use is recorded before the request acts, and a use that cannot be
+        // recorded does not resolve, so the request is not authenticated at all.
+        if (services.GetService<IAuditTrail>() is not { } trail) return null;
+        try
+        {
+            await trail.RecordAccessAsync(new AuditEntry(IdentityAuditActions.DelegationUsed, new ActorReference(ActorKind.User, actor.Actor.Id))
+            {
+                Subject = new ActorReference(ActorKind.User, grant.Subject.Id), TenantId = grant.Authority.Tenant, ResourceType = "delegation",
+                ResourceId = grant.Id.ToString("D")
+            }, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
         return ExecutionPrincipal.ForDelegation(actor.Actor, sessionId, authenticatedAt, grant.Subject, grant.Authority);
     }
 

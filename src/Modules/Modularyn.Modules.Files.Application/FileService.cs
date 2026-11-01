@@ -244,6 +244,8 @@ public sealed class FileService : IFiles
             Verifier = token.ComputeVerifier(tenantId), CreatedByKind = creator.Kind, CreatedBy = creator.Subject, CreatedAt = now,
             ExpiresAt = FileTime.Normalize(now + lifetime) };
         unit.Add(grant);
+        // Who issued which grant, for which version, purpose and expiry, with the grant: never its token or verifier.
+        await unit.RecordAsync(Audited(FileAuditRecord.GrantIssued, tenant, principal, grant), cancellationToken).ConfigureAwait(false);
         await unit.CommitAsync(cancellationToken).ConfigureAwait(false);
         return new(Inform(grant, now), token);
     }
@@ -270,6 +272,7 @@ public sealed class FileService : IFiles
         if (grant!.RevokedAt is null)
         {
             grant.RevokedAt = now;
+            await unit.RecordAsync(Audited(FileAuditRecord.GrantRevoked, tenant, principal, grant), cancellationToken).ConfigureAwait(false);
             await unit.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
         return Inform(grant, now);
@@ -498,6 +501,14 @@ public sealed class FileService : IFiles
     };
 
     private static ActorReference? OwnerOf(FileAsset file) => string.IsNullOrEmpty(file.CreatedBy) ? null : new(file.CreatedByKind, file.CreatedBy);
+
+    private static FileAuditRecord Audited(string action, TenantContext tenant, ExecutionPrincipal? principal, FileGrant grant) =>
+        new(action, tenant.Actor, grant.TenantId, tenant.UnitId, grant.Id, "file " + grant.FileId.ToString("D") + " version " + grant.VersionId.ToString("D")
+            + " purpose " + grant.Purpose + " expires " + grant.ExpiresAt.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff'Z'", System.Globalization.CultureInfo.InvariantCulture))
+        {
+            Subject = principal is { EffectiveSubject: { } effective } && effective.Id != tenant.Actor.Subject
+                ? new ActorReference(effective.Kind == IdentityKind.User ? ActorKind.User : ActorKind.Service, effective.Id) : null
+        };
 
     private static bool IsOpen(FileGrant grant, DateTimeOffset now) => grant.RevokedAt is null && grant.ConsumedAt is null && now < grant.ExpiresAt;
 

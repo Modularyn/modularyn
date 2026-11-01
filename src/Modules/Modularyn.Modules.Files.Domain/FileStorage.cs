@@ -129,7 +129,27 @@ public interface IFileMetadataUnit : IAsyncDisposable
     void Add(FileGrant grant);
     void Remove(FileAsset file);
     void Remove(FileUpload upload);
+
+    /// <summary>
+    /// Records a privileged Files change in audit in this unit's transaction, so it commits exactly with the change; a change
+    /// whose record cannot be written does not commit (<see cref="FileStorageError.AuditUnavailable"/>).
+    /// </summary>
+    Task RecordAsync(FileAuditRecord record, CancellationToken cancellationToken);
+
     Task CommitAsync(CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// One privileged Files change as audit records it: the action, who made it in which unit and tenant, the grant it names
+/// and references describing it. Never the grant's token or verifier.
+/// </summary>
+public sealed record FileAuditRecord(string Action, ActorReference Actor, Guid TenantId, Guid UnitId, Guid GrantId, string Detail)
+{
+    public const string GrantIssued = "files.grant-issued";
+    public const string GrantRevoked = "files.grant-revoked";
+
+    /// <summary>The principal's effective subject when another than the actor, as under a delegation.</summary>
+    public ActorReference? Subject { get; init; }
 }
 
 /// <summary>Operational fault checkpoints over real storage; an observer never decides publication eligibility.</summary>

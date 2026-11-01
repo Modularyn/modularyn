@@ -262,6 +262,7 @@
       "modularyn.framework.tenancy": {
         "type": "Project",
         "dependencies": {
+          "Modularyn.Framework.Audit": "[1.0.0, )",
           "Modularyn.Framework.Authorization.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Ingress": "[1.0.0, )",
           "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
@@ -302,6 +303,7 @@
       "modularyn.modules.files.persistence.efcore": {
         "type": "Project",
         "dependencies": {
+          "Modularyn.Framework.Audit": "[1.0.0, )",
           "Modularyn.Framework.Persistence.EfCore": "[1.0.0, )",
           "Modularyn.Modules.Files.Domain": "[1.0.0, )"
         }
@@ -315,6 +317,7 @@
       "modularyn.modules.identity.application": {
         "type": "Project",
         "dependencies": {
+          "Modularyn.Framework.Audit": "[1.0.0, )",
           "Modularyn.Framework.Configuration": "[1.0.0, )",
           "Modularyn.Framework.Jobs": "[1.0.0, )",
           "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",

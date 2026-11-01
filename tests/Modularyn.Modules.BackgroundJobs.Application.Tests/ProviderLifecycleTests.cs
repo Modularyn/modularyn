@@ -99,10 +99,10 @@ public sealed class ProviderLifecycleTests
         var active = Guid.NewGuid();
         var recent = Guid.NewGuid();
         await sessions.CreateAsync(Session(expired, user.Id, old), Token);
-        await sessions.EndAsync(expired, SessionEndReason.SignedOut, old.AddMinutes(1), Token);
+        await sessions.EndAsync(expired, SessionEndReason.SignedOut, old.AddMinutes(1), null, Token);
         await sessions.CreateAsync(Session(active, user.Id, clock.Now), Token);
         await sessions.CreateAsync(Session(recent, user.Id, clock.Now.AddHours(-1)), Token);
-        await sessions.EndAsync(recent, SessionEndReason.SignedOut, clock.Now, Token);
+        await sessions.EndAsync(recent, SessionEndReason.SignedOut, clock.Now, null, Token);
         var retention = host.Get<IIdentityRetentionStore>();
         await Assert.ThrowsAsync<InvalidOperationException>(() => retention.PruneAsync(unit.Context, 100, Token));
         await using (var work = await EfCoreUnitOfWork.BeginAsync(database.Producer, unit.Context, cancellationToken: Token))

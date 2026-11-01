@@ -61,11 +61,17 @@ public interface ISessionStore
     /// </summary>
     Task<bool> TouchAsync(Guid sessionId, DateTimeOffset now, DateTimeOffset idleCutoff, CancellationToken cancellationToken);
 
-    /// <summary>Ends the session with its reason unless it has already ended. False when it had.</summary>
-    Task<bool> EndAsync(Guid sessionId, SessionEndReason reason, DateTimeOffset now, CancellationToken cancellationToken);
+    /// <summary>
+    /// Ends the session with its reason unless it has already ended. False when it had. A revocation names who revoked it,
+    /// and is recorded in audit with the change; an end the session's own limits or its sign-out cause names nobody.
+    /// </summary>
+    Task<bool> EndAsync(Guid sessionId, SessionEndReason reason, DateTimeOffset now, IdentityChangeActor? by, CancellationToken cancellationToken);
 
-    /// <summary>Ends every session of the account that has not already ended, and returns how many it ended.</summary>
-    Task<int> EndAllAsync(Guid accountId, SessionEndReason reason, DateTimeOffset now, CancellationToken cancellationToken);
+    /// <summary>
+    /// Ends every session of the account that has not already ended, and returns how many it ended. A revocation names who
+    /// revoked them, and is recorded in audit with the change.
+    /// </summary>
+    Task<int> EndAllAsync(Guid accountId, SessionEndReason reason, DateTimeOffset now, IdentityChangeActor? by, CancellationToken cancellationToken);
 }
 
 public static class SessionRules

@@ -30,7 +30,7 @@ internal sealed class SessionService(ISessionStore store, IdentityPolicies polic
         var session = lookup.Session;
         if (SessionRules.Evaluate(lookup, Policy, now) is { } reason)
         {
-            if (session.EndedAt is null) await store.EndAsync(session.Id, reason, now, cancellationToken).ConfigureAwait(false);
+            if (session.EndedAt is null) await store.EndAsync(session.Id, reason, now, null, cancellationToken).ConfigureAwait(false);
             return null;
         }
         if (!await store.TouchAsync(session.Id, now, now - Policy.IdleTimeout, cancellationToken).ConfigureAwait(false))
@@ -38,7 +38,7 @@ internal sealed class SessionService(ISessionStore store, IdentityPolicies polic
             // Another request ended it, or a limit passed, between the read and the write; record why if nothing has.
             var current = await store.FindAsync(session.Id, cancellationToken).ConfigureAwait(false);
             if (current is { Session.EndedAt: null } && SessionRules.Evaluate(current, Policy, now) is { } late)
-                await store.EndAsync(session.Id, late, now, cancellationToken).ConfigureAwait(false);
+                await store.EndAsync(session.Id, late, now, null, cancellationToken).ConfigureAwait(false);
             return null;
         }
         return new ActiveSession(session.Id, session.AccountId, session.AuthenticatedAt, SessionRules.AbsoluteDeadline(session, Policy));
@@ -49,7 +49,7 @@ internal sealed class SessionService(ISessionStore store, IdentityPolicies polic
         ArgumentNullException.ThrowIfNull(token);
         var lookup = await store.FindByTokenHashAsync(token.ComputeHash(), cancellationToken).ConfigureAwait(false);
         return lookup is not null
-            && await store.EndAsync(lookup.Session.Id, SessionEndReason.SignedOut, clock.Now, cancellationToken).ConfigureAwait(false);
+            && await store.EndAsync(lookup.Session.Id, SessionEndReason.SignedOut, clock.Now, null, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<bool> RevokeAsync(IdentityAuthority authority, Guid sessionId, CancellationToken cancellationToken)
@@ -58,13 +58,16 @@ internal sealed class SessionService(ISessionStore store, IdentityPolicies polic
         // The owner revokes only its own sessions; an unknown session is refused as another account's would be.
         var account = (await store.FindAsync(sessionId, cancellationToken).ConfigureAwait(false))?.Session.AccountId ?? Guid.Empty;
         await authorization.RequireOwnerOrHostAsync(authority, account, IdentityHostOperations.SessionsId, cancellationToken).ConfigureAwait(false);
-        return await store.EndAsync(sessionId, SessionEndReason.Revoked, clock.Now, cancellationToken).ConfigureAwait(false);
+        // A revocation, by the owner or an identity administrator, is recorded in audit with the change.
+        return await IdentityAudited.RunAsync(() => store.EndAsync(sessionId, SessionEndReason.Revoked, clock.Now, IdentityAuthorization.ActorOf(authority),
+            cancellationToken)).ConfigureAwait(false);
     }
 
     public async Task<int> RevokeAllAsync(IdentityAuthority authority, Guid accountId, CancellationToken cancellationToken)
     {
         await authorization.RequireOwnerOrHostAsync(authority, accountId, IdentityHostOperations.SessionsId, cancellationToken).ConfigureAwait(false);
-        return await store.EndAllAsync(accountId, SessionEndReason.Revoked, clock.Now, cancellationToken).ConfigureAwait(false);
+        return await IdentityAudited.RunAsync(() => store.EndAllAsync(accountId, SessionEndReason.Revoked, clock.Now, IdentityAuthorization.ActorOf(authority),
+            cancellationToken)).ConfigureAwait(false);
     }
 
     public async Task<SessionRecordView?> DescribeAsync(Guid sessionId, CancellationToken cancellationToken)
@@ -76,6 +79,7 @@ internal sealed class SessionService(ISessionStore store, IdentityPolicies polic
             SessionRules.AbsoluteDeadline(session, Policy), session.EndedAt, session.EndReason is { } reason ? (SessionEndCause)(int)reason : null);
     }
 
+    // The sessions an account change ends; the change that ends them is recorded with the change itself.
     internal Task<int> EndAllAsync(Guid accountId, SessionEndReason reason, CancellationToken cancellationToken) =>
-        store.EndAllAsync(accountId, reason, clock.Now, cancellationToken);
+        store.EndAllAsync(accountId, reason, clock.Now, null, cancellationToken);
 }

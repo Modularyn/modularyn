@@ -124,6 +124,8 @@ internal sealed class DurableDatabase : IAsyncDisposable
         static string? Text(NpgsqlDataReader reader, int column) => reader.IsDBNull(column) ? null : reader.GetString(column);
     }
 
+    internal string DirectorySchema => schemas[0];
+    internal string IdentitySchema => schemas[1];
     internal string AuditSchema => schemas[6];
     internal string AuthoritySchema => schemas[2];
     internal string ProducerSchema => schemas[3];

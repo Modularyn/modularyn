@@ -27,6 +27,12 @@ internal sealed class RecordingIdentityAudit : IAuthorityAudit, IAuditTrail
         Actions.Enqueue(entry.Action);
         return ValueTask.CompletedTask;
     }
+
+    public ValueTask RecordAccessAsync(AuditEntry entry, CancellationToken cancellationToken)
+    {
+        Actions.Enqueue(entry.Action);
+        return ValueTask.CompletedTask;
+    }
 }
 
 /// <summary>A clock the test moves explicitly. Every identity limit is measured against it.</summary>

@@ -103,10 +103,14 @@ public sealed class DelegationGrant
 
 public interface IDelegationStore
 {
-    Task CreateAsync(DelegationGrant grant, CancellationToken cancellationToken);
+    /// <summary>Stores the grant, recorded in audit with the change.</summary>
+    Task CreateAsync(DelegationGrant grant, IdentityChangeActor by, CancellationToken cancellationToken);
 
     Task<DelegationGrant?> FindAsync(Guid grantId, CancellationToken cancellationToken);
 
-    /// <summary>Revokes the grant unless it is already revoked. False when it does not exist or was already revoked.</summary>
-    Task<bool> RevokeAsync(Guid grantId, PrincipalReference revokedBy, DateTimeOffset now, CancellationToken cancellationToken);
+    /// <summary>
+    /// Revokes the grant unless it is already revoked, recorded in audit with the change. False when it does not exist or
+    /// was already revoked.
+    /// </summary>
+    Task<bool> RevokeAsync(Guid grantId, PrincipalReference revokedBy, DateTimeOffset now, IdentityChangeActor by, CancellationToken cancellationToken);
 }

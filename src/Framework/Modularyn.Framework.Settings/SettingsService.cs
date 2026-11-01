@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Modularyn.Framework.Audit;
 using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Caching;
 using Modularyn.Framework.Configuration;
@@ -23,6 +24,8 @@ namespace Modularyn.Framework.Settings;
 public sealed class SettingsService
 {
     public const string GlobalOperationId = "modularyn.settings.global";
+    public const string ValueSetAction = "settings.value-set";
+    public const string ValueResetAction = "settings.value-reset";
     private readonly PostgreSqlModule module;
     private readonly ValueDefinitionRegistry definitions;
     private readonly ScopedValueCache cache;
@@ -30,9 +33,11 @@ public sealed class SettingsService
     private readonly TimeProvider time;
     private readonly ISecretStore? secrets;
     private readonly IPermissionEvaluator? permissions;
+    private readonly IAuditTrail? audit;
 
+    /// <summary>Every override change is recorded through <paramref name="audit"/> with the change; without it no override changes.</summary>
     public SettingsService(PostgreSqlModule module, ValueDefinitionRegistry definitions, ScopedValueCache cache,
-        TenantWorkRunner runner, TimeProvider time, ISecretStore? secrets = null, IPermissionEvaluator? permissions = null)
+        TenantWorkRunner runner, TimeProvider time, ISecretStore? secrets = null, IPermissionEvaluator? permissions = null, IAuditTrail? audit = null)
     {
         SettingsModule.Require(module);
         this.module = module;
@@ -42,6 +47,7 @@ public sealed class SettingsService
         this.time = time ?? throw new ArgumentNullException(nameof(time));
         this.secrets = secrets;
         this.permissions = permissions;
+        this.audit = audit;
     }
 
     /// <summary>
@@ -155,6 +161,7 @@ public sealed class SettingsService
         if (definition.IsSecret && scope != ValueSource.Global)
             throw new InvalidOperationException("Only a global override may set a secret reference.");
         await RequireManagementAsync(context, principal, scope, cancellationToken).ConfigureAwait(false);
+        var trail = RequireAudit();
         await using var work = await EfCoreUnitOfWork.BeginAsync(module, context, cancellationToken: cancellationToken).ConfigureAwait(false);
         var db = (SettingsContext)work.Context;
         IConcurrencyTracked changed;
@@ -190,6 +197,8 @@ public sealed class SettingsService
             row.UpdatedAt = at;
             changed = row;
         }
+        // Who changed which setting at which scope, never the value: a value may be personal, and a secret's reference is never recorded.
+        await RecordAsync(trail, work, Entry(ValueSetAction, context, principal, definition, scope), cancellationToken).ConfigureAwait(false);
         InvalidateAfterCommit(work, context, definition, scope);
         await CommitAsync(work, cancellationToken).ConfigureAwait(false);
         return changed.Version;
@@ -201,6 +210,7 @@ public sealed class SettingsService
     {
         RequireScope(context, definition, scope);
         await RequireManagementAsync(context, principal, scope, cancellationToken).ConfigureAwait(false);
+        var trail = RequireAudit();
         await using var work = await EfCoreUnitOfWork.BeginAsync(module, context, cancellationToken: cancellationToken).ConfigureAwait(false);
         var db = (SettingsContext)work.Context;
         IConcurrencyTracked? row;
@@ -215,6 +225,7 @@ public sealed class SettingsService
         }
         RequireVersion(row, expectedVersion);
         db.Remove((object)row!);
+        await RecordAsync(trail, work, Entry(ValueResetAction, context, principal, definition, scope), cancellationToken).ConfigureAwait(false);
         InvalidateAfterCommit(work, context, definition, scope);
         await CommitAsync(work, cancellationToken).ConfigureAwait(false);
     }
@@ -293,6 +304,28 @@ public sealed class SettingsService
         if (!decision.Permitted) throw new ValueAccessDeniedException(decision.Code!);
     }
 
+    private IAuditTrail RequireAudit() => audit ?? throw new ValueAccessDeniedException(AuthorizationCodes.AuditUnavailable);
+
+    // A record that cannot be written ends the change, reported as the audit being unavailable; the unit never commits.
+    private static async Task RecordAsync(IAuditTrail trail, EfCoreUnitOfWork work, AuditEntry entry, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await trail.RecordAsync(work, entry, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            throw new ValueAccessDeniedException(AuthorizationCodes.AuditUnavailable);
+        }
+    }
+
+    private static AuditEntry Entry(string action, TenantContext context, ExecutionPrincipal? principal, ScopedValueDefinition definition, ValueSource scope) =>
+        AuditEntry.InContext(action, context, principal) with
+        {
+            ResourceType = "setting", ResourceId = definition.ModuleId + "/" + definition.AssetName, Detail = "scope " + scope + (definition.IsSecret ? " secret" : ""),
+            OperationId = context.HostGrant?.OperationId, Reason = context.HostGrant?.Reason
+        };
+
     private static string User(TenantContext context, ValueSource scope) => scope == ValueSource.User ? context.Actor.Subject : "";
 
     private static void RequireVersion(IConcurrencyTracked? row, Guid? expected)
@@ -335,7 +368,7 @@ public static class SettingsServiceCollectionExtensions
         services.AddSingleton<ICompositionValidator>(definitions);
         services.AddSingleton(provider => new SettingsService(module, definitions, provider.GetRequiredService<ScopedValueCache>(),
             provider.GetRequiredService<TenantWorkRunner>(), provider.GetRequiredService<TimeProvider>(), provider.GetService<ISecretStore>(),
-            provider.GetService<IPermissionEvaluator>()));
+            provider.GetService<IPermissionEvaluator>(), provider.GetService<IAuditTrail>()));
         return services;
     }
 }

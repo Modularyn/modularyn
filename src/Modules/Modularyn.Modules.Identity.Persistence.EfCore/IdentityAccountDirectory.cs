@@ -52,11 +52,13 @@ internal sealed class IdentityAccountDirectory : IAccountDirectory
     private readonly IPasswordHasher<IdentityAccount> hasher;
     private readonly IOptions<IdentityOptions> options;
     private readonly string unknownAccountVerifier;
+    private readonly IdentityAudit audit;
 
-    public IdentityAccountDirectory(PostgreSqlModule module, IPasswordHasher<IdentityAccount> hasher, PasswordPolicy policy)
+    public IdentityAccountDirectory(PostgreSqlModule module, IPasswordHasher<IdentityAccount> hasher, PasswordPolicy policy, IdentityAudit audit)
     {
         this.module = module ?? throw new ArgumentNullException(nameof(module));
         this.hasher = hasher ?? throw new ArgumentNullException(nameof(hasher));
+        this.audit = audit ?? throw new ArgumentNullException(nameof(audit));
         ArgumentNullException.ThrowIfNull(policy);
         var identity = new IdentityOptions();
         identity.Password.RequiredLength = policy.MinimumLength;
@@ -80,9 +82,10 @@ internal sealed class IdentityAccountDirectory : IAccountDirectory
             options, hasher, [new UserValidator<IdentityAccount>(Describer)], [new PasswordValidator<IdentityAccount>(Describer)],
             new UpperInvariantLookupNormalizer(), Describer, null!, NullLogger<UserManager<IdentityAccount>>.Instance);
 
-    public async Task<AccountCreation> CreateAsync(string userName, SecretText password, CancellationToken cancellationToken)
+    public async Task<AccountCreation> CreateAsync(string userName, SecretText password, IdentityChangeActor by, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(password);
+        ArgumentNullException.ThrowIfNull(by);
         await using var work = await EfCoreUnitOfWork.BeginOwnedAsync(module, IdentityOwnerScopes.Accounts, cancellationToken: cancellationToken).ConfigureAwait(false);
         using var manager = Manager(work);
         var account = new IdentityAccount { Id = Guid.NewGuid(), UserName = userName };
@@ -97,6 +100,7 @@ internal sealed class IdentityAccountDirectory : IAccountDirectory
             return new(AccountCreationOutcome.UserNameUnavailable, null);
         }
         if (!result.Succeeded) return new(CreationFailure(result), null);
+        await audit.ChangeAsync(work, IdentityAuditActions.AccountCreated, by, account.Id, cancellationToken).ConfigureAwait(false);
         Committed(await work.CompleteAsync(cancellationToken).ConfigureAwait(false));
         return new(AccountCreationOutcome.Created, account.Id);
     }
@@ -132,11 +136,12 @@ internal sealed class IdentityAccountDirectory : IAccountDirectory
         return account is null ? null : new AccountSecurityState(account.Id, account.UserName!, account.SecurityStamp!, account.Disabled);
     }
 
-    public async Task<PasswordChangeOutcome> ChangePasswordAsync(Guid accountId, SecretText currentPassword, SecretText newPassword,
+    public async Task<PasswordChangeOutcome> ChangePasswordAsync(Guid accountId, SecretText currentPassword, SecretText newPassword, IdentityChangeActor by,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(currentPassword);
         ArgumentNullException.ThrowIfNull(newPassword);
+        ArgumentNullException.ThrowIfNull(by);
         await using var work = await EfCoreUnitOfWork.BeginOwnedAsync(module, IdentityOwnerScopes.Accounts, cancellationToken: cancellationToken).ConfigureAwait(false);
         using var manager = Manager(work);
         var account = await manager.FindByIdAsync(accountId.ToString("D")).ConfigureAwait(false);
@@ -149,17 +154,21 @@ internal sealed class IdentityAccountDirectory : IAccountDirectory
                 : CreationFailure(result) == AccountCreationOutcome.PasswordPolicy ? PasswordChangeOutcome.PasswordPolicy
                 : throw Unexpected(result);
         }
+        await audit.ChangeAsync(work, IdentityAuditActions.PasswordChanged, by, accountId, cancellationToken).ConfigureAwait(false);
         Committed(await work.CompleteAsync(cancellationToken).ConfigureAwait(false));
         return PasswordChangeOutcome.Changed;
     }
 
-    public Task<bool> SetDisabledAsync(Guid accountId, bool disabled, CancellationToken cancellationToken) =>
-        RotateAsync(accountId, account => account.Disabled = disabled, cancellationToken);
+    public Task<bool> SetDisabledAsync(Guid accountId, bool disabled, IdentityChangeActor by, CancellationToken cancellationToken) =>
+        RotateAsync(accountId, account => account.Disabled = disabled, disabled ? IdentityAuditActions.AccountDisabled : IdentityAuditActions.AccountEnabled, by,
+            cancellationToken);
 
-    public Task<bool> RotateSecurityStampAsync(Guid accountId, CancellationToken cancellationToken) => RotateAsync(accountId, _ => { }, cancellationToken);
+    public Task<bool> RotateSecurityStampAsync(Guid accountId, IdentityChangeActor by, CancellationToken cancellationToken) =>
+        RotateAsync(accountId, _ => { }, IdentityAuditActions.SecurityStateChanged, by, cancellationToken);
 
-    private async Task<bool> RotateAsync(Guid accountId, Action<IdentityAccount> change, CancellationToken cancellationToken)
+    private async Task<bool> RotateAsync(Guid accountId, Action<IdentityAccount> change, string action, IdentityChangeActor by, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(by);
         await using var work = await EfCoreUnitOfWork.BeginOwnedAsync(module, IdentityOwnerScopes.Accounts, cancellationToken: cancellationToken).ConfigureAwait(false);
         using var manager = Manager(work);
         var account = await manager.FindByIdAsync(accountId.ToString("D")).ConfigureAwait(false);
@@ -167,6 +176,7 @@ internal sealed class IdentityAccountDirectory : IAccountDirectory
         change(account);
         var result = await manager.UpdateSecurityStampAsync(account).ConfigureAwait(false);
         if (!result.Succeeded) throw Unexpected(result);
+        await audit.ChangeAsync(work, action, by, accountId, cancellationToken).ConfigureAwait(false);
         Committed(await work.CompleteAsync(cancellationToken).ConfigureAwait(false));
         return true;
     }

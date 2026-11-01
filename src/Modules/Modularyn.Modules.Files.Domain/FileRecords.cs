@@ -93,7 +93,7 @@ public enum FileStorageError
 {
     InvalidScope, NotFound, Conflict, IntegrityMismatch, InvalidLength, InvalidRange,
     UnsafeLocation, StorageUnavailable, Busy,
-    InvalidName, UnsupportedContent, QuotaExceeded, Quarantined, GrantRefused, LockingUnavailable
+    InvalidName, UnsupportedContent, QuotaExceeded, Quarantined, GrantRefused, LockingUnavailable, AuditUnavailable
 }
 
 /// <summary>Stable storage diagnostics without client values, machine locations or provider exception text.</summary>

@@ -75,7 +75,7 @@ public sealed class AuditReader
             action = AuditActions.AuditRead;
         }
         // The read is on the record before anything is read; without that record nothing is returned.
-        await store.RecordAloneAsync(new AuditEntry(action, context.Actor)
+        await store.RecordAccessAsync(new AuditEntry(action, context.Actor)
         {
             TenantId = context.TenantId, Subject = subject, UnitId = context.UnitId, OperationId = context.HostGrant?.OperationId,
             Reason = context.HostGrant?.Reason, Detail = "limit " + query.Limit + (query.Action is null ? "" : " action " + query.Action)

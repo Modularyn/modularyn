@@ -78,6 +78,12 @@ public sealed record AuditEntry
 public interface IAuditTrail
 {
     ValueTask RecordAsync(IUnitOfWork work, AuditEntry entry, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Records an access that precedes what it allows and changes nothing, such as acting under a delegation or reading
+    /// audit, in its own committed transaction before the access exists. A failure refuses the access.
+    /// </summary>
+    ValueTask RecordAccessAsync(AuditEntry entry, CancellationToken cancellationToken);
 }
 
 /// <summary>An audit record could not be formed or written, so the action it describes was refused. Its message holds no value.</summary>
@@ -186,8 +192,7 @@ internal sealed partial class AuditStore(PostgreSqlModule module, AuditClock clo
         return WriteAloneAsync(Row(entry, Guid.NewGuid(), clock.Now), cancellationToken);
     }
 
-    /// <summary>Records an access that precedes what it allows, in its own committed transaction, before the access exists.</summary>
-    internal ValueTask RecordAloneAsync(AuditEntry entry, CancellationToken cancellationToken) =>
+    public ValueTask RecordAccessAsync(AuditEntry entry, CancellationToken cancellationToken) =>
         WriteAloneAsync(Row(entry ?? throw new ArgumentNullException(nameof(entry)), Guid.NewGuid(), clock.Now), cancellationToken);
 
     /// <summary>

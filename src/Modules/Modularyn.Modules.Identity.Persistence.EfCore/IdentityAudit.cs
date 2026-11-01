@@ -31,17 +31,21 @@ internal sealed class IdentityAudit(IServiceProvider services)
         }
     }
 
-    internal async Task ChangeAsync(EfCoreUnitOfWork work, IdentityChangeRecord change, CancellationToken cancellationToken)
+    /// <summary>
+    /// Records one administrative or security change of <paramref name="account"/> by <paramref name="by"/> in the change's
+    /// unit. The account is the record's subject; the resource defaults to the account itself.
+    /// </summary>
+    internal async Task ChangeAsync(EfCoreUnitOfWork work, string action, IdentityChangeActor by, Guid account, CancellationToken cancellationToken,
+        string? resourceType = null, string? resourceId = null, string? detail = null)
     {
-        ArgumentNullException.ThrowIfNull(change);
+        ArgumentNullException.ThrowIfNull(by);
         var trail = services.GetService<IAuditTrail>() ?? throw new IdentityAuditUnavailableException();
         try
         {
-            await trail.RecordAsync(work, new AuditEntry(change.Action, change.Actor)
+            await trail.RecordAsync(work, new AuditEntry(action, by.Actor)
             {
-                TenantId = change.TenantId, UnitId = change.UnitId, OperationId = change.OperationId,
-                Subject = new ActorReference(ActorKind.User, change.Account.ToString("D")),
-                ResourceType = change.ResourceType ?? "account", ResourceId = change.ResourceId ?? change.Account.ToString("D"), Detail = change.Detail
+                UnitId = by.UnitId, OperationId = by.OperationId, Subject = new ActorReference(ActorKind.User, account.ToString("D")),
+                ResourceType = resourceType ?? "account", ResourceId = resourceId ?? account.ToString("D"), Detail = detail
             }, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)

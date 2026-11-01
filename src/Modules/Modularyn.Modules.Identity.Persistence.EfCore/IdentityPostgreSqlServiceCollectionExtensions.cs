@@ -27,15 +27,16 @@ public static class IdentityPostgreSqlServiceCollectionExtensions
             CompatibilityMode = PasswordHasherCompatibilityMode.IdentityV3,
             IterationCount = provider.GetRequiredService<PasswordPolicy>().HashIterations
         })));
-        services.AddSingleton<IAccountDirectory>(provider => new IdentityAccountDirectory(module,
-            provider.GetRequiredService<IPasswordHasher<IdentityAccount>>(), provider.GetRequiredService<PasswordPolicy>()));
-        services.AddSingleton<ISessionStore>(new SessionStore(module));
-        services.AddSingleton<IVerificationLedger>(new VerificationLedger(module));
-        services.AddSingleton<IDelegationStore>(new DelegationStore(module));
-        services.AddSingleton<IAuthenticatorSeedStore>(new AuthenticatorSeedStore(module));
-        services.AddSingleton<IRecoveryCodeStore>(new RecoveryCodeStore(module));
-        services.AddSingleton<IPasskeyCredentialStore>(new PasskeyCredentialStore(module));
+        // Every administrative and security change records itself through identity's audit, in the change's own unit.
         services.AddSingleton(provider => new IdentityAudit(provider));
+        services.AddSingleton<IAccountDirectory>(provider => new IdentityAccountDirectory(module,
+            provider.GetRequiredService<IPasswordHasher<IdentityAccount>>(), provider.GetRequiredService<PasswordPolicy>(), provider.GetRequiredService<IdentityAudit>()));
+        services.AddSingleton<ISessionStore>(provider => new SessionStore(module, provider.GetRequiredService<IdentityAudit>()));
+        services.AddSingleton<IVerificationLedger>(new VerificationLedger(module));
+        services.AddSingleton<IDelegationStore>(provider => new DelegationStore(module, provider.GetRequiredService<IdentityAudit>()));
+        services.AddSingleton<IAuthenticatorSeedStore>(provider => new AuthenticatorSeedStore(module, provider.GetRequiredService<IdentityAudit>()));
+        services.AddSingleton<IRecoveryCodeStore>(provider => new RecoveryCodeStore(module, provider.GetRequiredService<IdentityAudit>()));
+        services.AddSingleton<IPasskeyCredentialStore>(provider => new PasskeyCredentialStore(module, provider.GetRequiredService<IdentityAudit>()));
         services.AddSingleton<ITenantMembershipStore>(provider => new TenantMembershipStore(module, provider.GetRequiredService<IdentityAudit>()));
         services.AddSingleton<IIdentityRetentionStore>(provider => new IdentityRetentionStore(module, provider.GetRequiredService<TimeProvider>()));
         return services;

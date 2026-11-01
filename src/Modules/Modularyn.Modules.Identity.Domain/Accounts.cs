@@ -95,7 +95,8 @@ public static class UserNames
 /// </summary>
 public interface IAccountDirectory
 {
-    Task<AccountCreation> CreateAsync(string userName, SecretText password, CancellationToken cancellationToken);
+    /// <summary>Creates the account, recorded in audit with the change, by <paramref name="by"/>.</summary>
+    Task<AccountCreation> CreateAsync(string userName, SecretText password, IdentityChangeActor by, CancellationToken cancellationToken);
 
     /// <summary>
     /// Verifies a password. An unknown or disabled account costs the same verification as a known one and is rejected the
@@ -106,14 +107,24 @@ public interface IAccountDirectory
 
     Task<AccountSecurityState?> FindAsync(Guid accountId, CancellationToken cancellationToken);
 
-    /// <summary>Verifies the current password, applies the policy to the new one, stores its verifier and rotates the security stamp.</summary>
-    Task<PasswordChangeOutcome> ChangePasswordAsync(Guid accountId, SecretText currentPassword, SecretText newPassword, CancellationToken cancellationToken);
+    /// <summary>
+    /// Verifies the current password, applies the policy to the new one, stores its verifier and rotates the security stamp,
+    /// recorded in audit with the change.
+    /// </summary>
+    Task<PasswordChangeOutcome> ChangePasswordAsync(Guid accountId, SecretText currentPassword, SecretText newPassword, IdentityChangeActor by,
+        CancellationToken cancellationToken);
 
-    /// <summary>Disables or enables the account and rotates its security stamp. False when the account does not exist.</summary>
-    Task<bool> SetDisabledAsync(Guid accountId, bool disabled, CancellationToken cancellationToken);
+    /// <summary>
+    /// Disables or enables the account and rotates its security stamp, recorded in audit with the change. False when the
+    /// account does not exist.
+    /// </summary>
+    Task<bool> SetDisabledAsync(Guid accountId, bool disabled, IdentityChangeActor by, CancellationToken cancellationToken);
 
-    /// <summary>Rotates the security stamp, ending every session issued before the change. False when the account does not exist.</summary>
-    Task<bool> RotateSecurityStampAsync(Guid accountId, CancellationToken cancellationToken);
+    /// <summary>
+    /// Rotates the security stamp, ending every session issued before the change, recorded in audit with the change. False
+    /// when the account does not exist.
+    /// </summary>
+    Task<bool> RotateSecurityStampAsync(Guid accountId, IdentityChangeActor by, CancellationToken cancellationToken);
 }
 
 /// <summary>

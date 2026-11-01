@@ -29,12 +29,13 @@ public sealed record ProtectedSeed(Guid AccountId, int KeyVersion, byte[] Nonce,
 
 public interface IAuthenticatorSeedStore
 {
-    /// <summary>Stores the account's seed, replacing any earlier one.</summary>
-    Task SaveAsync(ProtectedSeed seed, CancellationToken cancellationToken);
+    /// <summary>Stores the account's seed, replacing any earlier one, recorded in audit with the change.</summary>
+    Task SaveAsync(ProtectedSeed seed, IdentityChangeActor by, CancellationToken cancellationToken);
 
     Task<ProtectedSeed?> FindAsync(Guid accountId, CancellationToken cancellationToken);
 
-    Task<bool> RemoveAsync(Guid accountId, CancellationToken cancellationToken);
+    /// <summary>Removes the account's seed, recorded in audit with the change. False when it has none.</summary>
+    Task<bool> RemoveAsync(Guid accountId, IdentityChangeActor by, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -92,8 +93,10 @@ public static class RecoveryCodes
 
 public interface IRecoveryCodeStore
 {
-    /// <summary>Invalidates every unconsumed code of the account and stores the new set, in one transaction.</summary>
-    Task ReplaceAsync(Guid accountId, IReadOnlyList<RecoveryCodeVerifier> verifiers, DateTimeOffset now, CancellationToken cancellationToken);
+    /// <summary>
+    /// Invalidates every unconsumed code of the account and stores the new set, in one transaction with its audit record.
+    /// </summary>
+    Task ReplaceAsync(Guid accountId, IReadOnlyList<RecoveryCodeVerifier> verifiers, DateTimeOffset now, IdentityChangeActor by, CancellationToken cancellationToken);
 
     /// <summary>The account's codes that are neither consumed nor invalidated.</summary>
     Task<IReadOnlyList<RecoveryCodeVerifier>> FindUsableAsync(Guid accountId, CancellationToken cancellationToken);
@@ -156,11 +159,14 @@ public sealed record PasskeyCredentialRecord(Guid Id, Guid AccountId, byte[] Cre
 
 public interface IPasskeyCredentialStore
 {
-    /// <summary>Stores a newly enrolled credential. False when its credential identifier is already enrolled, to any account.</summary>
-    Task<bool> AddAsync(PasskeyCredentialRecord record, CancellationToken cancellationToken);
+    /// <summary>
+    /// Stores a newly enrolled credential, recorded in audit with the change. False when its credential identifier is
+    /// already enrolled, to any account.
+    /// </summary>
+    Task<bool> AddAsync(PasskeyCredentialRecord record, IdentityChangeActor by, CancellationToken cancellationToken);
 
     Task<PasskeyCredentialRecord?> FindAsync(byte[] credentialId, CancellationToken cancellationToken);
 
-    /// <summary>Removes the account's credential. False when the account has no such credential.</summary>
-    Task<bool> RemoveAsync(Guid accountId, byte[] credentialId, CancellationToken cancellationToken);
+    /// <summary>Removes the account's credential, recorded in audit with the change. False when the account has no such credential.</summary>
+    Task<bool> RemoveAsync(Guid accountId, byte[] credentialId, IdentityChangeActor by, CancellationToken cancellationToken);
 }

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Modularyn.Framework.Audit;
 using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
@@ -12,21 +13,24 @@ public sealed class FileMetadataStore : IFileMetadataStore
     // Expired grants are removed in bounded batches, so one recovery run holds the tenant's lease for a bounded time.
     private const int ExpiredGrantBatch = 1000;
     private readonly PostgreSqlModule module;
+    private readonly IAuditTrail? audit;
 
-    public FileMetadataStore(PostgreSqlModule module)
+    /// <summary>Privileged changes are recorded through <paramref name="audit"/> in their own transaction; without it none commits.</summary>
+    public FileMetadataStore(PostgreSqlModule module, IAuditTrail? audit = null)
     {
         if (module.ContextType != typeof(FilesContext)) throw new ArgumentException("Use the Files metadata module.", nameof(module));
         this.module = module;
+        this.audit = audit;
     }
 
     public async Task<IFileMetadataUnit> BeginAsync(TenantContext tenant, CancellationToken cancellationToken)
     {
         FileTenant.Require(tenant);
         return new Unit(await EfCoreUnitOfWork.BeginAsync(module, tenant, UnitOfWorkMode.New,
-            cancellationToken: cancellationToken).ConfigureAwait(false));
+            cancellationToken: cancellationToken).ConfigureAwait(false), audit);
     }
 
-    private sealed class Unit(EfCoreUnitOfWork work) : IFileMetadataUnit
+    private sealed class Unit(EfCoreUnitOfWork work, IAuditTrail? audit) : IFileMetadataUnit
     {
         private FilesContext Context => (FilesContext)work.Context;
         private readonly List<(FileRevision Source, StoredFileRevision Stored)> addedRevisions = [];
@@ -135,6 +139,26 @@ public sealed class FileMetadataStore : IFileMetadataStore
         public void Remove(FileAsset file) => Context.Files.Remove((StoredFileAsset)file);
 
         public void Remove(FileUpload upload) => Context.Uploads.Remove((StoredFileUpload)upload);
+
+        public async Task RecordAsync(FileAuditRecord record, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(record);
+            try
+            {
+                if (audit is null) throw new InvalidOperationException("No audit trail is registered.");
+                await audit.RecordAsync(work, new AuditEntry(record.Action, record.Actor)
+                {
+                    TenantId = record.TenantId, UnitId = record.UnitId, Subject = record.Subject, ResourceType = "file.grant", ResourceId = record.GrantId.ToString("D"),
+                    Detail = record.Detail
+                }, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+            {
+                // The unit cannot commit without the record: a failed append already prevents commit, and this ends it.
+                await work.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                throw new FileStorageException(FileStorageError.AuditUnavailable);
+            }
+        }
 
         public async Task CommitAsync(CancellationToken cancellationToken)
         {

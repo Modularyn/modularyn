@@ -1,6 +1,7 @@
 using Modularyn.Framework.Security.Abstractions;
 using Modularyn.Framework.Tenancy.Abstractions;
 using Modularyn.Modules.Identity.Application.Contracts;
+using Modularyn.Modules.Identity.Domain;
 
 namespace Modularyn.Modules.Identity.Application;
 
@@ -35,6 +36,21 @@ internal sealed class IdentityAuthorization(IPrincipalFreshness freshness)
         throw new IdentityAuthorityException(IdentityAuthorityCodes.OwnerRequired,
             "Only the account's owner, through its own current session, may make this identity write.");
     }
+
+    /// <summary>
+    /// The actor an audited identity write records: an identity administrator in its host scope, with the scope's unit and
+    /// operation, or the account's owner acting as itself.
+    /// </summary>
+    internal static IdentityChangeActor ActorOf(IdentityAuthority authority)
+    {
+        ArgumentNullException.ThrowIfNull(authority);
+        if (authority.HostContext is { } host) return new(host.Actor) { UnitId = host.UnitId, OperationId = host.HostGrant?.OperationId };
+        return ActorOf(authority.OwnerPrincipal ?? throw new ArgumentException("The authority names no actor.", nameof(authority)));
+    }
+
+    /// <summary>The actor an audited identity write by <paramref name="principal"/> records.</summary>
+    internal static IdentityChangeActor ActorOf(ExecutionPrincipal principal) =>
+        new(new ActorReference(principal.Actor.Kind == IdentityKind.User ? ActorKind.User : ActorKind.Service, principal.Actor.Id));
 
     private static bool IsHost(IdentityAuthority authority, string operationId) =>
         authority.HostContext is { Scope: TenantScope.Host, IsActive: true, HostGrant: { } grant } && grant.OperationId == operationId;
