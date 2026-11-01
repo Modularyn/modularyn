@@ -27,7 +27,9 @@ Only `EventStore` captures durable propagated context: append captures from the
 producing unit, and inbox receipt captures afresh from the revalidated receiving
 unit. Payloads and public envelopes contain no propagated context. Receipt never
 copies the outbox's reference. The reference remains attached to its original
-producer through replay.
+producer through replay. A stored reference that names another tenant than its
+row never acts in either tenant: receipt refuses it, and consumption refuses it
+before any read, so both count it against the failure budget and quarantine it.
 
 An event has a stable identity, kind, positive schema version, consumer, ordering
 key and positive position. Identity and position uniqueness include the tenant.

@@ -78,10 +78,12 @@ public sealed class EventPump(EventStore producer, EventStore receiver, EventCon
             {
                 outcome = await runner.RunAsync(principal, candidate.Propagated, consumer.Permission, async (unit, _, token) =>
                 {
+                    // Before any read: the unit's lookup is filtered to the revalidated tenant, so a reference that names
+                    // another tenant than its row would otherwise find nothing and leave the row pending, unbounded.
+                    if (unit.Context.TenantId != candidate.TenantId) throw new InvalidOperationException("The event tenant changed.");
                     await using var work = await EfCoreUnitOfWork.BeginAsync(receiver.Module, unit.Context, cancellationToken: token).ConfigureAwait(false);
                     var row = await work.Context.Set<InboxEvent>().SingleOrDefaultAsync(row => row.Id == candidate.Id, token).ConfigureAwait(false);
                     if (row is null || row.State != EventState.Pending || row.DueAt > UtcMicroseconds.Now(clock)) return;
-                    if (row.TenantId != candidate.TenantId) throw new InvalidOperationException("The event tenant changed.");
                     var handler = consumer.Find(row) ?? throw new UnsupportedEventException();
                     var position = await work.Context.Set<EventPosition>().SingleOrDefaultAsync(entry => entry.Consumer == row.Consumer
                         && entry.OrderingKey == row.OrderingKey, token).ConfigureAwait(false);

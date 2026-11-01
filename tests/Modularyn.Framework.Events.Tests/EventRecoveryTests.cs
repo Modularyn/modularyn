@@ -152,6 +152,39 @@ public sealed class EventRecoveryTests
     }
 
     [Fact]
+    public async Task A_receipt_whose_stored_context_names_another_tenant_is_quarantined_without_an_effect()
+    {
+        await using var database = await DurableDatabase.CreateAsync();
+        var clock = new DurableClock();
+        await using var host = DurableHost.Create(database, clock);
+        await using var swapped = await host.EnterServiceAsync(await host.TenantAsync());
+        await using var other = await host.EnterServiceAsync(await host.TenantAsync());
+        var swappedId = await host.ProduceAsync(swapped, "swapped");
+        var otherId = await host.ProduceAsync(other, "other");
+        var dispatch = await host.HostAsync();
+        var principal = host.WorkerPrincipal();
+        Assert.Equal(2, await host.Pump().DispatchAsync(dispatch, principal, cancellationToken: Token));
+        // A receipt's stored reference copied from another tenant's receipt: revalidation succeeds for that other tenant,
+        // so only the consumer's own tenant check stands between the reference and the row.
+        var inbox = "\"" + database.Consumer.Schema + "\".\"InboxEvents\"";
+        await database.ExecuteAsync("UPDATE " + inbox + " SET \"Propagated\" = (SELECT \"Propagated\" FROM " + inbox + " WHERE \"Id\" = @other) WHERE \"Id\" = @swapped",
+            new NpgsqlParameter("other", otherId), new NpgsqlParameter("swapped", swappedId));
+        for (var attempt = 1; attempt <= 3; attempt++)
+        {
+            Assert.Equal(attempt == 1 ? 1 : 0, await host.Pump().ConsumeAsync(dispatch, principal, cancellationToken: Token));
+            var row = Assert.Single(await host.RowsAsync<InboxEvent>(database.Consumer, swapped.Context));
+            Assert.Equal(attempt, row.Attempts);
+            Assert.Equal(attempt == 3 ? EventState.Poison : EventState.Pending, row.State);
+            clock.Advance(TimeSpan.FromSeconds(1 << (attempt - 1)));
+        }
+        Assert.Empty(await host.RowsAsync<DurableEffect>(database.Consumer, swapped.Context));
+        Assert.Empty(await host.RowsAsync<EventPosition>(database.Consumer, swapped.Context));
+        var effect = Assert.Single(await host.RowsAsync<DurableEffect>(database.Consumer, other.Context));
+        Assert.Equal(("other", 1), (effect.Key, effect.Count));
+        Assert.Equal(EventState.Completed, Assert.Single(await host.RowsAsync<InboxEvent>(database.Consumer, other.Context)).State);
+    }
+
+    [Fact]
     public async Task Stores_refuse_suppressed_units_and_another_modules_transaction()
     {
         await using var database = await DurableDatabase.CreateAsync();
