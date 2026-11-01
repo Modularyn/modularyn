@@ -18,6 +18,7 @@ public static class IdentityHostOperations
     public const string MembershipsId = "modularyn.identity.memberships";
     public const string SessionsId = "modularyn.identity.sessions";
     public const string CredentialsId = "modularyn.identity.credentials";
+    public const string RetentionId = "modularyn.identity.retention";
 
     /// <summary>Account creation, disabling and enabling, and security-state changes.</summary>
     public static HostOperation Accounts { get; } = new(AccountsId, []);
@@ -30,11 +31,13 @@ public static class IdentityHostOperations
 
     /// <summary>Revoking another account's passkeys and one-time-password seed.</summary>
     public static HostOperation Credentials { get; } = new(CredentialsId, []);
+    public static HostOperation Retention { get; } = new(RetentionId,
+        [new HostReach(IdentityModule.Id, "VerificationThrottle"), new HostReach(IdentityModule.Id, "Sessions")]);
 
     /// <summary>The operations as authorization's registry binds them to the identity module's manifest.</summary>
     public static IReadOnlyList<HostOperationDefinition> Definitions(SemanticVersion version) =>
         [new(IdentityModule.Id, version, Accounts), new(IdentityModule.Id, version, Memberships), new(IdentityModule.Id, version, Sessions),
-            new(IdentityModule.Id, version, Credentials)];
+            new(IdentityModule.Id, version, Credentials), new(IdentityModule.Id, version, Retention)];
 }
 
 /// <summary>

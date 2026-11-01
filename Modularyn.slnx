@@ -19,6 +19,8 @@
     <Project Path="src/Framework/Modularyn.Framework.Security.Abstractions/Modularyn.Framework.Security.Abstractions.csproj" />
     <Project Path="src/Framework/Modularyn.Framework.Authorization.Abstractions/Modularyn.Framework.Authorization.Abstractions.csproj" />
     <Project Path="src/Framework/Modularyn.Framework.Authorization/Modularyn.Framework.Authorization.csproj" />
+    <Project Path="src/Framework/Modularyn.Framework.Events/Modularyn.Framework.Events.csproj" />
+    <Project Path="src/Framework/Modularyn.Framework.Jobs/Modularyn.Framework.Jobs.csproj" />
   </Folder>
   <Folder Name="/src/Modules/">
     <Project Path="src/Modules/Modularyn.Modules.Identity.Domain/Modularyn.Modules.Identity.Domain.csproj" />
@@ -31,6 +33,9 @@
     <Project Path="src/Modules/Modularyn.Modules.Files.Application/Modularyn.Modules.Files.Application.csproj" />
     <Project Path="src/Modules/Modularyn.Modules.Files.Persistence.EfCore/Modularyn.Modules.Files.Persistence.EfCore.csproj" />
     <Project Path="src/Modules/Modularyn.Modules.Files.Persistence.FileSystem/Modularyn.Modules.Files.Persistence.FileSystem.csproj" />
+    <Project Path="src/Modules/Modularyn.Modules.BackgroundJobs.Domain/Modularyn.Modules.BackgroundJobs.Domain.csproj" />
+    <Project Path="src/Modules/Modularyn.Modules.BackgroundJobs.Application/Modularyn.Modules.BackgroundJobs.Application.csproj" />
+    <Project Path="src/Modules/Modularyn.Modules.BackgroundJobs.Persistence.EfCore/Modularyn.Modules.BackgroundJobs.Persistence.EfCore.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj" />
@@ -49,6 +54,8 @@
     <Project Path="tests/Modularyn.Modules.Identity.Persistence.EfCore.Tests/Modularyn.Modules.Identity.Persistence.EfCore.Tests.csproj" />
     <Project Path="tests/Modularyn.Modules.Identity.HttpApi.Tests/Modularyn.Modules.Identity.HttpApi.Tests.csproj" />
     <Project Path="tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj" />
+    <Project Path="tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj" />
+    <Project Path="tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj" />
     <Project Path="tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj" />
   </Folder>
 </Solution>

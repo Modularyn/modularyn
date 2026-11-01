@@ -1,3 +1,5 @@
+using Modularyn.Framework.Tenancy.Abstractions;
+
 namespace Modularyn.Modules.Identity.Domain;
 
 /// <summary>
@@ -15,8 +17,7 @@ namespace Modularyn.Modules.Identity.Domain;
 public static class StoredTime
 {
     /// <summary>The time at or before <paramref name="value"/> that is whole microseconds, in UTC.</summary>
-    public static DateTimeOffset Floor(DateTimeOffset value) =>
-        new(value.UtcTicks - value.UtcTicks % TimeSpan.TicksPerMicrosecond, TimeSpan.Zero);
+    public static DateTimeOffset Floor(DateTimeOffset value) => UtcMicroseconds.Normalize(value);
 
     /// <summary>The time at or after <paramref name="value"/> that is whole microseconds, in UTC.</summary>
     public static DateTimeOffset Ceiling(DateTimeOffset value)
