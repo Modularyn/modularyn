@@ -16,6 +16,7 @@
         "type": "Project",
         "dependencies": {
           "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )"
         }

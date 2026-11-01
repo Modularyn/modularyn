@@ -55,6 +55,10 @@ internal sealed class TestMembership : ITenantMembership
         if (Failing) throw new InvalidOperationException("The membership store is unavailable.");
         return ValueTask.FromResult(members.ContainsKey((actor.Subject, tenantId)));
     }
+
+    // The double keeps no membership start, so every grant of a current member counts.
+    public async ValueTask<DateTimeOffset?> MemberSinceAsync(ActorReference actor, Guid tenantId, CancellationToken cancellationToken) =>
+        await IsMemberAsync(actor, tenantId, cancellationToken) ? DateTimeOffset.MinValue : null;
 }
 
 /// <summary>
@@ -122,15 +126,23 @@ internal sealed class TestServiceIdentities : IServiceIdentityScopes, IPrincipal
     }
 }
 
-internal sealed class RecordingAudit : IHostScopeAudit
+internal sealed class RecordingAudit : IHostScopeAudit, IFilterBypassAudit
 {
     internal ConcurrentQueue<HostScopeAuditRecord> Records { get; } = new();
+    internal ConcurrentQueue<FilterBypassRecord> Bypasses { get; } = new();
     internal bool Failing { get; set; }
 
     public ValueTask RecordAsync(HostScopeAuditRecord record, CancellationToken cancellationToken)
     {
         if (Failing) throw new InvalidOperationException("The audit store is unavailable.");
         Records.Enqueue(record);
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask RecordAsync(FilterBypassRecord record, CancellationToken cancellationToken)
+    {
+        if (Failing) throw new InvalidOperationException("The audit store is unavailable.");
+        Bypasses.Enqueue(record);
         return ValueTask.CompletedTask;
     }
 }
@@ -185,7 +197,9 @@ internal sealed class TestSeams
         if (identity) services.AddSingleton<ITenantActorResolver>(Identity);
         if (membership) services.AddSingleton<ITenantMembership>(Membership);
         if (authority) services.AddSingleton<IHostAuthority>(Authority);
-        if (audit) services.AddSingleton<IHostScopeAudit>(Audit);
+        if (!audit) return;
+        services.AddSingleton<IHostScopeAudit>(Audit);
+        services.AddSingleton<IFilterBypassAudit>(Audit);
     }
 }
 

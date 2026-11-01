@@ -267,7 +267,7 @@ public sealed class PropagationDatabaseTests
         await using (scope)
         {
             await using var work = await EfCoreUnitOfWork.BeginAsync(database.Items, host, cancellationToken: Cancellation);
-            var item = await work.Context.AcrossTenants<WorkItem>().Query.SingleAsync(Cancellation);
+            var item = await (await work.Context.AcrossTenantsAsync<WorkItem>(Cancellation)).Query.SingleAsync(Cancellation);
             // The tenant column cannot be the value written, and naming another tenant matches no row.
             Assert.Equal("MPS036", (await Assert.ThrowsAsync<PersistenceContractException>(() => work.Sql.UpdateForTenantAsync<WorkItem, Guid, Guid>(
                 database.TenantA, row => row.Id, item.Id, item.Version, row => row.TenantId, database.TenantB, Cancellation))).Code);

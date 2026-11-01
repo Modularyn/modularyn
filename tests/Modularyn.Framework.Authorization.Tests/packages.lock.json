@@ -185,6 +185,18 @@
       "modularyn.framework.api.contracts": {
         "type": "Project"
       },
+      "modularyn.framework.audit": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Authorization.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Observability": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.EfCore": "[1.0.0, )",
+          "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )"
+        }
+      },
       "modularyn.framework.authorization": {
         "type": "Project",
         "dependencies": {
@@ -203,6 +215,7 @@
         "type": "Project",
         "dependencies": {
           "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )"
         }
@@ -238,6 +251,7 @@
       "modularyn.framework.jobs": {
         "type": "Project",
         "dependencies": {
+          "Modularyn.Framework.Audit": "[1.0.0, )",
           "Modularyn.Framework.Authorization": "[1.0.0, )",
           "Modularyn.Framework.Persistence.EfCore": "[1.0.0, )"
         }
@@ -249,6 +263,9 @@
         }
       },
       "modularyn.framework.modularity.abstractions": {
+        "type": "Project"
+      },
+      "modularyn.framework.observability": {
         "type": "Project"
       },
       "modularyn.framework.persistence.abstractions": {
@@ -306,6 +323,7 @@
           "Modularyn.Framework.Configuration": "[1.0.0, )",
           "Modularyn.Framework.Jobs": "[1.0.0, )",
           "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy": "[1.0.0, )",
           "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )",
           "Modularyn.Modules.Identity.Application.Contracts": "[1.0.0, )",
           "Modularyn.Modules.Identity.Domain": "[1.0.0, )"
@@ -342,6 +360,8 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.0.14, )",
+          "Modularyn.Framework.Audit": "[1.0.0, )",
+          "Modularyn.Framework.Authorization.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Persistence.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Persistence.EfCore": "[1.0.0, )",
           "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )",

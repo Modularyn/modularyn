@@ -124,11 +124,18 @@ public interface IAccountDirectory
 /// </summary>
 public interface ITenantMembershipStore
 {
-    /// <summary>Adds the membership. False when it exists already or the account does not exist.</summary>
+    /// <summary>
+    /// Adds the membership, recorded in audit in the same transaction. False when it exists already or the account does
+    /// not exist.
+    /// </summary>
     Task<bool> AddAsync(TenantContext host, Guid accountId, Guid tenantId, DateTimeOffset now, CancellationToken cancellationToken);
 
-    Task<bool> RemoveAsync(TenantContext host, Guid accountId, Guid tenantId, CancellationToken cancellationToken);
+    /// <summary>Removes the membership, recorded in audit in the same transaction. False when there is none.</summary>
+    Task<bool> RemoveAsync(TenantContext host, Guid accountId, Guid tenantId, DateTimeOffset now, CancellationToken cancellationToken);
 
     /// <summary>True only for an existing, enabled account that is currently a member of the tenant.</summary>
     Task<bool> IsMemberAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken);
+
+    /// <summary>When an existing, enabled account's current membership of the tenant began; null when it is not a member.</summary>
+    Task<DateTimeOffset?> MemberSinceAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken);
 }

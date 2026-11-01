@@ -50,8 +50,8 @@ public sealed class QueryGuardTests(ITestOutputHelper output) : PostgreSqlTestDa
 
         // The adapter's own bypass lifts only the soft-delete predicate; the module's filter remains.
         var bypass = new SoftDeleteBypass("Inspect soft-deleted items for recovery", "guard-test");
-        Assert.Equal(3, await context.IncludingSoftDeleted<SampleRow>(bypass).Query.CountAsync(Cancellation));
-        Assert.Equal(3, await read.Sql.IncludingSoftDeleted<SampleRow>(bypass).Query.CountAsync(Cancellation));
+        Assert.Equal(3, await (await context.IncludingSoftDeletedAsync<SampleRow>(bypass, Cancellation)).Query.CountAsync(Cancellation));
+        Assert.Equal(3, await (await read.Sql.IncludingSoftDeletedAsync<SampleRow>(bypass, Cancellation)).Query.CountAsync(Cancellation));
         Assert.Equal(2, await context.Items.CountAsync(Cancellation));
         output.WriteLine("Filtered count 2 on both paths; the soft-delete bypass gives 3; every IgnoreQueryFilters form was refused with MPS033.");
     }

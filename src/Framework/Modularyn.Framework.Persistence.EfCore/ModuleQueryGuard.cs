@@ -118,6 +118,7 @@ internal sealed class ModuleQueryGuard : IQueryExpressionInterceptor
         {
             var entity = model.FindEntityType(node.Method.GetGenericArguments()[0])
                 ?? throw new PersistenceContractException("MPS037", "A bulk write must target a mapped module entity.");
+            ModuleSql.RequireNotAppendOnly(entity);
             var markers = new MarkerCollector();
             markers.Visit(node.Arguments[0]);
             // Over a cross-tenant bypass, only the adapter's single-row, named-tenant update may write.

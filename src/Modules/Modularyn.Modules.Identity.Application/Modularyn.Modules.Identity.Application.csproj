@@ -6,5 +6,6 @@
     <ProjectReference Include="../../Framework/Modularyn.Framework.Configuration/Modularyn.Framework.Configuration.csproj" />
     <ProjectReference Include="../../Framework/Modularyn.Framework.Security.Abstractions/Modularyn.Framework.Security.Abstractions.csproj" />
     <ProjectReference Include="../../Framework/Modularyn.Framework.Tenancy.Abstractions/Modularyn.Framework.Tenancy.Abstractions.csproj" />
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Tenancy/Modularyn.Framework.Tenancy.csproj" />
   </ItemGroup>
 </Project>

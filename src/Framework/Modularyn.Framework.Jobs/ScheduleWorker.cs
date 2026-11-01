@@ -21,7 +21,7 @@ public sealed class ScheduleWorker(JobStore store, AuthorizedWorkRunner runner)
         if (limit is < 1 or > 1000) throw new ArgumentOutOfRangeException(nameof(limit));
         var scanAt = store.Now;
         await using var scan = await EfCoreUnitOfWork.BeginAsync(store.Module, host, cancellationToken: cancellationToken).ConfigureAwait(false);
-        var candidates = await scan.Context.AcrossTenants<JobSchedule>().Query.AsNoTracking()
+        var candidates = await (await scan.Context.AcrossTenantsAsync<JobSchedule>(cancellationToken).ConfigureAwait(false)).Query.AsNoTracking()
             .Where(row => row.Enabled && row.NextCheckAt <= scanAt)
             .OrderBy(row => row.NextCheckAt).ThenBy(row => row.Id).Take(limit).ToListAsync(cancellationToken).ConfigureAwait(false);
         var added = 0;

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Modularyn.Framework.Audit;
 using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
@@ -7,9 +8,15 @@ using Modularyn.Framework.Tenancy.Abstractions;
 
 namespace Modularyn.Framework.Events;
 
-public sealed class EventStore(PostgreSqlModule module, TimeProvider clock)
+/// <summary>
+/// The durable event store of one module. Operator replays are recorded through <paramref name="audit"/> in the replay's
+/// own transaction; without it no replay is made.
+/// </summary>
+public sealed class EventStore(PostgreSqlModule module, TimeProvider clock, IAuditTrail? audit = null)
 {
     public const string ReplayPermission = "events.replay";
+    public const string ReplayedAction = "events.replayed";
+    public const string DispatchReplayedAction = "events.dispatch-replayed";
     public static readonly TimeSpan ReceiptRetention = TimeSpan.FromHours(24);
     public PostgreSqlModule Module { get; } = module;
 
@@ -71,15 +78,21 @@ public sealed class EventStore(PostgreSqlModule module, TimeProvider clock)
     {
         var decision = await evaluator.AuthorizeAsync(new(context, principal, ReplayPermission) { RequireCurrent = true }, cancellationToken).ConfigureAwait(false);
         if (!decision.Permitted) return false;
+        var trail = RequireAudit();
         await using var work = await EfCoreUnitOfWork.BeginAsync(Module, context, cancellationToken: cancellationToken).ConfigureAwait(false);
         var row = await work.Context.Set<InboxEvent>().SingleOrDefaultAsync(row => row.Id == id, cancellationToken).ConfigureAwait(false);
         if (row is null || row.State != EventState.Poison) return false;
+        // The record keeps what the replay resets and what the next disposition overwrites: the quarantine code, the
+        // budgets spent and the original producer, so the replay is told apart from new work.
+        var entry = Replay(ReplayedAction, "event.inbox", context, principal, row.Id,
+            $"code {row.Code} attempts {row.Attempts} gap-waits {row.GapWaits} conflicts {row.Conflicts}", row.Propagated);
         row.State = EventState.Pending;
         row.Attempts = 0;
         row.GapWaits = 0;
         row.Conflicts = 0;
         row.Code = "ReplayRequested";
         row.DueAt = UtcMicroseconds.Now(clock);
+        await trail.RecordAsync(work, entry, cancellationToken).ConfigureAwait(false);
         // The original producer remains the authority for execution. Replay never calls the handler directly.
         return (await work.CompleteAsync(cancellationToken).ConfigureAwait(false)).State == UnitOfWorkState.Committed;
     }
@@ -90,16 +103,36 @@ public sealed class EventStore(PostgreSqlModule module, TimeProvider clock)
     {
         var decision = await evaluator.AuthorizeAsync(new(context, principal, ReplayPermission) { RequireCurrent = true }, cancellationToken).ConfigureAwait(false);
         if (!decision.Permitted) return false;
+        var trail = RequireAudit();
         await using var work = await EfCoreUnitOfWork.BeginAsync(Module, context, cancellationToken: cancellationToken).ConfigureAwait(false);
         var row = await work.Context.Set<OutboxEvent>().SingleOrDefaultAsync(row => row.Id == id, cancellationToken).ConfigureAwait(false);
         if (row is null || row.State != EventState.Poison) return false;
+        var entry = Replay(DispatchReplayedAction, "event.outbox", context, principal, row.Id,
+            $"code {row.Code} attempts {row.Attempts} conflicts {row.Conflicts}", row.Propagated);
         row.State = EventState.Pending;
         row.Attempts = 0;
         row.Conflicts = 0;
         row.Code = "ReplayRequested";
         row.DueAt = UtcMicroseconds.Now(clock);
+        await trail.RecordAsync(work, entry, cancellationToken).ConfigureAwait(false);
         return (await work.CompleteAsync(cancellationToken).ConfigureAwait(false)).State == UnitOfWorkState.Committed;
     }
+
+    private IAuditTrail RequireAudit() => audit
+        ?? throw new InvalidOperationException("An operator replay is recorded in audit, and this store has no audit trail, so nothing is replayed.");
+
+    /// <summary>
+    /// The operator's record of one replay: who replayed which row and when, with what it reset and its original
+    /// provenance, the producer and producing unit its stored reference names, so the replay is told apart from new work.
+    /// </summary>
+    private static AuditEntry Replay(string action, string type, TenantContext context, ExecutionPrincipal principal, Guid id, string reset,
+        string propagated) => AuditEntry.InContext(action, context, principal) with
+    {
+        ResourceType = type, ResourceId = id.ToString("D"),
+        Detail = reset + (PropagatedTenantContext.TryParse(propagated, out var producer)
+            ? " producer " + (producer!.Actor.Kind == ActorKind.User ? "user:" : "service:") + producer.Actor.Subject + " unit " + producer.ProducerUnitId.ToString("D")
+            : " producer unreadable")
+    };
 
     private void RequireProducer(EfCoreUnitOfWork work)
     {

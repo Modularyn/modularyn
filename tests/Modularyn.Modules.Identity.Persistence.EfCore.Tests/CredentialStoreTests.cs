@@ -200,7 +200,7 @@ public sealed class CredentialStoreTests(ITestOutputHelper output)
         // The memberships operation's scope reaches it; the row is written in that scope, not under an owner scope.
         var memberships = (await identity.Administrator.MembershipsAsync()).HostContext!;
         Assert.True(await store.AddAsync(memberships, account, tenant, identity.Clock.Now, Cancellation));
-        Assert.True(await store.RemoveAsync(memberships, account, tenant, Cancellation));
+        Assert.True(await store.RemoveAsync(memberships, account, tenant, identity.Clock.Now, Cancellation));
         Assert.Equal(0L, await database.ScalarAsync<long>("SELECT count(*) FROM " + database.Table("TenantMemberships")));
     }
 

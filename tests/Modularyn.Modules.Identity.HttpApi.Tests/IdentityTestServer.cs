@@ -113,6 +113,9 @@ internal sealed class IdentityTestServer : IAsyncDisposable
         builder.Services.AddModularynIdentity(builder.Configuration);
         builder.Services.AddModularynIdentityPostgreSql(database.Module);
         builder.Services.AddModularynIdentityHttp();
+        var audit = new RecordingIdentityAudit();
+        builder.Services.AddSingleton<Framework.Authorization.Abstractions.IAuthorityAudit>(audit);
+        builder.Services.AddSingleton<Framework.Audit.IAuditTrail>(audit);
         services?.Invoke(builder.Services);
         var application = builder.Build();
         try

@@ -170,7 +170,7 @@ internal sealed class TenancyServer : IAsyncDisposable
         {
             var context = server!.Observe(execution);
             await using var work = await EfCoreUnitOfWork.BeginAsync(database.Items, context, cancellationToken: http.RequestAborted);
-            var counts = await work.Context.AcrossTenants<Item>().Query.GroupBy(row => row.TenantId)
+            var counts = await (await work.Context.AcrossTenantsAsync<Item>(http.RequestAborted)).Query.GroupBy(row => row.TenantId)
                 .Select(group => new TenantCount(group.Key, group.Count())).ToArrayAsync(http.RequestAborted);
             return Results.Json(counts);
         }).RequireHostAuthority(HostReport, "Count items for every tenant");

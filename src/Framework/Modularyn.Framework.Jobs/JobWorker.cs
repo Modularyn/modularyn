@@ -33,7 +33,7 @@ public sealed class JobWorker
         if (limit is < 1 or > 1000) throw new ArgumentOutOfRangeException(nameof(limit));
         var now = store.Now;
         await using var scan = await EfCoreUnitOfWork.BeginAsync(store.Module, host, cancellationToken: cancellationToken).ConfigureAwait(false);
-        var candidates = await scan.Context.AcrossTenants<JobRecord>().Query.AsNoTracking()
+        var candidates = await (await scan.Context.AcrossTenantsAsync<JobRecord>(cancellationToken).ConfigureAwait(false)).Query.AsNoTracking()
             .Where(row => row.DueAt <= now && row.AvailableAt <= now && (row.State == JobState.Queued || row.State == JobState.Retry
                 || row.State == JobState.Running && row.LeaseUntil <= now))
             .OrderBy(row => row.AvailableAt).ThenBy(row => row.Id).Take(limit).ToListAsync(cancellationToken).ConfigureAwait(false);
@@ -136,7 +136,7 @@ public sealed class JobWorker
         // host disposition transaction; it must not remain Running after ownership has ended.
         if (row.State == JobState.Running && row.Lease is { } lease)
         {
-            var attempt = await work.Context.AcrossTenants<JobAttempt>().Query.AsNoTracking()
+            var attempt = await (await work.Context.AcrossTenantsAsync<JobAttempt>(token).ConfigureAwait(false)).Query.AsNoTracking()
                 .SingleAsync(entry => entry.TenantId == row.TenantId && entry.JobId == row.Id && entry.Lease == lease, token).ConfigureAwait(false);
             var ended = await work.Sql.UpdateForTenantAsync<JobAttempt, Guid, DateTimeOffset?>(row.TenantId, entry => entry.Lease, lease, attempt.Version,
                 entry => entry.EndedAt, now, token).ConfigureAwait(false);

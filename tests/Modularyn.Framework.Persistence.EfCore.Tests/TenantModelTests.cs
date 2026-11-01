@@ -89,13 +89,13 @@ public sealed class TenantModelTests
     }
 
     [Fact]
-    public void TM_G02_029_Tenant_scoped_data_without_a_tenant_context_is_refused_rather_than_unfiltered()
+    public async Task TM_G02_029_Tenant_scoped_data_without_a_tenant_context_is_refused_rather_than_unfiltered()
     {
         using var context = Module(ValidModel).CreateContext();
         Assert.Null(((ModuleDbContext)context).Tenant);
         Assert.Equal("MPS035", Assert.Throws<PersistenceContractException>(() => context.Set<TenantItem>().ToQueryString()).Code);
         Assert.Equal("MPS035", Assert.Throws<PersistenceContractException>(() => context.Set<TenantNote>().Where(row => row.Text != "").ToQueryString()).Code);
-        Assert.Equal("MPS038", Assert.Throws<PersistenceContractException>(() => ((ModuleDbContext)context).AcrossTenants<TenantItem>()).Code);
+        Assert.Equal("MPS038", (await Assert.ThrowsAsync<PersistenceContractException>(() => ((ModuleDbContext)context).AcrossTenantsAsync<TenantItem>(TestContext.Current.CancellationToken))).Code);
         // Host-scoped data needs no tenant context.
         Assert.Contains("FROM probe_module.\"HostLookups\"", context.Set<HostLookup>().ToQueryString(), StringComparison.Ordinal);
     }

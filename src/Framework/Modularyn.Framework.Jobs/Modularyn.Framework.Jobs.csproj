@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../Modularyn.Framework.Audit/Modularyn.Framework.Audit.csproj" />
     <ProjectReference Include="../Modularyn.Framework.Authorization/Modularyn.Framework.Authorization.csproj" />
     <ProjectReference Include="../Modularyn.Framework.Persistence.EfCore/Modularyn.Framework.Persistence.EfCore.csproj" />
   </ItemGroup>

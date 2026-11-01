@@ -35,7 +35,8 @@ public static class IdentityPostgreSqlServiceCollectionExtensions
         services.AddSingleton<IAuthenticatorSeedStore>(new AuthenticatorSeedStore(module));
         services.AddSingleton<IRecoveryCodeStore>(new RecoveryCodeStore(module));
         services.AddSingleton<IPasskeyCredentialStore>(new PasskeyCredentialStore(module));
-        services.AddSingleton<ITenantMembershipStore>(new TenantMembershipStore(module));
+        services.AddSingleton(provider => new IdentityAudit(provider));
+        services.AddSingleton<ITenantMembershipStore>(provider => new TenantMembershipStore(module, provider.GetRequiredService<IdentityAudit>()));
         services.AddSingleton<IIdentityRetentionStore>(provider => new IdentityRetentionStore(module, provider.GetRequiredService<TimeProvider>()));
         return services;
     }

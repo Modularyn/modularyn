@@ -298,7 +298,7 @@ internal sealed class InMemoryIdentityStores : IAccountDirectory, ISessionStore,
         lock (gate) return Task.FromResult(accounts.ContainsKey(accountId) && memberships.Add((accountId, tenantId)));
     }
 
-    public Task<bool> RemoveAsync(TenantContext host, Guid accountId, Guid tenantId, CancellationToken cancellationToken)
+    public Task<bool> RemoveAsync(TenantContext host, Guid accountId, Guid tenantId, DateTimeOffset now, CancellationToken cancellationToken)
     {
         RequireHost(host);
         lock (gate) return Task.FromResult(memberships.Remove((accountId, tenantId)));
@@ -314,6 +314,10 @@ internal sealed class InMemoryIdentityStores : IAccountDirectory, ISessionStore,
     {
         lock (gate) return Task.FromResult(memberships.Contains((accountId, tenantId)) && accounts.TryGetValue(accountId, out var account) && !account.Disabled);
     }
+
+    // The in-memory store keeps no membership start, so every grant counts, as before the start was recorded.
+    public async Task<DateTimeOffset?> MemberSinceAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken) =>
+        await IsMemberAsync(accountId, tenantId, cancellationToken) ? DateTimeOffset.MinValue : null;
 }
 
 /// <summary>The identity application over the in-memory stores, with a manual clock and, optionally, credential keys.</summary>

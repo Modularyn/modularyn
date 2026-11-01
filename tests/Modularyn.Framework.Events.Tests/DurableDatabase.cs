@@ -1,3 +1,4 @@
+using Modularyn.Framework.Audit;
 using Modularyn.Framework.Authorization;
 using Modularyn.Framework.Modularity;
 using Modularyn.Framework.Modularity.Abstractions;
@@ -31,13 +32,14 @@ internal sealed class DurableDatabase : IAsyncDisposable
         this.testLock = testLock;
         var suffix = Guid.NewGuid().ToString("N");
         schemas = ["dw_directory_" + suffix, "dw_identity_" + suffix, "dw_authority_" + suffix,
-            "dw_producer_" + suffix, "dw_consumer_" + suffix, "dw_jobs_" + suffix];
+            "dw_producer_" + suffix, "dw_consumer_" + suffix, "dw_jobs_" + suffix, "dw_audit_" + suffix];
         Directory = TenantDirectoryModule.Create(options, schemas[0]);
         Identity = IdentityPersistence.CreateModule(options, schemas[1]);
         Authority = AuthorizationModule.Create(options, schemas[2]);
         Producer = PostgreSqlModule.Create(DurableModel.ProducerId, schemas[3], options, module => new DurableProducerContext(module));
         Consumer = PostgreSqlModule.Create(DurableModel.ConsumerId, schemas[4], options, module => new DurableConsumerContext(module));
         Jobs = BackgroundJobsPersistence.Create(options, schemas[5]);
+        Audit = AuditModule.Create(options, schemas[6]);
         var version = DurableModel.Version;
         Manifests =
         [
@@ -50,13 +52,14 @@ internal sealed class DurableDatabase : IAsyncDisposable
                 definitions: DurableModel.Permissions.Select(entry => entry.Declaration).Append(DurableModel.DispatchDefinition.Declaration),
                 migrations: [new(DurableProducerInitial.Id, version)]),
             new ModuleManifest(DurableModel.ConsumerId, version, migrations: [new(DurableConsumerInitial.Id, version)]),
-            BackgroundJobsDefinition.Manifest(version)
+            BackgroundJobsDefinition.Manifest(version),
+            AuditModule.Manifest(version)
         ];
         Registry = new AuthorizationRegistry(Manifests,
             AuthorizationModule.Permissions(version).Concat(DurableModel.Permissions).Concat(BackgroundJobsDefinition.Permissions(version))
-                .Append(IdentityRetentionJob.Permission(version)),
+                .Append(IdentityRetentionJob.Permission(version)).Concat(AuditModule.Permissions(version)),
             TenantDirectoryModule.HostOperations(version).Concat(IdentityHostOperations.Definitions(version)).Concat(AuthorizationModule.HostOperations(version))
-                .Append(DurableModel.DispatchDefinition).Concat(BackgroundJobsDefinition.HostOperations(version)));
+                .Append(DurableModel.DispatchDefinition).Concat(BackgroundJobsDefinition.HostOperations(version)).Concat(AuditModule.HostOperations(version)));
     }
     internal PostgreSqlPersistenceOptions Options { get; }
     internal PostgreSqlModule Directory { get; }
@@ -65,6 +68,7 @@ internal sealed class DurableDatabase : IAsyncDisposable
     internal PostgreSqlModule Producer { get; }
     internal PostgreSqlModule Consumer { get; }
     internal PostgreSqlModule Jobs { get; }
+    internal PostgreSqlModule Audit { get; }
     internal IReadOnlyList<ModuleManifest> Manifests { get; }
     internal AuthorizationRegistry Registry { get; }
     internal static CancellationToken Token => TestContext.Current.CancellationToken;
@@ -82,7 +86,8 @@ internal sealed class DurableDatabase : IAsyncDisposable
             var composed = await new ModuleComposer([database.Registry]).ComposeAsync(new(database.Manifests,
                 new CompositionEnvironment(SemanticVersion.Parse("10.0.14"), DurableModel.Version)), Token);
             Assert.Empty(composed.Diagnostics);
-            var registry = new PostgreSqlModuleRegistry([database.Directory, database.Identity, database.Authority, database.Producer, database.Consumer, database.Jobs]);
+            var registry = new PostgreSqlModuleRegistry([database.Directory, database.Identity, database.Authority, database.Producer, database.Consumer, database.Jobs,
+                database.Audit]);
             var migrated = await new PostgreSqlMigrationCoordinator(registry).ApplyAsync(composed.Plan!, cancellationToken: Token);
             Assert.Empty(migrated.Diagnostics);
             Assert.Empty(await new MigrationActivationValidator(registry).ValidateAsync(composed.Plan!.Selection, Token));
@@ -98,6 +103,38 @@ internal sealed class DurableDatabase : IAsyncDisposable
         await using var command = new NpgsqlCommand(sql, connection);
         command.Parameters.AddRange(parameters);
         await command.ExecuteNonQueryAsync(Token);
+    }
+
+    /// <summary>The audit records the store holds, read directly, as a test may, oldest first.</summary>
+    internal async Task<AuditRow[]> AuditAsync(string? action = null)
+    {
+        await using var connection = new NpgsqlConnection(Options.ConnectionString);
+        await connection.OpenAsync(Token);
+        await using var command = new NpgsqlCommand("SELECT \"Id\", \"At\", \"Action\", \"Outcome\", \"Tenant\", \"ActorKind\", \"Actor\", \"Subject\", "
+            + "\"ResourceType\", \"Resource\", \"Detail\", \"Unit\", \"Operation\", \"Reason\", \"Correlation\" FROM \"" + schemas[6]
+            + "\".\"AuditRecords\" WHERE @action IS NULL OR \"Action\" = @action ORDER BY \"At\", \"Id\"", connection);
+        command.Parameters.Add(new NpgsqlParameter("action", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)action ?? DBNull.Value });
+        await using var reader = await command.ExecuteReaderAsync(Token);
+        var rows = new List<AuditRow>();
+        while (await reader.ReadAsync(Token))
+            rows.Add(new(reader.GetGuid(0), reader.GetFieldValue<DateTimeOffset>(1), reader.GetString(2), reader.GetInt32(3),
+                reader.IsDBNull(4) ? null : reader.GetGuid(4), reader.GetInt32(5), reader.GetString(6), Text(reader, 7), Text(reader, 8), Text(reader, 9),
+                Text(reader, 10), reader.IsDBNull(11) ? null : reader.GetGuid(11), Text(reader, 12), Text(reader, 13), Text(reader, 14)));
+        return rows.ToArray();
+        static string? Text(NpgsqlDataReader reader, int column) => reader.IsDBNull(column) ? null : reader.GetString(column);
+    }
+
+    internal string AuditSchema => schemas[6];
+    internal string AuthoritySchema => schemas[2];
+    internal string ProducerSchema => schemas[3];
+
+    internal async Task<T> ScalarAsync<T>(string sql, params NpgsqlParameter[] parameters)
+    {
+        await using var connection = new NpgsqlConnection(Options.ConnectionString);
+        await connection.OpenAsync(Token);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddRange(parameters);
+        return (T)(await command.ExecuteScalarAsync(Token))!;
     }
 
     internal async Task TerminateSessionAsync(int processId)
@@ -123,3 +160,7 @@ internal sealed class DurableDatabase : IAsyncDisposable
         }
     }
 }
+
+/// <summary>One audit record as the database holds it.</summary>
+internal sealed record AuditRow(Guid Id, DateTimeOffset At, string Action, int Outcome, Guid? Tenant, int ActorKind, string Actor, string? Subject,
+    string? ResourceType, string? Resource, string? Detail, Guid? Unit, string? Operation, string? Reason, string? Correlation);

@@ -5,6 +5,9 @@
       "modularyn.framework.modularity.abstractions": {
         "type": "Project"
       },
+      "modularyn.framework.persistence.abstractions": {
+        "type": "Project"
+      },
       "modularyn.framework.security.abstractions": {
         "type": "Project"
       },

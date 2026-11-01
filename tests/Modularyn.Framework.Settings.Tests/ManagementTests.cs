@@ -115,5 +115,11 @@ public sealed class ManagementTests
             if (Hanging) await Task.Delay(Timeout.Infinite, cancellationToken);
             return await inner.IsMemberAsync(actor, tenantId, cancellationToken);
         }
+
+        public async ValueTask<DateTimeOffset?> MemberSinceAsync(ActorReference actor, Guid tenantId, CancellationToken cancellationToken)
+        {
+            if (Hanging) await Task.Delay(Timeout.Infinite, cancellationToken);
+            return await inner.MemberSinceAsync(actor, tenantId, cancellationToken);
+        }
     }
 }

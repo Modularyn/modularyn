@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Modularyn.Framework.Audit;
 using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
@@ -7,9 +8,15 @@ using Modularyn.Framework.Tenancy.Abstractions;
 
 namespace Modularyn.Framework.Jobs;
 
-public sealed class JobStore(PostgreSqlModule module, TimeProvider clock, JobPolicy policy)
+/// <summary>
+/// The durable job store of one module. Operator cancellations and schedule stops are recorded through
+/// <paramref name="audit"/> in their own transaction; without it neither is made.
+/// </summary>
+public sealed class JobStore(PostgreSqlModule module, TimeProvider clock, JobPolicy policy, IAuditTrail? audit = null)
 {
     public const string CancelPermission = "jobs.cancel";
+    public const string CancelledAction = "jobs.cancelled";
+    public const string ScheduleStoppedAction = "jobs.schedule-stopped";
     public PostgreSqlModule Module { get; } = module;
     public JobPolicy Policy { get; } = policy;
     internal DateTimeOffset Now => UtcMicroseconds.Now(clock);
@@ -49,9 +56,15 @@ public sealed class JobStore(PostgreSqlModule module, TimeProvider clock, JobPol
     {
         var decision = await evaluator.AuthorizeAsync(new(context, principal, CancelPermission) { RequireCurrent = true }, cancellationToken).ConfigureAwait(false);
         if (!decision.Permitted) return false;
+        var trail = RequireAudit();
         await using var work = await EfCoreUnitOfWork.BeginAsync(Module, context, cancellationToken: cancellationToken).ConfigureAwait(false);
         var row = await work.Context.Set<JobRecord>().SingleOrDefaultAsync(row => row.Id == id, cancellationToken).ConfigureAwait(false);
         if (row is null || IsTerminal(row.State)) return false;
+        // Who cancelled which job and when, with the state and attempt it was in, recorded with the cancellation itself.
+        await trail.RecordAsync(work, AuditEntry.InContext(CancelledAction, context, principal) with
+        {
+            ResourceType = "job", ResourceId = row.Id.ToString("D"), Detail = $"kind {row.Kind} state {row.State} attempts {row.Attempts}"
+        }, cancellationToken).ConfigureAwait(false);
         row.CancellationRequested = true;
         if (row.State != JobState.Running)
         {
@@ -143,13 +156,21 @@ public sealed class JobStore(PostgreSqlModule module, TimeProvider clock, JobPol
     {
         var decision = await evaluator.AuthorizeAsync(new(context, principal, ScheduleWorker.SchedulePermission) { RequireCurrent = true }, cancellationToken).ConfigureAwait(false);
         if (!decision.Permitted) return false;
+        var trail = RequireAudit();
         await using var work = await EfCoreUnitOfWork.BeginAsync(Module, context, cancellationToken: cancellationToken).ConfigureAwait(false);
         var row = await work.Context.Set<JobSchedule>().SingleOrDefaultAsync(row => row.Id == id, cancellationToken).ConfigureAwait(false);
         if (row is null || !row.Enabled) return false;
+        await trail.RecordAsync(work, AuditEntry.InContext(ScheduleStoppedAction, context, principal) with
+        {
+            ResourceType = "job.schedule", ResourceId = row.Id.ToString("D"), Detail = "kind " + row.Kind + " next " + row.NextDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
+        }, cancellationToken).ConfigureAwait(false);
         row.Enabled = false;
         row.Code = "Stopped";
         return (await work.CompleteAsync(cancellationToken).ConfigureAwait(false)).State == UnitOfWorkState.Committed;
     }
+
+    private IAuditTrail RequireAudit() => audit
+        ?? throw new InvalidOperationException("An operator's cancellation or schedule stop is recorded in audit, and this store has no audit trail, so nothing is changed.");
 
     internal static bool IsTerminal(JobState state) => state is JobState.Completed or JobState.Failed or JobState.CancelledBeforeRun
         or JobState.CancelledDuringRun or JobState.Denied;

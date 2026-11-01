@@ -96,16 +96,70 @@ public abstract class ModuleDbContext : DbContext
     /// </summary>
     protected virtual void ConfigureFilters(IQueryFilterRegistry filters) { }
 
-    public BypassedQuery<TEntity> IncludingSoftDeleted<TEntity>(SoftDeleteBypass bypass) where TEntity : class =>
-        ModuleQueryFilterRegistry.Bypass(Set<TEntity>(), bypass);
+    /// <summary>
+    /// The entity's rows with the soft-delete predicate lifted, and only that one, for the returned query. The bypass is
+    /// privileged and audited: it is recorded, with its reason and operation, through the audit that tenancy attached to the
+    /// unit's active tenant or host context, before the query exists, and refused (<c>MPS047</c>) when the unit has no such
+    /// context or the record cannot be written. A named deployment scope, which product code never opens, is deployment
+    /// authority and records nothing.
+    /// </summary>
+    public async Task<BypassedQuery<TEntity>> IncludingSoftDeletedAsync<TEntity>(SoftDeleteBypass bypass, CancellationToken cancellationToken = default)
+        where TEntity : class
+    {
+        ArgumentNullException.ThrowIfNull(bypass);
+        var query = ModuleQueryFilterRegistry.Bypass(Set<TEntity>(), bypass);
+        await RecordBypassAsync(FilterBypass.SoftDeleted, Model.FindEntityType(typeof(TEntity)), bypass.OperationId, bypass.Reason, cancellationToken)
+            .ConfigureAwait(false);
+        return query;
+    }
 
     /// <summary>
     /// Tenant-scoped rows of every tenant, for a host-scope unit only, and only of an entity its grant's operation reaches.
     /// Only the tenant predicate is lifted: soft delete and module filters remain, each execution still requires the host
-    /// scope to be active, and the rows cannot be changed.
+    /// scope to be active, and the rows cannot be changed. Each such read is recorded in audit, naming the entity and the
+    /// grant, before the query exists; a read that cannot be recorded is refused (<c>MPS047</c>).
     /// </summary>
-    public CrossTenantQuery<TEntity> AcrossTenants<TEntity>() where TEntity : class, ITenantScoped =>
-        ModuleQueryFilterRegistry.BypassTenant(Set<TEntity>(), RequireHostGrant(Model.FindEntityType(typeof(TEntity))));
+    public async Task<CrossTenantQuery<TEntity>> AcrossTenantsAsync<TEntity>(CancellationToken cancellationToken = default) where TEntity : class, ITenantScoped
+    {
+        var entity = Model.FindEntityType(typeof(TEntity));
+        var grant = RequireHostGrant(entity);
+        var query = ModuleQueryFilterRegistry.BypassTenant(Set<TEntity>(), grant);
+        await RecordBypassAsync(FilterBypass.CrossTenant, entity, grant.OperationId, grant.Reason, cancellationToken).ConfigureAwait(false);
+        return query;
+    }
+
+    /// <summary>
+    /// Records a filter bypass through the unit's context before its query is handed out. Only an active tenant or host
+    /// context carries the audit that records it; a deployment scope may lift soft delete unrecorded, and every other unit
+    /// is refused.
+    /// </summary>
+    internal async Task RecordBypassAsync(FilterBypass bypass, IReadOnlyEntityType? entity, string operationId, string reason,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (entity is null || ReachTable(entity) is not { } table)
+            throw new PersistenceContractException("MPS047", "A filter bypass names an entity this module maps to a table.");
+        switch (Tenant)
+        {
+            case { IsActive: false }:
+                throw new PersistenceContractException("MPS035", "The unit's tenant context has ended.");
+            case { } context:
+                try
+                {
+                    await context.RecordBypassAsync(bypass, Module.ModuleId, table, operationId, reason, cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+                {
+                    throw new PersistenceContractException("MPS047", "The filter bypass could not be recorded in audit, so it was refused.");
+                }
+                return;
+            case null when bypass == FilterBypass.SoftDeleted && Deployment is not null:
+                return;
+            default:
+                throw new PersistenceContractException("MPS047",
+                    "A filter bypass needs an active tenant or host context, whose audit records it; this unit has neither.");
+        }
+    }
 
     /// <summary>
     /// The unit's active host grant, when its operation reaches the entity in this module. The elevated policy binds each
@@ -225,6 +279,7 @@ public abstract class ModuleDbContext : DbContext
         ChangeTracker.DetectChanges();
         foreach (var entry in ChangeTracker.Entries().Where(entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted).ToArray())
         {
+            ModuleSql.RequireNotAppendOnly(entry.Metadata);
             CheckScope(entry);
             if (entry.State == EntityState.Deleted && entry.Entity is ISoftDeleted)
             {

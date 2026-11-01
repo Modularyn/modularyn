@@ -262,6 +262,8 @@ public sealed class TenantExecution : IDisposable
     private TenantDecision Publish(TenantDecision decision)
     {
         if (decision.Context is null) return decision;
+        // Every bypass the unit makes is recorded through this audit; a context without one bypasses no filter.
+        decision.Context.BypassAudit = services.GetService<IFilterBypassAudit>();
         Volatile.Write(ref context, decision.Context);
         // An end that raced with establishment still ends the new context.
         if (Volatile.Read(ref state) == Ended) decision.Context.End();
@@ -349,7 +351,8 @@ public sealed class TenantExecution : IDisposable
         // The record is written before the scope exists; without it there is no scope.
         if (services.GetService<IHostScopeAudit>() is not { } audit) return TenantDecision.Refused(TenancyCodes.AuditUnavailable);
         var unit = Guid.NewGuid();
-        var at = time.GetUtcNow();
+        // The grant's time is stored in audit and compared after a round trip, so it is whole microseconds, as timestamptz keeps it.
+        var at = UtcMicroseconds.Now(time);
         try
         {
             await audit.RecordAsync(new(unit, actor, operationId, reason, source, at, Activity.Current?.TraceId.ToHexString()), cancellationToken)

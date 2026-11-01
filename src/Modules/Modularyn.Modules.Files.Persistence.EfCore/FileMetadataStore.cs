@@ -37,7 +37,8 @@ public sealed class FileMetadataStore : IFileMetadataStore
         public async Task<FileRevision?> FindRevisionAsync(Guid fileId, Guid revisionId, bool includeDeleted, CancellationToken cancellationToken)
         {
             var query = includeDeleted
-                ? Context.IncludingSoftDeleted<StoredFileRevision>(new("Reconcile or restore retained file content.", "files.restore-reconcile")).Query
+                ? (await Context.IncludingSoftDeletedAsync<StoredFileRevision>(new("Reconcile or restore retained file content.", "files.restore-reconcile"),
+                    cancellationToken).ConfigureAwait(false)).Query
                 : Context.Revisions;
             return await query.SingleOrDefaultAsync(row => row.FileId == fileId && row.Id == revisionId, cancellationToken).ConfigureAwait(false);
         }
@@ -47,7 +48,8 @@ public sealed class FileMetadataStore : IFileMetadataStore
                 .ToListAsync(cancellationToken).ConfigureAwait(false);
 
         public async Task<IReadOnlyList<FileRevision>> ListDeletedRevisionsAsync(Guid fileId, CancellationToken cancellationToken) =>
-            await Context.IncludingSoftDeleted<StoredFileRevision>(new("Inventory retained revisions for restore.", "files.deleted-inventory"))
+            await (await Context.IncludingSoftDeletedAsync<StoredFileRevision>(new("Inventory retained revisions for restore.", "files.deleted-inventory"),
+                    cancellationToken).ConfigureAwait(false))
                 .Query.Where(row => row.FileId == fileId && row.IsDeleted).OrderBy(row => row.CreatedAt).ThenBy(row => row.Id)
                 .ToListAsync(cancellationToken).ConfigureAwait(false);
 
@@ -60,9 +62,10 @@ public sealed class FileMetadataStore : IFileMetadataStore
                 .OrderBy(row => row.CreatedAt).ThenBy(row => row.Id).Skip(offset).Take(limit)
                 .ToListAsync(cancellationToken).ConfigureAwait(false);
 
-        public Task<bool> HasRevisionsAsync(Guid fileId, CancellationToken cancellationToken) =>
-            Context.IncludingSoftDeleted<StoredFileRevision>(new("Keep a file while any of its revisions is retained.", "files.asset-reconcile"))
-                .Query.AnyAsync(row => row.FileId == fileId, cancellationToken);
+        public async Task<bool> HasRevisionsAsync(Guid fileId, CancellationToken cancellationToken) =>
+            await (await Context.IncludingSoftDeletedAsync<StoredFileRevision>(new("Keep a file while any of its revisions is retained.", "files.asset-reconcile"),
+                    cancellationToken).ConfigureAwait(false))
+                .Query.AnyAsync(row => row.FileId == fileId, cancellationToken).ConfigureAwait(false);
 
         public async Task<IReadOnlyList<FileUpload>> ListUploadsAsync(CancellationToken cancellationToken) =>
             await Context.Uploads.OrderBy(row => row.CreatedAt).ThenBy(row => row.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
@@ -77,9 +80,10 @@ public sealed class FileMetadataStore : IFileMetadataStore
             return new(count, bytes ?? 0);
         }
 
-        public Task<bool> IsContentReferencedAsync(Guid revisionId, CancellationToken cancellationToken) =>
-            Context.IncludingSoftDeleted<StoredFileRevision>(new("Retain every referenced content identity during recovery.", "files.content-reconcile"))
-                .Query.AnyAsync(row => row.Id == revisionId, cancellationToken);
+        public async Task<bool> IsContentReferencedAsync(Guid revisionId, CancellationToken cancellationToken) =>
+            await (await Context.IncludingSoftDeletedAsync<StoredFileRevision>(new("Retain every referenced content identity during recovery.",
+                    "files.content-reconcile"), cancellationToken).ConfigureAwait(false))
+                .Query.AnyAsync(row => row.Id == revisionId, cancellationToken).ConfigureAwait(false);
 
         public async Task<FileGrant?> FindGrantAsync(Guid grantId, CancellationToken cancellationToken) =>
             await Context.Grants.SingleOrDefaultAsync(row => row.Id == grantId, cancellationToken).ConfigureAwait(false);

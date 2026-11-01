@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="../Modularyn.Framework.Modularity.Abstractions/Modularyn.Framework.Modularity.Abstractions.csproj" />
+    <ProjectReference Include="../Modularyn.Framework.Persistence.Abstractions/Modularyn.Framework.Persistence.Abstractions.csproj" />
     <ProjectReference Include="../Modularyn.Framework.Security.Abstractions/Modularyn.Framework.Security.Abstractions.csproj" />
     <ProjectReference Include="../Modularyn.Framework.Tenancy.Abstractions/Modularyn.Framework.Tenancy.Abstractions.csproj" />
   </ItemGroup>

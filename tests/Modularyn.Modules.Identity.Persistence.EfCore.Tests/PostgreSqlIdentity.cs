@@ -71,6 +71,9 @@ internal sealed class PostgreSqlIdentity : IAsyncDisposable
         services.AddModularynIdentity(configuration);
         if (configuration["Modularyn:Secrets:Directory"] is not null) services.AddModularynSecrets(configuration);
         services.AddModularynIdentityPostgreSql(database.Module);
+        var audit = new RecordingIdentityAudit();
+        services.AddSingleton<Framework.Authorization.Abstractions.IAuthorityAudit>(audit);
+        services.AddSingleton<Framework.Audit.IAuditTrail>(audit);
         return new PostgreSqlIdentity(services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true }), clock, hasher);
     }
 

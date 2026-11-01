@@ -40,7 +40,7 @@ public static class AuthorizationServiceCollectionExtensions
         services.AddSingleton(registry);
         services.AddSingleton<ICompositionValidator>(registry);
         services.AddSingleton(provider => new AuthorizationClock(provider.GetRequiredService<TimeProvider>()));
-        services.AddSingleton<IAuthoritySource>(provider => new PostgreSqlAuthoritySource(module, provider.GetRequiredService<AuthorizationClock>()));
+        services.AddSingleton<IAuthoritySource>(provider => new PostgreSqlAuthoritySource(module, provider.GetRequiredService<AuthorizationClock>(), provider));
         services.AddSingleton<IAuthorityCache>(provider => new TenantAuthorityCache(provider.GetRequiredService<TenantCache>()));
         services.AddSingleton(provider => new AuthorityCacheHealth(provider.GetRequiredService<TimeProvider>(),
             provider.GetRequiredService<IOptions<AuthorizationSecurityOptions>>().Value.FreshnessBound));

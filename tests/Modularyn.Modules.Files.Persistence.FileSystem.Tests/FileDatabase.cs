@@ -82,6 +82,7 @@ internal sealed class FileDatabase : IAsyncDisposable
             var hostBoundary = new DatabaseHostBoundary(database);
             services.AddSingleton<IHostAuthority>(hostBoundary);
             services.AddSingleton<IHostScopeAudit>(hostBoundary);
+            services.AddSingleton<IFilterBypassAudit>(hostBoundary);
             database.Services = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
             // The real directory is provisioned through its administration service in an explicit granted host scope.
             // The database-backed fixture seams are not an implementation or qualification of security policy.
@@ -268,10 +269,22 @@ internal sealed class FileDatabase : IAsyncDisposable
             await database.ScalarAsync<bool>(cancellationToken, "SELECT EXISTS (SELECT 1 FROM " + Quote(database.IdentitySchema)
                 + ".\"Members\" WHERE \"TenantId\" = @tenant AND \"Subject\" = @subject)",
                 new NpgsqlParameter("tenant", tenantId), new NpgsqlParameter("subject", actor.Subject));
+
+        // The fixture's memberships keep no start, so every grant of a current member counts.
+        public async ValueTask<DateTimeOffset?> MemberSinceAsync(ActorReference actor, Guid tenantId, CancellationToken cancellationToken) =>
+            await IsMemberAsync(actor, tenantId, cancellationToken) ? DateTimeOffset.MinValue : null;
     }
 
-    private sealed class DatabaseHostBoundary(FileDatabase database) : IHostAuthority, IHostScopeAudit
+    private sealed class DatabaseHostBoundary(FileDatabase database) : IHostAuthority, IHostScopeAudit, IFilterBypassAudit
     {
+        internal System.Collections.Concurrent.ConcurrentQueue<FilterBypassRecord> Bypasses { get; } = new();
+
+        public ValueTask RecordAsync(FilterBypassRecord record, CancellationToken cancellationToken)
+        {
+            Bypasses.Enqueue(record);
+            return ValueTask.CompletedTask;
+        }
+
         // The fixture grants only directory administration, whose reach is the directory module's own declaration.
         public async ValueTask<HostOperation?> AuthorizeAsync(ActorReference actor, string operationId, CancellationToken cancellationToken) =>
             operationId == TenantDirectoryAdministration.OperationId && await database.ScalarAsync<bool>(cancellationToken, "SELECT EXISTS (SELECT 1 FROM "

@@ -19,6 +19,12 @@ public interface ITenantActorResolver
 public interface ITenantMembership
 {
     ValueTask<bool> IsMemberAsync(ActorReference actor, Guid tenantId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// When the actor's current membership of the tenant began, at whole microseconds; null when it is not a member now.
+    /// Authority granted in the tenant before that instant belongs to an earlier membership and no longer counts.
+    /// </summary>
+    ValueTask<DateTimeOffset?> MemberSinceAsync(ActorReference actor, Guid tenantId, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -43,6 +49,36 @@ public interface IHostScopeAudit
     ValueTask RecordAsync(HostScopeAuditRecord record, CancellationToken cancellationToken);
 }
 
-/// <summary>A host-scope grant as audit receives it. The correlation identifier is diagnostic linkage only.</summary>
+/// <summary>
+/// A host-scope grant as audit receives it. Its time is whole microseconds from the host's clock, as the grant itself
+/// records it. The correlation identifier is diagnostic linkage only.
+/// </summary>
 public sealed record HostScopeAuditRecord(Guid UnitId, ActorReference Actor, string OperationId, string Reason,
     TenantContextSource Source, DateTimeOffset At, string? CorrelationId);
+
+/// <summary>The privileged filter bypasses the persistence adapter offers, each recorded in audit before its query exists.</summary>
+public enum FilterBypass
+{
+    /// <summary>A host-scope read of every tenant's rows of one entity, lifting only the tenant predicate.</summary>
+    CrossTenant = 1,
+
+    /// <summary>A read that includes soft-deleted rows of one entity, lifting only the soft-delete predicate.</summary>
+    SoftDeleted = 2
+}
+
+/// <summary>
+/// Records a privileged filter bypass, before its query exists, for the unit whose context tenancy attached it to. A
+/// failure refuses the bypass. Supplied by audit (SEC-07).
+/// </summary>
+public interface IFilterBypassAudit
+{
+    ValueTask RecordAsync(FilterBypassRecord record, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// A filter bypass as audit receives it: the unit, its actor, scope and tenant, the entity as its module and table, and
+/// the operation and reason the bypass declares, which for a cross-tenant read are its host grant's. It holds references
+/// only. The correlation identifier is diagnostic linkage only.
+/// </summary>
+public sealed record FilterBypassRecord(Guid UnitId, ActorReference Actor, TenantScope Scope, Guid? TenantId, FilterBypass Bypass,
+    string ModuleId, string Table, string OperationId, string Reason, string? CorrelationId);

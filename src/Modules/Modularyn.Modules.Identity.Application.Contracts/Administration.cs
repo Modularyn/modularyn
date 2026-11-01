@@ -75,6 +75,9 @@ public static class IdentityAuthorityCodes
 
     /// <summary>Only the account's owner, through its own current session, may make the write.</summary>
     public const string OwnerRequired = "MID003";
+
+    /// <summary>The write could not be recorded in audit, so it was not made.</summary>
+    public const string AuditUnavailable = "MID004";
 }
 
 public sealed class IdentityAuthorityException(string code, string message) : InvalidOperationException(message)

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using Modularyn.Framework.Authorization.Abstractions;
+using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Authorization;
 using Modularyn.Framework.Features;
 using Modularyn.Framework.Security.Abstractions;
@@ -54,7 +55,7 @@ internal sealed class RecordingAuthorityAudit : IAuthorityAudit
     /// <summary>Runs inside the change's transaction, after its decision and before its commit, so a test can hold it there.</summary>
     internal Func<AuthorityChangeRecord, Task>? Holding { get; set; }
 
-    public async ValueTask RecordAsync(AuthorityChangeRecord record, CancellationToken cancellationToken)
+    public async ValueTask RecordAsync(IUnitOfWork work, AuthorityChangeRecord record, CancellationToken cancellationToken)
     {
         if (Failing) throw new InvalidOperationException("The audit store is unavailable.");
         Records.Enqueue(record);

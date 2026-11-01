@@ -179,7 +179,7 @@ public sealed partial class G02AC003Tests
         var dispatch = await host.HostAsync(Items.Dispatch.Id);
         List<ItemJob> queued;
         await using (var read = await EfCoreUnitOfWork.BeginAsync(database.ItemsModule, dispatch, cancellationToken: Cancellation))
-            queued = await read.Context.AcrossTenants<ItemJob>().Query.AsNoTracking().Where(row => row.State == "queued").ToListAsync(Cancellation);
+            queued = await (await read.Context.AcrossTenantsAsync<ItemJob>(Cancellation)).Query.AsNoTracking().Where(row => row.State == "queued").ToListAsync(Cancellation);
         var results = new Dictionary<Guid, (TenantWorkDisposition, string?)>();
         foreach (var job in queued)
         {

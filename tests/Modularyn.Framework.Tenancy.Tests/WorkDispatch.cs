@@ -38,7 +38,7 @@ internal static class WorkDispatch
         {
             List<WorkItem> queued;
             await using (var read = await EfCoreUnitOfWork.BeginAsync(database.Items, host, UnitOfWorkMode.Suppress, cancellationToken: cancellationToken))
-                queued = await read.Context.AcrossTenants<WorkItem>().Query.AsNoTracking().Where(item => item.State == "queued")
+                queued = await (await read.Context.AcrossTenantsAsync<WorkItem>(cancellationToken)).Query.AsNoTracking().Where(item => item.State == "queued")
                     .OrderBy(item => item.Payload).ToListAsync(cancellationToken);
             var runner = services.GetRequiredService<TenantWorkRunner>();
             foreach (var item in queued)

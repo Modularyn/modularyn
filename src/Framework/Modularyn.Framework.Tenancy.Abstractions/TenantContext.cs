@@ -113,5 +113,25 @@ public sealed class TenantContext
     /// <summary>False once the unit of work that owns this context has ended, on every path.</summary>
     public bool IsActive => Volatile.Read(ref ended) == 0;
 
+    /// <summary>The audit of this unit's filter bypasses, which tenancy attaches when it establishes the context; null without one.</summary>
+    internal IFilterBypassAudit? BypassAudit { get; set; }
+
+    /// <summary>
+    /// Records a privileged filter bypass made in this context's unit, through the audit tenancy attached when it established
+    /// the context, before the bypass's query exists. The persistence adapter calls it for each cross-tenant read and each
+    /// read that includes soft-deleted rows. It names only this context's own unit, actor, scope and tenant, so no caller can
+    /// record a bypass for another unit. It refuses when the context has ended, when no audit is attached and when the audit
+    /// fails, and the adapter then refuses the bypass.
+    /// </summary>
+    public ValueTask RecordBypassAsync(FilterBypass bypass, string moduleId, string table, string operationId, string reason,
+        CancellationToken cancellationToken)
+    {
+        if (!Enum.IsDefined(bypass)) throw new ArgumentOutOfRangeException(nameof(bypass));
+        if (!IsActive) throw new InvalidOperationException("The unit's context has ended, so it bypasses no filter.");
+        var audit = BypassAudit ?? throw new InvalidOperationException("No audit is attached to the unit's context, so it bypasses no filter.");
+        return audit.RecordAsync(new FilterBypassRecord(UnitId, Actor, Scope, TenantId, bypass, moduleId, table, operationId, reason,
+            System.Diagnostics.Activity.Current?.TraceId.ToHexString()), cancellationToken);
+    }
+
     internal void End() => Interlocked.Exchange(ref ended, 1);
 }

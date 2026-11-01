@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Modularyn.Framework.Authorization;
 using Modularyn.Framework.Authorization.Abstractions;
+using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Modularity;
 using Modularyn.Framework.Modularity.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
@@ -59,7 +60,7 @@ internal sealed class RecordingAuthorityAudit : IAuthorityAudit
 {
     internal ConcurrentQueue<AuthorityChangeRecord> Records { get; } = new();
 
-    public ValueTask RecordAsync(AuthorityChangeRecord record, CancellationToken cancellationToken)
+    public ValueTask RecordAsync(IUnitOfWork work, AuthorityChangeRecord record, CancellationToken cancellationToken)
     {
         Records.Enqueue(record);
         return ValueTask.CompletedTask;

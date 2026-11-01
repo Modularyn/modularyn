@@ -31,7 +31,7 @@ public sealed class EventPump(EventStore producer, EventStore receiver, EventCon
         ValidateLimit(limit);
         var now = UtcMicroseconds.Now(clock);
         await using var scan = await EfCoreUnitOfWork.BeginAsync(producer.Module, host, cancellationToken: cancellationToken).ConfigureAwait(false);
-        var rows = await scan.Context.AcrossTenants<OutboxEvent>().Query.AsNoTracking()
+        var rows = await (await scan.Context.AcrossTenantsAsync<OutboxEvent>(cancellationToken).ConfigureAwait(false)).Query.AsNoTracking()
             .Where(row => row.Consumer == consumer.Name && row.State == EventState.Pending && row.DueAt <= now)
             .OrderBy(row => row.CreatedAt).ThenBy(row => row.Position).Take(limit).ToListAsync(cancellationToken).ConfigureAwait(false);
         var delivered = 0;
@@ -77,7 +77,7 @@ public sealed class EventPump(EventStore producer, EventStore receiver, EventCon
         ValidateLimit(limit);
         var now = UtcMicroseconds.Now(clock);
         await using var scan = await EfCoreUnitOfWork.BeginAsync(receiver.Module, host, cancellationToken: cancellationToken).ConfigureAwait(false);
-        var rows = await scan.Context.AcrossTenants<InboxEvent>().Query.AsNoTracking()
+        var rows = await (await scan.Context.AcrossTenantsAsync<InboxEvent>(cancellationToken).ConfigureAwait(false)).Query.AsNoTracking()
             .Where(row => row.Consumer == consumer.Name && row.State == EventState.Pending && row.DueAt <= now)
             .OrderBy(row => row.DueAt).ThenBy(row => row.Position).Take(limit).ToListAsync(cancellationToken).ConfigureAwait(false);
         var completed = 0;

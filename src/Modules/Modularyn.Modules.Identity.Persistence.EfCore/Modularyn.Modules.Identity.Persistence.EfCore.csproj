@@ -3,6 +3,8 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
     <ProjectReference Include="../Modularyn.Modules.Identity.Domain/Modularyn.Modules.Identity.Domain.csproj" />
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Audit/Modularyn.Framework.Audit.csproj" />
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Authorization.Abstractions/Modularyn.Framework.Authorization.Abstractions.csproj" />
     <ProjectReference Include="../../Framework/Modularyn.Framework.Persistence.EfCore/Modularyn.Framework.Persistence.EfCore.csproj" />
     <ProjectReference Include="../../Framework/Modularyn.Framework.Persistence.Abstractions/Modularyn.Framework.Persistence.Abstractions.csproj" />
     <ProjectReference Include="../../Framework/Modularyn.Framework.Tenancy.Abstractions/Modularyn.Framework.Tenancy.Abstractions.csproj" />

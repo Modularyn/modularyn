@@ -13,12 +13,15 @@ namespace Modularyn.Modules.Identity.Persistence.EfCore;
 /// autocommitted connection for reads. Every query is ordinary LINQ over the module context and every change a tracked
 /// write; there is no raw SQL and no bulk write.
 /// </summary>
-internal abstract class IdentityStore(PostgreSqlModule module, ModuleOwnerScope? owner)
+internal abstract class IdentityStore(PostgreSqlModule module, ModuleOwnerScope? owner, IdentityAudit? audit = null)
 {
     // A concurrent writer can win a race a bounded number of times before an operation that retries gives up.
     protected const int Attempts = 4;
 
     protected PostgreSqlModule Module { get; } = module ?? throw new ArgumentNullException(nameof(module));
+
+    /// <summary>Records a change in its own unit of work, so the record commits exactly when the change does.</summary>
+    protected IdentityAudit Audit => audit ?? throw new IdentityAuditUnavailableException();
 
     protected async Task<T> ReadAsync<T>(Func<IdentityModuleContext, Task<T>> read, CancellationToken cancellationToken)
     {
@@ -30,7 +33,11 @@ internal abstract class IdentityStore(PostgreSqlModule module, ModuleOwnerScope?
     /// Runs one transactional change. When a concurrency token shows that another writer changed a row first, nothing is
     /// committed and <paramref name="conflicted"/> is returned; any other failure to commit is an error.
     /// </summary>
-    protected async Task<T> WriteAsync<T>(Func<IdentityModuleContext, Task<T>> write, T conflicted, CancellationToken cancellationToken)
+    protected Task<T> WriteAsync<T>(Func<IdentityModuleContext, Task<T>> write, T conflicted, CancellationToken cancellationToken) =>
+        WriteAsync((context, _) => write(context), conflicted, cancellationToken);
+
+    /// <summary>The transactional change with its unit of work, through which the change records itself in audit.</summary>
+    protected async Task<T> WriteAsync<T>(Func<IdentityModuleContext, EfCoreUnitOfWork, Task<T>> write, T conflicted, CancellationToken cancellationToken)
     {
         var scope = owner ?? throw new InvalidOperationException("This store writes authority data only in an audited host scope.");
         await using var work = await EfCoreUnitOfWork.BeginOwnedAsync(Module, scope, cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -39,9 +46,10 @@ internal abstract class IdentityStore(PostgreSqlModule module, ModuleOwnerScope?
 
     /// <summary>
     /// Runs one transactional change in the caller's active host scope, whose operation must reach the entity it changes;
-    /// the persistence adapter refuses any other scope or entity.
+    /// the persistence adapter refuses any other scope or entity. The change records itself in audit through the unit.
     /// </summary>
-    protected async Task<T> HostWriteAsync<T>(TenantContext host, Func<IdentityModuleContext, Task<T>> write, T conflicted, CancellationToken cancellationToken)
+    protected async Task<T> HostWriteAsync<T>(TenantContext host, Func<IdentityModuleContext, EfCoreUnitOfWork, Task<T>> write, T conflicted,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(host);
         if (host.Scope != TenantScope.Host) throw new InvalidOperationException("Authority data changes only in an audited host scope.");
@@ -49,10 +57,10 @@ internal abstract class IdentityStore(PostgreSqlModule module, ModuleOwnerScope?
         return await CommitAsync(work, write, conflicted, cancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task<T> CommitAsync<T>(EfCoreUnitOfWork work, Func<IdentityModuleContext, Task<T>> write, T conflicted,
+    private static async Task<T> CommitAsync<T>(EfCoreUnitOfWork work, Func<IdentityModuleContext, EfCoreUnitOfWork, Task<T>> write, T conflicted,
         CancellationToken cancellationToken)
     {
-        var result = await write((IdentityModuleContext)work.Context).ConfigureAwait(false);
+        var result = await write((IdentityModuleContext)work.Context, work).ConfigureAwait(false);
         var outcome = await work.CompleteAsync(cancellationToken).ConfigureAwait(false);
         if (outcome.State == UnitOfWorkState.Committed) return result;
         if (outcome.Conflicts.Count > 0) return conflicted;
@@ -442,20 +450,22 @@ internal sealed class PasskeyCredentialStore(PostgreSqlModule module) : Identity
 
 /// <summary>
 /// Global accounts' tenant memberships, read afresh for every check. A membership decides who may establish a tenant
-/// context, so it changes only in the caller's audited host scope, never in an owner-bound unit.
+/// context, so it changes only in the caller's audited host scope, never in an owner-bound unit, and each change is recorded
+/// in audit, as an authority change, in the change's own transaction.
 /// </summary>
-internal sealed class TenantMembershipStore(PostgreSqlModule module) : IdentityStore(module, null), ITenantMembershipStore
+internal sealed class TenantMembershipStore(PostgreSqlModule module, IdentityAudit audit) : IdentityStore(module, null, audit), ITenantMembershipStore
 {
     public async Task<bool> AddAsync(TenantContext host, Guid accountId, Guid tenantId, DateTimeOffset now, CancellationToken cancellationToken)
     {
         try
         {
-            return await HostWriteAsync(host, async context =>
+            return await HostWriteAsync(host, async (context, work) =>
             {
                 if (!await context.Set<IdentityAccount>().AnyAsync(account => account.Id == accountId, cancellationToken).ConfigureAwait(false)
                     || await context.Set<TenantMembershipRow>().AnyAsync(row => row.AccountId == accountId && row.TenantId == tenantId, cancellationToken)
                         .ConfigureAwait(false)) return false;
                 context.Add(new TenantMembershipRow { AccountId = accountId, TenantId = tenantId, AddedAt = now.ToUniversalTime() });
+                await Audit.MembershipAsync(work, true, host, accountId, tenantId, now, cancellationToken).ConfigureAwait(false);
                 return true;
             }, false, cancellationToken).ConfigureAwait(false);
         }
@@ -466,18 +476,26 @@ internal sealed class TenantMembershipStore(PostgreSqlModule module) : IdentityS
         }
     }
 
-    public Task<bool> RemoveAsync(TenantContext host, Guid accountId, Guid tenantId, CancellationToken cancellationToken) => HostWriteAsync(host, async context =>
-    {
-        var row = await context.Set<TenantMembershipRow>().SingleOrDefaultAsync(row => row.AccountId == accountId && row.TenantId == tenantId, cancellationToken)
-            .ConfigureAwait(false);
-        if (row is null) return false;
-        context.Remove(row);
-        return true;
-    }, false, cancellationToken);
+    public Task<bool> RemoveAsync(TenantContext host, Guid accountId, Guid tenantId, DateTimeOffset now, CancellationToken cancellationToken) =>
+        HostWriteAsync(host, async (context, work) =>
+        {
+            var row = await context.Set<TenantMembershipRow>().SingleOrDefaultAsync(row => row.AccountId == accountId && row.TenantId == tenantId, cancellationToken)
+                .ConfigureAwait(false);
+            if (row is null) return false;
+            context.Remove(row);
+            await Audit.MembershipAsync(work, false, host, accountId, tenantId, now, cancellationToken).ConfigureAwait(false);
+            return true;
+        }, false, cancellationToken);
 
     public Task<bool> IsMemberAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken) => ReadAsync(context =>
         (from membership in context.Set<TenantMembershipRow>()
          join account in context.Set<IdentityAccount>() on membership.AccountId equals account.Id
          where membership.AccountId == accountId && membership.TenantId == tenantId && !account.Disabled
          select membership).AnyAsync(cancellationToken), cancellationToken);
+
+    public Task<DateTimeOffset?> MemberSinceAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken) => ReadAsync(context =>
+        (from membership in context.Set<TenantMembershipRow>()
+         join account in context.Set<IdentityAccount>() on membership.AccountId equals account.Id
+         where membership.AccountId == accountId && membership.TenantId == tenantId && !account.Disabled
+         select (DateTimeOffset?)membership.AddedAt).SingleOrDefaultAsync(cancellationToken), cancellationToken);
 }

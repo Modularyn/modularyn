@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Modularyn.Framework.Audit;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
 using Modularyn.Framework.Tenancy.Abstractions;
@@ -64,7 +65,7 @@ public sealed class G02AC006Tests(ITestOutputHelper output)
         var other = await host.TenantAsync();
         await using var otherUnit = await host.EnterServiceAsync(other);
         Assert.Empty(await host.RowsAsync<InboxEvent>(database.Consumer, otherUnit.Context));
-        Assert.NotEmpty(host.Audit.Hosts);
+        Assert.NotEmpty(await database.AuditAsync(AuditActions.HostScopeGranted));
     }
 
     private static async Task ReorderedAsync(bool contract)
