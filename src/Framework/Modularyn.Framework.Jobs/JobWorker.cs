@@ -41,59 +41,70 @@ public sealed class JobWorker
         foreach (var candidate in candidates)
         {
             var definition = definitions.GetValueOrDefault(candidate.Kind);
-            var outcome = await runner.RunAsync(principal, candidate.Propagated, definition?.Permission ?? ExecutePermission, async (unit, _, token) =>
+            TenantWorkOutcome outcome;
+            try
             {
-                if (unit.Context.TenantId != candidate.TenantId) throw new InvalidOperationException("The job is outside its producer's tenant.");
-                JobClaim? claim;
-                try { claim = await store.ClaimAsync(unit.Context, candidate.Id, token).ConfigureAwait(false); }
-                catch (DbUpdateException) { return; }
-                if (claim is null) return;
-                try
+                outcome = await runner.RunAsync(principal, candidate.Propagated, definition?.Permission ?? ExecutePermission, async (unit, _, token) =>
                 {
-                    if (definition is null) throw new InvalidOperationException("The job kind has no registered handler.");
-                    await using var work = await EfCoreUnitOfWork.BeginAsync(store.Module, unit.Context, cancellationToken: token).ConfigureAwait(false);
-                    var execution = new JobExecution(store, work, principal, claim, candidate.Payload, definition.Permission, evaluator);
-                    await execution.CheckpointAsync(token).ConfigureAwait(false);
-                    await definition.Handle(execution, token).ConfigureAwait(false);
-                    await execution.CheckpointAsync(token).ConfigureAwait(false);
-                    // Read after any renewals. The final tracked version is the fence: cancellation or a replacement
-                    // owner that commits first makes the entire effect transaction lose its concurrency check.
-                    var row = await work.Context.Set<JobRecord>().SingleAsync(row => row.Id == claim.Id, token).ConfigureAwait(false);
-                    if (row.CancellationRequested) throw new JobCancellationException();
-                    if (row.State != JobState.Running || row.Lease != claim.Lease || row.LeaseUntil <= store.Now) throw new JobLeaseLostException();
-                    row.State = JobState.Completed;
-                    row.Code = "Completed";
-                    var attempt = await work.Context.Set<JobAttempt>().SingleAsync(entry => entry.JobId == row.Id && entry.Lease == claim.Lease, token).ConfigureAwait(false);
-                    attempt.State = JobAttemptState.Completed;
-                    attempt.Code = "Completed";
-                    attempt.EndedAt = store.Now;
-                    await work.FlushAsync(token).ConfigureAwait(false);
-                    await execution.CheckpointAsync(token).ConfigureAwait(false);
-                    if ((await work.CompleteAsync(token).ConfigureAwait(false)).State == UnitOfWorkState.Committed) completed++;
-                    else await store.FinishAsync(unit.Context, claim, JobAttemptState.LeaseLost, "ConcurrentDisposition", token).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
-                catch (JobCancellationException)
-                {
-                    await store.FinishAsync(unit.Context, claim, JobAttemptState.Cancelled, "CancellationAcknowledged", token).ConfigureAwait(false);
-                }
-                catch (JobLeaseLostException)
-                {
-                    await store.FinishAsync(unit.Context, claim, JobAttemptState.LeaseLost, "LeaseLost", token).ConfigureAwait(false);
-                }
-                catch (JobAuthorizationException exception)
-                {
-                    await store.FinishAsync(unit.Context, claim, exception.Transient ? JobAttemptState.Failed : JobAttemptState.Denied,
-                        exception.Code, token).ConfigureAwait(false);
-                }
-                catch (Exception)
-                {
-                    // Unknown commit acknowledgement is reconciled by reading the original job and lease. A committed
-                    // completion is terminal, so FinishAsync cannot turn it into a retry.
-                    await store.FinishAsync(unit.Context, claim, JobAttemptState.Failed,
-                        definition is null ? "UnsupportedKind" : "HandlerFailed", token).ConfigureAwait(false);
-                }
-            }, cancellationToken).ConfigureAwait(false);
+                    if (unit.Context.TenantId != candidate.TenantId) throw new InvalidOperationException("The job is outside its producer's tenant.");
+                    JobClaim? claim;
+                    try { claim = await store.ClaimAsync(unit.Context, candidate.Id, token).ConfigureAwait(false); }
+                    catch (DbUpdateException) { return; }
+                    if (claim is null) return;
+                    try
+                    {
+                        if (definition is null) throw new InvalidOperationException("The job kind has no registered handler.");
+                        await using var work = await EfCoreUnitOfWork.BeginAsync(store.Module, unit.Context, cancellationToken: token).ConfigureAwait(false);
+                        var execution = new JobExecution(store, work, principal, claim, candidate.Payload, definition.Permission, evaluator);
+                        await execution.CheckpointAsync(token).ConfigureAwait(false);
+                        await definition.Handle(execution, token).ConfigureAwait(false);
+                        await execution.CheckpointAsync(token).ConfigureAwait(false);
+                        // Read after any renewals. The final tracked version is the fence: cancellation or a replacement
+                        // owner that commits first makes the entire effect transaction lose its concurrency check.
+                        var row = await work.Context.Set<JobRecord>().SingleAsync(row => row.Id == claim.Id, token).ConfigureAwait(false);
+                        if (row.CancellationRequested) throw new JobCancellationException();
+                        if (row.State != JobState.Running || row.Lease != claim.Lease || row.LeaseUntil <= store.Now) throw new JobLeaseLostException();
+                        row.State = JobState.Completed;
+                        row.Code = "Completed";
+                        var attempt = await work.Context.Set<JobAttempt>().SingleAsync(entry => entry.JobId == row.Id && entry.Lease == claim.Lease, token).ConfigureAwait(false);
+                        attempt.State = JobAttemptState.Completed;
+                        attempt.Code = "Completed";
+                        attempt.EndedAt = store.Now;
+                        await work.FlushAsync(token).ConfigureAwait(false);
+                        await execution.CheckpointAsync(token).ConfigureAwait(false);
+                        if ((await work.CompleteAsync(token).ConfigureAwait(false)).State == UnitOfWorkState.Committed) completed++;
+                        else await store.FinishAsync(unit.Context, claim, JobAttemptState.LeaseLost, "ConcurrentDisposition", token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+                    catch (JobCancellationException)
+                    {
+                        await store.FinishAsync(unit.Context, claim, JobAttemptState.Cancelled, "CancellationAcknowledged", token).ConfigureAwait(false);
+                    }
+                    catch (JobLeaseLostException)
+                    {
+                        await store.FinishAsync(unit.Context, claim, JobAttemptState.LeaseLost, "LeaseLost", token).ConfigureAwait(false);
+                    }
+                    catch (JobAuthorizationException exception)
+                    {
+                        await store.FinishAsync(unit.Context, claim, exception.Transient ? JobAttemptState.Failed : JobAttemptState.Denied,
+                            exception.Code, token).ConfigureAwait(false);
+                    }
+                    catch (Exception)
+                    {
+                        // Unknown commit acknowledgement is reconciled by reading the original job and lease. A committed
+                        // completion is terminal, so FinishAsync cannot turn it into a retry.
+                        await store.FinishAsync(unit.Context, claim, JobAttemptState.Failed,
+                            definition is null ? "UnsupportedKind" : "HandlerFailed", token).ConfigureAwait(false);
+                    }
+                }, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                // A failure outside the handler's own attempt, such as a stored reference that names another tenant
+                // than its row, takes the bounded deferral policy instead of ending the pass for every other job. The
+                // disposition is guarded by the scanned version, so it never overwrites a claim that committed meanwhile.
+                outcome = new(TenantWorkDisposition.Deferred, "DispatchFailed", null);
+            }
             if (outcome.Disposition != TenantWorkDisposition.Completed)
                 await RecordRefusalAsync(host, candidate, outcome, cancellationToken).ConfigureAwait(false);
         }

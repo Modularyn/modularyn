@@ -181,6 +181,44 @@ public sealed class JobRecoveryTests
         Assert.Empty(await host.RowsAsync<JobRecord>(database.Producer, broken.Context));
     }
 
+    [Fact]
+    public async Task A_job_whose_stored_context_names_another_tenant_is_bounded_without_stopping_other_jobs()
+    {
+        await using var database = await DurableDatabase.CreateAsync();
+        var clock = new DurableClock();
+        await using var host = DurableHost.Create(database, clock);
+        await using var swapped = await host.EnterServiceAsync(await host.TenantAsync());
+        await using var healthy = await host.EnterServiceAsync(await host.TenantAsync());
+        var swappedId = await host.QueueAsync(swapped, "swapped");
+        clock.Advance(TimeSpan.FromSeconds(1));
+        var healthyId = await host.QueueAsync(healthy, "healthy");
+        // A stored reference copied from another tenant's row: revalidation succeeds for that other tenant, so only the
+        // worker's own tenant check stands between it and the row. The swapped job is due first.
+        var jobs = "\"" + database.Producer.Schema + "\".\"Jobs\"";
+        await database.ExecuteAsync("UPDATE " + jobs + " SET \"Propagated\" = (SELECT \"Propagated\" FROM " + jobs + " WHERE \"Id\" = @healthy) WHERE \"Id\" = @swapped",
+            new NpgsqlParameter("healthy", healthyId), new NpgsqlParameter("swapped", swappedId));
+        var dispatch = await host.HostAsync();
+        var principal = host.WorkerPrincipal();
+        Assert.Equal(1, await host.Worker().RunDueAsync(dispatch, principal, cancellationToken: Token));
+        Assert.Equal(JobState.Completed, Assert.Single(await host.RowsAsync<JobRecord>(database.Producer, healthy.Context)).State);
+        var effect = Assert.Single(await host.RowsAsync<DurableEffect>(database.Producer, healthy.Context));
+        Assert.Equal(("healthy", 1), (effect.Key, effect.Count));
+        for (var deferral = 1; deferral <= host.JobStore.Policy.MaxAttempts; deferral++)
+        {
+            if (deferral > 1) Assert.Equal(0, await host.Worker().RunDueAsync(dispatch, principal, cancellationToken: Token));
+            var row = Assert.Single(await host.RowsAsync<JobRecord>(database.Producer, swapped.Context));
+            Assert.Equal("DispatchFailed", row.Code);
+            Assert.Equal(deferral, row.Deferrals);
+            Assert.Equal(0, row.Attempts);
+            Assert.Equal(deferral < host.JobStore.Policy.MaxAttempts ? JobState.Retry : JobState.Failed, row.State);
+            clock.Advance(TimeSpan.FromSeconds(1 << (deferral - 1)));
+        }
+        Assert.Equal(0, await host.Worker().RunDueAsync(dispatch, principal, cancellationToken: Token));
+        Assert.Empty(await host.RowsAsync<JobAttempt>(database.Producer, swapped.Context));
+        Assert.Empty(await host.RowsAsync<DurableEffect>(database.Producer, swapped.Context));
+        Assert.Single(await host.RowsAsync<DurableEffect>(database.Producer, healthy.Context));
+    }
+
     private static async Task<Guid> ScheduleAsync(DurableHost host, DurableUnit unit, string payload)
     {
         await using var work = await EfCoreUnitOfWork.BeginAsync(host.Database.Producer, unit.Context, cancellationToken: Token);

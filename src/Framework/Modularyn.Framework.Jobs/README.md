@@ -49,7 +49,9 @@ and creates no attempt; cancellation during ownership is `CancelledDuringRun`
 with a cancelled attempt and no committed transactional effect. Shutdown leaves
 the lease recoverable. Permanent authorization refusal is `Denied`; transient
 refusals have a separate bounded deferral count, leaving handler attempts distinct.
-A refusal on expired ownership closes the previous attempt in the same host
+A failure outside a handler's attempt, such as a stored reference that names
+another tenant than its row, takes the same bounded deferrals with the code
+`DispatchFailed` and never ends the pass for other jobs. A refusal on expired ownership closes the previous attempt in the same host
 disposition transaction. Exhaustion is visible as `Failed`. Schedules also bound
 authorization deferrals; exhaustion disables the schedule while retaining its
 cursor, deferral count and last refusal code for inspection. A failure in one
