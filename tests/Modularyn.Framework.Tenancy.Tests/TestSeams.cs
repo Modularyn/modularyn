@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Security.Claims;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Modularyn.Framework.Security.Abstractions;
 using Modularyn.Framework.Tenancy.Abstractions;
 using Xunit;
@@ -179,8 +180,8 @@ internal sealed class TestSeams
 
     internal void Register(IServiceCollection services, bool identity = true, bool membership = true, bool authority = true, bool audit = true)
     {
-        services.AddSingleton<IServiceIdentityScopes>(ServiceIdentities);
-        services.AddSingleton<IPrincipalFreshness>(ServiceIdentities);
+        services.TryAddSingleton<IServiceIdentityScopes>(ServiceIdentities);
+        services.TryAddSingleton<IPrincipalFreshness>(ServiceIdentities);
         if (identity) services.AddSingleton<ITenantActorResolver>(Identity);
         if (membership) services.AddSingleton<ITenantMembership>(Membership);
         if (authority) services.AddSingleton<IHostAuthority>(Authority);
