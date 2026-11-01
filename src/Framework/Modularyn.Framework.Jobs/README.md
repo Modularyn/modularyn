@@ -52,7 +52,11 @@ refusals have a separate bounded deferral count, leaving handler attempts distin
 A refusal on expired ownership closes the previous attempt in the same host
 disposition transaction. Exhaustion is visible as `Failed`. Schedules also bound
 authorization deferrals; exhaustion disables the schedule while retaining its
-cursor, deferral count and last refusal code for inspection.
+cursor, deferral count and last refusal code for inspection. A failure in one
+schedule's own evaluation, such as a stored zone that the host's time-zone database
+no longer resolves, rolls back that schedule's transaction and takes the same
+bounded deferrals with the code `ScheduleFailed`, so it never ends the pass for
+other schedules.
 
 Schedules are daily civil times in IANA zones evaluated through `TimeZoneInfo`.
 On a host running in globalization's invariant mode, IANA lookups need the

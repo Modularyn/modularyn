@@ -102,6 +102,13 @@ public sealed class ScheduleWorker(JobStore store, AuthorizedWorkRunner runner)
                 // The whole losing transaction rolls back, including every job and cursor change.
                 continue;
             }
+            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                // A failure in one schedule's own evaluation, such as a stored zone that this host's time-zone database no
+                // longer resolves, rolls back that schedule's transaction and takes the bounded deferral policy below, so it
+                // cannot end the pass for every other schedule.
+                outcome = new(TenantWorkDisposition.Deferred, "ScheduleFailed", null);
+            }
             outcome = refused ?? outcome;
             if (outcome.Disposition == TenantWorkDisposition.Completed) continue;
             await using var disposition = await EfCoreUnitOfWork.BeginAsync(store.Module, host, cancellationToken: cancellationToken).ConfigureAwait(false);

@@ -3,6 +3,7 @@ using Modularyn.Framework.Events.Tests;
 using Modularyn.Framework.Jobs;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
+using Npgsql;
 using Xunit;
 
 namespace Modularyn.Modules.BackgroundJobs.Application.Tests;
@@ -140,5 +141,51 @@ public sealed class JobRecoveryTests
         }
         Assert.Equal(1, await scheduler.MaterializeAsync(dispatch, principal, limit: 1, cancellationToken: Token));
         Assert.Equal("due", Assert.Single(await host.RowsAsync<JobRecord>(database.Producer, source.Context)).Payload);
+    }
+
+    [Fact]
+    public async Task A_schedule_whose_zone_no_longer_resolves_defers_without_stopping_other_tenants_schedules()
+    {
+        await using var database = await DurableDatabase.CreateAsync();
+        var clock = new DurableClock();
+        clock.Set(new DateTimeOffset(2026, 11, 1, 12, 0, 0, TimeSpan.Zero));
+        await using var host = DurableHost.Create(database, clock);
+        await using var broken = await host.EnterServiceAsync(await host.TenantAsync());
+        await using var healthy = await host.EnterServiceAsync(await host.TenantAsync());
+        var brokenId = await ScheduleAsync(host, broken, "broken");
+        clock.Advance(TimeSpan.FromSeconds(1));
+        var healthyId = await ScheduleAsync(host, healthy, "healthy");
+        // The host's time-zone database no longer knows the stored zone, as after a time-zone data change or a move to
+        // another host. The broken schedule is due first, so a failure that escaped its own evaluation would end the pass.
+        await database.ExecuteAsync("UPDATE \"" + database.Producer.Schema + "\".\"JobSchedules\" SET \"TimeZone\" = 'Retired/Zone' WHERE \"Id\" = @id",
+            new NpgsqlParameter("id", brokenId));
+        var scheduler = new ScheduleWorker(host.JobStore, host.Get<AuthorizedWorkRunner>());
+        var dispatch = await host.HostAsync();
+        var principal = host.WorkerPrincipal();
+        Assert.Equal(1, await scheduler.MaterializeAsync(dispatch, principal, cancellationToken: Token));
+        Assert.Equal(healthyId, Assert.Single(await host.RowsAsync<JobRecord>(database.Producer, healthy.Context)).ScheduleId);
+        Assert.Equal(1, await host.Worker().RunDueAsync(dispatch, principal, cancellationToken: Token));
+        Assert.Equal(1, Assert.Single(await host.RowsAsync<DurableEffect>(database.Producer, healthy.Context)).Count);
+        for (var deferral = 1; deferral <= host.JobStore.Policy.MaxAttempts; deferral++)
+        {
+            if (deferral > 1) Assert.Equal(0, await scheduler.MaterializeAsync(dispatch, principal, cancellationToken: Token));
+            var row = Assert.Single(await host.RowsAsync<JobSchedule>(database.Producer, broken.Context));
+            Assert.Equal("ScheduleFailed", row.Code);
+            Assert.Equal(deferral, row.Deferrals);
+            Assert.Equal(deferral < host.JobStore.Policy.MaxAttempts, row.Enabled);
+            Assert.Equal(new DateOnly(2026, 11, 1), row.NextDate);
+            clock.Advance(TimeSpan.FromSeconds(1 << (deferral - 1)));
+        }
+        Assert.Equal(0, await scheduler.MaterializeAsync(dispatch, principal, cancellationToken: Token));
+        Assert.Empty(await host.RowsAsync<ScheduleOccurrence>(database.Producer, broken.Context));
+        Assert.Empty(await host.RowsAsync<JobRecord>(database.Producer, broken.Context));
+    }
+
+    private static async Task<Guid> ScheduleAsync(DurableHost host, DurableUnit unit, string payload)
+    {
+        await using var work = await EfCoreUnitOfWork.BeginAsync(host.Database.Producer, unit.Context, cancellationToken: Token);
+        var id = host.JobStore.Schedule(work, "durable.counter", payload, new("America/Chicago", new(6, 0)), new(2026, 11, 1));
+        Assert.Equal(UnitOfWorkState.Committed, (await work.CompleteAsync(Token)).State);
+        return id;
     }
 }
