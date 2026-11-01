@@ -163,7 +163,40 @@ public sealed class PropagationTests
             (record.UnitId, record.Source, record.Actor.Subject, record.OperationId));
     }
 
+    [Fact]
+    public async Task TM_G02_027_A_disposed_service_registry_defers_service_work_instead_of_denying_it()
+    {
+        await using var services = UnitServices.Build(directory, seams);
+        var runner = services.GetRequiredService<TenantWorkRunner>();
+        var reference = await CaptureServiceAsync(services, "worker");
+        var runs = 0;
+        Task Work(TenantWorkUnit unit, CancellationToken token)
+        {
+            runs++;
+            return Task.CompletedTask;
+        }
+
+        Assert.Equal((TenantWorkDisposition.Completed, (string?)null), Disposition(await runner.RunAsync(reference, Work, Cancellation)));
+        // A provider disposed during shutdown is an unavailable seam: the item is retried later, never denied.
+        seams.ServiceIdentities.Disposed = true;
+        Assert.Equal((TenantWorkDisposition.Deferred, TenancyCodes.SeamUnavailable), Disposition(await runner.RunAsync(reference, Work, Cancellation)));
+        seams.ServiceIdentities.Disposed = false;
+        // A service identity that is no longer declared stays a terminal refusal.
+        seams.ServiceIdentities.Retire("worker");
+        Assert.Equal((TenantWorkDisposition.Denied, TenancyCodes.Unauthenticated), Disposition(await runner.RunAsync(reference, Work, Cancellation)));
+        Assert.Equal(1, runs);
+    }
+
     private async Task<PropagatedTenantContext> CaptureHostAsync(IServiceProvider services) => await CaptureAsync(services, host: true);
+
+    private async Task<PropagatedTenantContext> CaptureServiceAsync(IServiceProvider services, string subject)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var decision = await scope.ServiceProvider.GetRequiredService<TenantExecution>().EstablishServiceAsync(TestServiceIdentities.Principal(subject),
+            tenantA, Cancellation);
+        Assert.True(decision.Succeeded, decision.Code);
+        return PropagatedTenantContext.Capture(decision.Context!);
+    }
 
     private static (TenantWorkDisposition, string?) Disposition(TenantWorkOutcome outcome) => (outcome.Disposition, outcome.Code);
 }

@@ -560,8 +560,10 @@ CODE-05 (events and jobs) and CODE-07 (Files) carry tenant context this way:
    a malformed reference, an unknown or suspended tenant, an actor who is no longer
    a member, a service identity that is no longer current, or revoked host
    authority: record it and do not retry. `Deferred` is
-   transient, for an unavailable directory, seam or audit store: retry under the
-   bounded policy. An exception from the work itself propagates to that policy.
+   transient, for an unavailable directory, seam or audit store, including a
+   service identity registry whose service provider shutdown has disposed: retry
+   under the bounded policy. An exception from the work itself propagates to that
+   policy.
 5. **Files.** File metadata is tenant-scoped; storage locations derive from the
    validated context's tenant and server-issued identities, never from a supplied
    name or tenant; and scanning and validation steps propagate as jobs do.

@@ -188,7 +188,12 @@ public sealed class TenantExecution : IDisposable
             await using var identity = identities.Begin(actor.Subject);
             return await CheckServicePrincipalAsync(identity.Principal, cancellationToken).ConfigureAwait(false);
         }
-        catch (InvalidOperationException) { return TenantDecision.Refused(TenancyCodes.Unauthenticated); }
+        // An undeclared identity is terminal. A disposed provider, which also derives from InvalidOperationException, is a
+        // shutdown race: like any unavailable seam it is transient, so the item is retried later instead of denied.
+        catch (InvalidOperationException exception) when (exception is not ObjectDisposedException)
+        {
+            return TenantDecision.Refused(TenancyCodes.Unauthenticated);
+        }
         catch (Exception exception) when (!IsCancellation(exception, cancellationToken))
         {
             return TenantDecision.Refused(TenancyCodes.SeamUnavailable);

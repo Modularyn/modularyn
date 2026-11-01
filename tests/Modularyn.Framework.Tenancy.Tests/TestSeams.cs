@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Security.Claims;
 using Microsoft.Extensions.DependencyInjection;
+using Modularyn.Framework.Security.Abstractions;
 using Modularyn.Framework.Tenancy.Abstractions;
 using Xunit;
 
@@ -83,6 +84,43 @@ internal sealed class TestHostAuthority : IHostAuthority
         ValueTask.FromResult(grants.ContainsKey((actor.Subject, operationId)) ? operations.GetValueOrDefault(operationId) ?? new HostOperation(operationId, []) : null);
 }
 
+/// <summary>
+/// Stands in for identity's service identity registry and its freshness recheck: every service subject is declared, with
+/// one test scope, and current until the test retires it. Begin can be made to fail as it does once the host's service
+/// provider is disposed during shutdown.
+/// </summary>
+internal sealed class TestServiceIdentities : IServiceIdentityScopes, IPrincipalFreshness
+{
+    internal static readonly IReadOnlySet<string> Scope = new HashSet<string>(StringComparer.Ordinal) { "test.work" };
+    private readonly ConcurrentDictionary<string, bool> retired = new(StringComparer.Ordinal);
+
+    internal bool Disposed { get; set; }
+
+    internal void Retire(string subject) => retired[subject] = true;
+
+    internal void Restore(string subject) => retired.TryRemove(subject, out _);
+
+    internal static ExecutionPrincipal Principal(string subject) => ExecutionPrincipal.ForService(new PrincipalReference(subject, IdentityKind.Service), Scope);
+
+    public ServiceIdentityScope Begin(string serviceIdentity)
+    {
+        if (Disposed) throw new ObjectDisposedException(nameof(IServiceProvider));
+        if (retired.ContainsKey(serviceIdentity)) throw new InvalidOperationException("The service identity is not declared.");
+        return new(Principal(serviceIdentity), NoServices.Instance, NoServices.Instance);
+    }
+
+    public ValueTask<FreshnessStatus> RecheckAsync(ExecutionPrincipal principal, CancellationToken cancellationToken) =>
+        ValueTask.FromResult(principal.ServiceScope is { } scope && scope.SetEquals(Scope) && !retired.ContainsKey(principal.Actor.Id)
+            ? FreshnessStatus.Current : FreshnessStatus.SubjectUnavailable);
+
+    private sealed class NoServices : IServiceProvider, IAsyncDisposable
+    {
+        internal static readonly NoServices Instance = new();
+        public object? GetService(Type serviceType) => null;
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+}
+
 internal sealed class RecordingAudit : IHostScopeAudit
 {
     internal ConcurrentQueue<HostScopeAuditRecord> Records { get; } = new();
@@ -137,9 +175,12 @@ internal sealed class TestSeams
     internal TestMembership Membership { get; } = new();
     internal TestHostAuthority Authority { get; } = new();
     internal RecordingAudit Audit { get; } = new();
+    internal TestServiceIdentities ServiceIdentities { get; } = new();
 
     internal void Register(IServiceCollection services, bool identity = true, bool membership = true, bool authority = true, bool audit = true)
     {
+        services.AddSingleton<IServiceIdentityScopes>(ServiceIdentities);
+        services.AddSingleton<IPrincipalFreshness>(ServiceIdentities);
         if (identity) services.AddSingleton<ITenantActorResolver>(Identity);
         if (membership) services.AddSingleton<ITenantMembership>(Membership);
         if (authority) services.AddSingleton<IHostAuthority>(Authority);
