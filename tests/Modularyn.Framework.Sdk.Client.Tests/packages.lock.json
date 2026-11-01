@@ -235,6 +235,13 @@
           "Modularyn.Framework.Configuration": "[1.0.0, )"
         }
       },
+      "modularyn.framework.jobs": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Authorization": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.EfCore": "[1.0.0, )"
+        }
+      },
       "modularyn.framework.modularity": {
         "type": "Project",
         "dependencies": {
@@ -304,6 +311,7 @@
         "type": "Project",
         "dependencies": {
           "Modularyn.Framework.Configuration": "[1.0.0, )",
+          "Modularyn.Framework.Jobs": "[1.0.0, )",
           "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )",
           "Modularyn.Modules.Identity.Application.Contracts": "[1.0.0, )",
