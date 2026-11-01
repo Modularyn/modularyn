@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Modularyn.Framework.Audit;
 using Modularyn.Framework.Authorization;
 using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Persistence.Abstractions;
@@ -128,6 +129,8 @@ public sealed class EventPump(EventStore producer, EventStore receiver, EventCon
                     }
                     else row.Code = "PositionAlreadyApplied";
                     row.State = EventState.Completed;
+                    // A receipt that has run keeps no payload: it is redacted with the effects it produced.
+                    row.Payload = DurablePayloads.Redacted;
                     row.Attempts++;
                     row.CompletedAt = UtcMicroseconds.Now(clock);
                     // Flush within the transaction so interruption here also exercises rollback of provider writes.
@@ -241,6 +244,13 @@ public sealed class EventPump(EventStore producer, EventStore receiver, EventCon
         var d = await work.Sql.UpdateForTenantAsync<OutboxEvent, Guid, int>(row.TenantId, item => item.Id, row.Id, c.Version!.Value,
             item => item.Attempts, row.Attempts + 1, token).ConfigureAwait(false);
         if (!d.Succeeded) return false;
+        // A delivered or denied event never runs again from the outbox, so its payload is redacted with that disposition.
+        if (state is EventState.Completed or EventState.Denied)
+        {
+            var e = await work.Sql.UpdateForTenantAsync<OutboxEvent, Guid, string>(row.TenantId, item => item.Id, row.Id, d.Version!.Value,
+                item => item.Payload, DurablePayloads.Redacted, token).ConfigureAwait(false);
+            if (!e.Succeeded) return false;
+        }
         return (await work.CompleteAsync(token).ConfigureAwait(false)).State == UnitOfWorkState.Committed;
     }
 
@@ -258,6 +268,13 @@ public sealed class EventPump(EventStore producer, EventStore receiver, EventCon
         var d = await work.Sql.UpdateForTenantAsync<InboxEvent, Guid, int>(row.TenantId, item => item.Id, row.Id, c.Version!.Value,
             item => item.Attempts, row.Attempts + 1, token).ConfigureAwait(false);
         if (!d.Succeeded) return false;
+        // A denied receipt is never replayed, so its payload is redacted with the denial.
+        if (state == EventState.Denied)
+        {
+            var e = await work.Sql.UpdateForTenantAsync<InboxEvent, Guid, string>(row.TenantId, item => item.Id, row.Id, d.Version!.Value,
+                item => item.Payload, DurablePayloads.Redacted, token).ConfigureAwait(false);
+            if (!e.Succeeded) return false;
+        }
         return (await work.CompleteAsync(token).ConfigureAwait(false)).State == UnitOfWorkState.Committed;
     }
 

@@ -48,8 +48,9 @@ public sealed class OperatorAuditTests
         Assert.Equal(EventState.Pending, Assert.Single(await host.RowsAsync<InboxEvent>(database.Consumer, source.Context)).State);
 
         // A quarantined dispatch is replayed and recorded the same way.
-        await database.ExecuteAsync("UPDATE \"" + database.ProducerSchema + "\".\"OutboxEvents\" SET \"State\" = 2, \"Code\" = 'DeliveryFailed', \"Attempts\" = 3 "
-            + "WHERE \"Id\" = @id", new NpgsqlParameter("id", id));
+        // A quarantined dispatch keeps its payload; the delivered row's was redacted, so the quarantine restores it.
+        await database.ExecuteAsync("UPDATE \"" + database.ProducerSchema + "\".\"OutboxEvents\" SET \"State\" = 2, \"Code\" = 'DeliveryFailed', \"Attempts\" = 3, "
+            + "\"Payload\" = 'value-1' WHERE \"Id\" = @id", new NpgsqlParameter("id", id));
         Assert.True(await host.Outbox.ReplayDispatchAsync(operation.Context, operation.Principal, evaluator, id, Token));
         var dispatched = Assert.Single(await database.AuditAsync(EventStore.DispatchReplayedAction));
         Assert.Equal("event.outbox", dispatched.ResourceType);

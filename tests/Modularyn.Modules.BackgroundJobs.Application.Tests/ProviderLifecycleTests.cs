@@ -107,7 +107,8 @@ public sealed class ProviderLifecycleTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => retention.PruneAsync(unit.Context, 100, Token));
         await using (var work = await EfCoreUnitOfWork.BeginAsync(database.Producer, unit.Context, cancellationToken: Token))
         {
-            host.JobStore.Enqueue(work, new(IdentityRetentionJob.Kind, "", clock.Now));
+            // A job without arguments still carries a payload: an appended payload is never empty, so a redacted one is told apart.
+            host.JobStore.Enqueue(work, new(IdentityRetentionJob.Kind, "{}", clock.Now));
             Assert.Equal(UnitOfWorkState.Committed, (await work.CompleteAsync(Token)).State);
         }
         var worker = new JobWorker(host.JobStore, host.Get<AuthorizedWorkRunner>(), host.Get<IPermissionEvaluator>(),

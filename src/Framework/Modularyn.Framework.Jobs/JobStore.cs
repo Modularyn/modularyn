@@ -70,6 +70,7 @@ public sealed class JobStore(PostgreSqlModule module, TimeProvider clock, JobPol
         {
             row.State = JobState.CancelledBeforeRun;
             row.Code = "CancelledBeforeDispatch";
+            row.Payload = DurablePayloads.Redacted;
         }
         else row.Code = "CancellationRequested";
         return (await work.CompleteAsync(cancellationToken).ConfigureAwait(false)).State == UnitOfWorkState.Committed;
@@ -93,6 +94,7 @@ public sealed class JobStore(PostgreSqlModule module, TimeProvider clock, JobPol
         {
             row.State = row.CancellationRequested ? JobState.CancelledDuringRun : JobState.Failed;
             row.Code = row.CancellationRequested ? "CancellationAcknowledged" : "RetryExhausted";
+            row.Payload = DurablePayloads.Redacted;
             await work.CompleteAsync(token).ConfigureAwait(false);
             return null;
         }
@@ -141,6 +143,7 @@ public sealed class JobStore(PostgreSqlModule module, TimeProvider clock, JobPol
         row.AvailableAt = Now + Policy.Backoff(row.Attempts);
         row.LeaseUntil = null;
         row.Lease = null;
+        Redact(row);
         await work.CompleteAsync(token).ConfigureAwait(false);
     }
 
@@ -166,18 +169,42 @@ public sealed class JobStore(PostgreSqlModule module, TimeProvider clock, JobPol
         }, cancellationToken).ConfigureAwait(false);
         row.Enabled = false;
         row.Code = "Stopped";
+        row.Payload = DurablePayloads.Redacted;
         return (await work.CompleteAsync(cancellationToken).ConfigureAwait(false)).State == UnitOfWorkState.Committed;
     }
 
     private IAuditTrail RequireAudit() => audit
         ?? throw new InvalidOperationException("An operator's cancellation or schedule stop is recorded in audit, and this store has no audit trail, so nothing is changed.");
 
+    /// <summary>
+    /// The unit's tenant's jobs, newest first, under the diagnostics permission at the current profile: identity, kind,
+    /// state, budgets, code and times, and of each payload only whether it is still held and its length.
+    /// </summary>
+    public async Task<IReadOnlyList<JobDiagnostic>> HistoryAsync(TenantContext context, ExecutionPrincipal? principal, IPermissionEvaluator? evaluator,
+        int limit = 100, CancellationToken cancellationToken = default)
+    {
+        if (limit is < 1 or > 1000) throw new ArgumentOutOfRangeException(nameof(limit));
+        await DiagnosticsAccess.RequireTenantAsync(evaluator, context, principal, cancellationToken).ConfigureAwait(false);
+        await using var work = await EfCoreUnitOfWork.BeginAsync(Module, context, cancellationToken: cancellationToken).ConfigureAwait(false);
+        var rows = await work.Context.Set<JobRecord>().AsNoTracking().OrderByDescending(row => row.CreatedAt).ThenBy(row => row.Id).Take(limit)
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        return rows.Select(row => new JobDiagnostic(row.Id, row.Kind, row.State, row.Attempts, row.Deferrals, row.Code, row.CreatedAt, row.DueAt,
+            row.ScheduleId, PayloadSummary.Of(row.Payload))).ToArray();
+    }
+
+    /// <summary>A job that can no longer run keeps no payload: it is redacted in the transaction that ends the job.</summary>
+    internal static void Redact(JobRecord row)
+    {
+        if (IsTerminal(row.State)) row.Payload = DurablePayloads.Redacted;
+    }
+
     internal static bool IsTerminal(JobState state) => state is JobState.Completed or JobState.Failed or JobState.CancelledBeforeRun
         or JobState.CancelledDuringRun or JobState.Denied;
 
     private static void ValidatePayload(string kind, string payload)
     {
-        if (!PermissionNames.IsValid(kind) || payload is null || payload.Length > 1_048_576)
-            throw new ArgumentException("Declare a job kind and a bounded payload.");
+        if (!PermissionNames.IsValid(kind)) throw new ArgumentException("Declare a job kind and a bounded payload.");
+        // The payload rule: references only, never a secret form or a propagated context (TM-G02-039).
+        DurablePayloads.Require(payload, nameof(payload));
     }
 }

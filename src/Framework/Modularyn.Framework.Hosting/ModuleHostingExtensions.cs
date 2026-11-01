@@ -36,6 +36,7 @@ public static class ModuleHostingExtensions
             provider.GetService<IHostApplicationLifetime>(), provider.GetRequiredService<IOptions<HostOptions>>().Value.ShutdownTimeout));
         services.AddSingleton<IHostedService>(provider => provider.GetRequiredService<ModuleHost>());
         ModuleHealthChecks.Register(services, registrations);
+        services.TryAddSingleton<ModuleHostDiagnostics>();
         return services;
     }
 

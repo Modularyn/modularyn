@@ -16,5 +16,7 @@
     <ProjectReference Include="../../src/Framework/Modularyn.Framework.Hosting/Modularyn.Framework.Hosting.csproj" />
     <ProjectReference Include="../../src/Framework/Modularyn.Framework.Modularity/Modularyn.Framework.Modularity.csproj" />
     <ProjectReference Include="../../src/Framework/Modularyn.Framework.Modularity.Abstractions/Modularyn.Framework.Modularity.Abstractions.csproj" />
+    <ProjectReference Include="../../src/Framework/Modularyn.Framework.Tenancy/Modularyn.Framework.Tenancy.csproj" />
+    <Compile Include="../Modularyn.Framework.Tenancy.Tests/TestSeams.cs" Link="TestSeams.cs" />
   </ItemGroup>
 </Project>

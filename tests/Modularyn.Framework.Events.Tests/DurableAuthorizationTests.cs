@@ -41,8 +41,11 @@ public sealed class DurableAuthorizationTests
         Assert.Equal(0, await recovered.Pump().DispatchAsync(dispatch, principal, cancellationToken: Token));
         Assert.Equal(0, await recovered.Worker().RunDueAsync(dispatch, principal, cancellationToken: Token));
         await using var read = await recovered.EnterServiceAsync(tenant);
-        Assert.Equal(EventState.Denied, Assert.Single(await recovered.RowsAsync<OutboxEvent>(database.Producer, read.Context)).State);
-        Assert.Equal(JobState.Denied, Assert.Single(await recovered.RowsAsync<JobRecord>(database.Producer, read.Context)).State);
+        // A denied event or job never runs, so the denial redacts its payload (TM-G02-039).
+        var denied = Assert.Single(await recovered.RowsAsync<OutboxEvent>(database.Producer, read.Context));
+        Assert.Equal((EventState.Denied, Audit.DurablePayloads.Redacted), (denied.State, denied.Payload));
+        var job = Assert.Single(await recovered.RowsAsync<JobRecord>(database.Producer, read.Context));
+        Assert.Equal((JobState.Denied, Audit.DurablePayloads.Redacted), (job.State, job.Payload));
         Assert.Empty(await recovered.RowsAsync<InboxEvent>(database.Consumer, read.Context));
         Assert.Empty(await recovered.RowsAsync<JobAttempt>(database.Producer, read.Context));
         Assert.Empty(await recovered.RowsAsync<DurableEffect>(database.Consumer, read.Context));
@@ -71,6 +74,7 @@ public sealed class DurableAuthorizationTests
         var receipt = Assert.Single(await host.RowsAsync<InboxEvent>(database.Consumer, unit.Context));
         Assert.Equal(EventState.Denied, receipt.State);
         Assert.Equal(AuthorizationCodes.NotHeld, receipt.Code);
+        Assert.Equal(Audit.DurablePayloads.Redacted, receipt.Payload);
     }
 
     [Fact]
@@ -100,6 +104,7 @@ public sealed class DurableAuthorizationTests
         var job = Assert.Single(await host.RowsAsync<JobRecord>(database.Producer, unit.Context));
         Assert.Equal(JobState.Denied, job.State);
         Assert.Equal(AuthorizationCodes.NotHeld, job.Code);
+        Assert.Equal(Audit.DurablePayloads.Redacted, job.Payload);
         Assert.Empty(await host.RowsAsync<DurableEffect>(database.Producer, unit.Context));
     }
 

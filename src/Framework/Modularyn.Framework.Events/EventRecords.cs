@@ -1,3 +1,4 @@
+using Modularyn.Framework.Audit;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Tenancy.Abstractions;
 
@@ -11,6 +12,11 @@ public enum EventCheckpoint { ReceivedBeforeDispatchAcknowledgement, EffectBefor
 public sealed record EventIntent(string Consumer, string Kind, int SchemaVersion, string OrderingKey, long Position, string Payload);
 public sealed record EventEnvelope(Guid Id, string Kind, int SchemaVersion, string OrderingKey, long Position, string Payload);
 public sealed record EventStatus(Guid Id, EventState State, int Attempts, string Code, DateTimeOffset DueAt);
+public enum EventSide { Outbox, Inbox }
+
+/// <summary>A quarantined or denied event as diagnostics show it: references, budgets and codes, and of its payload only a summary.</summary>
+public sealed record EventDiagnostic(EventSide Side, Guid Id, string Consumer, string Kind, int SchemaVersion, string OrderingKey, long Position,
+    EventState State, int Attempts, int GapWaits, int Conflicts, string Code, DateTimeOffset DueAt, PayloadSummary Payload);
 
 public sealed class OutboxEvent : ITenantScoped, IConcurrencyTracked
 {

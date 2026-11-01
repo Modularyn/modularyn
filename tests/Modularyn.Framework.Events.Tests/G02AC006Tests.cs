@@ -229,7 +229,11 @@ public sealed class G02AC006Tests(ITestOutputHelper output)
         var encoded = JsonSerializer.Serialize(envelope);
         Assert.DoesNotContain("Propagated", encoded, StringComparison.Ordinal);
         Assert.Equal(envelope, JsonSerializer.Deserialize<EventEnvelope>(encoded));
-        Assert.Equal(envelope, new EventEnvelope(receipt.Id, receipt.Kind, receipt.SchemaVersion, receipt.OrderingKey, receipt.Position, receipt.Payload));
+        // A side whose row has run or was delivered keeps no payload (TM-G02-039); otherwise both carry the same one.
+        var received = new EventEnvelope(receipt.Id, receipt.Kind, receipt.SchemaVersion, receipt.OrderingKey, receipt.Position, receipt.Payload);
+        if (Audit.DurablePayloads.IsRedacted(source.Payload) || Audit.DurablePayloads.IsRedacted(receipt.Payload))
+            Assert.Equal(envelope with { Payload = "" }, received with { Payload = "" });
+        else Assert.Equal(envelope, received);
     }
 
     internal sealed class StopAt(EventCheckpoint checkpoint) : IEventObserver

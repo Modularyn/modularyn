@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Modularyn.Framework.Audit;
 using Modularyn.Framework.Authorization;
 using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Persistence.Abstractions;
@@ -66,6 +67,7 @@ public sealed class JobWorker
                         if (row.State != JobState.Running || row.Lease != claim.Lease || row.LeaseUntil <= store.Now) throw new JobLeaseLostException();
                         row.State = JobState.Completed;
                         row.Code = "Completed";
+                        JobStore.Redact(row);
                         var attempt = await work.Context.Set<JobAttempt>().SingleAsync(entry => entry.JobId == row.Id && entry.Lease == claim.Lease, token).ConfigureAwait(false);
                         attempt.State = JobAttemptState.Completed;
                         attempt.Code = "Completed";
@@ -155,6 +157,13 @@ public sealed class JobWorker
         changed = await work.Sql.UpdateForTenantAsync<JobRecord, Guid, DateTimeOffset?>(row.TenantId, entry => entry.Id, row.Id, changed.Version!.Value,
             entry => entry.LeaseUntil, null, token).ConfigureAwait(false);
         if (!changed.Succeeded) return;
+        // A refusal that ends the job redacts its payload in the same disposition.
+        if (JobStore.IsTerminal(state))
+        {
+            changed = await work.Sql.UpdateForTenantAsync<JobRecord, Guid, string>(row.TenantId, entry => entry.Id, row.Id, changed.Version!.Value,
+                entry => entry.Payload, DurablePayloads.Redacted, token).ConfigureAwait(false);
+            if (!changed.Succeeded) return;
+        }
         await work.CompleteAsync(token).ConfigureAwait(false);
     }
 }

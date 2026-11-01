@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Modularyn.Framework.Audit;
 using Modularyn.Framework.Authorization;
 using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Persistence.Abstractions;
@@ -46,6 +47,7 @@ public sealed class ScheduleWorker(JobStore store, AuthorizedWorkRunner runner)
                         // Preserve the cursor and history for operator inspection instead of blocking other schedules.
                         row.Enabled = false;
                         row.Code = "BacklogLimit";
+                        row.Payload = DurablePayloads.Redacted;
                     }
                     else
                     {
@@ -71,6 +73,8 @@ public sealed class ScheduleWorker(JobStore store, AuthorizedWorkRunner runner)
                             && occurrences.LastOrDefault(entry => entry.State == OccurrenceState.Missed) is { } catchUp)
                             catchUp.State = OccurrenceState.CatchUp;
                         row.Code = row.Enabled ? "Evaluated" : "ScheduleEnded";
+                        // The occurrences above copied the payload; an ended schedule never runs again and keeps none.
+                        if (!row.Enabled) row.Payload = DurablePayloads.Redacted;
                         // A gap is revisited at most once a minute until its civil date arrives, then visibly skipped.
                         // Future schedules leave the due scan, so they cannot starve work in other time zones.
                         row.NextCheckAt = schedule.Resolve(row.NextDate) ?? now + MisfireGrace;
@@ -126,6 +130,10 @@ public sealed class ScheduleWorker(JobStore store, AuthorizedWorkRunner runner)
             {
                 var disabled = await disposition.Sql.UpdateForTenantAsync<JobSchedule, Guid, bool>(candidate.TenantId, row => row.Id, candidate.Id,
                     next.Version!.Value, row => row.Enabled, false, cancellationToken).ConfigureAwait(false);
+                if (!disabled.Succeeded) continue;
+                // A disabled schedule never runs again, so its payload is redacted with the disposition that disables it.
+                disabled = await disposition.Sql.UpdateForTenantAsync<JobSchedule, Guid, string>(candidate.TenantId, row => row.Id, candidate.Id,
+                    disabled.Version!.Value, row => row.Payload, DurablePayloads.Redacted, cancellationToken).ConfigureAwait(false);
                 if (!disabled.Succeeded) continue;
             }
             await disposition.CompleteAsync(cancellationToken).ConfigureAwait(false);

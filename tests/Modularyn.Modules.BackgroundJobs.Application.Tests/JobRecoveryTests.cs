@@ -131,9 +131,10 @@ public sealed class JobRecoveryTests
             Assert.Equal(UnitOfWorkState.Committed, (await work.CompleteAsync(Token)).State);
         }
         Assert.Equal(0, await scheduler.MaterializeAsync(dispatch, principal, limit: 1, cancellationToken: Token));
-        var backlog = Assert.Single(await host.RowsAsync<JobSchedule>(database.Producer, source.Context), row => row.Payload == "backlog");
+        var backlog = Assert.Single(await host.RowsAsync<JobSchedule>(database.Producer, source.Context), row => row.Code == "BacklogLimit");
         Assert.False(backlog.Enabled);
-        Assert.Equal("BacklogLimit", backlog.Code);
+        // A disabled schedule never runs again, so it keeps no payload.
+        Assert.Equal(Framework.Audit.DurablePayloads.Redacted, backlog.Payload);
         await using (var work = await EfCoreUnitOfWork.BeginAsync(database.Producer, source.Context, cancellationToken: Token))
         {
             host.JobStore.Schedule(work, "durable.counter", "due", new("America/Chicago", new(6, 0)), new(2026, 11, 1));

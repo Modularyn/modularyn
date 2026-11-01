@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="../Modularyn.Framework.Api/Modularyn.Framework.Api.csproj" />
+    <ProjectReference Include="../Modularyn.Framework.Audit/Modularyn.Framework.Audit.csproj" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../Modularyn.Framework.Observability/Modularyn.Framework.Observability.csproj" />
     <ProjectReference Include="../Modularyn.Framework.Modularity/Modularyn.Framework.Modularity.csproj" />
