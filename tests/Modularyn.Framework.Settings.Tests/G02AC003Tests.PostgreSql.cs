@@ -205,15 +205,36 @@ public sealed partial class G02AC003Tests
         await using (directoryScope)
             await Assert.ThrowsAsync<InvalidOperationException>(() => database.Settings.SetAsync(directoryHost, SettingsDatabase.PrincipalOf(directoryHost), TestDefinitions.Title,
                 ValueSource.Global, "refused", cancellationToken: Cancellation));
-        await using var serviceScope = database.Services.CreateAsyncScope();
-        var serviceExecution = serviceScope.ServiceProvider.GetRequiredService<TenantExecution>();
-        var serviceDecision = await serviceExecution.EstablishAsync(TenantResolutionRequest.ForMember(TestIdentity.Service("worker"),
-            [Candidates.Header(database.TenantA)]), Cancellation);
-        Assert.True(serviceDecision.Succeeded);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => database.Settings.SetAsync(serviceDecision.Context!, SettingsDatabase.PrincipalOf(serviceDecision.Context!), TestDefinitions.Title, ValueSource.User,
+        // A service identity is never a tenant member: the member request is refused although the fixture's membership
+        // seam holds a row for it. Its tenant work takes the server route as a current declared service identity.
+        await using (var memberScope = database.Services.CreateAsyncScope())
+        {
+            var memberDecision = await memberScope.ServiceProvider.GetRequiredService<TenantExecution>().EstablishAsync(
+                TenantResolutionRequest.ForMember(TestIdentity.Service("worker"), [Candidates.Header(database.TenantA)]), Cancellation);
+            Assert.False(memberDecision.Succeeded);
+            Assert.Equal(TenancyCodes.NotMember, memberDecision.Code);
+        }
+        await using var worker = database.ServiceIdentities.Begin(TestServiceIdentityScopes.Worker);
+        var serviceDecision = await worker.Services.GetRequiredService<TenantExecution>().EstablishServiceAsync(worker.Principal,
+            database.TenantA, Cancellation);
+        Assert.True(serviceDecision.Succeeded, serviceDecision.Code);
+        Assert.Equal((TenantContextSource.Service, ActorKind.Service, TestServiceIdentityScopes.Worker),
+            (serviceDecision.Context!.Source, serviceDecision.Context.Actor.Kind, serviceDecision.Context.Actor.Subject));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => database.Settings.SetAsync(serviceDecision.Context!, worker.Principal, TestDefinitions.Title, ValueSource.User,
             "refused", cancellationToken: Cancellation));
         await database.Settings.SetAsync(a, SettingsDatabase.PrincipalOf(a), TestDefinitions.Title, ValueSource.User, "user only", cancellationToken: Cancellation);
         Assert.Equal("default", (await database.Settings.ResolveAsync(serviceDecision.Context!, TestDefinitions.Title, Cancellation)).Get<string>());
+        // A service identity that is no longer current gets no tenant context from the service route.
+        database.ServiceFreshness.Available = false;
+        await using (var unavailable = database.ServiceIdentities.Begin(TestServiceIdentityScopes.Worker))
+        {
+            var unavailableDecision = await unavailable.Services.GetRequiredService<TenantExecution>().EstablishServiceAsync(unavailable.Principal,
+                database.TenantA, Cancellation);
+            Assert.False(unavailableDecision.Succeeded);
+            Assert.Null(unavailableDecision.Context);
+            Assert.Equal(TenancyCodes.Unauthenticated, unavailableDecision.Code);
+        }
+        database.ServiceFreshness.Available = true;
 
         var (endedScope, ended) = await Units.EnterAsync(database.Services, "user-a", database.TenantA);
         await database.Settings.ResolveAsync(ended, TestDefinitions.Title, Cancellation);

@@ -49,9 +49,11 @@ internal sealed class SettingsDatabase : IAsyncDisposable
     internal ManualTimeProvider Clock { get; } = new();
     internal TestSeams Seams { get; } = new();
     internal TestPermissions Permissions { get; } = new();
+    internal TestServiceFreshness ServiceFreshness { get; } = new();
     internal ValueDefinitionRegistry Definitions { get; } = TestDefinitions.Registry();
     internal ServiceProvider Services { get; private set; } = null!;
     internal SettingsService Settings => Services.GetRequiredService<SettingsService>();
+    internal IServiceIdentityScopes ServiceIdentities => Services.GetRequiredService<IServiceIdentityScopes>();
     internal Guid TenantA { get; private set; }
     internal Guid TenantB { get; private set; }
 
@@ -106,6 +108,10 @@ internal sealed class SettingsDatabase : IAsyncDisposable
         services.AddSingleton<TimeProvider>(Clock);
         services.AddModularynTenancy(Directory);
         Seams.Register(services);
+        services.AddScoped<ExecutionPrincipalScope>();
+        services.AddScoped<IExecutionPrincipalAccessor>(provider => provider.GetRequiredService<ExecutionPrincipalScope>());
+        services.AddSingleton<IServiceIdentityScopes, TestServiceIdentityScopes>();
+        services.AddSingleton<IPrincipalFreshness>(ServiceFreshness);
         services.AddSingleton<IPermissionEvaluator>(Permissions);
         services.AddModularynSettings(Module, Definitions);
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
