@@ -57,12 +57,19 @@ at one second. Unsupported kinds or versions and handler failures retain their
 payload and cause code; exhaustion quarantines the inbox as `Poison`.
 Authorization unavailability defers with the same bounded policy; permanent
 refusal records `Denied`. Exhausted dispatch deferrals quarantine the outbox.
-Receipt conflicts retry the same identity without classifying a competing
-transaction as a handler failure.
+A lost concurrency check in receipt or consumption is not a handler failure and
+retries the same identity. When a competing transaction decided the row, its
+version changed and nothing is recorded. Any other conflict, such as a handler's
+own stale write, counts in the row's `Conflicts`, apart from handler attempts,
+and waits with the retry policy's delay for that count, so the row leaves the
+head of the scan. The conflict that reaches the conflict budget, ten by default,
+quarantines the row as `Poison` with the code `ConcurrencyConflictExhausted`.
+Handler failures keep their own budget.
 
 `ReplayAsync` and `ReplayDispatchAsync` are application services for quarantined
 inbox and outbox rows. Both require the current `events.replay` permission through
-the evaluator, reset the bounded retry and gap-wait budgets and preserve the producer. Replay
+the evaluator, reset the bounded retry, gap-wait and conflict budgets and preserve
+the producer. Replay
 always goes through delivery, inbox deduplication, ordering and current authority;
 it never invokes a handler directly. The composing module declares this permission
 and the consumer permission in its manifest and authorization registry. There is

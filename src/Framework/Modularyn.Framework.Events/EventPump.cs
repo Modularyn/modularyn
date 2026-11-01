@@ -21,6 +21,10 @@ public sealed class EventPump(EventStore producer, EventStore receiver, EventCon
     public const string GapCode = "OrderingGap";
     /// <summary>A contiguous receipt quarantined after its gap-wait budget.</summary>
     public const string GapExhaustedCode = "OrderingGapExhausted";
+    /// <summary>A row waiting after a concurrency check that no competing transaction decided.</summary>
+    public const string ConflictCode = "ConcurrencyConflict";
+    /// <summary>A row quarantined after its conflict budget.</summary>
+    public const string ConflictExhaustedCode = "ConcurrencyConflictExhausted";
 
     public async Task<int> DispatchAsync(TenantContext host, ExecutionPrincipal principal, int limit = 100, CancellationToken cancellationToken = default)
     {
@@ -47,7 +51,9 @@ public sealed class EventPump(EventStore producer, EventStore receiver, EventCon
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch (DbUpdateConcurrencyException)
             {
-                // A competing delivery may have committed the receipt. Retry under the original identity.
+                // A competing delivery that acknowledged the outbox changed its version, so nothing is recorded for it. Any
+                // other conflict counts against its own budget with a delay, and the same identity is retried after it.
+                await ConflictOutboxAsync(host, row, cancellationToken).ConfigureAwait(false);
                 continue;
             }
             catch (Exception)
@@ -78,6 +84,7 @@ public sealed class EventPump(EventStore producer, EventStore receiver, EventCon
         foreach (var candidate in rows)
         {
             var committed = false;
+            var conflicted = false;
             TenantWorkOutcome outcome;
             try
             {
@@ -111,7 +118,7 @@ public sealed class EventPump(EventStore producer, EventStore receiver, EventCon
                                 row.Code = GapCode;
                                 row.DueAt = UtcMicroseconds.Now(clock) + retry.Delay(row.GapWaits);
                             }
-                            await work.CompleteAsync(token).ConfigureAwait(false);
+                            conflicted = (await work.CompleteAsync(token).ConfigureAwait(false)).State != UnitOfWorkState.Committed;
                             return;
                         }
                         await handler.Handle(new(work, principal, new(row.Id, row.Kind, row.SchemaVersion, row.OrderingKey, row.Position, row.Payload)), token)
@@ -130,11 +137,17 @@ public sealed class EventPump(EventStore producer, EventStore receiver, EventCon
                         new(unit.Context, principal, consumer.Permission) { RequireCurrent = true }, token).ConfigureAwait(false);
                     if (!current.Permitted) throw new EventAuthorizationException(current.Code!, current.IsTransient);
                     committed = (await work.CompleteAsync(token).ConfigureAwait(false)).State == UnitOfWorkState.Committed;
+                    conflicted = !committed;
                 }, cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch (EventInterruptedException) { throw; }
-            catch (DbUpdateConcurrencyException) { continue; }
+            catch (DbUpdateConcurrencyException)
+            {
+                // A handler's own or the position's lost check is not a handler failure; it has its own budget.
+                await ConflictInboxAsync(host, candidate, cancellationToken).ConfigureAwait(false);
+                continue;
+            }
             catch (EventAuthorizationException exception)
             {
                 await SetInboxAsync(host, candidate, exception.Transient ? EventState.Pending : EventState.Denied, exception.Code, cancellationToken).ConfigureAwait(false);
@@ -143,6 +156,13 @@ public sealed class EventPump(EventStore producer, EventStore receiver, EventCon
             catch (Exception exception)
             {
                 await FailAsync(host, candidate, exception is UnsupportedEventException ? "UnsupportedVersion" : "HandlerFailed", cancellationToken).ConfigureAwait(false);
+                continue;
+            }
+            if (conflicted)
+            {
+                // A commit that lost its concurrency check leaves the row unchanged; without a recorded conflict it would
+                // stay due and lead the next scan.
+                await ConflictInboxAsync(host, candidate, cancellationToken).ConfigureAwait(false);
                 continue;
             }
             if (committed)
@@ -159,6 +179,52 @@ public sealed class EventPump(EventStore producer, EventStore receiver, EventCon
 
     private Task<bool> FailAsync(TenantContext host, InboxEvent row, string code, CancellationToken token) =>
         SetInboxAsync(host, row, row.Attempts + 1 >= retry.Attempts ? EventState.Poison : EventState.Pending, code, token);
+
+    /// <summary>
+    /// Counts a conflict that no competing transaction decided: the update is guarded by the scanned version, so a row a
+    /// competitor already changed records nothing. The row waits with the retry policy's delay for its conflict count,
+    /// apart from handler attempts, and the conflict that reaches the budget quarantines it.
+    /// </summary>
+    private async Task<bool> ConflictOutboxAsync(TenantContext host, OutboxEvent row, CancellationToken token)
+    {
+        var conflicts = row.Conflicts + 1;
+        var exhausted = conflicts >= retry.Conflicts;
+        await using var work = await EfCoreUnitOfWork.BeginAsync(producer.Module, host, cancellationToken: token).ConfigureAwait(false);
+        var a = await work.Sql.UpdateForTenantAsync<OutboxEvent, Guid, string>(row.TenantId, item => item.Id, row.Id, row.Version, item => item.Code,
+            exhausted ? ConflictExhaustedCode : ConflictCode, token).ConfigureAwait(false);
+        if (!a.Succeeded) return false;
+        var b = await work.Sql.UpdateForTenantAsync<OutboxEvent, Guid, EventState>(row.TenantId, item => item.Id, row.Id, a.Version!.Value, item => item.State,
+            exhausted ? EventState.Poison : EventState.Pending, token).ConfigureAwait(false);
+        if (!b.Succeeded) return false;
+        var c = await work.Sql.UpdateForTenantAsync<OutboxEvent, Guid, DateTimeOffset>(row.TenantId, item => item.Id, row.Id, b.Version!.Value,
+            item => item.DueAt, UtcMicroseconds.Now(clock) + retry.Delay(conflicts), token).ConfigureAwait(false);
+        if (!c.Succeeded) return false;
+        var d = await work.Sql.UpdateForTenantAsync<OutboxEvent, Guid, int>(row.TenantId, item => item.Id, row.Id, c.Version!.Value,
+            item => item.Conflicts, conflicts, token).ConfigureAwait(false);
+        if (!d.Succeeded) return false;
+        return (await work.CompleteAsync(token).ConfigureAwait(false)).State == UnitOfWorkState.Committed;
+    }
+
+    /// <summary>The receiver's form of <see cref="ConflictOutboxAsync"/>, guarded by the scanned receipt version.</summary>
+    private async Task<bool> ConflictInboxAsync(TenantContext host, InboxEvent row, CancellationToken token)
+    {
+        var conflicts = row.Conflicts + 1;
+        var exhausted = conflicts >= retry.Conflicts;
+        await using var work = await EfCoreUnitOfWork.BeginAsync(receiver.Module, host, cancellationToken: token).ConfigureAwait(false);
+        var a = await work.Sql.UpdateForTenantAsync<InboxEvent, Guid, string>(row.TenantId, item => item.Id, row.Id, row.Version, item => item.Code,
+            exhausted ? ConflictExhaustedCode : ConflictCode, token).ConfigureAwait(false);
+        if (!a.Succeeded) return false;
+        var b = await work.Sql.UpdateForTenantAsync<InboxEvent, Guid, EventState>(row.TenantId, item => item.Id, row.Id, a.Version!.Value, item => item.State,
+            exhausted ? EventState.Poison : EventState.Pending, token).ConfigureAwait(false);
+        if (!b.Succeeded) return false;
+        var c = await work.Sql.UpdateForTenantAsync<InboxEvent, Guid, DateTimeOffset>(row.TenantId, item => item.Id, row.Id, b.Version!.Value,
+            item => item.DueAt, UtcMicroseconds.Now(clock) + retry.Delay(conflicts), token).ConfigureAwait(false);
+        if (!c.Succeeded) return false;
+        var d = await work.Sql.UpdateForTenantAsync<InboxEvent, Guid, int>(row.TenantId, item => item.Id, row.Id, c.Version!.Value,
+            item => item.Conflicts, conflicts, token).ConfigureAwait(false);
+        if (!d.Succeeded) return false;
+        return (await work.CompleteAsync(token).ConfigureAwait(false)).State == UnitOfWorkState.Committed;
+    }
 
     private async Task<bool> SetOutboxAsync(TenantContext host, OutboxEvent row, EventState state, string code, CancellationToken token)
     {

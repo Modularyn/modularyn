@@ -169,6 +169,55 @@ public sealed class EventRecoveryTests
     }
 
     [Fact]
+    public async Task A_conflicting_receipt_backs_off_on_its_own_budget_then_quarantines()
+    {
+        await using var database = await DurableDatabase.CreateAsync();
+        var clock = new DurableClock();
+        await using var host = DurableHost.Create(database, clock);
+        await using var source = await host.EnterServiceAsync(await host.TenantAsync());
+        var dispatch = await host.HostAsync();
+        var principal = host.WorkerPrincipal();
+        await host.ProduceAsync(source, "conflicting");
+        Assert.Equal(1, await host.Pump().DispatchAsync(dispatch, principal, cancellationToken: Token));
+        clock.Advance(TimeSpan.FromSeconds(1));
+        await host.ProduceAsync(source, "other");
+        Assert.Equal(1, await host.Pump().DispatchAsync(dispatch, principal, cancellationToken: Token));
+        // A handler defect: it removes a row by a version it never read, so its own write always loses the concurrency check.
+        var consumer = new EventConsumer(DurableModel.Consumer, DurableModel.Apply, [new("item.changed", 1, async (execution, token) =>
+        {
+            if (execution.Event.OrderingKey == "conflicting")
+                execution.Work.Context.Remove(new DurableEffect
+                    { TenantId = execution.Work.Context.Tenant!.TenantId!.Value, Key = "never-read", Version = Guid.NewGuid() });
+            else await DurableModel.EffectAsync(execution.Work, execution.Event.OrderingKey, execution.Event.Position, token);
+        })]);
+        var policy = new EventRetryPolicy(conflicts: 3);
+        var pump = new EventPump(host.Outbox, host.Inbox, consumer, host.Get<AuthorizedWorkRunner>(), clock, policy);
+        // The conflicting receipt is due first. Once its conflict is recorded it leaves the head of the scan, so the next
+        // pass of one reaches the other key.
+        Assert.Equal(0, await pump.ConsumeAsync(dispatch, principal, limit: 1, cancellationToken: Token));
+        Assert.Equal(1, await pump.ConsumeAsync(dispatch, principal, limit: 1, cancellationToken: Token));
+        for (var conflict = 1; conflict <= policy.Conflicts; conflict++)
+        {
+            if (conflict > 1) Assert.Equal(0, await pump.ConsumeAsync(dispatch, principal, cancellationToken: Token));
+            var row = Assert.Single(await host.RowsAsync<InboxEvent>(database.Consumer, source.Context), row => row.OrderingKey == "conflicting");
+            Assert.Equal((conflict, 0), (row.Conflicts, row.Attempts));
+            if (conflict == policy.Conflicts)
+            {
+                Assert.Equal((EventState.Poison, EventPump.ConflictExhaustedCode), (row.State, row.Code));
+                break;
+            }
+            Assert.Equal((EventState.Pending, EventPump.ConflictCode), (row.State, row.Code));
+            Assert.True(row.DueAt > clock.Now);
+            clock.Advance(policy.Delay(conflict));
+        }
+        clock.Advance(TimeSpan.FromHours(1));
+        Assert.Equal(0, await pump.ConsumeAsync(dispatch, principal, cancellationToken: Token));
+        var effect = Assert.Single(await host.RowsAsync<DurableEffect>(database.Consumer, source.Context));
+        Assert.Equal(("other", 1), (effect.Key, effect.Count));
+        Assert.DoesNotContain(await host.RowsAsync<EventPosition>(database.Consumer, source.Context), entry => entry.OrderingKey == "conflicting");
+    }
+
+    [Fact]
     public async Task Handler_failure_rolls_back_flushed_effects_before_quarantine()
     {
         await using var database = await DurableDatabase.CreateAsync();

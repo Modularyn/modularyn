@@ -27,6 +27,8 @@ public sealed class OutboxEvent : ITenantScoped, IConcurrencyTracked
     public DateTimeOffset DueAt { get; internal set; }
     public EventState State { get; internal set; }
     public int Attempts { get; internal set; }
+    /// <summary>How many times delivery or consumption lost a concurrency check that no competing transaction decided.</summary>
+    public int Conflicts { get; internal set; }
     public string Code { get; internal set; } = "";
     public Guid Version { get; set; }
 }
@@ -49,6 +51,8 @@ public sealed class InboxEvent : ITenantScoped, IConcurrencyTracked
     public int Attempts { get; internal set; }
     /// <summary>How many times a contiguous receipt found its predecessor missing; separate from handler attempts.</summary>
     public int GapWaits { get; internal set; }
+    /// <summary>How many times delivery or consumption lost a concurrency check that no competing transaction decided.</summary>
+    public int Conflicts { get; internal set; }
     public string Code { get; internal set; } = "";
     public Guid Version { get; set; }
 }
@@ -65,12 +69,14 @@ public sealed class EventPosition : ITenantScoped, IConcurrencyTracked
 
 public sealed class EventRetryPolicy
 {
-    public EventRetryPolicy(int attempts = 3, TimeSpan? initialDelay = null, int gapWaits = 10)
+    public EventRetryPolicy(int attempts = 3, TimeSpan? initialDelay = null, int gapWaits = 10, int conflicts = 10)
     {
         if (attempts is < 1 or > 20) throw new ArgumentOutOfRangeException(nameof(attempts));
         if (gapWaits is < 1 or > 20) throw new ArgumentOutOfRangeException(nameof(gapWaits));
+        if (conflicts is < 1 or > 20) throw new ArgumentOutOfRangeException(nameof(conflicts));
         Attempts = attempts;
         GapWaits = gapWaits;
+        Conflicts = conflicts;
         InitialDelay = UtcMicroseconds.RequirePositive(initialDelay ?? TimeSpan.FromSeconds(1));
         if (InitialDelay > TimeSpan.FromHours(1)) throw new ArgumentOutOfRangeException(nameof(initialDelay));
     }
@@ -80,6 +86,12 @@ public sealed class EventRetryPolicy
     /// its first findings, and the finding that reaches this count quarantines it.
     /// </summary>
     public int GapWaits { get; }
+    /// <summary>
+    /// The conflict budget, apart from handler failures: a row that loses a concurrency check no competing transaction
+    /// decided waits with <see cref="Delay"/> after each of its first conflicts, and the one that reaches this count
+    /// quarantines it.
+    /// </summary>
+    public int Conflicts { get; }
     public TimeSpan InitialDelay { get; }
     public TimeSpan Delay(int attempt) => TimeSpan.FromTicks(InitialDelay.Ticks * (1L << Math.Clamp(attempt - 1, 0, 19)));
 }

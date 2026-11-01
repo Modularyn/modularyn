@@ -77,6 +77,7 @@ public sealed class EventStore(PostgreSqlModule module, TimeProvider clock)
         row.State = EventState.Pending;
         row.Attempts = 0;
         row.GapWaits = 0;
+        row.Conflicts = 0;
         row.Code = "ReplayRequested";
         row.DueAt = UtcMicroseconds.Now(clock);
         // The original producer remains the authority for execution. Replay never calls the handler directly.
@@ -94,6 +95,7 @@ public sealed class EventStore(PostgreSqlModule module, TimeProvider clock)
         if (row is null || row.State != EventState.Poison) return false;
         row.State = EventState.Pending;
         row.Attempts = 0;
+        row.Conflicts = 0;
         row.Code = "ReplayRequested";
         row.DueAt = UtcMicroseconds.Now(clock);
         return (await work.CompleteAsync(cancellationToken).ConfigureAwait(false)).State == UnitOfWorkState.Committed;
