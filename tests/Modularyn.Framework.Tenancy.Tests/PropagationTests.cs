@@ -187,6 +187,29 @@ public sealed class PropagationTests
         Assert.Equal(1, runs);
     }
 
+    [Fact]
+    public async Task TM_G02_027_A_host_reference_of_a_retired_service_is_denied_before_host_authority()
+    {
+        await using var services = UnitServices.Build(directory, seams);
+        var runner = services.GetRequiredService<TenantWorkRunner>();
+        var reference = await CaptureHostAsync(services);
+        Assert.Equal(ActorKind.Service, reference.Actor.Kind);
+        static Task Work(TenantWorkUnit unit, CancellationToken token) => Task.CompletedTask;
+
+        // The host operator grant still names the service, but the service is no longer a current declared identity, so no
+        // host scope is granted and nothing is audited.
+        seams.ServiceIdentities.Retire("maintenance");
+        var before = seams.Audit.Records.Count;
+        Assert.Equal((TenantWorkDisposition.Denied, TenancyCodes.Unauthenticated), Disposition(await runner.RunAsync(reference, Work, Cancellation)));
+        Assert.Equal(before, seams.Audit.Records.Count);
+        seams.ServiceIdentities.Disposed = true;
+        Assert.Equal((TenantWorkDisposition.Deferred, TenancyCodes.SeamUnavailable), Disposition(await runner.RunAsync(reference, Work, Cancellation)));
+        seams.ServiceIdentities.Disposed = false;
+        seams.ServiceIdentities.Restore("maintenance");
+        Assert.Equal(TenantWorkDisposition.Completed, (await runner.RunAsync(reference, Work, Cancellation)).Disposition);
+        Assert.Equal(before + 1, seams.Audit.Records.Count);
+    }
+
     private async Task<PropagatedTenantContext> CaptureHostAsync(IServiceProvider services) => await CaptureAsync(services, host: true);
 
     private async Task<PropagatedTenantContext> CaptureServiceAsync(IServiceProvider services, string subject)

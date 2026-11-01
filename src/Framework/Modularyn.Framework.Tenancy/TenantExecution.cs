@@ -139,7 +139,8 @@ public sealed class TenantExecution : IDisposable
 
     /// <summary>
     /// Reconstructs a propagated context after revalidating it now: the tenant must still be active and the actor still
-    /// a member, or, for host scope, still hold host authority, with a new audit record. The payload is never consulted.
+    /// a member, or, for host scope, still hold host authority, with a new audit record. A service actor must, in either
+    /// scope, still be a current declared identity. The payload is never consulted.
     /// </summary>
     public async ValueTask<TenantDecision> EstablishPropagatedAsync(PropagatedTenantContext propagated, CancellationToken cancellationToken = default)
     {
@@ -154,8 +155,15 @@ public sealed class TenantExecution : IDisposable
             decision = refusal ?? TenantDecision.Established(new(TenantScope.Tenant, tenantId, propagated.Actor, null,
                 TenantContextSource.Propagated, Guid.NewGuid()));
         }
-        else decision = await GrantHostAsync(propagated.Actor, propagated.OperationId!, propagated.Reason!,
-            TenantContextSource.Propagated, cancellationToken).ConfigureAwait(false);
+        else
+        {
+            // A service actor's host work is rechecked against the current identity registry and freshness, as its tenant
+            // work is, before host authority is asked again.
+            var refusal = propagated.Actor.Kind == ActorKind.Service
+                ? await CheckServiceActorAsync(propagated.Actor, cancellationToken).ConfigureAwait(false) : null;
+            decision = refusal ?? await GrantHostAsync(propagated.Actor, propagated.OperationId!, propagated.Reason!,
+                TenantContextSource.Propagated, cancellationToken).ConfigureAwait(false);
+        }
         return Publish(decision);
     }
 
@@ -178,9 +186,13 @@ public sealed class TenantExecution : IDisposable
             TenantContextSource.Service, Guid.NewGuid())));
     }
 
-    private async ValueTask<TenantDecision?> CheckProducerAsync(ActorReference actor, Guid tenantId, CancellationToken cancellationToken)
+    private async ValueTask<TenantDecision?> CheckProducerAsync(ActorReference actor, Guid tenantId, CancellationToken cancellationToken) =>
+        actor.Kind == ActorKind.User
+            ? await CheckMembershipAsync(actor, tenantId, cancellationToken).ConfigureAwait(false)
+            : await CheckServiceActorAsync(actor, cancellationToken).ConfigureAwait(false);
+
+    private async ValueTask<TenantDecision?> CheckServiceActorAsync(ActorReference actor, CancellationToken cancellationToken)
     {
-        if (actor.Kind == ActorKind.User) return await CheckMembershipAsync(actor, tenantId, cancellationToken).ConfigureAwait(false);
         if (services.GetService<IServiceIdentityScopes>() is not { } identities)
             return TenantDecision.Refused(TenancyCodes.SeamUnavailable);
         try

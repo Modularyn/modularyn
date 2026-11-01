@@ -553,7 +553,8 @@ CODE-05 (events and jobs) and CODE-07 (Files) carry tenant context this way:
    parses the stored reference strictly, revalidates it in a new service scope
    (the tenant still active and the actor still a member, or a service actor
    still a current declared identity, or, in host scope, host
-   authority again with a new audit record) and passes the reconstructed context
+   authority again with a new audit record, after the same check of a service
+   actor's declaration and freshness) and passes the reconstructed context
    explicitly. Begin the item's units with that context, so its effect and its
    completion share one transaction. Never act for a tenant that the payload names.
 4. **Record the disposition.** `Completed` ran the work. `Denied` is terminal, for
