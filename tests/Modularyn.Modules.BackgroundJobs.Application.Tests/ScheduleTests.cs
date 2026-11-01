@@ -39,4 +39,16 @@ public sealed class ScheduleTests
         Assert.Throws<ArgumentException>(() => new DailySchedule(null!, new(1, 30)));
         Assert.Equal("America/New_York", new DailySchedule("America/New_York", new(1, 30)).TimeZone);
     }
+
+    [Fact]
+    public void A_path_the_zone_database_resolves_is_not_a_zone_name()
+    {
+        // Each of these can resolve to a file of the operating system's time-zone database without being an IANA zone or
+        // link name; localtime is the machine's own zone where the database links it.
+        foreach (var refused in new[] { "America//New_York", "posixrules", "localtime", "posix/America/New_York", "right/America/New_York",
+            "/America/New_York", "America/New_York/", "America/./New_York", "+VERSION" })
+            Assert.Throws<ArgumentException>(() => new DailySchedule(refused, new(1, 30)));
+        foreach (var accepted in new[] { "America/Argentina/Buenos_Aires", "America/Port-au-Prince", "UTC" })
+            Assert.Equal(accepted, new DailySchedule(accepted, new(1, 30)).TimeZone);
+    }
 }
