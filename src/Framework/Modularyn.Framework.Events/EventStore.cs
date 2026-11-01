@@ -23,6 +23,12 @@ public sealed class EventStore(PostgreSqlModule module, TimeProvider clock, IAud
     public static readonly TimeSpan QuarantineRetention = TimeSpan.FromDays(30);
     public PostgreSqlModule Module { get; } = module;
 
+    /// <summary>What this store's outbox row <paramref name="id"/> binds its propagated reference to; dispatch opens it under this binding alone.</summary>
+    public PropagationBinding OutboxBinding(Guid id) => PropagationBinding.ForRow("modularyn.events.outbox/" + Module.ModuleId, id);
+
+    /// <summary>What this store's inbox receipt <paramref name="id"/> binds its propagated reference to; consumption opens it under this binding alone.</summary>
+    public PropagationBinding InboxBinding(Guid id) => PropagationBinding.ForRow("modularyn.events.inbox/" + Module.ModuleId, id);
+
     /// <summary>Stages intent in the business transaction. A suppressed or completed unit is refused.</summary>
     public Guid Append(EfCoreUnitOfWork work, EventIntent intent)
     {
@@ -36,11 +42,13 @@ public sealed class EventStore(PostgreSqlModule module, TimeProvider clock, IAud
         DurablePayloads.Require(intent.Payload, nameof(intent));
         DurablePayloads.RequireReference(intent.OrderingKey, nameof(intent));
         var now = UtcMicroseconds.Now(clock);
+        var id = Guid.NewGuid();
         var row = new OutboxEvent
         {
-            Id = Guid.NewGuid(), Consumer = intent.Consumer, Kind = intent.Kind, SchemaVersion = intent.SchemaVersion,
+            Id = id, Consumer = intent.Consumer, Kind = intent.Kind, SchemaVersion = intent.SchemaVersion,
             OrderingKey = intent.OrderingKey, Position = intent.Position, Payload = intent.Payload,
-            Propagated = PropagatedTenantContext.Capture(work.Context.Tenant!, clock).ToJson(), CreatedAt = now, DueAt = now
+            // Captured from the producing unit, bound to this row and sealed, so it opens for this row's dispatch alone.
+            Propagated = PropagatedTenantContext.Capture(work.Context.Tenant!, clock).ToJson(OutboxBinding(id)), CreatedAt = now, DueAt = now
         };
         work.Context.Add(row);
         return row.Id;
@@ -66,7 +74,7 @@ public sealed class EventStore(PostgreSqlModule module, TimeProvider clock, IAud
             Id = source.Id, Consumer = source.Consumer, Kind = source.Kind, SchemaVersion = source.SchemaVersion,
             OrderingKey = source.OrderingKey, Position = source.Position, Payload = source.Payload,
             // Capture anew from the revalidated receiving unit; never copy a propagated reference from the outbox.
-            Propagated = PropagatedTenantContext.Capture(work.Context.Tenant!, clock).ToJson(), ReceivedAt = now, DueAt = now
+            Propagated = PropagatedTenantContext.Capture(work.Context.Tenant!, clock).ToJson(InboxBinding(source.Id)), ReceivedAt = now, DueAt = now
         });
     }
 

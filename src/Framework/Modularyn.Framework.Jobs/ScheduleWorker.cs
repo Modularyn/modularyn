@@ -32,7 +32,7 @@ public sealed class ScheduleWorker(JobStore store, AuthorizedWorkRunner runner)
             TenantWorkOutcome outcome;
             try
             {
-                outcome = await runner.RunAsync(principal, candidate.Propagated, SchedulePermission, async (unit, _, token) =>
+                outcome = await runner.RunAsync(principal, candidate.Propagated, store.ScheduleBinding(candidate.Id), SchedulePermission, async (unit, _, token) =>
                 {
                     if (unit.Context.TenantId != candidate.TenantId) throw new InvalidOperationException("The schedule is outside its producer's tenant.");
                     await using var work = await EfCoreUnitOfWork.BeginAsync(store.Module, unit.Context, cancellationToken: token).ConfigureAwait(false);

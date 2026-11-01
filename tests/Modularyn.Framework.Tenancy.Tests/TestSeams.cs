@@ -208,8 +208,18 @@ internal sealed class TestSeams
     internal RecordingAudit Audit { get; } = new();
     internal TestServiceIdentities ServiceIdentities { get; } = new();
 
+    /// <summary>
+    /// The real seal over an in-memory key ring shared by every test host in the process that registers these seams, so a
+    /// reference one host stores opens in another over the same database. It replaces the seal over a declared ring.
+    /// </summary>
+    internal static IPropagationSeal Seal { get; } = new PropagationSeal(new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider());
+
+    /// <summary>A binding for references a test captures and opens itself, apart from any store's rows.</summary>
+    internal static PropagationBinding Binding { get; } = new("tests.propagated-work", "unit");
+
     internal void Register(IServiceCollection services, bool identity = true, bool membership = true, bool authority = true, bool audit = true)
     {
+        services.Replace(ServiceDescriptor.Singleton(Seal));
         services.TryAddSingleton<IServiceIdentityScopes>(ServiceIdentities);
         services.TryAddSingleton<IPrincipalFreshness>(ServiceIdentities);
         if (identity) services.AddSingleton<ITenantActorResolver>(Identity);

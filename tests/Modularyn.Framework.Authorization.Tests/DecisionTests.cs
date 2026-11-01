@@ -98,11 +98,11 @@ public sealed class DecisionTests(ITestOutputHelper output)
         // The worker entry point defers work whose authority cannot be read, and denies work whose producer lacks it.
         var runner = authorization.Get<AuthorizedWorkRunner>();
         var reindex = ExecutionPrincipal.ForService(new PrincipalReference(Items.Service, IdentityKind.Service), [Items.Update]);
-        var propagated = PropagatedTenantContext.Capture(fresh.Context).ToJson();
+        var propagated = PropagatedTenantContext.Capture(fresh.Context).ToJson(TestSeams.Binding);
         authorization.Authority.Unavailable = true;
-        Assert.Equal((TenantWorkDisposition.Deferred, AuthorizationCodes.Unavailable), Disposition(await runner.RunAsync(reindex, propagated, Items.Update, Never, Cancellation)));
+        Assert.Equal((TenantWorkDisposition.Deferred, AuthorizationCodes.Unavailable), Disposition(await runner.RunAsync(reindex, propagated, TestSeams.Binding, Items.Update, Never, Cancellation)));
         authorization.Authority.Unavailable = false;
-        Assert.Equal((TenantWorkDisposition.Denied, AuthorizationCodes.NotHeld), Disposition(await runner.RunAsync(reindex, propagated, Items.Update, Never, Cancellation)));
+        Assert.Equal((TenantWorkDisposition.Denied, AuthorizationCodes.NotHeld), Disposition(await runner.RunAsync(reindex, propagated, TestSeams.Binding, Items.Update, Never, Cancellation)));
         output.WriteLine("Every refusal above carried its stable code; none permitted.");
     }
 
@@ -238,7 +238,7 @@ public sealed class DecisionTests(ITestOutputHelper output)
         // The worker entry point decides at the current profile, so a job for user-1 meets the revocation that the entry has not.
         var job = ExecutionPrincipal.ForService(new PrincipalReference(Items.Service, IdentityKind.Service), [Items.Read]);
         Assert.Equal((TenantWorkDisposition.Denied, AuthorizationCodes.NotHeld), Disposition(await authorization.Get<AuthorizedWorkRunner>().RunAsync(job,
-            PropagatedTenantContext.Capture(user1.Context).ToJson(), Items.Read, Never, Cancellation)));
+            PropagatedTenantContext.Capture(user1.Context).ToJson(TestSeams.Binding), TestSeams.Binding, Items.Read, Never, Cancellation)));
         var before = cache.KeyFor(user1.Context, TenantAuthorityCache.Entry(subject1, AuthorizationHost.Bound));
         cache.InvalidateTenant(tenant);
         Assert.NotEqual(before, cache.KeyFor(user1.Context, TenantAuthorityCache.Entry(subject1, AuthorizationHost.Bound)));

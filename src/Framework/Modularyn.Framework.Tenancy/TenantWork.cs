@@ -24,14 +24,26 @@ public sealed record TenantWorkUnit(IServiceProvider Services, TenantContext Con
 /// only from the revalidated reference. The scope, and with it the context, ends when the work ends, on every path,
 /// so a reused worker carries nothing into its next unit.
 /// </summary>
-public sealed class TenantWorkRunner(IServiceScopeFactory scopes)
+public sealed class TenantWorkRunner(IServiceScopeFactory scopes, IPropagationSeal? seal = null)
 {
-    /// <summary>Parses the stored reference strictly; a malformed one is denied without running anything.</summary>
-    public Task<TenantWorkOutcome> RunAsync(string propagated, Func<TenantWorkUnit, CancellationToken, Task> work,
-        CancellationToken cancellationToken = default) =>
-        PropagatedTenantContext.TryParse(propagated, out var parsed)
-            ? RunAsync(parsed!, work, cancellationToken)
-            : Task.FromResult(new TenantWorkOutcome(TenantWorkDisposition.Denied, TenancyCodes.Malformed, null));
+    /// <summary>
+    /// Opens the stored reference under its seal and the binding its store expects, before anything runs. A malformed one
+    /// is denied (<see cref="TenancyCodes.Malformed"/>), as is one whose seal or binding does not verify, such as one copied
+    /// from another row (<see cref="TenancyCodes.Unsealed"/>); without an available seal the work is deferred.
+    /// </summary>
+    public Task<TenantWorkOutcome> RunAsync(string propagated, PropagationBinding binding, Func<TenantWorkUnit, CancellationToken, Task> work,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(binding);
+        ArgumentNullException.ThrowIfNull(work);
+        if (!PropagatedTenantContext.TryParse(propagated, out _))
+            return Task.FromResult(new TenantWorkOutcome(TenantWorkDisposition.Denied, TenancyCodes.Malformed, null));
+        if (seal is not { IsAvailable: true })
+            return Task.FromResult(new TenantWorkOutcome(TenantWorkDisposition.Deferred, TenancyCodes.SeamUnavailable, null));
+        return PropagatedTenantContext.TryOpen(propagated, binding, seal, out var opened)
+            ? RunAsync(opened!, work, cancellationToken)
+            : Task.FromResult(new TenantWorkOutcome(TenantWorkDisposition.Denied, TenancyCodes.Unsealed, null));
+    }
 
     public async Task<TenantWorkOutcome> RunAsync(PropagatedTenantContext propagated, Func<TenantWorkUnit, CancellationToken, Task> work,
         CancellationToken cancellationToken = default)

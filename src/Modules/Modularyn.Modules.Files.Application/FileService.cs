@@ -92,7 +92,7 @@ public sealed class FileService : IFiles
                         throw new FileStorageException(FileStorageError.NotFound);
                     intent.Add(new FileUpload { TenantId = tenantId, Id = revisionId, FileId = fileId, Length = expected.Length,
                         Sha256 = expected.Sha256, ContentType = contentType, CreatedAt = createdAt,
-                        PropagatedContext = PropagatedTenantContext.Capture(tenant, time).ToJson() });
+                        PropagatedContext = PropagatedTenantContext.Capture(tenant, time).ToJson(UploadBinding(revisionId)) });
                     await intent.CommitAsync(cancellationToken).ConfigureAwait(false);
                 }
                 committed = true;
@@ -337,8 +337,18 @@ public sealed class FileService : IFiles
     public Task<TenantWorkOutcome> RecoverAsync(string propagated, TenantWorkRunner runner, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(runner);
-        return runner.RunAsync(propagated, async (unit, token) => { await RecoverAsync(unit.Context, token).ConfigureAwait(false); }, cancellationToken);
+        return runner.RunAsync(propagated, RecoveryBinding, async (unit, token) => { await RecoverAsync(unit.Context, token).ConfigureAwait(false); },
+            cancellationToken);
     }
+
+    /// <summary>
+    /// What a scheduled recovery's reference is bound to. Recovery reconciles the reference's own tenant and is safe to
+    /// repeat, so one binding serves every schedule; a reference sealed for any other purpose never opens as recovery.
+    /// </summary>
+    public static PropagationBinding RecoveryBinding { get; } = new("modularyn.files.recovery", "tenant");
+
+    /// <summary>What an upload intent's provenance reference is bound to: the intent's revision.</summary>
+    public static PropagationBinding UploadBinding(Guid revisionId) => PropagationBinding.ForRow("modularyn.files.upload", revisionId);
 
     private async Task<FileVersionInfo> PublishAsync(TenantContext tenant, Guid tenantId, IFileBlobStaging staging, Guid fileId, DateTimeOffset createdAt,
         CancellationToken cancellationToken)
@@ -444,7 +454,7 @@ public sealed class FileService : IFiles
         try
         {
             using var deadline = new CancellationTokenSource(ScheduleTimeout, time);
-            await recovery.ScheduleAsync(PropagatedTenantContext.Capture(tenant, time).ToJson(), deadline.Token).ConfigureAwait(false);
+            await recovery.ScheduleAsync(PropagatedTenantContext.Capture(tenant, time).ToJson(RecoveryBinding), deadline.Token).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {

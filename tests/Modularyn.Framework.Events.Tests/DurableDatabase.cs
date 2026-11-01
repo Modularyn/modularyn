@@ -1,3 +1,5 @@
+using System.Xml.Linq;
+using Microsoft.AspNetCore.DataProtection.Repositories;
 using Modularyn.Framework.Audit;
 using Modularyn.Framework.Authorization;
 using Modularyn.Framework.Modularity;
@@ -22,8 +24,30 @@ public sealed class DurablePostgreSqlCollection
     public const string Name = "PostgreSQL durable work";
 }
 
+/// <summary>
+/// A declared key ring's store held in memory, shared by every host a test builds over one database, so references that
+/// one host sealed open in the host that replaces it, as they do across a real restart over a persisted ring.
+/// </summary>
+internal sealed class MemoryKeyStore : IXmlRepository
+{
+    private readonly List<XElement> elements = [];
+
+    public IReadOnlyCollection<XElement> GetAllElements()
+    {
+        lock (elements) return elements.Select(element => new XElement(element)).ToArray();
+    }
+
+    public void StoreElement(XElement element, string friendlyName)
+    {
+        lock (elements) elements.Add(new XElement(element));
+    }
+}
+
 internal sealed class DurableDatabase : IAsyncDisposable
 {
+    /// <summary>The key ring every host over this database seals and opens propagated references with.</summary>
+    internal MemoryKeyStore Keys { get; } = new();
+
     private readonly PostgreSqlTestLock testLock;
     private readonly string[] schemas;
     private DurableDatabase(PostgreSqlPersistenceOptions options, PostgreSqlTestLock testLock)

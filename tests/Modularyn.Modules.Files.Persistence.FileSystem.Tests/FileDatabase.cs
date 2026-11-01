@@ -76,6 +76,8 @@ internal sealed class FileDatabase : IAsyncDisposable
             await database.ExecuteAsync("INSERT INTO " + Quote(database.IdentitySchema) + ".\"HostGrants\" VALUES ('fixture-host', @operation)",
                 new NpgsqlParameter("operation", TenantDirectoryAdministration.OperationId));
             var services = new ServiceCollection();
+            // The tests' shared key ring seals the propagated references the stores keep.
+            services.AddSingleton(Framework.Tenancy.Tests.TestSeams.Seal);
             services.AddModularynTenancy(database.DirectoryModule);
             services.AddSingleton<ITenantActorResolver>(new FixtureActor());
             services.AddSingleton<ITenantMembership>(new DatabaseMembership(database));

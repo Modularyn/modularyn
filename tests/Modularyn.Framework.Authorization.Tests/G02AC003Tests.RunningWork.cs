@@ -184,7 +184,8 @@ public sealed partial class G02AC003Tests
         foreach (var job in queued)
         {
             await using var service = host.Get<IServiceIdentityScopes>().Begin(Items.Service);
-            var outcome = await host.Get<AuthorizedWorkRunner>().RunAsync(service.Principal, job.Propagated, Items.BulkUpdate, async (unit, decision, token) =>
+            var outcome = await host.Get<AuthorizedWorkRunner>().RunAsync(service.Principal, job.Propagated, ItemWork.Binding(job.Id), Items.BulkUpdate,
+                async (unit, decision, token) =>
             {
                 if (work is not null) await work(unit, decision, service.Principal);
                 await using var complete = await EfCoreUnitOfWork.BeginAsync(database.ItemsModule, unit.Context, cancellationToken: token);

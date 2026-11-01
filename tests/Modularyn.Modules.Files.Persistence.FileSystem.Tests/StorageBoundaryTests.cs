@@ -227,7 +227,7 @@ public sealed class StorageBoundaryTests
                 Owner = "file-owner", CreatedBy = "file-owner", CreatedAt = committed.CreatedAt });
             unit.Add(new FileUpload { TenantId = database.TenantA, Id = committed.VersionId, FileId = otherFileId,
                 Length = committed.Length, Sha256 = committed.Sha256, ContentType = committed.ContentType, CreatedAt = committed.CreatedAt,
-                PropagatedContext = PropagatedTenantContext.Capture(tenant.Context, database.Clock).ToJson() });
+                PropagatedContext = PropagatedTenantContext.Capture(tenant.Context, database.Clock).ToJson(Application.FileService.UploadBinding(committed.VersionId)) });
             await unit.CommitAsync(Cancellation);
         }
         Assert.Equal(1, await database.Service().RecoverAsync(tenant.Context, Cancellation));
@@ -332,8 +332,12 @@ public sealed class StorageBoundaryTests
         await using (var unit = await database.Metadata.BeginAsync(tenant.Context, Cancellation))
         {
             var upload = Assert.Single(await unit.ListUploadsAsync(Cancellation));
+            // The intent's reference opens under its seal and its own binding; parsed alone, it would establish nothing.
             Assert.True(PropagatedTenantContext.TryParse(upload.PropagatedContext, out var parsed));
-            propagated = parsed!;
+            Assert.Equal(TenancyCodes.Unsealed, (await database.Service().RecoverAsync(parsed!, runner, Cancellation)).Code);
+            Assert.True(PropagatedTenantContext.TryOpen(upload.PropagatedContext, Application.FileService.UploadBinding(upload.Id),
+                Framework.Tenancy.Tests.TestSeams.Seal, out var opened));
+            propagated = opened!;
         }
         await tenant.DisposeAsync();
         var recovered = await database.Service().RecoverAsync(propagated, runner, Cancellation);

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
 using Modularyn.Framework.Tenancy.Abstractions;
@@ -41,36 +42,102 @@ public sealed class PropagationTests
         PropagatedTenantContext tenant;
         await using (scope) tenant = PropagatedTenantContext.Capture(context);
         Assert.Throws<InvalidOperationException>(() => PropagatedTenantContext.Capture(context));
-        var json = tenant.ToJson();
+        var json = tenant.ToJson(TestSeams.Binding);
         using (var document = JsonDocument.Parse(json))
         {
-            Assert.Equal(["format", "formatVersion", "scope", "tenant", "actor", "producerUnit", "capturedAt"],
+            Assert.Equal(["format", "formatVersion", "scope", "tenant", "actor", "producerUnit", "capturedAt", "binding", "seal"],
                 document.RootElement.EnumerateObject().Select(property => property.Name));
             Assert.Equal(["kind", "subject"], document.RootElement.GetProperty("actor").EnumerateObject().Select(property => property.Name));
+            Assert.Equal(["purpose", "key"], document.RootElement.GetProperty("binding").EnumerateObject().Select(property => property.Name));
         }
+        // Parsed for inspection, a reference is never verified; opened under its seal and binding, it is, exactly as captured.
         Assert.True(PropagatedTenantContext.TryParse(json, out var parsed));
+        Assert.False(parsed!.IsVerified);
+        Assert.Equal(TestSeams.Binding, parsed.Binding);
+        Assert.True(PropagatedTenantContext.TryOpen(json, TestSeams.Binding, TestSeams.Seal, out var opened));
+        Assert.True(opened!.IsVerified);
         Assert.Equal((TenantScope.Tenant, tenantA, ActorKind.User, "user-a", context.UnitId, tenant.CapturedAt),
-            (parsed!.Scope, parsed.TenantId!.Value, parsed.Actor.Kind, parsed.Actor.Subject, parsed.ProducerUnitId, parsed.CapturedAt));
-        Assert.Equal(json, parsed.ToJson());
+            (opened.Scope, opened.TenantId!.Value, opened.Actor.Kind, opened.Actor.Subject, opened.ProducerUnitId, opened.CapturedAt));
+        // A stored reference is never stored again, under its own binding or another.
+        Assert.Throws<InvalidOperationException>(() => opened.ToJson(TestSeams.Binding));
+        Assert.Throws<InvalidOperationException>(() => parsed.ToJson(new PropagationBinding("tests.other", "unit")));
 
         var host = await CaptureAsync(services, host: true);
-        Assert.True(PropagatedTenantContext.TryParse(host.ToJson(), out var hostParsed));
-        Assert.Equal((TenantScope.Host, (Guid?)null, "test.maintenance", ActorKind.Service), (hostParsed!.Scope, hostParsed.TenantId, hostParsed.OperationId, hostParsed.Actor.Kind));
+        Assert.True(PropagatedTenantContext.TryOpen(host.ToJson(TestSeams.Binding), TestSeams.Binding, TestSeams.Seal, out var hostOpened));
+        Assert.Equal((TenantScope.Host, (Guid?)null, "test.maintenance", ActorKind.Service), (hostOpened!.Scope, hostOpened.TenantId, hostOpened.OperationId, hostOpened.Actor.Kind));
         TestContext.Current.TestOutputHelper?.WriteLine(json);
-        TestContext.Current.TestOutputHelper?.WriteLine(host.ToJson());
+    }
+
+    [Fact]
+    public async Task TM_G02_027_A_stored_reference_runs_only_under_its_own_seal_and_binding()
+    {
+        await using var services = UnitServices.Build(directory, seams);
+        var runner = services.GetRequiredService<TenantWorkRunner>();
+        var row = PropagationBinding.ForRow("tests.work-item", Guid.NewGuid());
+        var json = (await CaptureAsync(services)).ToJson(row);
+        var runs = 0;
+        Task Work(TenantWorkUnit unit, CancellationToken token)
+        {
+            runs++;
+            return Task.CompletedTask;
+        }
+
+        Assert.Equal(TenantWorkDisposition.Completed, (await runner.RunAsync(json, row, Work, Cancellation)).Disposition);
+        // Copied to another row of the same store and tenant, or to another store, it does not open.
+        Assert.Equal((TenantWorkDisposition.Denied, TenancyCodes.Unsealed),
+            Disposition(await runner.RunAsync(json, PropagationBinding.ForRow("tests.work-item", Guid.NewGuid()), Work, Cancellation)));
+        Assert.Equal((TenantWorkDisposition.Denied, TenancyCodes.Unsealed),
+            Disposition(await runner.RunAsync(json, new PropagationBinding("tests.other-store", row.Key), Work, Cancellation)));
+        // Altered, rebound in its own text, or sealed by another key ring, it does not open either.
+        var parsed = JsonDocument.Parse(json).RootElement;
+        var unit = parsed.GetProperty("producerUnit").GetString()!;
+        var other = PropagationBinding.ForRow("tests.work-item", Guid.NewGuid());
+        foreach (var altered in new[]
+        {
+            json.Replace(unit, Guid.NewGuid().ToString("D"), StringComparison.Ordinal),
+            json.Replace("\"user-a\"", "\"user-b\"", StringComparison.Ordinal),
+            json.Replace(row.Key, other.Key, StringComparison.Ordinal),
+            json.Replace(parsed.GetProperty("seal").GetString()!, new PropagationSeal(new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider())
+                .Seal(System.Text.Encoding.UTF8.GetBytes(json)), StringComparison.Ordinal)
+        })
+        {
+            Assert.True(PropagatedTenantContext.TryParse(altered, out _));
+            Assert.Equal((TenantWorkDisposition.Denied, TenancyCodes.Unsealed), Disposition(await runner.RunAsync(altered, row, Work, Cancellation)));
+            Assert.Equal((TenantWorkDisposition.Denied, TenancyCodes.Unsealed), Disposition(await runner.RunAsync(altered, other, Work, Cancellation)));
+        }
+        // A reference parsed for inspection names no context, even passed as an object.
+        Assert.True(PropagatedTenantContext.TryParse(json, out var inspected));
+        Assert.Equal((TenantWorkDisposition.Denied, TenancyCodes.Unsealed), Disposition(await runner.RunAsync(inspected!, Work, Cancellation)));
+        Assert.Equal(1, runs);
+
+        // Without a seal nothing is stored, and stored work waits rather than being denied.
+        await using var unsealed = UnitServices.Build(directory, seams, collection => collection.RemoveAll<IPropagationSeal>());
+        var captured = await CaptureAsync(unsealed);
+        Assert.Throws<InvalidOperationException>(() => captured.ToJson(row));
+        Assert.Equal((TenantWorkDisposition.Deferred, TenancyCodes.SeamUnavailable),
+            Disposition(await unsealed.GetRequiredService<TenantWorkRunner>().RunAsync(json, row, Work, Cancellation)));
+        Assert.Equal(1, runs);
     }
 
     public static TheoryData<string> Malformed()
     {
         const string tenant = "\"tenant\":\"0b9a5d4e-4e7f-4c3a-9a51-2f6c1d0e8b77\"";
-        const string tail = "\"actor\":{\"kind\":\"user\",\"subject\":\"user-a\"},\"producerUnit\":\"5f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b\",\"capturedAt\":\"2026-10-26T12:00:00.000000Z\"";
-        const string head = "\"format\":\"modularyn.tenant-context\",\"formatVersion\":1,\"scope\":\"tenant\",";
+        const string tail = "\"actor\":{\"kind\":\"user\",\"subject\":\"user-a\"},\"producerUnit\":\"5f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b\",\"capturedAt\":\"2026-10-26T12:00:00.000000Z\","
+            + "\"binding\":{\"purpose\":\"tests.propagated-work\",\"key\":\"unit\"},\"seal\":\"CfDJ8seal\"";
+        const string head = "\"format\":\"modularyn.tenant-context\",\"formatVersion\":2,\"scope\":\"tenant\",";
+        const string first = "\"actor\":{\"kind\":\"user\",\"subject\":\"user-a\"},\"producerUnit\":\"5f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b\",\"capturedAt\":\"2026-10-26T12:00:00.000000Z\"";
         return new()
         {
+            // Format 1, which no seal or binding covers, is no longer read.
+            "{\"format\":\"modularyn.tenant-context\",\"formatVersion\":1,\"scope\":\"tenant\"," + tenant + "," + first + "}",
+            "{" + head + tenant + "," + first + "}",
+            "{" + head + tenant + "," + tail.Replace("\"key\":\"unit\"", "\"key\":\" unit\"", StringComparison.Ordinal) + "}",
+            "{" + head + tenant + "," + tail.Replace(",\"key\":\"unit\"", "", StringComparison.Ordinal) + "}",
+            "{" + head + tenant + "," + tail.Replace("\"seal\":\"CfDJ8seal\"", "\"seal\":\"\"", StringComparison.Ordinal) + "}",
             "{" + head + tenant + "," + tail + ",\"token\":\"secret\"}",
             "{" + head + tenant + "," + tenant + "," + tail + "}",
-            "{" + head.Replace("\"formatVersion\":1", "\"formatVersion\":2", StringComparison.Ordinal) + tenant + "," + tail + "}",
-            "{" + head.Replace("\"formatVersion\":1", "\"formatVersion\":1.0", StringComparison.Ordinal) + tenant + "," + tail + "}",
+            "{" + head.Replace("\"formatVersion\":2", "\"formatVersion\":3", StringComparison.Ordinal) + tenant + "," + tail + "}",
+            "{" + head.Replace("\"formatVersion\":2", "\"formatVersion\":2.0", StringComparison.Ordinal) + tenant + "," + tail + "}",
             "{" + head.Replace("modularyn.tenant-context", "tenant-context", StringComparison.Ordinal) + tenant + "," + tail + "}",
             "{" + head + tenant.ToUpperInvariant().Replace("\"TENANT\"", "\"tenant\"", StringComparison.Ordinal) + "," + tail + "}",
             "{" + head + "\"tenant\":\"00000000-0000-0000-0000-000000000000\"," + tail + "}",
@@ -94,7 +161,7 @@ public sealed class PropagationTests
         Assert.False(PropagatedTenantContext.TryParse(propagated, out _));
         await using var services = UnitServices.Build(directory, seams);
         var ran = false;
-        var outcome = await services.GetRequiredService<TenantWorkRunner>().RunAsync(propagated, (_, _) =>
+        var outcome = await services.GetRequiredService<TenantWorkRunner>().RunAsync(propagated, TestSeams.Binding, (_, _) =>
         {
             ran = true;
             return Task.CompletedTask;

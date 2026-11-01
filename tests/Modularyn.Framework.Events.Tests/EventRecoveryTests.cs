@@ -3,6 +3,7 @@ using Modularyn.Framework.Authorization;
 using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
+using Modularyn.Framework.Tenancy;
 using Npgsql;
 using Xunit;
 
@@ -249,7 +250,7 @@ public sealed class EventRecoveryTests
     }
 
     [Fact]
-    public async Task A_receipt_whose_stored_context_names_another_tenant_is_quarantined_without_an_effect()
+    public async Task A_receipt_whose_stored_reference_was_copied_from_another_row_is_denied_without_an_effect()
     {
         await using var database = await DurableDatabase.CreateAsync();
         var clock = new DurableClock();
@@ -257,28 +258,30 @@ public sealed class EventRecoveryTests
         await using var swapped = await host.EnterServiceAsync(await host.TenantAsync());
         await using var other = await host.EnterServiceAsync(await host.TenantAsync());
         var swappedId = await host.ProduceAsync(swapped, "swapped");
+        var sameId = await host.ProduceAsync(other, "same");
         var otherId = await host.ProduceAsync(other, "other");
         var dispatch = await host.HostAsync();
         var principal = host.WorkerPrincipal();
-        Assert.Equal(2, await host.Pump().DispatchAsync(dispatch, principal, cancellationToken: Token));
-        // A receipt's stored reference copied from another tenant's receipt: revalidation succeeds for that other tenant,
-        // so only the consumer's own tenant check stands between the reference and the row.
+        Assert.Equal(3, await host.Pump().DispatchAsync(dispatch, principal, cancellationToken: Token));
+        // A receipt's stored reference copied from another tenant's receipt, and from another receipt of the same tenant:
+        // each is sealed for the row it came from, so neither opens for the row it was copied to (SEC-07). The consumer's
+        // own tenant check stays behind the seal.
         var inbox = "\"" + database.Consumer.Schema + "\".\"InboxEvents\"";
-        await database.ExecuteAsync("UPDATE " + inbox + " SET \"Propagated\" = (SELECT \"Propagated\" FROM " + inbox + " WHERE \"Id\" = @other) WHERE \"Id\" = @swapped",
-            new NpgsqlParameter("other", otherId), new NpgsqlParameter("swapped", swappedId));
-        for (var attempt = 1; attempt <= 3; attempt++)
+        foreach (var copy in new[] { swappedId, sameId })
+            await database.ExecuteAsync("UPDATE " + inbox + " SET \"Propagated\" = (SELECT \"Propagated\" FROM " + inbox + " WHERE \"Id\" = @other) WHERE \"Id\" = @copy",
+                new NpgsqlParameter("other", otherId), new NpgsqlParameter("copy", copy));
+        Assert.Equal(1, await host.Pump().ConsumeAsync(dispatch, principal, cancellationToken: Token));
+        foreach (var (unit, id) in new[] { (swapped, swappedId), (other, sameId) })
         {
-            Assert.Equal(attempt == 1 ? 1 : 0, await host.Pump().ConsumeAsync(dispatch, principal, cancellationToken: Token));
-            var row = Assert.Single(await host.RowsAsync<InboxEvent>(database.Consumer, swapped.Context));
-            Assert.Equal(attempt, row.Attempts);
-            Assert.Equal(attempt == 3 ? EventState.Poison : EventState.Pending, row.State);
-            clock.Advance(TimeSpan.FromSeconds(1 << (attempt - 1)));
+            var row = Assert.Single(await host.RowsAsync<InboxEvent>(database.Consumer, unit.Context), row => row.Id == id);
+            Assert.Equal((EventState.Denied, TenancyCodes.Unsealed, 1, Audit.DurablePayloads.Redacted), (row.State, row.Code, row.Attempts, row.Payload));
         }
+        Assert.Equal(0, await host.Pump().ConsumeAsync(dispatch, principal, cancellationToken: Token));
         Assert.Empty(await host.RowsAsync<DurableEffect>(database.Consumer, swapped.Context));
         Assert.Empty(await host.RowsAsync<EventPosition>(database.Consumer, swapped.Context));
         var effect = Assert.Single(await host.RowsAsync<DurableEffect>(database.Consumer, other.Context));
         Assert.Equal(("other", 1), (effect.Key, effect.Count));
-        Assert.Equal(EventState.Completed, Assert.Single(await host.RowsAsync<InboxEvent>(database.Consumer, other.Context)).State);
+        Assert.Equal(EventState.Completed, Assert.Single(await host.RowsAsync<InboxEvent>(database.Consumer, other.Context), row => row.Id == otherId).State);
     }
 
     [Fact]

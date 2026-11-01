@@ -45,7 +45,8 @@ public sealed class JobWorker
             TenantWorkOutcome outcome;
             try
             {
-                outcome = await runner.RunAsync(principal, candidate.Propagated, definition?.Permission ?? ExecutePermission, async (unit, _, token) =>
+                outcome = await runner.RunAsync(principal, candidate.Propagated, store.JobBinding(candidate.Id), definition?.Permission ?? ExecutePermission,
+                    async (unit, _, token) =>
                 {
                     if (unit.Context.TenantId != candidate.TenantId) throw new InvalidOperationException("The job is outside its producer's tenant.");
                     JobClaim? claim;

@@ -41,7 +41,7 @@ public sealed class EventPump(EventStore producer, EventStore receiver, EventCon
             TenantWorkOutcome outcome;
             try
             {
-                outcome = await runner.RunAsync(principal, row.Propagated, consumer.Permission, async (unit, _, token) =>
+                outcome = await runner.RunAsync(principal, row.Propagated, producer.OutboxBinding(row.Id), consumer.Permission, async (unit, _, token) =>
                 {
                     await using var work = await EfCoreUnitOfWork.BeginAsync(receiver.Module, unit.Context, cancellationToken: token).ConfigureAwait(false);
                     await receiver.AcceptAsync(work, row, token).ConfigureAwait(false);
@@ -89,7 +89,7 @@ public sealed class EventPump(EventStore producer, EventStore receiver, EventCon
             TenantWorkOutcome outcome;
             try
             {
-                outcome = await runner.RunAsync(principal, candidate.Propagated, consumer.Permission, async (unit, _, token) =>
+                outcome = await runner.RunAsync(principal, candidate.Propagated, receiver.InboxBinding(candidate.Id), consumer.Permission, async (unit, _, token) =>
                 {
                     // Before any read: the unit's lookup is filtered to the revalidated tenant, so a reference that names
                     // another tenant than its row would otherwise find nothing and leave the row pending, unbounded.

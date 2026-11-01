@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Modularyn.Framework.Audit;
 using Modularyn.Framework.Authorization;
 using Modularyn.Framework.Authorization.Abstractions;
+using Modularyn.Framework.Configuration;
 using Modularyn.Framework.Ingress;
 using Modularyn.Framework.Jobs;
 using Modularyn.Framework.Persistence.Abstractions;
@@ -66,7 +67,8 @@ internal sealed class DurableHost : IAsyncDisposable
         {
             ["Modularyn:Authorization:HostOperators:0:Kind"] = "Service",
             ["Modularyn:Authorization:HostOperators:0:Subject"] = Service,
-            ["Modularyn:Ingress:PublicOrigins:0"] = "https://durable.example.test"
+            ["Modularyn:Ingress:PublicOrigins:0"] = "https://durable.example.test",
+            ["Modularyn:DataProtection:ApplicationName"] = "Modularyn.DurableTests"
         };
         var index = 0;
         foreach (var operation in database.Registry.HostOperations)
@@ -76,6 +78,8 @@ internal sealed class DurableHost : IAsyncDisposable
         services.AddLogging();
         services.AddSingleton<TimeProvider>(clock);
         services.AddModularynIngress(configuration);
+        // The declared key ring that seals propagated references, in memory and shared by every host over the database.
+        services.AddModularynDataProtection(configuration, keyStore: _ => database.Keys);
         services.AddModularynTenancy(database.Directory);
         // The real audit store, on the same database: authority changes, host scopes, filter bypasses and operator actions.
         services.AddModularynAudit(database.Audit);

@@ -116,6 +116,9 @@ public sealed class TenantContext
     /// <summary>The audit of this unit's filter bypasses, which tenancy attaches when it establishes the context; null without one.</summary>
     internal IFilterBypassAudit? BypassAudit { get; set; }
 
+    /// <summary>The seal over references captured from this unit, which tenancy attaches when it establishes the context; null without one.</summary>
+    internal IPropagationSeal? PropagationSeal { get; set; }
+
     /// <summary>
     /// Records a privileged filter bypass made in this context's unit, through the audit tenancy attached when it established
     /// the context, before the bypass's query exists. The persistence adapter calls it for each cross-tenant read and each

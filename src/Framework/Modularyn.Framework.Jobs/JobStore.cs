@@ -21,16 +21,24 @@ public sealed class JobStore(PostgreSqlModule module, TimeProvider clock, JobPol
     public JobPolicy Policy { get; } = policy;
     internal DateTimeOffset Now => UtcMicroseconds.Now(clock);
 
+    /// <summary>What this store's job <paramref name="id"/> binds its propagated reference to; a run opens it under this binding alone.</summary>
+    public PropagationBinding JobBinding(Guid id) => PropagationBinding.ForRow("modularyn.jobs.job/" + Module.ModuleId, id);
+
+    /// <summary>What this store's schedule <paramref name="id"/> binds its propagated reference to; materialization opens it under this binding alone.</summary>
+    public PropagationBinding ScheduleBinding(Guid id) => PropagationBinding.ForRow("modularyn.jobs.schedule/" + Module.ModuleId, id);
+
     public Guid Enqueue(EfCoreUnitOfWork work, JobRequest request) => Enqueue(work, request, null);
 
     internal Guid Enqueue(EfCoreUnitOfWork work, JobRequest request, Guid? scheduleId)
     {
         RequireProducer(work);
         ValidatePayload(request.Kind, request.Payload);
+        var id = Guid.NewGuid();
         var row = new JobRecord
         {
-            Id = Guid.NewGuid(), Kind = request.Kind, Payload = request.Payload,
-            Propagated = PropagatedTenantContext.Capture(work.Context.Tenant!, clock).ToJson(), CreatedAt = Now,
+            Id = id, Kind = request.Kind, Payload = request.Payload,
+            // Captured from the producing unit, bound to this job and sealed, so it opens for this job's runs alone.
+            Propagated = PropagatedTenantContext.Capture(work.Context.Tenant!, clock).ToJson(JobBinding(id)), CreatedAt = Now,
             DueAt = UtcMicroseconds.Normalize(request.DueAt), AvailableAt = UtcMicroseconds.Normalize(request.DueAt), ScheduleId = scheduleId
         };
         work.Context.Add(row);
@@ -41,11 +49,12 @@ public sealed class JobStore(PostgreSqlModule module, TimeProvider clock, JobPol
     {
         RequireProducer(work);
         ValidatePayload(kind, payload);
+        var id = Guid.NewGuid();
         var row = new JobSchedule
         {
-            Id = Guid.NewGuid(), Kind = kind, Payload = payload, TimeZone = schedule.TimeZone, LocalTime = schedule.LocalTime,
+            Id = id, Kind = kind, Payload = payload, TimeZone = schedule.TimeZone, LocalTime = schedule.LocalTime,
             Misfire = schedule.Misfire, NextDate = firstDate, NextCheckAt = Now,
-            Propagated = PropagatedTenantContext.Capture(work.Context.Tenant!, clock).ToJson()
+            Propagated = PropagatedTenantContext.Capture(work.Context.Tenant!, clock).ToJson(ScheduleBinding(id))
         };
         work.Context.Add(row);
         return row.Id;

@@ -73,6 +73,9 @@ public static class TenancyCodes
     public const string AuditUnavailable = "MTN011";
     public const string DirectoryUnavailable = "MTN012";
     public const string OriginNotConfigured = "MTN013";
+
+    /// <summary>A propagated reference that was not verified: not captured in process, or not opened under its seal and expected binding.</summary>
+    public const string Unsealed = "MTN014";
 }
 
 /// <summary>
@@ -146,6 +149,8 @@ public sealed class TenantExecution : IDisposable
     {
         ArgumentNullException.ThrowIfNull(propagated);
         Begin();
+        // Only a reference captured in process, or opened under its seal and binding, names a context at all.
+        if (!propagated.IsVerified) return Publish(TenantDecision.Refused(TenancyCodes.Unsealed));
         TenantDecision decision;
         if (propagated.Scope == TenantScope.Tenant)
         {
@@ -264,6 +269,8 @@ public sealed class TenantExecution : IDisposable
         if (decision.Context is null) return decision;
         // Every bypass the unit makes is recorded through this audit; a context without one bypasses no filter.
         decision.Context.BypassAudit = services.GetService<IFilterBypassAudit>();
+        // References captured from the unit are sealed with the host's key ring before any store keeps them.
+        decision.Context.PropagationSeal = services.GetService<IPropagationSeal>();
         Volatile.Write(ref context, decision.Context);
         // An end that raced with establishment still ends the new context.
         if (Volatile.Read(ref state) == Ended) decision.Context.End();

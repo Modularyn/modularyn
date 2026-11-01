@@ -44,7 +44,7 @@ public sealed partial class G02AC003Tests(ITestOutputHelper output)
         });
         var policy = PermissionRequirement.Policy(Items.Update);
         var job = ExecutionPrincipal.ForService(new PrincipalReference(Items.Service, IdentityKind.Service), [Items.Update]);
-        var propagated = PropagatedTenantContext.Capture(unit.Context).ToJson();
+        var propagated = PropagatedTenantContext.Capture(unit.Context).ToJson(TestSeams.Binding);
 
         async Task<string[]> EveryEntryPointAsync()
         {
@@ -63,7 +63,7 @@ public sealed partial class G02AC003Tests(ITestOutputHelper output)
             var direct = await evaluator.AuthorizeAsync(new AuthorizationRequest(unit.Context, unit.Principal, Items.Update), Cancellation);
             codes.Add(direct.Code ?? "permitted");
             // 4. A worker entry point, running the item job as its service identity for the request's producer.
-            var outcome = await authorization.Get<AuthorizedWorkRunner>().RunAsync(job, propagated, Items.Update, (_, _, _) => Task.CompletedTask, Cancellation);
+            var outcome = await authorization.Get<AuthorizedWorkRunner>().RunAsync(job, propagated, TestSeams.Binding, Items.Update, (_, _, _) => Task.CompletedTask, Cancellation);
             codes.Add(outcome.Disposition == TenantWorkDisposition.Completed ? "permitted" : outcome.Code!);
             // 5. An asynchronous continuation of running work, which rechecks at the current profile.
             var resumed = await evaluator.AuthorizeAsync(new AuthorizationRequest(unit.Context, unit.Principal, Items.Update) { RequireCurrent = true }, Cancellation);
@@ -175,9 +175,9 @@ public sealed partial class G02AC003Tests(ITestOutputHelper output)
                 codes.Add((await evaluator.AuthorizeAsync(new AuthorizationRequest(decision.Context!, userSession, Items.Update) { RequireCurrent = true },
                     Cancellation)).Code ?? "permitted");
                 // The worker entry point: the item job, as its service identity, for this producer.
-                var propagated = PropagatedTenantContext.Capture(decision.Context!, clock).ToJson();
+                var propagated = PropagatedTenantContext.Capture(decision.Context!, clock).ToJson(TestSeams.Binding);
                 await using var job = server.Get<IServiceIdentityScopes>().Begin(Items.Service);
-                var outcome = await server.Get<AuthorizedWorkRunner>().RunAsync(job.Principal, propagated, Items.Update, (_, _, _) => Task.CompletedTask, Cancellation);
+                var outcome = await server.Get<AuthorizedWorkRunner>().RunAsync(job.Principal, propagated, TestSeams.Binding, Items.Update, (_, _, _) => Task.CompletedTask, Cancellation);
                 codes.Add(outcome.Disposition == TenantWorkDisposition.Completed ? "permitted" : outcome.Code!);
             }
             return [.. codes];

@@ -52,7 +52,7 @@ public sealed class DurablePayloadTests
         await using var source = await host.EnterServiceAsync(tenant);
         await using (var work = await EfCoreUnitOfWork.BeginAsync(database.Producer, source.Context, cancellationToken: Token))
         {
-            var propagated = PropagatedTenantContext.Capture(work.Context.Tenant!, clock).ToJson();
+            var propagated = PropagatedTenantContext.Capture(work.Context.Tenant!, clock).ToJson(host.JobStore.JobBinding(Guid.NewGuid()));
             foreach (var payload in Canaries().Select(canary => "order 42 " + canary).Append(propagated).Append(""))
             {
                 Assert.Throws<ArgumentException>(() => host.Outbox.Append(work, new(DurableModel.Consumer, "item.changed", 1, "order-42", 1, payload)));

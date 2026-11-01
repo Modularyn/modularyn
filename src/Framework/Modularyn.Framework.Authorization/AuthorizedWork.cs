@@ -1,6 +1,7 @@
 using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Security.Abstractions;
 using Modularyn.Framework.Tenancy;
+using Modularyn.Framework.Tenancy.Abstractions;
 
 namespace Modularyn.Framework.Authorization;
 
@@ -14,17 +15,17 @@ namespace Modularyn.Framework.Authorization;
 public sealed class AuthorizedWorkRunner(TenantWorkRunner runner, IPermissionEvaluator evaluator)
 {
     /// <summary>
-    /// Runs the work only when the permission is permitted now. A refusal is <see cref="TenantWorkDisposition.Denied"/>, with
+    /// Opens the stored reference under its seal and <paramref name="binding"/>, then runs the work only when the permission is permitted now. A refusal is <see cref="TenantWorkDisposition.Denied"/>, with
     /// the decision's code, or <see cref="TenantWorkDisposition.Deferred"/> when authorization data is unavailable.
     /// </summary>
-    public async Task<TenantWorkOutcome> RunAsync(ExecutionPrincipal principal, string propagated, string permission,
+    public async Task<TenantWorkOutcome> RunAsync(ExecutionPrincipal principal, string propagated, PropagationBinding binding, string permission,
         Func<TenantWorkUnit, AuthorizationDecision, CancellationToken, Task> work, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(principal);
         ArgumentNullException.ThrowIfNull(work);
         ArgumentNullException.ThrowIfNull(permission);
         AuthorizationDecision? decision = null;
-        var outcome = await runner.RunAsync(propagated, async (unit, token) =>
+        var outcome = await runner.RunAsync(propagated, binding, async (unit, token) =>
         {
             // Running work always applies the current profile: the decision is made now, from the store.
             decision = await evaluator.AuthorizeAsync(new(unit.Context, principal, permission) { RequireCurrent = true }, token).ConfigureAwait(false);
