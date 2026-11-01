@@ -468,7 +468,8 @@ can be a member: a service principal's member request is refused with `MTN007`
 whatever `ITenantMembership` answers, and service-originated tenant work takes
 the server route `TenantExecution.EstablishServiceAsync`, which checks the
 current declared service identity and its freshness, as
-[jobs](Modularyn.Framework.Jobs/README.md) describe.
+[jobs](Modularyn.Framework.Jobs/README.md) describe. Its tenant comes from server
+state the caller already holds, never from a request, a payload or a stored row.
 
 Malformed or ambiguous candidates answer 400 and an unauthenticated principal
 401, both decided before any lookup. Every other refusal of a member endpoint

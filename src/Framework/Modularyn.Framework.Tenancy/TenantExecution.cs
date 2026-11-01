@@ -170,7 +170,8 @@ public sealed class TenantExecution : IDisposable
     /// <summary>
     /// Server-only production route for service identities, which are never tenant members. The current identity
     /// registry and freshness seam validate the principal; the caller must still authorize each producing use case.
-    /// No request adapter calls this method and no stored row supplies the principal or its scope.
+    /// No request adapter calls this method and no stored row supplies the principal or its scope. The tenant comes from
+    /// server state the caller already holds, never from a request, a payload or a stored row.
     /// </summary>
     public async ValueTask<TenantDecision> EstablishServiceAsync(ExecutionPrincipal principal, Guid tenantId,
         CancellationToken cancellationToken = default)

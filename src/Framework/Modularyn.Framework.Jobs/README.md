@@ -17,7 +17,9 @@ server code bind job kinds to composed permissions.
 
 Service-originated tenant work uses `IServiceIdentityScopes.Begin` and
 `TenantExecution.EstablishServiceAsync`. The latter requires a current declared
-service identity and active tenant; it grants no use-case permission. Server code
+service identity and active tenant; it grants no use-case permission. The tenant
+comes from server state the caller already holds, such as its own configuration
+or records, never from a request, a payload or a stored row. Server code
 still authorizes the producing operation before opening its unit. Service
 identities are never made tenant members. Propagated service work rechecks its
 identity registration and must run as that same service identity, within its
