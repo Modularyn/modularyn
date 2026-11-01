@@ -124,6 +124,26 @@ public sealed class TenantResolutionTests
     }
 
     [Fact]
+    public async Task TM_G02_025_A_service_principal_is_never_a_member_even_when_the_membership_seam_says_yes()
+    {
+        seams.Membership.Add("worker", tenantA);
+        var service = TestIdentity.Service("worker");
+        foreach (var candidate in new[] { Candidates.Header(tenantA), Candidates.Host(HostA) })
+        {
+            var decision = await ResolveAsync(service, candidate);
+            Assert.False(decision.Succeeded);
+            Assert.Null(decision.Context);
+            Assert.Equal(TenancyCodes.NotMember, decision.Code);
+            Assert.True(decision.Terminal);
+        }
+        Assert.Equal(0, seams.Membership.Checks);
+        Assert.Equal(0, directory.Lookups);
+        // The same membership row still admits a user with that subject, so the refusal is the actor's kind alone.
+        Assert.True((await ResolveAsync(TestIdentity.User("worker"), Candidates.Header(tenantA))).Succeeded);
+        Assert.Equal(1, seams.Membership.Checks);
+    }
+
+    [Fact]
     public async Task TM_G02_025_An_unauthenticated_principal_is_refused_before_any_lookup()
     {
         Assert.Equal(TenancyCodes.Unauthenticated, (await ResolveAsync(TestIdentity.Anonymous(), Candidates.Header(tenantA))).Code);

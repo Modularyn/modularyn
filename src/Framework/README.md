@@ -463,7 +463,12 @@ lowercase hyphenated GUID that is not empty; a variant in letter case, braces,
 whitespace, encoding or separators is refused, never normalized. Each source
 may give one value, every source must name the same tenant, a tenant domain
 must be that tenant's, the directory must hold the tenant as active, and the
-actor must be a current member. Only then does a context exist.
+actor must be a current member. Only then does a context exist. Only a user
+can be a member: a service principal's member request is refused with `MTN007`
+whatever `ITenantMembership` answers, and service-originated tenant work takes
+the server route `TenantExecution.EstablishServiceAsync`, which checks the
+current declared service identity and its freshness, as
+[jobs](Modularyn.Framework.Jobs/README.md) describe.
 
 Malformed or ambiguous candidates answer 400 and an unauthenticated principal
 401, both decided before any lookup. Every other refusal of a member endpoint
@@ -537,7 +542,8 @@ CODE-05 (events and jobs) and CODE-07 (Files) carry tenant context this way:
    produces one, with `Capture` from the validated context inside the producing
    unit; never build one, or accept one, from a request, a payload or another
    row. It carries no integrity tag yet, and revalidation checks the tenant and
-   the actor's membership, not that the named actor produced the item. CODE-05's
+   the actor's membership, or a service actor's current declaration and
+   freshness, not that the named actor produced the item. CODE-05's
    stores take over the capture, SEC-07 binds the producing unit to its audit
    record, and SEC-08 tests forged and replayed references.
 2. **Dispatch from host scope.** A dispatcher lists due work across tenants in an
@@ -545,13 +551,15 @@ CODE-05 (events and jobs) and CODE-07 (Files) carry tenant context this way:
    to record a disposition on one named tenant's row with `UpdateForTenantAsync`.
 3. **Revalidate on receipt.** Run each item with `TenantWorkRunner.RunAsync`. It
    parses the stored reference strictly, revalidates it in a new service scope
-   (the tenant still active and the actor still a member, or, in host scope, host
+   (the tenant still active and the actor still a member, or a service actor
+   still a current declared identity, or, in host scope, host
    authority again with a new audit record) and passes the reconstructed context
    explicitly. Begin the item's units with that context, so its effect and its
    completion share one transaction. Never act for a tenant that the payload names.
 4. **Record the disposition.** `Completed` ran the work. `Denied` is terminal, for
    a malformed reference, an unknown or suspended tenant, an actor who is no longer
-   a member, or revoked host authority: record it and do not retry. `Deferred` is
+   a member, a service identity that is no longer current, or revoked host
+   authority: record it and do not retry. `Deferred` is
    transient, for an unavailable directory, seam or audit store: retry under the
    bounded policy. An exception from the work itself propagates to that policy.
 5. **Files.** File metadata is tenant-scoped; storage locations derive from the

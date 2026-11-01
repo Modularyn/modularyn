@@ -272,6 +272,9 @@ public sealed class TenantExecution : IDisposable
         }
         var actor = ResolveActor(request.Principal, out var actorRefusal);
         if (actor is null) return actorRefusal!;
+        // Only a user can be a tenant member, whatever a membership seam would answer. A service identity's tenant work
+        // takes the server route, EstablishServiceAsync, which checks the current identity registry and freshness.
+        if (actor.Kind != ActorKind.User) return TenantDecision.Refused(TenancyCodes.NotMember);
         if (host is not null)
         {
             Guid? domainTenant;
