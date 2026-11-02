@@ -128,6 +128,14 @@ dotnet "$workspace_publish/Modularyn.Tooling.Samples.TeamWorkspace.Host.dll" pro
   for an unknown or disabled account. The record's fixed key lets only one run
   claim it. A completed provisioning is final; one that stopped after its claim
   resumes when run again for the same account, and for no other.
+- **What counts as an existing host operator.** Two things: a user named by any
+  `HostOperators` entry, and the provisioning record, which every run of this
+  command claims before it grants anything. Service entries, such as the
+  bootstrap itself or `workspace-worker` with `workspace.dispatch`, do not
+  count. Stored host-authority grants made other than by this command are not
+  seen, because authorization offers no way to list stored grants, only to ask
+  whether a named actor holds an operation; the sample makes none, since it has
+  no endpoint that grants host authority.
 - **Results.** Exit status 0 means provisioned, and 1 a configuration, startup
   or database failure, after which the command can be run again. Each outcome
   prints a fixed message that names no account, operation or setting.
