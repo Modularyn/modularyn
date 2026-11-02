@@ -148,8 +148,9 @@ also require a nonempty UUID in `Idempotency-Key`.
 
 The Dockerfile's single base is exactly the CI register's ASP.NET Core runtime
 image and digest. It runs as UID/GID 1654 and copies only runtime assemblies,
-descriptors, the deployment lock and the sign-in script. Its build context must
-be the validated publish directory:
+descriptors, the deployment lock and the sign-in script, which stay root's: the
+process reads them but cannot rewrite its own code or lock. Its build context
+must be the validated publish directory:
 
 ```sh
 docker build --platform=linux/amd64 --file "$workspace_project/Dockerfile" --tag modularyn-team-workspace:local "$workspace_publish"

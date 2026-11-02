@@ -92,6 +92,26 @@ public sealed class UnitTests
         Check.That(await Program.Main(arguments.Split(' ')) == 2, "provisioning-usage");
 
     [Fact]
+    public void The_container_runs_as_a_non_root_user_that_owns_none_of_its_files_and_holds_no_secret()
+    {
+        DirectoryInfo? repository = new(AppContext.BaseDirectory);
+        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "Modularyn.slnx"))) repository = repository.Parent;
+        Check.That(repository is not null, "repository-root");
+        var instructions = File.ReadAllLines(Path.Combine(repository!.FullName, "src", "Tooling", "Modularyn.Tooling.Samples.TeamWorkspace.Host", "Dockerfile"))
+            .Select(line => line.Trim()).Where(line => line.Length > 0 && !line.StartsWith('#')).ToArray();
+        // The process runs as a numeric user and group, not root, after every file is in place.
+        var user = Array.FindLastIndex(instructions, line => line.StartsWith("USER ", StringComparison.Ordinal));
+        Check.That(user >= 0 && Regex.IsMatch(instructions[user], @"^USER [1-9][0-9]*:[1-9][0-9]*$")
+            && Array.FindLastIndex(instructions, line => Regex.IsMatch(line, "^(COPY|ADD|RUN) ")) < user, "non-root-user");
+        // The files stay root's, so the process can read its assemblies and deployment lock but never rewrite them.
+        Check.That(instructions.All(line => !line.Contains("--chown", StringComparison.Ordinal) && !line.Contains("--chmod", StringComparison.Ordinal)),
+            "root-owned-files");
+        // No build argument, and no variable that names a secret, a password, a key or a connection.
+        Check.That(instructions.All(line => !line.StartsWith("ARG ", StringComparison.Ordinal)
+            && !(line.StartsWith("ENV ", StringComparison.Ordinal) && Regex.IsMatch(line, "(?i)secret|password|token|key|connection"))), "no-secret");
+    }
+
+    [Fact]
     public void The_fixture_run_directory_is_owner_only_and_outside_the_repository()
     {
         // It holds the generated database password, so a run that dies before cleanup must leave nothing in the work tree.
