@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Text.Json;
 using Xunit;
 
 namespace Modularyn.Repository.Tests;
@@ -62,6 +64,60 @@ public sealed class EvidencePipelineTests
         var moved = ci.Remove(build, step.Length);
         files[ToolPinContract.CiPath] = moved.Insert(moved.IndexOf("      - name: " + ToolPinContract.ContainerEvidenceCheckStep + "\n", StringComparison.Ordinal), step);
         Assert.Contains(EvidencePipelineContract.Errors(files), error => error.Contains("builds the evidence assembler", StringComparison.Ordinal));
+    }
+
+    // Raw runner reports can carry test arguments and output, so the host collection removes them however it ends, including
+    // when it fails: on an unknown stage, and when the assembler refuses a report during completion.
+    [Theory]
+    [InlineData("unknown")]
+    [InlineData("complete")]
+    public async Task Host_collection_removes_raw_reports_when_it_fails(string stage)
+    {
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "The CI scripts run under bash: on Linux in CI and on Linux or macOS locally. "
+            + "No CI job runs them on Windows, so this test does not either.");
+        var root = Directory.CreateTempSubdirectory("modularyn-host-results-");
+        try
+        {
+            var evidence = Directory.CreateDirectory(Path.Combine(root.FullName, "evidence")).FullName;
+            var runner = Path.Combine(root.FullName, "runner");
+            var results = Directory.CreateDirectory(Path.Combine(runner, "real-provider-results")).FullName;
+            string[] raw = [Path.Combine(evidence, "Alpha.Tests.raw.json"), Path.Combine(evidence, "Alpha.Tests.methods")];
+            foreach (var path in raw) File.WriteAllText(path, "{}\n");
+            // The first planned project's provider report, which the assembler refuses without a measured selection.
+            var project = JsonDocument.Parse(RepositoryFiles.Current[G02EvidencePlanContract.PlanPath]).RootElement.GetProperty("cases").EnumerateArray()
+                .SelectMany(row => row.GetProperty("plannedTests").EnumerateArray()).Select(test => test.GetProperty("project").GetString()!)
+                .Order(StringComparer.Ordinal).First();
+            var trx = Path.Combine(results, Path.GetFileNameWithoutExtension(project) + ".trx");
+            File.WriteAllText(trx, "<TestRun />\n");
+            var start = new ProcessStartInfo("bash")
+            {
+                WorkingDirectory = RepositoryFiles.Root, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true
+            };
+            start.ArgumentList.Add(Path.Combine(RepositoryFiles.Root, EvidencePipelineContract.HostResultsScriptPath));
+            start.ArgumentList.Add(stage);
+            start.Environment.Remove("MODULARYN_TEST_POSTGRESQL");
+            start.Environment["GITHUB_ACTIONS"] = "true";
+            start.Environment["RUNNER_TEMP"] = runner;
+            start.Environment["MODULARYN_EVIDENCE_DIR"] = evidence;
+            start.Environment["MODULARYN_SOURCE_COMMIT"] = new string('1', 40);
+            start.Environment["MODULARYN_EVIDENCE_RUN_ID"] = "metadata-validation";
+            using var process = Process.Start(start) ?? throw new InvalidOperationException("Cannot start bash.");
+            var output = process.StandardOutput.ReadToEndAsync(TestContext.Current.CancellationToken);
+            var error = process.StandardError.ReadToEndAsync(TestContext.Current.CancellationToken);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+            timeout.CancelAfter(TimeSpan.FromMinutes(2));
+            await process.WaitForExitAsync(timeout.Token);
+            var log = await output + await error;
+            Assert.NotEqual(0, process.ExitCode);
+            Assert.Contains("G-02 host result collection failed.", log, StringComparison.Ordinal);
+            Assert.DoesNotContain("unbound variable", log, StringComparison.Ordinal);
+            Assert.All(raw, path => Assert.False(File.Exists(path), path));
+            Assert.Equal(stage == "complete", !File.Exists(trx));
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
     }
 }
 

@@ -7,16 +7,18 @@ fail() { echo "::error::G-02 host result collection failed."; exit 1; }
 [ -d "${MODULARYN_EVIDENCE_DIR:-}" ] || mkdir -p "${MODULARYN_EVIDENCE_DIR}"
 sample=tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests/bin/Release/net10.0/Modularyn.Tooling.Samples.TeamWorkspace.Tests.dll
 export MODULARYN_EVIDENCE_MODE=single-host
+# The stage is kept for the exit trap, which also runs from within fail, where $1 is that function's own, unset, argument.
+stage="${1:-}"
 remove_raw() {
   rm -f "${MODULARYN_EVIDENCE_DIR}/"*.raw.json "${MODULARYN_EVIDENCE_DIR}/"*.methods
   if [ "${1:-}" = complete ]; then rm -f "${RUNNER_TEMP}/real-provider-results/"*.trx; fi
 }
-trap 'remove_raw "$1"' EXIT
-if [ "$1" = prepare ]; then
+trap 'remove_raw "${stage}"' EXIT
+if [ "${stage}" = prepare ]; then
   MODULARYN_EVIDENCE_MEASURE=1 MODULARYN_EVIDENCE_BINARIES="${GITHUB_WORKSPACE}/tests" dotnet "${sample}" -noLogo -noColor -failSkips -method Modularyn.Tooling.Samples.TeamWorkspace.Tests.EvidenceMeasurementTests.Measure_the_evidence_run_before_collecting_results > /dev/null 2>&1 || fail
   exit 0
 fi
-[ "$1" = complete ] || fail
+[ "${stage}" = complete ] || fail
 status=0
 while IFS= read -r project; do
   name="$(basename "${project}" .csproj)"
