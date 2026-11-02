@@ -7,13 +7,22 @@
     <UseMicrosoftTestingPlatformRunner>false</UseMicrosoftTestingPlatformRunner>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" PrivateAssets="all" />
-    <PackageReference Include="xunit.v3" PrivateAssets="all" />
-    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+    <AssemblyMetadata Include="EvidenceSdkVersion" Value="$(NETCoreSdkVersion)" />
+    <AssemblyMetadata Include="EvidenceLanguageVersion" Value="$(LangVersion)" />
+    <!-- Publish="true": the composition fixture image is this executable's publish output, which needs its test runner. -->
+    <PackageReference Include="Microsoft.NET.Test.Sdk" PrivateAssets="all" Publish="true" />
+    <PackageReference Include="xunit.v3" PrivateAssets="all" Publish="true" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" Publish="true" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../../src/Tooling/Modularyn.Tooling.Samples.TeamWorkspace/Modularyn.Tooling.Samples.TeamWorkspace.csproj" />
     <ProjectReference Include="../../src/Tooling/Modularyn.Tooling.Samples.TeamWorkspace.Host/Modularyn.Tooling.Samples.TeamWorkspace.Host.csproj" />
     <Compile Include="../Modularyn.Repository.Tests/PostgreSqlProbe.cs" Link="PostgreSqlProbe.cs" />
     <Compile Include="../Modularyn.Framework.Persistence.EfCore.Tests/PostgreSqlTestLock.cs" Link="PostgreSqlTestLock.cs" />
+    <!-- The documents an evidence record is built from, bound to the assembly's source revision for container runs. -->
+    <EmbeddedResource Include="../../schemas/evidence-record/evidence-record.schema.json" LogicalName="schemas/evidence-record/evidence-record.schema.json" />
+    <EmbeddedResource Include="../../docs/acceptance/corpus.json" LogicalName="docs/acceptance/corpus.json" />
+    <EmbeddedResource Include="../../docs/evidence/g02-plan.json" LogicalName="docs/evidence/g02-plan.json" />
+    <EmbeddedResource Include="../../docs/coverage/register.json" LogicalName="docs/coverage/register.json" />
+    <EmbeddedResource Include="../../docs/capability-reports/g02-skeleton.json" LogicalName="docs/capability-reports/g02-skeleton.json" />
   </ItemGroup>
 </Project>

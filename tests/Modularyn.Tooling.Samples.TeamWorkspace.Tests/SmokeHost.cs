@@ -11,6 +11,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Modularyn.Framework.Authorization;
 using Modularyn.Framework.Configuration;
+using Modularyn.Framework.Hosting;
+using Modularyn.Framework.Modularity;
+using Modularyn.Framework.Modularity.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
 using Modularyn.Framework.Persistence.EfCore.Tests;
 using Modularyn.Framework.Security.Abstractions;
@@ -62,19 +65,35 @@ internal sealed class SmokeHost : IAsyncDisposable
     internal Uri Origin { get; private set; } = null!;
     internal IServiceProvider Services => app!.Services;
     internal WorkspaceComposition Composition { get; private set; } = null!;
+    internal string BlobDirectory => Path.Combine(directory, "blobs");
+    internal string LifecycleDirectory => Path.Combine(directory, "lifecycle");
+    internal ModuleHost Modules => Services.GetRequiredService<ModuleHost>();
+    internal int ServerVersionNumber { get; private set; }
+    internal IReadOnlyList<LockedFile> ImplementationFiles { get; private set; } = [];
 
-    internal static async Task<SmokeHost> StartAsync(CancellationToken token)
+    internal static async Task<SmokeHost> StartAsync(CancellationToken token, bool developmentSeed = true)
+    {
+        var host = await CreateAsync(token, developmentSeed: developmentSeed);
+        try { await host.StartApplicationAsync(token); return host; }
+        catch { await host.DisposeAsync(); throw; }
+    }
+
+    // A lifecycle fixture supplies its full selection before startup. Migration still runs separately over the
+    // unchanged sample selection and its lock, and every activation validator stays registered on the final host.
+    internal static async Task<SmokeHost> CreateAsync(CancellationToken token,
+        IReadOnlyList<ModuleManifest>? selection = null, Action<WebApplicationBuilder>? configure = null, bool developmentSeed = false)
     {
         var session = await PostgreSqlProbe.ConnectAsync(PostgreSqlTarget.FromEnvironment(), token);
         Check.That(session.ServerVersionNumber is >= 180000 and < 190000 && session.Parameters.GetValueOrDefault("is_superuser") == "off", "database-role-and-version");
         var connection = Environment.GetEnvironmentVariable(PostgreSqlTarget.Variable)!;
         var held = await PostgreSqlTestLock.AcquireAsync(connection, token);
-        var host = new SmokeHost(connection, held, RunDirectory.NewPath());
-        try { await host.InitializeAsync(token); return host; }
+        var host = new SmokeHost(connection, held, RunDirectory.NewPath()) { ServerVersionNumber = session.ServerVersionNumber };
+        try { await host.InitializeAsync(token, selection, configure, developmentSeed); return host; }
         catch { await host.DisposeAsync(); throw; }
     }
 
-    private async Task InitializeAsync(CancellationToken token)
+    private async Task InitializeAsync(CancellationToken token, IReadOnlyList<ModuleManifest>? selection,
+        Action<WebApplicationBuilder>? configure, bool developmentSeed)
     {
         RunDirectory.Create(directory);
         var keys = Path.Combine(directory, "keys");
@@ -83,11 +102,14 @@ internal sealed class SmokeHost : IAsyncDisposable
         KeyRingDirectory.Create(keys);
         KeyRingDirectory.Create(secrets);
         KeyRingDirectory.Create(blobs);
+        KeyRingDirectory.Create(LifecycleDirectory);
         await File.WriteAllTextAsync(Path.Combine(secrets, "database"), connectionString, token);
         if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(Path.Combine(secrets, "database"), UnixFileMode.UserRead | UnixFileMode.UserWrite);
         Composition = new(new PostgreSqlPersistenceOptions(connectionString), "tw_" + Guid.NewGuid().ToString("N")[..24] + "_");
         var deploymentLock = Path.Combine(directory, "deployment-lock.json");
-        await File.WriteAllTextAsync(deploymentLock, DeploymentArtifacts.Describe().ToJson(), token);
+        var described = DeploymentArtifacts.Describe();
+        ImplementationFiles = described.Modules.First().Files;
+        await File.WriteAllTextAsync(deploymentLock, described.ToJson(), token);
         using var key = RSA.Create(2048);
         var request = new CertificateRequest("CN=Modularyn", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         var names = new SubjectAlternativeNameBuilder();
@@ -102,7 +124,7 @@ internal sealed class SmokeHost : IAsyncDisposable
         Origin = new Uri("https://127.0.0.1:" + port.ToString(System.Globalization.CultureInfo.InvariantCulture));
         var config = new Dictionary<string, string?>
         {
-            ["DOTNET_ENVIRONMENT"] = "Testing", ["Workspace:DevelopmentSeed"] = "true",
+            ["DOTNET_ENVIRONMENT"] = "Testing", ["Workspace:DevelopmentSeed"] = developmentSeed ? "true" : "false",
             ["Workspace:Database"] = "secret:database", ["Workspace:SchemaPrefix"] = Composition.Workspace.Schema[..^"workspace".Length],
             ["Workspace:BlobDirectory"] = blobs, ["Workspace:DeploymentLock"] = deploymentLock,
             ["Modularyn:Secrets:Directory"] = secrets,
@@ -120,7 +142,7 @@ internal sealed class SmokeHost : IAsyncDisposable
         var operations = new[] { TenantDirectoryAdministration.OperationId, IdentityHostOperations.AccountsId,
             IdentityHostOperations.MembershipsId, AuthorizationModule.TenantOwnersOperation.Id, AuthorizationModule.HostAuthorityOperation.Id };
         for (var index = 0; index < operations.Length; index++) config["Modularyn:Authorization:HostOperators:0:Operations:" + index] = operations[index];
-        app = await TeamWorkspaceHost.BuildAsync(new ConfigurationBuilder().AddInMemoryCollection(config).Build(), builder =>
+        void Configure(WebApplicationBuilder builder)
         {
             builder.Services.AddSingleton<TimeProvider>(Clock);
             // Test deployment authority exists only in this isolated fixture, with a generated identity and real audited scopes.
@@ -128,11 +150,24 @@ internal sealed class SmokeHost : IAsyncDisposable
             builder.Logging.ClearProviders();
             builder.Logging.AddProvider(Logs);
             builder.WebHost.ConfigureKestrel(server => server.Listen(IPAddress.Loopback, port, listener => listener.UseHttps(certificate!)));
-        }, token);
+        }
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(config).Build();
+        app = await TeamWorkspaceHost.BuildAsync(configuration, Configure, token);
         Composition = Services.GetRequiredService<WorkspaceComposition>();
         await TeamWorkspaceHost.MigrateAsync(app, token);
-        await app.StartAsync(token);
+        if (selection is not null)
+        {
+            await app.DisposeAsync();
+            app = null;
+            await File.WriteAllTextAsync(deploymentLock,
+                new DeploymentLock(selection.Select(manifest => LockedModule.Describe(manifest, ImplementationFiles))).ToJson(), token);
+            app = await TeamWorkspaceHost.BuildAsync(configuration, builder => { Configure(builder); configure?.Invoke(builder); }, token);
+            Composition = Services.GetRequiredService<WorkspaceComposition>();
+        }
     }
+
+    internal Task StartApplicationAsync(CancellationToken token) => app!.StartAsync(token);
+    internal Task StopApplicationAsync(CancellationToken token) => app!.StopAsync(token);
 
     internal HttpClient Client()
     {

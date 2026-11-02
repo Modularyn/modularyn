@@ -15,11 +15,13 @@ namespace Modularyn.Repository.Tests;
 // - eval, a shell with -c, and a pipe into a shell fail outside the listed lines, and so does a continuation into one.
 //
 // A new docker command joins the list through review, as the sample application's build and run did with work order
-// CODE-09. docs/ci.md states the limits.
+// CODE-09, and the AC-001 container rows' network, database, sample and composition fixture image did with CODE-10.
+// docs/ci.md states the limits.
 internal static partial class ToolPinContract
 {
     private const string Ci = CiPath;
     private const string Database = DatabaseScriptPath;
+    private const string Composition = CompositionScriptPath;
 
     public static readonly (string Path, string Line)[] DockerAllowlist =
     [
@@ -47,6 +49,27 @@ internal static partial class ToolPinContract
         (Ci, "refused=\"$(docker run --rm --pull=never --platform=linux/amd64 --network=none \"${SAMPLE_IMAGE}\" 2>&1)\" || status=$?"),
         (Ci, "described=\"$(docker run --rm --pull=never --platform=linux/amd64 --network=none \"${SAMPLE_IMAGE}\" --describe-deployment)\" || fail \"The sample image did not describe its deployment.\""),
         (Ci, "echo \"Sample image $(docker image inspect --format '{{.Id}}' \"${SAMPLE_IMAGE}\") on ${platform}, user ${user}, refuses to start without configuration\""),
+        (Ci, "git ls-files --error-unmatch -- \"${COMPOSITION_DOCKERFILE}\" > /dev/null || fail \"${COMPOSITION_DOCKERFILE} is not tracked.\""),
+        (Ci, "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${COMPOSITION_IMAGE}\" --file=\"${COMPOSITION_DOCKERFILE}\" \"${RUNNER_TEMP}/composition\""),
+        (Ci, "platform=\"$(docker image inspect --format '{{.Os}}/{{.Architecture}}' \"${COMPOSITION_IMAGE}\")\""),
+        (Ci, "user=\"$(docker image inspect --format '{{.Config.User}}' \"${COMPOSITION_IMAGE}\")\""),
+        (Ci, "aspnet_layers=\"$(docker image inspect --format '{{json .RootFS.Layers}}' \"${ASPNET_IMAGE}\")\""),
+        (Ci, "composition_layers=\"$(docker image inspect --format '{{json .RootFS.Layers}}' \"${COMPOSITION_IMAGE}\")\""),
+        (Ci, "configured=\"$(docker image inspect --format '{{json .Config.Env}}' \"${COMPOSITION_IMAGE}\")\""),
+        (Ci, "writable=\"$(docker run --rm --pull=never --platform=linux/amd64 --network=none --entrypoint=find \"${COMPOSITION_IMAGE}\" /app \\( ! -user 0 -o -writable \\) -print)\" || fail \"The composition fixture image did not run.\""),
+        (Ci, "echo \"Composition fixture image $(docker image inspect --format '{{.Id}}' \"${COMPOSITION_IMAGE}\") on ${platform}, user ${user}, on the layers of ${ASPNET_IMAGE}\""),
+        (Ci, "docker network create --internal modularyn-acceptance > /dev/null || fail \"Cannot create the internal network.\""),
+        (Ci, "docker pull --platform=linux/amd64 \"${POSTGRES_IMAGE}\" > /dev/null || fail \"Pull of ${POSTGRES_IMAGE} failed.\""),
+        (Ci, "database=\"$(docker run --detach --pull=never --platform=linux/amd64 --name=modularyn-postgres --network=modularyn-acceptance --env=POSTGRES_PASSWORD=\"${GITHUB_RUN_ID}\" --env=POSTGRES_HOST_AUTH_METHOD=reject --health-cmd=\"pg_isready --host=127.0.0.1 --port=5432 --username=postgres --dbname=postgres\" --health-interval=2s --health-timeout=5s --health-retries=30 \"${POSTGRES_IMAGE}\")\" || fail \"PostgreSQL did not start.\""),
+        (Ci, "health=\"$(docker inspect --format '{{.State.Health.Status}}' \"${database}\")\""),
+        (Composition, "proxy=\"$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \"${POSTGRES_CONTAINER}\")\""),
+        (Composition, "docker run --rm --pull=never --platform=linux/amd64 --network=\"${network}\" --read-only --tmpfs=/tmp --tmpfs=/var/lib/modularyn/keys:uid=1654,gid=1654,mode=0700 --tmpfs=/var/lib/modularyn/blobs:uid=1654,gid=1654,mode=0700 --cap-drop=ALL --security-opt=no-new-privileges --group-add=\"${group}\" --volume=\"${secrets}:/run/modularyn/secrets:ro\" --env-file=.github/scripts/composition-sample.env --env=Modularyn__Ingress__Proxies__0=\"${proxy}\" \"${SAMPLE_IMAGE}\" --migrate || fail \"The sample image did not apply its migrations.\""),
+        (Composition, "docker run --detach --pull=never --platform=linux/amd64 --name=\"${sample}\" --network=\"${network}\" --read-only --tmpfs=/tmp --tmpfs=/var/lib/modularyn/keys:uid=1654,gid=1654,mode=0700 --tmpfs=/var/lib/modularyn/blobs:uid=1654,gid=1654,mode=0700 --cap-drop=ALL --security-opt=no-new-privileges --group-add=\"${group}\" --volume=\"${secrets}:/run/modularyn/secrets:ro\" --env-file=.github/scripts/composition-sample.env --env=Modularyn__Ingress__Proxies__0=\"${proxy}\" \"${SAMPLE_IMAGE}\" > /dev/null || fail \"The sample image did not start.\""),
+        (Composition, "if docker run --rm --pull=never --platform=linux/amd64 --network=\"container:${POSTGRES_CONTAINER}\" --read-only --tmpfs=/tmp --cap-drop=ALL --security-opt=no-new-privileges --env=MODULARYN_SAMPLE_BASE_URL \"${COMPOSITION_IMAGE}\" -noLogo -noColor -failSkips -method \"Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.The_published_sample_image_is_ready_over_HTTP\" > /dev/null 2>&1; then"),
+        (Composition, "[ \"$(docker inspect --format '{{.State.Running}}' \"${sample}\")\" = \"true\" ] || break"),
+        (Composition, "docker logs --tail=50 \"${sample}\" 2>&1 || true"),
+        (Composition, "digest=\"$(docker image inspect --format '{{.Id}}' \"${COMPOSITION_IMAGE}\")\""),
+        (Composition, "docker run --rm --pull=never --platform=linux/amd64 --network=\"container:${POSTGRES_CONTAINER}\" --read-only --tmpfs=/tmp --cap-drop=ALL --security-opt=no-new-privileges --group-add=\"${group}\" --volume=\"${output}:/output\" --env=MODULARYN_TEST_POSTGRESQL --env=MODULARYN_SAMPLE_BASE_URL --env=MODULARYN_SOURCE_COMMIT --env=MODULARYN_CONTAINER_IMAGE_DIGEST=\"${digest}\" --env=MODULARYN_EVIDENCE_DIR=/output/evidence \"${COMPOSITION_IMAGE}\" -noLogo -noColor -preEnumerateTheories -trait \"Deployment=single-host-container\" -method \"Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_B01_CompatibilityEdgesHonorTheDeclaredRange_Integration\" -method \"Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_N01_InvalidGraphsRefuseActivationWithDiagnostics_Integration\" -method \"Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_P01_DependenciesInitializeOnceAndStopInReverseOrder_Integration\" -method \"Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_R01_FailedInitializationCleansUpAndRecovers_Integration\" -method \"Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.The_published_sample_image_is_ready_over_HTTP\" -result-ctrf /output/composition-results.json || status=$?"),
         (Database, "[[ \"${POSTGRES_IMAGE}\" == docker.io/library/postgres:* && \"${POSTGRES_IMAGE}\" =~ ^[^@]+:[A-Za-z0-9._-]+@(sha256:[0-9a-f]{64})$ ]] || fail \"The PostgreSQL service image must be named by tag and index digest.\""),
         (Database, "configured=\"$(docker inspect --format '{{.Config.Image}}' \"${POSTGRES_CONTAINER}\")\" || fail \"Cannot inspect the service.\""),
         (Database, "[ \"${configured}\" = \"${POSTGRES_IMAGE}\" ] || fail \"The service runs ${configured}, not ${POSTGRES_IMAGE}.\""),
@@ -69,12 +92,17 @@ internal static partial class ToolPinContract
     ];
 
     // The variables that the listed lines name for images and build files, each defined once, as a literal, in the env of
-    // the job named; and the arrays of the database script that hold docker commands.
+    // each job named for it; and the arrays of the database script that hold docker commands. POSTGRES_IMAGE is defined in
+    // both jobs that run PostgreSQL.
     public static readonly (string Job, string Variable)[] DockerVariables =
     [
         (ContainerJob, "FIXTURE_IMAGE"), (ContainerJob, "FIXTURE_DOCKERFILE"), (ContainerJob, "ASPNET_IMAGE"), (ContainerJob, "SAMPLE_IMAGE"),
-        (ContainerJob, "SAMPLE_DOCKERFILE"), (RealProviderJob, "POSTGRES_IMAGE")
+        (ContainerJob, "SAMPLE_DOCKERFILE"), (ContainerJob, "COMPOSITION_IMAGE"), (ContainerJob, "COMPOSITION_DOCKERFILE"),
+        (RealProviderJob, "POSTGRES_IMAGE"), (ContainerJob, "POSTGRES_IMAGE")
     ];
+
+    // The guarded variables that name a locally built image, which must be a local tag.
+    private static readonly string[] LocalImages = ["FIXTURE_IMAGE", "SAMPLE_IMAGE", "COMPOSITION_IMAGE"];
 
     public static readonly string[] DockerArrays = ["admin", "tcp"];
 
@@ -89,7 +117,7 @@ internal static partial class ToolPinContract
 
     public static bool InDockerScope(string path) => IsWorkflowPath(path) || path.StartsWith(".github/scripts/", StringComparison.Ordinal);
 
-    public static IEnumerable<string> GuardedNames => DockerVariables.Select(variable => variable.Variable).Concat(DockerArrays);
+    public static IEnumerable<string> GuardedNames => DockerVariables.Select(variable => variable.Variable).Distinct(StringComparer.Ordinal).Concat(DockerArrays);
 
     private static Regex Guarded(string name) => new($"(?<![A-Za-z0-9_]){Regex.Escape(name)}(?![A-Za-z0-9_])", RegexOptions.CultureInvariant);
 
@@ -185,12 +213,12 @@ internal static partial class ToolPinContract
         {
             var definitions = scoped.SelectMany(pair => Values(pair.Value, variable)).ToList();
             var inJob = jobs.TryGetValue(job, out var jobText) ? Values(jobText, variable) : [];
-            if (definitions.Count != 1 || inJob is not [var value] || value.Length == 0
+            if (definitions.Count != DockerVariables.Count(entry => entry.Variable == variable) || inJob is not [var value] || value.Length == 0
                 || value.Any(character => char.IsWhiteSpace(character) || character is '$' or '"' or '\'' or '`'))
             {
                 errors.Add($"{CiPath}: {variable} must be defined exactly once, as a literal, in the env of the {job} job.");
             }
-            else if (variable is "FIXTURE_IMAGE" or "SAMPLE_IMAGE" && !LocalTag.IsMatch(value))
+            else if (LocalImages.Contains(variable, StringComparer.Ordinal) && !LocalTag.IsMatch(value))
             {
                 errors.Add($"{CiPath}: {variable} must be a local tag such as name:tag, with no registry, so it never names a pullable image.");
             }
@@ -221,7 +249,7 @@ internal static partial class ToolPinContract
                 yield return $"{location} uses a refused build context.";
             }
 
-            foreach (var (_, variable) in DockerVariables)
+            foreach (var variable in DockerVariables.Select(entry => entry.Variable).Distinct(StringComparer.Ordinal))
             {
                 var plain = Regex.Matches(line, Regex.Escape("${" + variable + "}")).Count;
                 if (Guarded(variable).Matches(line).Count != plain)

@@ -7,6 +7,7 @@ using Modularyn.Framework.Audit;
 using Modularyn.Framework.Authorization;
 using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Configuration;
+using Modularyn.Framework.Hosting;
 using Modularyn.Framework.Persistence.EfCore;
 using Modularyn.Framework.Persistence.EfCore.Tests;
 using Modularyn.Framework.Security.Abstractions;
@@ -101,6 +102,54 @@ public sealed class ProvisioningTests
         Check.That((await deployment.AuditAsync(HostOperatorProvisioning.ProvisionedAction, token)).Count == 1, "resumed-completion-audited");
         Check.That(await deployment.ProvisionAsync(first, token) == ProvisioningOutcome.HostOperatorExists, "completed-is-final");
     }
+
+    [Fact]
+    [Trait("Requires", "PostgreSQL")]
+    public async Task Two_concurrent_provisioning_hosts_grant_exactly_one_account_and_audit_one_completion()
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromMinutes(3));
+        var token = timeout.Token;
+        await using var deployment = await ProvisioningDeployment.StartAsync(token);
+        await deployment.BuildAsync([Bootstrap], token);
+        var first = await deployment.AccountAsync(token);
+        var second = await deployment.AccountAsync(token);
+        var outcomes = await deployment.ProvisionConcurrentlyAsync(first, second, token);
+        Assert.Single(outcomes, outcome => outcome == ProvisioningOutcome.Provisioned);
+        Assert.Single(outcomes, outcome => outcome == ProvisioningOutcome.HostOperatorExists);
+        var winner = outcomes[0] == ProvisioningOutcome.Provisioned ? first : second;
+        var loser = winner == first ? second : first;
+        Assert.Equal(Granted.Order(StringComparer.Ordinal), await deployment.HeldAsync(winner, token));
+        Assert.Empty(await deployment.HeldAsync(loser, token));
+        var started = Assert.Single(await deployment.AuditAsync(HostOperatorProvisioning.StartedAction, token));
+        var completed = Assert.Single(await deployment.AuditAsync(HostOperatorProvisioning.ProvisionedAction, token));
+        Assert.Equal(winner.ToString("D"), started.Subject!.Subject);
+        Assert.Equal(winner.ToString("D"), completed.Subject!.Subject);
+        var grants = await deployment.AuditAsync(AuditActions.Of(AuthorityChangeKind.HostAuthorityGranted), token);
+        Assert.Equal(Granted.Length, grants.Count);
+        Assert.All(grants, record => Assert.Equal(winner.ToString("D"), record.Subject!.Subject));
+        Assert.Equal(ProvisioningOutcome.HostOperatorExists, await deployment.ProvisionAsync(loser, token));
+        Assert.Equal(ProvisioningOutcome.HostOperatorExists, await deployment.ProvisionAsync(winner, token));
+        Assert.Single(await deployment.AuditAsync(HostOperatorProvisioning.ProvisionedAction, token));
+    }
+
+    [Fact]
+    [Trait("Requires", "PostgreSQL")]
+    public async Task A_refusal_after_host_scope_acquisition_retains_both_tenancy_audit_entries()
+    {
+        var token = TestContext.Current.CancellationToken;
+        await using var deployment = await ProvisioningDeployment.StartAsync(token);
+        await deployment.BuildAsync([Bootstrap], token);
+        Assert.Equal(ProvisioningOutcome.AccountUnavailable, await deployment.ProvisionAsync(Guid.NewGuid(), token));
+        var scopes = (await deployment.AuditAsync(AuditActions.HostScopeGranted, token))
+            .Where(record => record.Actor.Subject == WorkspaceDefinition.Provisioner).ToArray();
+        Assert.Equal(2, scopes.Length);
+        Assert.Equal(new[] { AuthorizationModule.HostAuthorityOperation.Id, WorkspaceDefinition.ProvisionHostOperator.Id }.Order(StringComparer.Ordinal),
+            scopes.Select(record => record.OperationId).Order(StringComparer.Ordinal));
+        Assert.Empty(await deployment.AuditAsync(HostOperatorProvisioning.StartedAction, token));
+        Assert.Empty(await deployment.AuditAsync(HostOperatorProvisioning.ProvisionedAction, token));
+        Assert.Empty(await deployment.AuditAsync(AuditActions.Of(AuthorityChangeKind.HostAuthorityGranted), token));
+    }
 }
 
 internal sealed record Operator(ActorKind Kind, string Subject, string[] Operations);
@@ -118,6 +167,7 @@ internal sealed class ProvisioningDeployment : IAsyncDisposable
     private readonly string fixture = "fixture-" + Guid.NewGuid().ToString("N");
     private readonly CapturedLogs logs = new();
     private WebApplication? app;
+    private Func<CancellationToken, Task<WebApplication>>? buildSibling;
     private bool migrated;
 
     private ProvisioningDeployment(string connectionString, PostgreSqlTestLock databaseLock, string directory)
@@ -176,6 +226,7 @@ internal sealed class ProvisioningDeployment : IAsyncDisposable
             builder.Logging.AddProvider(logs);
         }
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(config).Build();
+        buildSibling = ct => TeamWorkspaceHost.BuildProvisioningAsync(configuration, Configure, ct);
         app = serving ? await TeamWorkspaceHost.BuildAsync(configuration, Configure, token)
             : await TeamWorkspaceHost.BuildProvisioningAsync(configuration, Configure, token);
         if (!migrated) await TeamWorkspaceHost.MigrateAsync(app, token);
@@ -193,6 +244,38 @@ internal sealed class ProvisioningDeployment : IAsyncDisposable
     }
 
     internal Task<ProvisioningOutcome> ProvisionAsync(Guid account, CancellationToken token) => HostOperatorProvisioning.RunAsync(app!, account, token);
+
+    internal async Task<ProvisioningOutcome[]> ProvisionConcurrentlyAsync(Guid first, Guid second, CancellationToken token)
+    {
+        await using var sibling = await buildSibling!(token);
+        Assert.NotSame(app!.Services, sibling.Services);
+        // Activation's migration-readiness check holds the exclusive migration lock, and an activation that finds it held is
+        // refused with MDC202 for the operator to retry (the persistence README). Both hosts therefore activate first, one
+        // after the other, so each run's own activation repeats a completed one.
+        await app.Services.GetRequiredService<ModuleHost>().StartAsync(token);
+        await sibling.Services.GetRequiredService<ModuleHost>().StartAsync(token);
+        // Started together, the second run would otherwise reach its claim only after the first had completed. A SHARE lock on
+        // the provisioning table lets both runs find no record but holds both inserts, so the two claims are simultaneous: once
+        // the lock is released, one insert commits and the other fails on the record's key, the losing insert of a real race.
+        var table = $"\"{prefix}workspace\".\"{WorkspaceDefinition.ProvisioningTable}\"";
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(token);
+        await using var transaction = await connection.BeginTransactionAsync(token);
+        await using (var command = new NpgsqlCommand($"LOCK TABLE {table} IN SHARE MODE", connection, transaction))
+            await command.ExecuteNonQueryAsync(token);
+        var runs = new[] { HostOperatorProvisioning.RunAsync(app, first, token), HostOperatorProvisioning.RunAsync(sibling, second, token) };
+        await using (var waiting = new NpgsqlCommand(
+            $"SELECT count(*) FROM pg_locks WHERE relation = '{table}'::regclass AND mode = 'RowExclusiveLock' AND NOT granted", connection, transaction))
+        {
+            while ((long)(await waiting.ExecuteScalarAsync(token))! < 2)
+            {
+                Check.That(!runs.Any(run => run.IsCompleted), "both-runs-reach-their-claim");
+                await Task.Delay(TimeSpan.FromMilliseconds(20), token);
+            }
+        }
+        await transaction.CommitAsync(token);
+        return await Task.WhenAll(runs);
+    }
 
     internal async Task<Guid> AccountAsync(CancellationToken token, bool disable = false)
     {
