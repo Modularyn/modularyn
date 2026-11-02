@@ -251,19 +251,29 @@ internal sealed class ProvisioningDeployment : IAsyncDisposable
         Assert.NotSame(app!.Services, sibling.Services);
         // Activation's migration-readiness check holds the exclusive migration lock, and an activation that finds it held is
         // refused with MDC202 for the operator to retry (the persistence README). Both hosts therefore activate first, one
-        // after the other, so each run's own activation repeats a completed one. The two runs then start together, and the
-        // first to claim the provisioning record decides. On a local PostgreSQL 18 the second run reached its claim only after
-        // the first had completed, so this test does not exercise the losing insert of a simultaneous claim.
+        // after the other, so each run's own activation repeats a completed one.
         await app.Services.GetRequiredService<ModuleHost>().StartAsync(token);
         await sibling.Services.GetRequiredService<ModuleHost>().StartAsync(token);
-        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        async Task<ProvisioningOutcome> RunAsync(WebApplication host, Guid account)
+        // Started together, the second run would otherwise reach its claim only after the first had completed. A SHARE lock on
+        // the provisioning table lets both runs find no record but holds both inserts, so the two claims are simultaneous: once
+        // the lock is released, one insert commits and the other fails on the record's key, the losing insert of a real race.
+        var table = $"\"{prefix}workspace\".\"{WorkspaceDefinition.ProvisioningTable}\"";
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(token);
+        await using var transaction = await connection.BeginTransactionAsync(token);
+        await using (var command = new NpgsqlCommand($"LOCK TABLE {table} IN SHARE MODE", connection, transaction))
+            await command.ExecuteNonQueryAsync(token);
+        var runs = new[] { HostOperatorProvisioning.RunAsync(app, first, token), HostOperatorProvisioning.RunAsync(sibling, second, token) };
+        await using (var waiting = new NpgsqlCommand(
+            $"SELECT count(*) FROM pg_locks WHERE relation = '{table}'::regclass AND mode = 'RowExclusiveLock' AND NOT granted", connection, transaction))
         {
-            await start.Task.WaitAsync(token);
-            return await HostOperatorProvisioning.RunAsync(host, account, token);
+            while ((long)(await waiting.ExecuteScalarAsync(token))! < 2)
+            {
+                Check.That(!runs.Any(run => run.IsCompleted), "both-runs-reach-their-claim");
+                await Task.Delay(TimeSpan.FromMilliseconds(20), token);
+            }
         }
-        var runs = new[] { RunAsync(app!, first), RunAsync(sibling, second) };
-        start.SetResult();
+        await transaction.CommitAsync(token);
         return await Task.WhenAll(runs);
     }
 

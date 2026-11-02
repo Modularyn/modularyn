@@ -95,9 +95,9 @@ policy stays unchanged. `ProvisioningTests` also races two independently built
 hosts over one deployment and checks that only one account gains the grants,
 with one claim and completion. Both hosts activate first, one after the other,
 since activation's readiness check holds the exclusive migration lock and
-refuses a concurrent activation with MDC202; their two runs then start together,
-and the first to claim the provisioning record decides. In local runs the second
-reached its claim only after the first had completed, so the test does not
-exercise the losing insert of a simultaneous claim. A refusal after acquiring both host scopes
+refuses a concurrent activation with MDC202. Their two runs then claim at the
+same moment: a SHARE lock on the provisioning table lets both find no record and
+holds both inserts until both wait on it, so on release one claim commits and
+the other takes the losing insert's path. A refusal after acquiring both host scopes
 retains their two tenancy audit entries. These regressions do not take ownership
 of a security work order or qualify a security prerequisite.
