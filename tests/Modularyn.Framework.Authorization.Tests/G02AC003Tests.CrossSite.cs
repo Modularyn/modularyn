@@ -162,15 +162,20 @@ public sealed partial class G02AC003Tests
     public async Task AC_003_N02_CrossSiteEndedSessionAndOverCeilingCallsAreRefused_Integration()
     {
         await using var database = await AuthorizationDatabase.CreateAsync();
+        Phase("database");
         var clock = new TestClock();
         await using var host = AuthorizationHost.Create(database, clock);
+        Phase("host");
         var site = await CrossSiteAsync(host);
+        Phase("cross-site");
         var administration = host.Get<AuthorityAdministration>();
 
         // The ended session's record: signing out ends it with its reason, a principal that it yielded is no longer current for
         // any current-profile decision, and the token never validates again.
         var (session, principal) = await host.SignInAsync(site.User1);
+        Phase("signed-in");
         Assert.True(await host.Get<ISessionService>().SignOutAsync(session.Token, Cancellation));
+        Phase("signed-out");
         var record = await database.ScalarAsync<int>("SELECT \"EndReason\" FROM " + database.Table(database.IdentitySchema, "Sessions") + " WHERE \"Id\" = @id",
             new NpgsqlParameter("id", principal.SessionId!.Value));
         Assert.NotEqual(0, record);
@@ -181,6 +186,7 @@ public sealed partial class G02AC003Tests
             Assert.Equal(AuthorizationCodes.PrincipalNotCurrent, (await host.AuthorizeAsync(stale, Items.Update, current: true)).Code);
         }
         output.WriteLine($"The signed-out session ended with reason {record}; its principal is refused with {AuthorizationCodes.PrincipalNotCurrent}.");
+        Phase("ended-checks");
 
         // admin-a's grant beyond its ceiling commits nothing and records nothing.
         await using var admin = await host.EnterAsync(site.Admin, site.Tenant);
@@ -190,6 +196,7 @@ public sealed partial class G02AC003Tests
             administration.GrantPermissionAsync(admin.Context, admin.Principal, site.User1.Actor, Items.Delete, Cancellation))).Code);
         Assert.Equal(0L, await GrantsAsync(database, site.User1, Items.Delete));
         Assert.Equal(recorded, host.Audit.Records.Count);
+        Phase("beyond-ceiling");
 
         Task<bool> Grant() => administration.GrantPermissionAsync(admin.Context, admin.Principal, site.User1.Actor, Items.Export, Cancellation);
         Task<bool> Reduce() => administration.DefineRoleAsync(owner.Context, owner.Principal, "item-admins",
@@ -202,11 +209,16 @@ public sealed partial class G02AC003Tests
         var grantHeld = HoldChange(host, AuthorityChangeKind.PermissionGranted, out var releaseGrant);
         var grant = Grant();
         await SignalledAsync(grantHeld, grant);
+        Phase("grant-held");
         var reduction = Reduce();
+        Phase("reduce-started");
         Assert.NotSame(reduction, await Task.WhenAny(reduction, Task.Delay(TimeSpan.FromMilliseconds(500), Cancellation)));
         releaseGrant();
+        Phase("grant-released");
         Assert.True(await grant);
+        Phase("grant-done");
         Assert.True(await reduction);
+        Phase("reduction-done");
         Assert.Equal(1L, await GrantsAsync(database, site.User1, Items.Export));
         var order = host.Audit.Records.Skip(recorded).Select(change => change.Kind).ToArray();
         Assert.Equal([AuthorityChangeKind.PermissionGranted, AuthorityChangeKind.RoleDefined], order);
@@ -214,21 +226,35 @@ public sealed partial class G02AC003Tests
         // Reduction first: the grant waits, then reads the reduced ceiling and is refused, so no grant commits under a ceiling
         // that excluded it.
         Assert.True(await administration.RevokePermissionAsync(owner.Context, owner.Principal, site.User1.Actor, Items.Export, Cancellation));
+        Phase("revoke");
         Assert.True(await Restore());
+        Phase("restore");
         var reductionHeld = HoldChange(host, AuthorityChangeKind.RoleDefined, out var releaseReduction);
         reduction = Reduce();
         await SignalledAsync(reductionHeld, reduction);
+        Phase("reduction-held");
         grant = Grant();
+        Phase("grant-started");
         Assert.NotSame(grant, await Task.WhenAny(grant, Task.Delay(TimeSpan.FromMilliseconds(500), Cancellation)));
         releaseReduction();
+        Phase("reduction-released");
         Assert.True(await reduction);
+        Phase("reduction-done-2");
         Assert.Equal(AuthorizationCodes.BeyondCeiling, (await Assert.ThrowsAsync<AuthorityChangeException>(() => grant)).Code);
+        Phase("grant-refused");
         Assert.Equal(0L, await GrantsAsync(database, site.User1, Items.Export));
         await using (var member = await host.EnterAsync(site.User1, site.Tenant))
             Assert.Equal(AuthorizationCodes.NotHeld, (await host.AuthorizeAsync(member, Items.Export, current: true)).Code);
         output.WriteLine($"Grant first: committed under the earlier ceiling, then the reduction ({string.Join(", ", order)}). Reduction first: the grant "
             + $"was refused with {AuthorizationCodes.BeyondCeiling}.");
+        Phase("end");
     }
+
+    // This row writes one marker per phase to its output, which CI shows live from the composition fixture image, so a run that
+    // its bound stops shows the last phase it reached. A marker is the fixed prefix and the phase name, and nothing else.
+    internal const string PhasePrefix = "G02 phase: ";
+
+    private void Phase(string name) => output.WriteLine(PhasePrefix + name);
 
     private static Task HoldChange(AuthorizationHost host, AuthorityChangeKind kind, out Action release)
     {
