@@ -442,6 +442,16 @@ public sealed class ToolPinTests
     [InlineData("container-on-macos", "container-build job must run on ubuntu-latest")]
     [InlineData("container-other-platform", "must build for linux/amd64")]
     [InlineData("container-other-fixture", "must build tests/Fixtures/container/Dockerfile")]
+    [InlineData("container-other-sample", "must build src/Tooling/Modularyn.Tooling.Samples.TeamWorkspace.Host/Dockerfile")]
+    [InlineData("missing-sample-dockerfile", "the sample application's Dockerfile, which the container-build job builds, is missing")]
+    [InlineData("sample-other-platform", "must build for linux/amd64")]
+    [InlineData("container-diverged-sdk-step", "the container-build job must run the step 'Install the pinned .NET SDK (Linux and macOS)' exactly as build-test does")]
+    [InlineData("container-missing-sdk-step", "the container-build job must run the step 'Verify the .NET SDK (Linux and macOS)' exactly as build-test does")]
+    [InlineData("sample-run-pulls", "this docker command is not on the allowlist")]
+    [InlineData("sample-run-with-secret", "this docker command is not on the allowlist")]
+    [InlineData("sample-image-registry", "SAMPLE_IMAGE must be a local tag")]
+    [InlineData("sample-image-assigned", "the guarded name SAMPLE_IMAGE appears outside its definition and the allowlisted lines")]
+    [InlineData("computed-sample-dockerfile-env", "SAMPLE_DOCKERFILE must be defined exactly once, as a literal")]
     [InlineData("playwright-install-step", "must not install Playwright browsers")]
     [InlineData("playwright-install-script", "must not install Playwright browsers")]
     [InlineData("build-space-form-stdin", "standard input is refused as a docker context or Dockerfile")]
@@ -748,6 +758,35 @@ public sealed class ToolPinTests
                 break;
             case "container-other-fixture":
                 files[CiPath] = ReplaceLine(ci, "      FIXTURE_DOCKERFILE: " + FixturePath, "      FIXTURE_DOCKERFILE: tests/Fixtures/other/Dockerfile");
+                break;
+            case "container-other-sample":
+                files[CiPath] = ReplaceLine(ci, "      SAMPLE_DOCKERFILE: " + ToolPinContract.SampleDockerfile, "      SAMPLE_DOCKERFILE: tests/Fixtures/container/Dockerfile");
+                break;
+            case "missing-sample-dockerfile": Assert.True(files.Remove(ToolPinContract.SampleDockerfile)); break;
+            case "sample-other-platform":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${SAMPLE_IMAGE}\"",
+                    "docker build --platform=linux/arm64 --pull --no-cache --tag=\"${SAMPLE_IMAGE}\"");
+                break;
+            case "container-diverged-sdk-step": files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "--retry 3", "--retry 1"); break;
+            case "container-missing-sdk-step":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "- name: " + ToolPinContract.SharedSdkSteps[^1], "- name: Verify the SDK");
+                break;
+            case "sample-run-pulls":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "docker run --rm --pull=never --platform=linux/amd64 --network=none \"${SAMPLE_IMAGE}\" 2>&1",
+                    "docker run --rm --pull=always --platform=linux/amd64 --network=none \"${SAMPLE_IMAGE}\" 2>&1");
+                break;
+            case "sample-run-with-secret":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "docker run --rm --pull=never --platform=linux/amd64 --network=none \"${SAMPLE_IMAGE}\" 2>&1",
+                    "docker run --rm --pull=never --platform=linux/amd64 --network=none --env-file=\"${RUNNER_TEMP}/secrets.env\" \"${SAMPLE_IMAGE}\" 2>&1");
+                break;
+            case "sample-image-registry":
+                files[CiPath] = ReplaceLine(ci, "      SAMPLE_IMAGE: modularyn-team-workspace:ci", "      SAMPLE_IMAGE: docker.io/library/alpine:3.22");
+                break;
+            case "sample-image-assigned":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "          status=0\n", "          status=0\n          SAMPLE_IMAGE=\"docker.io/library/alpine:3.22\"\n");
+                break;
+            case "computed-sample-dockerfile-env":
+                files[CiPath] = ReplaceLine(ci, "      SAMPLE_DOCKERFILE: " + ToolPinContract.SampleDockerfile, "      SAMPLE_DOCKERFILE: ${{ vars.DOCKERFILE }}");
                 break;
             case "playwright-install-step":
                 files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, "      - name: Restore locked dependencies",

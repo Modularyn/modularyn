@@ -13,6 +13,7 @@ internal static partial class ToolPinContract
     public const string RealProviderTestStep = "Test against PostgreSQL";
     public static readonly string RealProviderTestRun = $"bash {DatabaseScriptPath} ci bash {TestsScriptPath}";
     public const string FixtureDockerfile = "tests/Fixtures/container/Dockerfile";
+    public const string SampleDockerfile = "src/Tooling/Modularyn.Tooling.Samples.TeamWorkspace.Host/Dockerfile";
     public const string BuildTestJob = "build-test";
     public const string RealProviderJob = "real-provider";
     public const string ContainerJob = "container-build";
@@ -30,6 +31,9 @@ internal static partial class ToolPinContract
         "Install the pinned .NET SDK (Linux and macOS)", "Verify the .NET SDK (Linux and macOS)",
         "Install the pinned Node.js (Linux and macOS)", "Verify Node.js (Linux and macOS)"
     ];
+
+    // The SDK steps that the container-build job copies from build-test to publish the sample application's host.
+    public static readonly string[] SharedSdkSteps = SharedLinuxSteps[..2];
 
     private static readonly string[] NodePinFields = ["version", "source", "archives"];
     private static readonly string[] NodeArchiveFields = ["url", "sha256"];
@@ -445,6 +449,11 @@ internal static partial class ToolPinContract
             errors.Add($"{FixtureDockerfile}: the container-build fixture is missing.");
         }
 
+        if (!files.ContainsKey(SampleDockerfile))
+        {
+            errors.Add($"{SampleDockerfile}: the sample application's Dockerfile, which the container-build job builds, is missing.");
+        }
+
         if (aspnet is not null)
         {
             foreach (var (path, text) in dockerfiles)
@@ -518,9 +527,29 @@ internal static partial class ToolPinContract
                 errors.Add($"{CiPath}: the {ContainerJob} job must build {FixtureDockerfile}.");
             }
 
-            if (!container.Contains($"docker build --platform={LinuxPlatform} ", StringComparison.Ordinal))
+            // Every image the job builds, the fixture and the sample application, is for the qualified platform.
+            var builds = container.Split('\n').Where(line => line.Contains("docker build", StringComparison.Ordinal)).ToList();
+            if (builds.Count == 0 || builds.Any(line => !line.Contains($"docker build --platform={LinuxPlatform} ", StringComparison.Ordinal)))
             {
                 errors.Add($"{CiPath}: the {ContainerJob} job must build for {LinuxPlatform} with docker build --platform={LinuxPlatform}.");
+            }
+
+            // The sample application's image: its Dockerfile, and its host published with the SDK that build-test installs.
+            if (Values(container, "SAMPLE_DOCKERFILE") is not [SampleDockerfile])
+            {
+                errors.Add($"{CiPath}: the {ContainerJob} job must build {SampleDockerfile}.");
+            }
+
+            if (jobs.TryGetValue(BuildTestJob, out var sdkJob))
+            {
+                foreach (var step in SharedSdkSteps)
+                {
+                    var original = Run(sdkJob, step);
+                    if (original is null || original != Run(container, step))
+                    {
+                        errors.Add($"{CiPath}: the {ContainerJob} job must run the step '{step}' exactly as {BuildTestJob} does.");
+                    }
+                }
             }
         }
 

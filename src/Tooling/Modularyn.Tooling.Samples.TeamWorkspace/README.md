@@ -148,8 +148,8 @@ workflow; a deployment trust lock is a separate artifact and is not a package lo
 The sibling test project is an xUnit test project like the repository's others.
 Its smoke scenario carries `[Trait("Requires", "PostgreSQL")]`, so the
 real-provider CI job runs it with the other PostgreSQL tests.
-The sample's Dockerfile is provided; adding its build/run to CI is also Builder
-work because the workflow and Docker command allowlist are outside this scope.
+CI's `container-build` job builds the sample's image from the host's published
+output and runs it, as the host README describes.
 
 The development endpoint seeds only project/note data after authorization.
 Tenant/member/role seed data lives in the isolated smoke fixture, where

@@ -165,7 +165,8 @@ path provisions identities or authority; run `provision-host-operator` as a
 separate container invocation with the bootstrap entry. Host filesystem paths and container
 mount paths are deployment inputs, not committed configuration.
 
-The existing CI job scans the Dockerfile's image pin but builds only its existing
-fixture. The Builder must add this image's build/run and Linux x64 verification
-to the workflow and its reviewed command allowlist; neither was modified here.
-No image has been built or published in this run.
+CI's `container-build` job publishes the host with the pinned SDK, builds this
+image for linux/amd64 and runs it without a network, configuration or secret:
+it must refuse to start with its fixed diagnostic and describe exactly the
+deployment lock written from the published files (`docs/ci.md`). No image is
+published.
