@@ -601,8 +601,14 @@ CODE-05 (events and jobs) and CODE-07 (Files) carry tenant context this way:
    the ring's keys. A reference that its store did not capture, that was altered,
    or that was copied to another row, store or purpose, even in the same tenant,
    never opens; one captured from a context with no seal attached, because the
-   host declared no key ring, is never stored. CODE-05's stores and CODE-07's
-   Files capture this way, and SEC-08 tests forged and replayed references.
+   host declared no key ring, is never stored. The seal binds the reference to
+   its row's identity and its store's purpose, not to the row's payload, kind or
+   any other column: a writer with direct database access can still change what a
+   legitimately sealed reference runs with on its own row, as it can change any
+   row, and can rerun the row by resetting its state. That residual is the same
+   direct-access residual the audit store states for its records, and its
+   adversarial cases are SEC-08's. CODE-05's stores and CODE-07's Files capture
+   this way, and SEC-08 tests forged and replayed references.
 2. **Dispatch from host scope.** A dispatcher lists due work across tenants in an
    audited host scope through `AcrossTenantsAsync`. It cannot change those rows, except
    to record a disposition on one named tenant's row with `UpdateForTenantAsync`.
@@ -844,8 +850,13 @@ TM-G02-028 and TM-G02-033, in
   `BackgroundJobs.Application.Tests`
   `JobRecoveryTests.A_job_whose_stored_reference_was_copied_from_another_row_is_denied_without_stopping_other_jobs`.
   Removal checks: skipping the seal or binding check, or establishing a context
-  from an unverified reference, fails them. Remaining: adversarial evidence for
-  AC-004-N03, including replay of a reference on its own row (SEC-08).
+  from an unverified reference, fails them. Behind the seal, the workers' own
+  tenant checks still bound a validly sealed reference that names another tenant
+  than its row (`EventRecoveryTests` and `JobRecoveryTests`, `A_validly_sealed_*`;
+  removing any of the four checks fails its test). Remaining: adversarial evidence
+  for AC-004-N03, including replay of a reference on its own row and a direct
+  database writer changing the payload or kind a sealed reference runs with,
+  which the seal does not cover (SEC-08).
 - **TM-G02-028, partly.** Delivered: host scope only under host authority for a
   named operation and after its audit record is written; never derived from, or
   combined with, a tenant the request names; tenant data reached only through the

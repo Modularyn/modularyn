@@ -209,6 +209,15 @@ A denied context, such as a removed uploader's, does not run recovery; the next
 quota check still reclaims the abandoned upload. This module introduces no
 host-wide dispatcher or implicit host scope.
 
+The schedule receives a sealed reference as a string, bound to
+`FileService.RecoveryBinding`, which serves every recovery because recovery
+reconciles only the reference's own tenant and is safe to repeat. When CODE-05's
+jobs take recovery over, the job must run from its own captured reference, the
+one the job store seals for the job's row, and the string seam and
+`RecoveryBinding` retire: a durable job payload refuses a propagated context, so
+the string cannot travel in the job's payload, and a reference opens only under
+the binding it was sealed for.
+
 ## Reads, deletion and restore
 
 Reads take no lease and run concurrently. Every read verifies the entire stored
