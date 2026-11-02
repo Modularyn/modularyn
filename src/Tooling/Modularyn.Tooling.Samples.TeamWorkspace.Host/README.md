@@ -127,12 +127,14 @@ dotnet "$workspace_publish/Modularyn.Tooling.Samples.TeamWorkspace.Host.dll" pro
   `workspace.host-operator-provisioning` with its claim of the provisioning
   record, and `workspace.host-operator-provisioned`, naming the operations
   granted, when it completes; each record commits with its change.
-- **Refusals.** Exit status 3, changing nothing, when a `HostOperators` entry
+- **Refusals.** Exit status 3, making no provisioning or authority change, when a `HostOperators` entry
   names a user, or an earlier run has claimed the provisioning record; without
   the bootstrap entry, or with one lacking host authority or provisioning; and
   for an unknown or disabled account. The record's fixed key lets only one run
   claim it. A completed provisioning is final; one that stopped after its claim
   resumes when run again for the same account, and for no other.
+  Refusals reached after both host scopes are acquired still leave tenancy's two
+  `tenancy.host-scope-granted` audit entries; refusals before scope acquisition do not.
 - **What counts as an existing host operator.** Two things: a user named by any
   `HostOperators` entry, and the provisioning record, which every run of this
   command claims before it grants anything. Service entries, such as the
@@ -187,3 +189,14 @@ image for linux/amd64 and runs it without a network, configuration or secret:
 it must refuse to start with its fixed diagnostic and describe exactly the
 deployment lock written from the published files (`docs/ci.md`). No image is
 published.
+
+The sample tests' AC-001 container rows accept an externally running deployment
+at `MODULARYN_SAMPLE_BASE_URL` and reach `/health/ready` over HTTP with normal TLS
+validation. They never build or start a container. An absent address skips each
+row with a reason. Even with a healthy deployment, the rows currently skip:
+this published host has no control surface for selecting the corpus's alternate
+graphs, injecting the initialization fault or observing its shutdown lifecycle.
+Health alone supplies none of those observations. The required product change
+is outside CODE-10's permitted paths, and these rows write no passing record.
+See [the evidence instructions](../../../docs/evidence/README.md) for the
+in-process coverage and remaining qualification gaps.

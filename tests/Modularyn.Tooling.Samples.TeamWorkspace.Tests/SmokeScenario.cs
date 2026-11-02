@@ -144,7 +144,7 @@ public static class SmokeScenario
             || line.Contains(member.Password, StringComparison.Ordinal) || line.Contains(owner.Password, StringComparison.Ordinal)), "secret-log-and-trace-canaries");
     }
 
-    private static async Task SignInAsync(HttpClient client, SmokeUser user, CancellationToken token)
+    internal static async Task SignInAsync(HttpClient client, SmokeUser user, CancellationToken token)
     {
         using var result = await SendAsync(client, HttpMethod.Post, "/identity/sign-in", new { userName = user.Name, password = user.Password, returnUrl = "/" }, token);
         Success(result, "identity-sign-in");
@@ -226,7 +226,7 @@ public static class SmokeScenario
         return (await response.Content.ReadFromJsonAsync<FileVersionInfo>(token))!;
     }
 
-    private static Task<HttpResponseMessage> DownloadAsync(HttpClient client, string prefix, string grant, CancellationToken token)
+    internal static Task<HttpResponseMessage> DownloadAsync(HttpClient client, string prefix, string grant, CancellationToken token)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, prefix + "/download");
         request.Headers.Add(FileSteps.GrantHeader, grant);
@@ -256,7 +256,7 @@ public static class SmokeScenario
         return body.GetProperty("requestToken").GetString()!;
     }
 
-    private static async Task<HttpResponseMessage> SendAsync(HttpClient client, HttpMethod method, string route, object body, CancellationToken token, Guid? operation = null)
+    internal static async Task<HttpResponseMessage> SendAsync(HttpClient client, HttpMethod method, string route, object body, CancellationToken token, Guid? operation = null)
     {
         using var request = new HttpRequestMessage(method, route) { Content = JsonContent.Create(body) };
         request.Headers.Add("RequestVerificationToken", await AntiforgeryAsync(client, token));

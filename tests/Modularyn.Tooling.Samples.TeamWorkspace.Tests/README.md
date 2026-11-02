@@ -54,3 +54,31 @@ a stopped run resuming for its own account only; and a serving host unable to
 act as the provisioning service. A fixture service, declared and configured only
 there, creates the accounts and reads host audit. `UnitTests` checks that the
 command refuses every argument form but one account identifier.
+
+`CompositionAcceptanceTests` contains the four CODE-10 AC-001 integration
+methods. Its in-process rows add the corpus's A/B/C fixtures to the real sample
+module host, preserving deployment trust, migration readiness and every other
+activation validator. Effects pass through authenticated Files operations into
+PostgreSQL and the filesystem store. Its container rows require
+`MODULARYN_SAMPLE_BASE_URL`; an absent address skips them. With an address they
+probe the deployed sample over HTTP and still skip because the published host
+has no graph-mutation, fault-injection or lifecycle-inspection surface. They
+never claim that a healthy container passed AC-001.
+
+The [evidence instructions](../../docs/evidence/README.md#code-10-record-output)
+describe opt-in output, exact source and tuple checks, retained hashes and
+blocked qualification. `EvidenceWriterTests` checks serialized records against
+the schema without treating its transient metadata inputs as provider evidence.
+The four methods, their writer tests and the new regressions await Builder
+execution; no new runtime result is claimed by this documentation.
+
+`ReviewRegressionTests` carries the CODE-09 review checks for a query-string
+grant refused with 400 and absent from captured logs/traces, a previously
+released PDF refused by the current delivery policy with 404, and startup with
+the development seed disabled. The PDF setup uses real Files operations under
+the existing fixture authority with a prior release policy; the serving host's
+policy stays unchanged. `ProvisioningTests` also races two independently built
+hosts over one deployment and checks that only one account gains the grants,
+with one claim and completion. A refusal after acquiring both host scopes
+retains their two tenancy audit entries. These regressions do not take ownership
+of a security work order or qualify a security prerequisite.

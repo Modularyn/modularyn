@@ -36,7 +36,8 @@ is
 and the sample's tests are in
 `tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests.csproj`,
 the one test project that may reference that host.
-CODE-10 writes its four planned AC-001 integration methods. Each must run on
+CODE-10 supplies its four named AC-001 integration methods, with the execution
+limits described below. Each must run on
 both Linux x64 host and container deployments with real PostgreSQL and the
 filesystem store. Container execution is a deployment of the corpus's
 `real-provider-integration` layer, not an additional corpus layer.
@@ -146,6 +147,89 @@ close a gap. Schema validity alone does not establish that a result occurred,
 that its hash matches retained bytes, or that the gate is accepted.
 
 ## Review and verification
+
+### Running the CODE-10 methods
+
+`CompositionAcceptanceTests` in the sample's test project has the four exact
+integration method names in the plan. Each is a theory with `single-host` and
+`single-host-container` rows and the method trait `Requires=PostgreSQL`. The
+real-provider test filter therefore discovers both rows. These are authored
+tests awaiting the Builder's execution, not passing results.
+
+The in-process rows read `MODULARYN_TEST_POSTGRESQL`, use the existing database
+probe and shared lock, and build the sample with isolated schemas, its filesystem
+store and generated fixture identities. The sample's unchanged selection is
+migrated first. A second build adds the corpus's A, B and C test modules with a
+matching fixture deployment lock over the built files. The registered module
+host retains the sample's composer, every activation validator, work gate,
+telemetry and lifetime. No unverified-composition option is enabled. Tenant and
+owner authority comes only from the sample's existing authenticated fixtures.
+
+| Case | In-process observations |
+|---|---|
+| AC-001-B01 | All four B versions; readiness and real Files effects at both inclusive edges; the same range diagnostic and no activation for both outside versions. |
+| AC-001-N01 | A valid control, independently missing C, C-to-A cycle and incompatible B; input graphs, exact diagnostic identities and before/after activation inventories with no rejected effects. |
+| AC-001-P01 | Reverse discovery, exact resolved versions, every selected module ready, C/B/A initialization once, HTTP readiness, reverse shutdown and no retained resources. |
+| AC-001-R01 | B's initialization fault after C succeeds, A unavailable, B/C cleanup, the identical selection recovering to HTTP readiness and fresh durable-effect counts without duplicates. |
+
+The test modules write through the real Files service using PostgreSQL metadata,
+the filesystem store, permission evaluation and audit. Each immutable effect is
+queried again after failure and recovery, including its count, length, digest
+and bytes. Exclusive filesystem markers expose resources left by a prior
+activation. Result snapshots retain graph/version/provider declarations, ordered
+lifecycle events, states, cleanup inventories and measured effect counts.
+
+Container rows require `MODULARYN_SAMPLE_BASE_URL`, an HTTP origin for a sample
+container already started by the run, with a trusted TLS certificate when HTTPS
+is used. Missing configuration produces an explicit skip. A supplied deployment
+must answer `/health/ready` successfully; it is then still skipped because the
+published host exposes no graph-selection, initialization-fault or lifecycle
+inspection surface. The required product change is outside CODE-10's permitted
+paths. Tests never start containers, never substitute the in-process host for
+the container, and never count a health probe as AC-001 coverage. This leaves
+the container half of each case unqualified.
+
+### CODE-10 record output
+
+Records are opt-in. A run without `MODULARYN_EVIDENCE_DIR` writes none. A run
+requesting records supplies the following values:
+
+| Variable | Meaning |
+|---|---|
+| `MODULARYN_EVIDENCE_DIR` | Output directory beneath the repository, normally `artifacts/evidence`; linked paths are refused. |
+| `MODULARYN_SOURCE_COMMIT` | Exact forty-character lowercase commit, matching the clean checkout and the source revision embedded in the built assemblies. |
+| `MODULARYN_EVIDENCE_RUN_ID` | Optional unique lowercase run identifier; a process-wide random identifier is generated when absent. Reusing a case/mode/run destination refuses overwrite. |
+
+The Builder builds the final committed source before requesting records. The
+writer checks source identity again after the method finishes. It measures the
+database version from the probe, package versions from loaded assemblies,
+runtime and operating-system versions from the process, and SDK/language versions
+embedded by the build. Record output requires the planned Linux x64 tuple and
+runtime pins; a build on another platform is not relabelled as Linux evidence.
+If setup never reaches a database, its version is unmeasured: the writer refuses
+a record, and the test runner retains the failure.
+
+Each case/mode/run directory contains `result.json`, retained implementation
+bytes under `implementation/`, and a schema-validated `record.json` written last.
+Result and implementation hashes cover the retained bytes. The corpus hash
+normalizes checkout line endings to LF. No log, trace, exception text, response
+body, credential, connection string or machine path is copied into a record.
+Skipped rows produce no evidence record. The unit tests exercise serialized
+records against the repository schema for all four cases and both shapes,
+invalid pins and identities, missing output, skipped outcomes and overwrite
+refusal. Their transient metadata inputs are deleted and supply no provider
+evidence.
+
+`result.json` retains the integration method's actual `passed` or `failed`
+outcome after fixture disposal. The case record reports `failed` for a failed
+method and `blocked` for a successful method: AC-031 evidence on the same commit
+and tuple and the separately executed planned unit-method results have not been
+assembled by this writer. The required test mappings remain complete, and these
+limitations remain explicit. No record produced here claims that G-02 passed.
+The Builder must assemble those prerequisites and complete container coverage
+before a case can receive passing qualification evidence.
+
+### Remaining checks
 
 The repository checks the 41-case bijection, scope assignments, project and
 method names, layers, requirements, resource flags, evidence examples and the
