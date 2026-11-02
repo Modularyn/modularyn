@@ -271,7 +271,15 @@ of its schema and refusal rules and are never CI qualification records.
 | Any planned method or required theory row is missing, skipped or unexecuted | `blocked`, even if another row failed |
 | Every required row executed, and at least one failed | `failed` |
 | Every required row passed, but a security dependency is unmet | `blocked` |
-| Every required row passed and all security prerequisites are satisfied | Eligible for `passed` |
+| Every required row passed and all security prerequisites are satisfied | Eligible for `passed`; cannot occur yet, as below |
+
+The last row cannot occur while the plan's security dependencies are unmet. The
+assembler refuses a plan with a satisfied dependency ("security evidence needs
+Builder review"), and the bundle contract requires each record's
+`securityDependencies` to equal the plan's, so no record this assembler writes,
+and none the contract accepts, can be `passed`. The rule stands: a `passed`
+record needs every security prerequisite satisfied. The row becomes reachable
+only when the security-evidence path changes both the assembler and the contract.
 
 The current plan declares every security dependency unmet. This assembler
 preserves that state and refuses to promote functional results into security
