@@ -1,20 +1,14 @@
-# Team workspace smoke sources
+# Team workspace tests
 
-This project uses the .NET 10 shared frameworks and the two sample projects,
-without package references. It is an executable smoke harness, not a registered
-`dotnet test` project. The repository keeps xUnit and Test SDK references private
-to each existing test project, and this assignment prohibits new package
-references. The Builder must integrate `Program.UnitChecks` and
-`SmokeScenario.RunAsync` with that runner and give the latter the actual
-`Requires=PostgreSQL` trait. The real-provider CI script does not discover this
-scenario yet.
-
-Once the Builder has restored and built it, `--unit` checks inventory/media
-declarations, whole-microsecond time and IANA daylight-saving edges. The explicit
-`--postgresql` argument additionally runs the real-provider scenario. Run it from
-a build output under this repository; it finds `Modularyn.slnx` by walking upward.
-All runtime secret files, the key ring and BLOBs live in an isolated `.run-*`
-directory inside this test project and are deleted on disposal.
+An xUnit test project like the repository's other test projects, with the same
+centrally versioned test references. `UnitTests` checks the inventory and media
+declarations, whole-microsecond time and IANA daylight-saving edges, and runs with
+the unit tests. `SmokeTests` carries the trait `Requires=PostgreSQL` and runs the
+real-provider scenario, so the real-provider script runs it with the other
+PostgreSQL tests. It runs from a build output under this repository; it finds
+`Modularyn.slnx` by walking upward. All runtime secret files, the key ring and
+BLOBs live in an isolated `.run-*` directory inside this test project and are
+deleted on disposal.
 
 The scenario reads `MODULARYN_TEST_POSTGRESQL` exactly as the repository's database
 script provides it, calls the shared probe, holds `PostgreSqlTestLock`, and creates
@@ -42,7 +36,5 @@ The scenario covers:
 - Durable inbox activity and one digest per occurrence in the member's IANA zone.
 - Active OpenAPI inventory and separately authorized audit access.
 
-These sources were not compiled or run in the authoring sandbox. They do not
-establish browser automation, container execution or exhaustive G-02 acceptance.
-The Builder owns restore/build/test execution, test-runner integration and all
-six CI results at the final head.
+The scenario does not establish browser automation, container execution or
+exhaustive G-02 acceptance.

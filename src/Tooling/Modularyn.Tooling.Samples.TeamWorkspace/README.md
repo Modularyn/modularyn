@@ -133,12 +133,9 @@ No foundation file, package reference, central package version or CI file is
 changed. The Builder creates the new projects' package locks through its restore
 workflow; a deployment trust lock is a separate artifact and is not a package lock.
 
-The sibling test project contains a package-free smoke executable. The strict
-ban on new package references prevents adding the repository's private xUnit
-and Test SDK references. Consequently it is not discovered by `dotnet test`,
-and carries no xUnit traits. The Builder must integrate its scenario with the
-existing runner and the actual
-`[Trait("Requires", "PostgreSQL")]` before the real-provider CI job covers it.
+The sibling test project is an xUnit test project like the repository's others.
+Its smoke scenario carries `[Trait("Requires", "PostgreSQL")]`, so the
+real-provider CI job runs it with the other PostgreSQL tests.
 The sample's Dockerfile is provided; adding its build/run to CI is also Builder
 work because the workflow and Docker command allowlist are outside this scope.
 
