@@ -19,6 +19,16 @@ host that captures startup errors, as one hosted in IIS does, serves only its
 startup error page instead. A GET declaration may also answer HEAD, as the
 health probes do.
 
+Pages and file downloads are declared like every other endpoint, with their
+authorization classification, as the [inventory](../Modularyn.Framework.Api.Contracts/README.md)
+describes; map a page and its form as one endpoint for each method. A page that
+accepts a form declares antiforgery, and keeps the ingress's antiforgery
+validation (TM-G02-007): an endpoint that opts out with `DisableAntiforgery`,
+before or after `WithApiContract`, is not the declared page, so the inventory
+check refuses the host before it listens and the endpoint answers each request
+with 500 and `MAP008` without running its handler. Both read the endpoint's last
+antiforgery declaration, as the ingress does.
+
 `ApiEndpoints.Describe` reads every mapped endpoint, including non-client routes,
 and combines its declared schemas. Undeclared routes fail validation. The built-in
 inventory contains the identity, health and bootstrap routes; a composed host's

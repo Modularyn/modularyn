@@ -64,6 +64,58 @@ public sealed class ApiGenerationTests
     }
 
     [Fact]
+    public void Pages_and_downloads_are_described_with_their_declared_media_types_and_generate_no_client_methods()
+    {
+        // The inventory's own form of the declarations: a page, its form and a download.
+        var declarations = ApiInventory.Read("""
+            {
+              "oldestVersion": 1, "currentVersion": 1, "models": [],
+              "endpoints": [
+                { "name": "GetNoteForm", "method": "GET", "route": "/t/{tenant}/notes/new", "authorization": "MemberOnly", "permission": null,
+                  "clientVisible": false, "request": null, "response": null, "versioned": false, "authentication": "session",
+                  "responseMediaType": "text/html", "page": true },
+                { "name": "PostNoteForm", "method": "POST", "route": "/t/{tenant}/notes/new", "authorization": "MemberOnly", "permission": null,
+                  "clientVisible": false, "request": null, "response": null, "mutation": true, "versioned": false, "authentication": "session",
+                  "responseMediaType": "text/html", "page": true, "antiforgery": true,
+                  "requestSchema": { "type": "object", "properties": { "title": { "type": "string" } }, "required": ["title"] } },
+                { "name": "DownloadAttachment", "method": "GET", "route": "/t/{tenant}/attachments/{attachment}/content",
+                  "authorization": "MemberOnly", "permission": null, "clientVisible": false, "request": null, "response": null,
+                  "versioned": false, "authentication": "session", "responseMediaType": "application/octet-stream",
+                  "download": { "disposition": "attachment", "mediaTypes": ["application/pdf", "image/png"] } }
+              ]
+            }
+            """);
+        var inventory = FrameworkApi.Inventory with { Endpoints = [.. FrameworkApi.Inventory.Endpoints, .. declarations.Endpoints] };
+        Assert.Empty(ApiCompatibility.BreakingChanges(FrameworkApi.Inventory, inventory));
+        using var document = JsonDocument.Parse(ApiGenerator.OpenApi(inventory));
+        var paths = document.RootElement.GetProperty("paths");
+        static string[] Keys(JsonElement element) => element.EnumerateObject().Select(property => property.Name).ToArray();
+
+        var page = paths.GetProperty("/t/{tenant}/notes/new").GetProperty("get");
+        Assert.True(page.GetProperty("x-modularyn-page").GetBoolean());
+        Assert.False(page.GetProperty("x-modularyn-antiforgery").GetBoolean());
+        Assert.Equal(new[] { "text/html" }, Keys(page.GetProperty("responses").GetProperty("200").GetProperty("content")));
+        Assert.False(page.TryGetProperty("requestBody", out _));
+        var form = paths.GetProperty("/t/{tenant}/notes/new").GetProperty("post");
+        Assert.True(form.GetProperty("x-modularyn-antiforgery").GetBoolean());
+        Assert.Equal(new[] { "application/x-www-form-urlencoded" }, Keys(form.GetProperty("requestBody").GetProperty("content")));
+        var download = paths.GetProperty("/t/{tenant}/attachments/{attachment}/content").GetProperty("get");
+        Assert.Equal("attachment", download.GetProperty("x-modularyn-download").GetString());
+        Assert.False(download.TryGetProperty("x-modularyn-page", out _));
+        var content = download.GetProperty("responses").GetProperty("200").GetProperty("content");
+        Assert.Equal(new[] { "application/pdf", "image/png" }, Keys(content));
+        Assert.All(content.EnumerateObject(), type => Assert.Empty(Keys(type.Value)));
+
+        // Every operation that declares neither keeps its description, and generated clients, which read JSON, gain no method.
+        using var original = JsonDocument.Parse(ApiGenerator.OpenApi(FrameworkApi.Inventory));
+        foreach (var path in original.RootElement.GetProperty("paths").EnumerateObject())
+            Assert.Equal(path.Value.GetRawText(), paths.GetProperty(path.Name).GetRawText());
+        Assert.Equal(ApiGenerator.DotNet(FrameworkApi.Inventory, "Modularyn.Framework.Sdk.Client", "ModularynClient"),
+            ApiGenerator.DotNet(inventory, "Modularyn.Framework.Sdk.Client", "ModularynClient"));
+        Assert.Equal(ApiGenerator.TypeScript(FrameworkApi.Inventory, "ModularynClient"), ApiGenerator.TypeScript(inventory, "ModularynClient"));
+    }
+
+    [Fact]
     public void The_TypeScript_package_uses_only_the_approved_candidates_at_exact_versions()
     {
         var files = RepositoryFiles.Current;
