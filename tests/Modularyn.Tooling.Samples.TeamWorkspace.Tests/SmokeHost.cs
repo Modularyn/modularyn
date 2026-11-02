@@ -98,7 +98,7 @@ internal sealed class SmokeHost : IAsyncDisposable
         names.AddIpAddress(IPAddress.Loopback);
         request.CertificateExtensions.Add(names.Build());
         using var signed = request.CreateSelfSigned(Clock.GetUtcNow().AddDays(-1), Clock.GetUtcNow().AddDays(2));
-        certificate = X509CertificateLoader.LoadPkcs12(signed.Export(X509ContentType.Pkcs12), null, X509KeyStorageFlags.EphemeralKeySet);
+        certificate = X509CertificateLoader.LoadPkcs12(signed.Export(X509ContentType.Pkcs12), null);
         var lease = new TcpListener(IPAddress.Loopback, 0);
         lease.Start();
         var port = ((IPEndPoint)lease.LocalEndpoint).Port;
