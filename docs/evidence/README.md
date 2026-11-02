@@ -292,7 +292,10 @@ the same limitation for the advertised clients; their methods execute direct API
 and server entry points.
 
 Collection accepts only exact planned identities and bounded row outcomes.
-Runner output, failure messages, traces, attachments, arbitrary display names,
+CI runs the remaining planned methods with `-failSkips`, so that a skip fails
+the job; xunit v3 then reports the skipped test as failed with the exception
+`FAIL_SKIP`, and collection records it as skipped, which blocks its case rather
+than failing it. Runner output, failure messages, traces, attachments, arbitrary display names,
 credentials, connection strings and machine paths are not copied. Raw reports
 are deleted after collection, and runner diagnostics are suppressed in the CI
 log. The retained reports have no free-form diagnostic field. Unit tests use

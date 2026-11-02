@@ -213,7 +213,9 @@ internal static class EvidenceBundle
         return result;
     }
 
-    // CTRF's test identity is its extra type and method, which xunit v3 records whatever the display name is.
+    // CTRF's test identity is its extra type and method, which xunit v3 records whatever the display name is. CI runs the
+    // planned methods with -failSkips, under which xunit v3 reports a skipped test as failed with the exception FAIL_SKIP: that
+    // test did not execute, so it is skipped and blocks its case, as a skip does, rather than failing it.
     private static IEnumerable<(string? Identity, string? Display, string State)> CtrfRows(string raw)
     {
         var rows = new List<(string?, string?, string)>();
@@ -223,8 +225,9 @@ internal static class EvidenceBundle
             var extra = item["extra"] as JsonObject;
             var type = Str(extra?["type"]);
             var method = Str(extra?["method"]);
-            rows.Add((type is null || method is null ? null : type + "." + method, Str(item["name"]),
-                CtrfStates.GetValueOrDefault(Str(item["status"]) ?? "", "not-run")));
+            var state = CtrfStates.GetValueOrDefault(Str(item["status"]) ?? "", "not-run");
+            if (state == "failed" && Str(extra?["exception"]) == "FAIL_SKIP") state = "skipped";
+            rows.Add((type is null || method is null ? null : type + "." + method, Str(item["name"]), state));
         }
 
         return rows;

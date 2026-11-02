@@ -162,6 +162,21 @@ public sealed class EvidenceBundleTests
         Assert.Equal("failed", Str(rows.First(row => Str(row["name"]) == name)["status"]));
     }
 
+    [Theory]
+    [InlineData("FAIL_SKIP", "skipped")]
+    [InlineData("Xunit.Sdk.EqualException", "failed")]
+    [InlineData(null, "failed")]
+    public void A_skip_that_fail_skips_reports_as_a_failure_is_still_a_skip(string? exception, string expected)
+    {
+        var plan = Plan;
+        var test = PlannedTests(plan).First(test => RowNames(test, Host) is [("method", _)]);
+        var result = Ctrf(Str(test["name"])!, Str(test["name"])!, "failed");
+        if (exception is not null) result["extra"]!["exception"] = exception;
+        var rows = SanitizeReport(Ctrf(result), Str(test["project"])!, plan, Host, "ctrf");
+        Assert.Equal(expected, Str(rows.Single(row => Str(row["name"]) == Str(test["name"]))["status"]));
+        Assert.Equal(expected == "skipped" ? "blocked" : "failed", MethodOutcome(test, Host, rows));
+    }
+
     [Fact]
     public void A_display_name_never_identifies_a_planned_method()
     {
