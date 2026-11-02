@@ -13,7 +13,7 @@ using Xunit;
 namespace Modularyn.Framework.Settings.Tests;
 
 // SEC-05's gate on settings and feature management, with a stand-in for the evaluator; the authorization tests repeat it
-// with the real one. And the report of a fill that overruns its staleness bound.
+// with the real one. And the report of a fill that overruns its staleness bound or the cache's factory deadline.
 [Collection(SettingsPostgreSqlCollection.Name)]
 public sealed class ManagementTests
 {
@@ -149,15 +149,52 @@ public sealed class ManagementTests
         Assert.False(Cancellation.IsCancellationRequested);
     }
 
-    /// <summary>Membership that, while hanging, answers only when the caller's token cancels the call.</summary>
+    [Fact]
+    public async Task TM_G02_034_A_fill_that_passes_the_cache_s_factory_deadline_is_reported_unavailable_and_stopped()
+    {
+        var directory = new MemoryDirectory();
+        var seams = new TestSeams();
+        var tenant = directory.Add("Tenant");
+        seams.Membership.Add("user", tenant);
+        var slow = new SlowMembership(seams.Membership);
+        var clock = new TimerClock();
+        await using var services = UnitServices.Build(directory, seams, collection =>
+        {
+            collection.AddSingleton<ITenantMembership>(slow);
+            collection.AddSingleton<ScopedValueCache>();
+            collection.AddSingleton<TimeProvider>(clock);
+        });
+        // Its staleness bound outlasts the cache's factory deadline, so only the deadline can end the fill.
+        var patient = new SettingDefinition(TestDefinitions.Module, "Patient", TestDefinitions.Version, ValueKind.Text, "default", TestDefinitions.Staleness);
+        var registry = new ValueDefinitionRegistry([new ModuleManifest(TestDefinitions.Module, TestDefinitions.Version, definitions: [patient.Declaration])], [patient]);
+        // No connection is opened: the fill is still revalidating its tenant when the deadline ends it.
+        var settings = new SettingsService(SettingsModule.Create(new PostgreSqlPersistenceOptions("Host=localhost;Database=unused")), registry,
+            services.GetRequiredService<ScopedValueCache>(), services.GetRequiredService<TenantWorkRunner>(), clock);
+        var (scope, context) = await Units.EnterAsync(services, "user", tenant);
+        await using var held = scope;
+        slow.Hanging = true;
+        var read = settings.ResolveAsync(context, patient, Cancellation);
+        var fill = await slow.Entered.Task.WaitAsync(Cancellation);
+        clock.Advance(new TenantCacheOptions().FactoryDeadline);
+        // Reported as the value being unavailable, exactly, never a default, and the fill was told to stop with it. The
+        // wait's real-time limit is a safety net that a passing test never reaches.
+        await Assert.ThrowsAsync<ValueUnavailableException>(() => read.WaitAsync(TimeSpan.FromSeconds(30), Cancellation));
+        Assert.True(fill.IsCancellationRequested);
+        Assert.Equal(1, slow.Calls);
+        Assert.False(Cancellation.IsCancellationRequested);
+    }
+
+    /// <summary>Membership that, while hanging, answers only when the caller's token cancels the call, and reports that token.</summary>
     private sealed class SlowMembership(ITenantMembership inner) : ITenantMembership
     {
         internal bool Hanging { get; set; }
         internal int Calls;
+        internal TaskCompletionSource<CancellationToken> Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public async ValueTask<bool> IsMemberAsync(ActorReference actor, Guid tenantId, CancellationToken cancellationToken)
         {
             if (Hanging) Interlocked.Increment(ref Calls);
+            if (Hanging) Entered.TrySetResult(cancellationToken);
             if (Hanging) await Task.Delay(Timeout.Infinite, cancellationToken);
             return await inner.IsMemberAsync(actor, tenantId, cancellationToken);
         }
