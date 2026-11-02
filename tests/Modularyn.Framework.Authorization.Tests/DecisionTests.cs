@@ -69,7 +69,12 @@ public sealed class DecisionTests(ITestOutputHelper output)
         var elsewhere = await authorization.EnterAsync("support-1", other, delegation);
         Assert.Equal(AuthorizationCodes.OutsideCeiling, (await evaluator.AuthorizeAsync(Request(elsewhere, Items.Read), Cancellation)).Code);
         var job = ExecutionPrincipal.ForService(new PrincipalReference(Items.Service, IdentityKind.Service), [Items.Reindex]);
-        Assert.Equal(AuthorizationCodes.OutsideCeiling, (await evaluator.AuthorizeAsync(new(unit.Context, job, Items.Read), Cancellation)).Code);
+        // In the user's propagated work the service holds only its declared scope; in a context resolved for the user's request
+        // it has no subject at all (SEC-08).
+        var reference = PropagatedTenantContext.Capture(unit.Context).ToJson(TestSeams.Binding);
+        Assert.Equal((TenantWorkDisposition.Denied, AuthorizationCodes.OutsideCeiling), Disposition(await authorization.Get<AuthorizedWorkRunner>()
+            .RunAsync(job, reference, TestSeams.Binding, Items.Read, Never, Cancellation)));
+        Assert.Equal(AuthorizationCodes.PrincipalMismatch, (await evaluator.AuthorizeAsync(new(unit.Context, job, Items.Read), Cancellation)).Code);
 
         // A current-profile decision rechecks the session now; an ended one is refused even where a bounded decision is not.
         authorization.Freshness.End(unit.Principal.SessionId!.Value);
