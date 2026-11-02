@@ -2048,7 +2048,7 @@
         "SEC-02",
         "SEC-07"
       ],
-      "owner": "CODE-04; OPS-004 at G-08",
+      "owner": "A later settings work order, which must test that a secret setting accepts only replacement; module code's handling of revealed values stays the module's; release-artifact scanning is OPS-004's at G-08",
       "tests": [],
       "sources": [
         "src/Framework/README.md"
@@ -2065,7 +2065,7 @@
       "orders": [
         "SEC-02"
       ],
-      "owner": "CODE-03 and CODE-04",
+      "owner": "A later persistence and settings work order, which must check provider compatibility at startup outside the test harness and validate an application or tenant settings reload before it takes effect",
       "tests": [],
       "sources": [
         "src/Framework/README.md"
