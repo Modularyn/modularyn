@@ -79,6 +79,7 @@
     "DEP011": "Dependency cycles are forbidden.",
     "DEP012": "Product projects must not reference test projects.",
     "DEP013": "The dependency companion, guide and names contract must agree.",
-    "DEP014": "No project but its sample's own tests may reference a composition root."
+    "DEP014": "No project but its sample's own tests may reference a composition root.",
+  "DEP015": "A test project must not reference another test project."
   }
 }
