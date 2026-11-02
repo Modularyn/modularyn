@@ -191,7 +191,7 @@ public sealed class G02AC004Tests
             // audited cross-tenant read reaches tenant data.
             Assert.Equal("MPS038", (await Assert.ThrowsAsync<PersistenceContractException>(() =>
                 ((ItemsContext)work.Context).Items.CountAsync(token))).Code);
-            seen.Add(string.Join(",", await work.Context.AcrossTenants<Item>().Query.OrderBy(row => row.Code).Select(row => row.Code).ToArrayAsync(token)));
+            seen.Add(string.Join(",", await (await work.Context.AcrossTenantsAsync<Item>(token)).Query.OrderBy(row => row.Code).Select(row => row.Code).ToArrayAsync(token)));
         }, Cancellation);
         Assert.Equal(["a-1", "b-1", "a-1,b-1"], seen);
         Assert.Equal(3, transactions.Distinct().Count());

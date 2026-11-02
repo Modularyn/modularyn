@@ -150,7 +150,8 @@ internal sealed class TenancyServer : IAsyncDisposable
         {
             var context = server!.Observe(execution);
             await using var work = await EfCoreUnitOfWork.BeginAsync(database.Items, context, cancellationToken: http.RequestAborted);
-            var item = new WorkItem { Id = Guid.NewGuid(), Kind = kind, Payload = payload, Propagated = PropagatedTenantContext.Capture(context).ToJson() };
+            var id = Guid.NewGuid();
+            var item = new WorkItem { Id = id, Kind = kind, Payload = payload, Propagated = PropagatedTenantContext.Capture(context).ToJson(WorkDispatch.Binding(id)) };
             work.Context.Add(item);
             await work.CompleteAsync(http.RequestAborted);
             return Results.Json(new ItemView(item.TenantId, item.Id, item.Kind));
@@ -170,7 +171,7 @@ internal sealed class TenancyServer : IAsyncDisposable
         {
             var context = server!.Observe(execution);
             await using var work = await EfCoreUnitOfWork.BeginAsync(database.Items, context, cancellationToken: http.RequestAborted);
-            var counts = await work.Context.AcrossTenants<Item>().Query.GroupBy(row => row.TenantId)
+            var counts = await (await work.Context.AcrossTenantsAsync<Item>(http.RequestAborted)).Query.GroupBy(row => row.TenantId)
                 .Select(group => new TenantCount(group.Key, group.Count())).ToArrayAsync(http.RequestAborted);
             return Results.Json(counts);
         }).RequireHostAuthority(HostReport, "Count items for every tenant");

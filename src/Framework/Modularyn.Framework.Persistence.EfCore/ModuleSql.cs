@@ -38,14 +38,31 @@ public sealed class ModuleSql
         return Read<TEntity>(ModuleSqlText.SelectWhere(context.Module, entity, property), parameter);
     }
 
-    public BypassedQuery<TEntity> IncludingSoftDeleted<TEntity>(SoftDeleteBypass bypass) where TEntity : class =>
-        ModuleQueryFilterRegistry.Bypass(Query<TEntity>(), bypass);
-
-    /// <summary>The direct-SQL read of every tenant's rows, for an active, audited host-scope unit whose operation reaches the entity.</summary>
-    public CrossTenantQuery<TEntity> AcrossTenants<TEntity>() where TEntity : class, ITenantScoped
+    /// <summary>
+    /// The direct-SQL read with the soft-delete predicate lifted, recorded in audit before the query exists, as
+    /// <see cref="ModuleDbContext.IncludingSoftDeletedAsync{TEntity}"/> records it.
+    /// </summary>
+    public async Task<BypassedQuery<TEntity>> IncludingSoftDeletedAsync<TEntity>(SoftDeleteBypass bypass, CancellationToken cancellationToken = default)
+        where TEntity : class
     {
-        var grant = context.RequireHostGrant(context.Model.FindEntityType(typeof(TEntity)));
-        return ModuleQueryFilterRegistry.BypassTenant(Query<TEntity>(), grant);
+        ArgumentNullException.ThrowIfNull(bypass);
+        var query = ModuleQueryFilterRegistry.Bypass(Query<TEntity>(), bypass);
+        await context.RecordBypassAsync(FilterBypass.SoftDeleted, context.Model.FindEntityType(typeof(TEntity)), bypass.OperationId, bypass.Reason,
+            cancellationToken).ConfigureAwait(false);
+        return query;
+    }
+
+    /// <summary>
+    /// The direct-SQL read of every tenant's rows, for an active, audited host-scope unit whose operation reaches the entity,
+    /// recorded in audit before the query exists.
+    /// </summary>
+    public async Task<CrossTenantQuery<TEntity>> AcrossTenantsAsync<TEntity>(CancellationToken cancellationToken = default) where TEntity : class, ITenantScoped
+    {
+        var entity = context.Model.FindEntityType(typeof(TEntity));
+        var grant = context.RequireHostGrant(entity);
+        var query = ModuleQueryFilterRegistry.BypassTenant(Query<TEntity>(), grant);
+        await context.RecordBypassAsync(FilterBypass.CrossTenant, entity, grant.OperationId, grant.Reason, cancellationToken).ConfigureAwait(false);
+        return query;
     }
 
     /// <summary>
@@ -69,10 +86,8 @@ public sealed class ModuleSql
         cancellationToken.ThrowIfCancellationRequested();
         context.RequireWork();
         var entity = Entity<TEntity>();
-        var properties = entity.GetProperties().ToArray();
-        if (properties.Any(property => property.IsShadowProperty() || property.ValueGenerated != ValueGenerated.Never)
-            || entity.GetNavigations().Any() || entity.GetComplexProperties().Any())
-            throw new PersistenceContractException("MPS016", "Direct inserts support scalar rows with explicit keys and values.");
+        RequireNotAppendOnly(entity);
+        var properties = ScalarProperties(entity);
         // A direct insert composes no filter, so it applies the same scope rules as a tracked write.
         if (row is ITenantScoped scoped)
         {
@@ -83,21 +98,49 @@ public sealed class ModuleSql
         }
         else context.RequireHostWrite(entity);
         if (row is IConcurrencyTracked tracked) tracked.Version = Guid.NewGuid();
-        await using var command = context.Database.GetDbConnection().CreateCommand();
-        command.Transaction = context.Database.CurrentTransaction?.GetDbTransaction();
-        command.CommandTimeout = context.Database.GetCommandTimeout() ?? 30;
-        var entry = context.Entry(row);
-        for (var index = 0; index < properties.Length; index++)
-            command.Parameters.Add(properties[index].GetRelationalTypeMapping().CreateParameter(command, "p" + index,
-                entry.Property(properties[index].Name).CurrentValue));
-        command.CommandText = "INSERT INTO " + Table(entity) + " (" + string.Join(", ", properties.Select(property => Column(entity, property)))
-            + ") VALUES (" + string.Join(", ", Enumerable.Range(0, properties.Length).Select(index => "@p" + index)) + ")";
-        try { await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false); }
+        try { await InsertRowAsync(context, context.Module, entity, properties, row, cancellationToken).ConfigureAwait(false); }
         catch
         {
             context.Work!.MarkRollbackOnly();
             throw;
         }
+    }
+
+    /// <summary>The mapped scalar properties of a direct insert; shadow, generated, navigation and complex members are refused.</summary>
+    internal static IProperty[] ScalarProperties(IEntityType entity)
+    {
+        var properties = entity.GetProperties().ToArray();
+        if (properties.Any(property => property.IsShadowProperty() || property.ValueGenerated != ValueGenerated.Never)
+            || entity.GetNavigations().Any() || entity.GetComplexProperties().Any())
+            throw new PersistenceContractException("MPS016", "Direct inserts support scalar rows with explicit keys and values.");
+        return properties;
+    }
+
+    /// <summary>
+    /// Inserts one scalar row of <paramref name="entity"/>, a table of <paramref name="owner"/>'s schema, on
+    /// <paramref name="context"/>'s connection and transaction. Identifiers come from the owner's EF metadata and every value
+    /// is a provider parameter.
+    /// </summary>
+    internal static async Task InsertRowAsync(ModuleDbContext context, PostgreSqlModule owner, IEntityType entity, IProperty[] properties, object row,
+        CancellationToken cancellationToken)
+    {
+        await using var command = context.Database.GetDbConnection().CreateCommand();
+        command.Transaction = context.Database.CurrentTransaction?.GetDbTransaction();
+        command.CommandTimeout = context.Database.GetCommandTimeout() ?? 30;
+        for (var index = 0; index < properties.Length; index++)
+            command.Parameters.Add(properties[index].GetRelationalTypeMapping().CreateParameter(command, "p" + index,
+                properties[index].GetGetter().GetClrValueUsingContainingEntity(row)));
+        command.CommandText = "INSERT INTO " + owner.Table(entity.GetTableName()!) + " (" + string.Join(", ", properties.Select(property => Column(entity, property)))
+            + ") VALUES (" + string.Join(", ", Enumerable.Range(0, properties.Length).Select(index => "@p" + index)) + ")";
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Append-only records are written only through the journal append and never changed or deleted.</summary>
+    internal static void RequireNotAppendOnly(IReadOnlyEntityType entity)
+    {
+        if (typeof(IAppendOnly).IsAssignableFrom(entity.ClrType))
+            throw new PersistenceContractException("MPS044",
+                "Append-only records are inserted only through EfCoreUnitOfWork.AppendAsync, in the transaction of the change they record, and never changed or deleted.");
     }
 
     /// <summary>A stale token or a filtered-out row reports a conflict and prevents this transaction from committing.</summary>
@@ -127,6 +170,7 @@ public sealed class ModuleSql
         cancellationToken.ThrowIfCancellationRequested();
         context.RequireWork();
         var entity = Entity<TEntity>();
+        RequireNotAppendOnly(entity);
         var keyProperty = Property(entity, key);
         var property = Property(entity, column);
         var primaryKey = entity.FindPrimaryKey();
@@ -189,8 +233,6 @@ public sealed class ModuleSql
             throw new PersistenceContractException("MPS018", "Select one mapped scalar member; SQL text and computed expressions are not accepted.");
         return property;
     }
-
-    private string Table(IEntityType entity) => context.Module.Table(entity.GetTableName()!);
 
     private static string Column(IEntityType entity, IProperty property) => ModuleSqlText.Column(entity, property)
         ?? throw new PersistenceContractException("MPS018", "The selected member has no column mapping.");

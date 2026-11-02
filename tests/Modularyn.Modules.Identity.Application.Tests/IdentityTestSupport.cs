@@ -2,8 +2,38 @@ using System.Buffers.Text;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
+using Modularyn.Framework.Audit;
+using Modularyn.Framework.Authorization.Abstractions;
+using Modularyn.Framework.Persistence.Abstractions;
 
 namespace Modularyn.Modules.Identity.Testing;
+
+/// <summary>
+/// Takes identity's audit records, of memberships and of administrative and security changes, in memory: scaffolding for
+/// identity's own decisions. The audit tests exercise the real store, its transactions and its refusals.
+/// </summary>
+internal sealed class RecordingIdentityAudit : IAuthorityAudit, IAuditTrail
+{
+    internal ConcurrentQueue<string> Actions { get; } = new();
+
+    public ValueTask RecordAsync(IUnitOfWork work, AuthorityChangeRecord record, CancellationToken cancellationToken)
+    {
+        Actions.Enqueue(record.Kind.ToString());
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask RecordAsync(IUnitOfWork work, AuditEntry entry, CancellationToken cancellationToken)
+    {
+        Actions.Enqueue(entry.Action);
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask RecordAccessAsync(AuditEntry entry, CancellationToken cancellationToken)
+    {
+        Actions.Enqueue(entry.Action);
+        return ValueTask.CompletedTask;
+    }
+}
 
 /// <summary>A clock the test moves explicitly. Every identity limit is measured against it.</summary>
 internal sealed class ManualClock(DateTimeOffset start) : TimeProvider

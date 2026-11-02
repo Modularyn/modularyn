@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Modularyn.Framework.Api;
 using Modularyn.Framework.Observability;
 
 namespace Modularyn.Framework.Hosting;
@@ -8,7 +9,8 @@ public static class ModuleRequestExtensions
 {
     /// <summary>
     /// Place after routing and before module endpoints. Health endpoints remain reachable
-    /// while normal requests require a work lease. ASP.NET Core supplies W3C request context.
+    /// while normal requests require a work lease. Each request runs under a server-issued W3C trace, or the one a
+    /// declared proxy supplied.
     /// </summary>
     public static IApplicationBuilder UseModularynRequests(this IApplicationBuilder application)
     {
@@ -24,6 +26,8 @@ internal sealed class ModuleRequestMiddleware
 
     public async Task InvokeAsync(HttpContext context, ModuleWorkGate work, ModularynDiagnostics diagnostics)
     {
+        // The operation's trace is server-issued unless a declared proxy supplied it (TM-G02-053).
+        using var correlation = RequestCorrelation.Begin(context);
         using var operation = diagnostics.BeginOperation(DiagnosticOperation.HttpRequest);
         ModuleWorkLease? lease = null;
         try

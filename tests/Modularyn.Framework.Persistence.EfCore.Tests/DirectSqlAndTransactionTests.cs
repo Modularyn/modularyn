@@ -22,8 +22,8 @@ public sealed class DirectSqlAndTransactionTests : PostgreSqlTestDatabase
         }
         var bypass = new SoftDeleteBypass("Inspect soft-deleted items for recovery", "recovery-query");
         await using var read = await EfCoreUnitOfWork.BeginAsync(module, Deployment, cancellationToken: Cancellation);
-        var ef = read.Context.IncludingSoftDeleted<SampleRow>(bypass);
-        var sql = read.Sql.IncludingSoftDeleted<SampleRow>(bypass);
+        var ef = await read.Context.IncludingSoftDeletedAsync<SampleRow>(bypass, Cancellation);
+        var sql = await read.Sql.IncludingSoftDeletedAsync<SampleRow>(bypass, Cancellation);
         Assert.Same(bypass, ef.Bypass);
         Assert.Same(bypass, sql.Bypass);
         Assert.Equal(bypass.OperationId, sql.Bypass.OperationId);

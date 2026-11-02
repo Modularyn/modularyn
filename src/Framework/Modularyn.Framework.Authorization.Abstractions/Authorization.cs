@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using System.Linq.Expressions;
+using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Security.Abstractions;
 using Modularyn.Framework.Tenancy.Abstractions;
 
@@ -278,21 +279,29 @@ public enum AuthorityChangeKind
     HostAuthorityGranted = 9,
     HostAuthorityRevoked = 10,
     TenantOwnerAdded = 11,
-    TenantOwnerRemoved = 12
+    TenantOwnerRemoved = 12,
+
+    /// <summary>A user became a member of a tenant: identity's membership record, which decides who may establish its context.</summary>
+    MembershipAdded = 13,
+
+    /// <summary>A user stopped being a member of a tenant; the grants made during that membership no longer count.</summary>
+    MembershipRemoved = 14
 }
 
 /// <summary>
-/// One authority change as audit receives it before the change commits: who made it, in which tenant, to whom, what it
-/// names and when. The correlation identifier is diagnostic linkage only.
+/// One authority change as audit receives it, inside the change's transaction: who made it, in which tenant, to whom,
+/// what it names and when, at whole microseconds as the change's own record holds it. The correlation identifier is
+/// diagnostic linkage only.
 /// </summary>
 public sealed record AuthorityChangeRecord(Guid ChangeId, AuthorityChangeKind Kind, Guid? TenantId, ActorReference Actor, ActorReference? Member,
     string Target, IReadOnlyList<string> Permissions, DateTimeOffset At, string? CorrelationId);
 
 /// <summary>
-/// Records an authority change before it commits. A failure, or no audit at all, refuses the change, so no authority
-/// changes without its record (TM-G02-051). Supplied by audit (SEC-07).
+/// Records an authority change in the change's own transaction, through the unit of work that makes it, so the record
+/// commits exactly when the change commits and a retried or rolled-back change leaves none. A failure, or no audit at all,
+/// refuses the change, so no authority changes without its record (TM-G02-051). Supplied by audit (SEC-07).
 /// </summary>
 public interface IAuthorityAudit
 {
-    ValueTask RecordAsync(AuthorityChangeRecord record, CancellationToken cancellationToken);
+    ValueTask RecordAsync(IUnitOfWork work, AuthorityChangeRecord record, CancellationToken cancellationToken);
 }

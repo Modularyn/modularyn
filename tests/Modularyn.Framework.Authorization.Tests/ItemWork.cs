@@ -108,10 +108,14 @@ internal static class ItemWork
         return operation;
     }
 
+    /// <summary>What an item job binds its stored reference to: the job itself.</summary>
+    public static PropagationBinding Binding(Guid id) => PropagationBinding.ForRow("tests.item-job", id);
+
     /// <summary>Queues the item job for the rest of an operation, with the producing unit's context captured beside it.</summary>
     public static async Task<Guid> EnqueueAsync(PostgreSqlModule items, TenantContext context, Guid operation, TimeProvider time, CancellationToken cancellationToken)
     {
-        var job = new ItemJob { Id = Guid.NewGuid(), Operation = operation, Propagated = PropagatedTenantContext.Capture(context, time).ToJson() };
+        var id = Guid.NewGuid();
+        var job = new ItemJob { Id = id, Operation = operation, Propagated = PropagatedTenantContext.Capture(context, time).ToJson(Binding(id)) };
         await using var work = await EfCoreUnitOfWork.BeginAsync(items, context, cancellationToken: cancellationToken);
         work.Context.Add(job);
         Assert.Equal(UnitOfWorkState.Committed, (await work.CompleteAsync(cancellationToken)).State);

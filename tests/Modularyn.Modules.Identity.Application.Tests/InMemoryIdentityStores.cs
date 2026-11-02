@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Modularyn.Framework.Audit;
+using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Configuration;
 using Modularyn.Framework.Security.Abstractions;
 using Modularyn.Framework.Tenancy.Abstractions;
@@ -61,7 +63,7 @@ internal sealed class InMemoryIdentityStores : IAccountDirectory, ISessionStore,
         public AccountSecurityState State => new(Id, UserName, Stamp, Disabled);
     }
 
-    public Task<AccountCreation> CreateAsync(string userName, SecretText password, CancellationToken cancellationToken)
+    public Task<AccountCreation> CreateAsync(string userName, SecretText password, IdentityChangeActor by, CancellationToken cancellationToken)
     {
         lock (gate)
         {
@@ -90,7 +92,8 @@ internal sealed class InMemoryIdentityStores : IAccountDirectory, ISessionStore,
         lock (gate) return Task.FromResult(accounts.TryGetValue(accountId, out var account) ? account.State : null);
     }
 
-    public Task<PasswordChangeOutcome> ChangePasswordAsync(Guid accountId, SecretText currentPassword, SecretText newPassword, CancellationToken cancellationToken)
+    public Task<PasswordChangeOutcome> ChangePasswordAsync(Guid accountId, SecretText currentPassword, SecretText newPassword, IdentityChangeActor by,
+        CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref verifications);
         lock (gate)
@@ -103,9 +106,9 @@ internal sealed class InMemoryIdentityStores : IAccountDirectory, ISessionStore,
         }
     }
 
-    public Task<bool> SetDisabledAsync(Guid accountId, bool disabled, CancellationToken cancellationToken) => Change(accountId, account => account.Disabled = disabled);
+    public Task<bool> SetDisabledAsync(Guid accountId, bool disabled, IdentityChangeActor by, CancellationToken cancellationToken) => Change(accountId, account => account.Disabled = disabled);
 
-    public Task<bool> RotateSecurityStampAsync(Guid accountId, CancellationToken cancellationToken) => Change(accountId, _ => { });
+    public Task<bool> RotateSecurityStampAsync(Guid accountId, IdentityChangeActor by, CancellationToken cancellationToken) => Change(accountId, _ => { });
 
     private Task<bool> Change(Guid accountId, Action<Account> change)
     {
@@ -148,7 +151,7 @@ internal sealed class InMemoryIdentityStores : IAccountDirectory, ISessionStore,
         }
     }
 
-    public Task<bool> EndAsync(Guid sessionId, SessionEndReason reason, DateTimeOffset now, CancellationToken cancellationToken)
+    public Task<bool> EndAsync(Guid sessionId, SessionEndReason reason, DateTimeOffset now, IdentityChangeActor? by, CancellationToken cancellationToken)
     {
         lock (gate)
         {
@@ -158,7 +161,7 @@ internal sealed class InMemoryIdentityStores : IAccountDirectory, ISessionStore,
         }
     }
 
-    public Task<int> EndAllAsync(Guid accountId, SessionEndReason reason, DateTimeOffset now, CancellationToken cancellationToken)
+    public Task<int> EndAllAsync(Guid accountId, SessionEndReason reason, DateTimeOffset now, IdentityChangeActor? by, CancellationToken cancellationToken)
     {
         lock (gate)
         {
@@ -208,7 +211,7 @@ internal sealed class InMemoryIdentityStores : IAccountDirectory, ISessionStore,
         }
     }
 
-    Task IDelegationStore.CreateAsync(DelegationGrant grant, CancellationToken cancellationToken)
+    Task IDelegationStore.CreateAsync(DelegationGrant grant, IdentityChangeActor by, CancellationToken cancellationToken)
     {
         lock (gate) delegations.Add(grant.Id, grant);
         return Task.CompletedTask;
@@ -219,7 +222,7 @@ internal sealed class InMemoryIdentityStores : IAccountDirectory, ISessionStore,
         lock (gate) return Task.FromResult(delegations.GetValueOrDefault(grantId));
     }
 
-    public Task<bool> RevokeAsync(Guid grantId, PrincipalReference revokedBy, DateTimeOffset now, CancellationToken cancellationToken)
+    public Task<bool> RevokeAsync(Guid grantId, PrincipalReference revokedBy, DateTimeOffset now, IdentityChangeActor by, CancellationToken cancellationToken)
     {
         lock (gate)
         {
@@ -231,7 +234,7 @@ internal sealed class InMemoryIdentityStores : IAccountDirectory, ISessionStore,
         }
     }
 
-    public Task SaveAsync(ProtectedSeed seed, CancellationToken cancellationToken)
+    public Task SaveAsync(ProtectedSeed seed, IdentityChangeActor by, CancellationToken cancellationToken)
     {
         lock (gate) Seeds[seed.AccountId] = seed;
         return Task.CompletedTask;
@@ -242,12 +245,13 @@ internal sealed class InMemoryIdentityStores : IAccountDirectory, ISessionStore,
         lock (gate) return Task.FromResult(Seeds.GetValueOrDefault(accountId));
     }
 
-    Task<bool> IAuthenticatorSeedStore.RemoveAsync(Guid accountId, CancellationToken cancellationToken)
+    Task<bool> IAuthenticatorSeedStore.RemoveAsync(Guid accountId, IdentityChangeActor by, CancellationToken cancellationToken)
     {
         lock (gate) return Task.FromResult(Seeds.Remove(accountId));
     }
 
-    public Task ReplaceAsync(Guid accountId, IReadOnlyList<RecoveryCodeVerifier> verifiers, DateTimeOffset now, CancellationToken cancellationToken)
+    public Task ReplaceAsync(Guid accountId, IReadOnlyList<RecoveryCodeVerifier> verifiers, DateTimeOffset now, IdentityChangeActor by,
+        CancellationToken cancellationToken)
     {
         lock (gate)
         {
@@ -275,7 +279,7 @@ internal sealed class InMemoryIdentityStores : IAccountDirectory, ISessionStore,
         }
     }
 
-    public Task<bool> AddAsync(PasskeyCredentialRecord record, CancellationToken cancellationToken)
+    public Task<bool> AddAsync(PasskeyCredentialRecord record, IdentityChangeActor by, CancellationToken cancellationToken)
     {
         lock (gate) return Task.FromResult(Passkeys.TryAdd(Convert.ToHexString(record.CredentialId), record));
     }
@@ -285,7 +289,7 @@ internal sealed class InMemoryIdentityStores : IAccountDirectory, ISessionStore,
         lock (gate) return Task.FromResult(Passkeys.GetValueOrDefault(Convert.ToHexString(credentialId)));
     }
 
-    public Task<bool> RemoveAsync(Guid accountId, byte[] credentialId, CancellationToken cancellationToken)
+    public Task<bool> RemoveAsync(Guid accountId, byte[] credentialId, IdentityChangeActor by, CancellationToken cancellationToken)
     {
         lock (gate)
             return Task.FromResult(Passkeys.TryGetValue(Convert.ToHexString(credentialId), out var record) && record.AccountId == accountId
@@ -298,7 +302,7 @@ internal sealed class InMemoryIdentityStores : IAccountDirectory, ISessionStore,
         lock (gate) return Task.FromResult(accounts.ContainsKey(accountId) && memberships.Add((accountId, tenantId)));
     }
 
-    public Task<bool> RemoveAsync(TenantContext host, Guid accountId, Guid tenantId, CancellationToken cancellationToken)
+    public Task<bool> RemoveAsync(TenantContext host, Guid accountId, Guid tenantId, DateTimeOffset now, CancellationToken cancellationToken)
     {
         RequireHost(host);
         lock (gate) return Task.FromResult(memberships.Remove((accountId, tenantId)));
@@ -314,6 +318,10 @@ internal sealed class InMemoryIdentityStores : IAccountDirectory, ISessionStore,
     {
         lock (gate) return Task.FromResult(memberships.Contains((accountId, tenantId)) && accounts.TryGetValue(accountId, out var account) && !account.Disabled);
     }
+
+    // The in-memory store keeps no membership start, so every grant counts, as before the start was recorded.
+    public async Task<DateTimeOffset?> MemberSinceAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken) =>
+        await IsMemberAsync(accountId, tenantId, cancellationToken) ? DateTimeOffset.MinValue : null;
 }
 
 /// <summary>The identity application over the in-memory stores, with a manual clock and, optionally, credential keys.</summary>
@@ -355,6 +363,9 @@ internal sealed class UnitIdentity : IAsyncDisposable
         services.AddSingleton<IRecoveryCodeStore>(stores);
         services.AddSingleton<IPasskeyCredentialStore>(stores);
         services.AddSingleton<ITenantMembershipStore>(stores);
+        services.AddSingleton<RecordingIdentityAudit>();
+        services.AddSingleton<IAuthorityAudit>(provider => provider.GetRequiredService<RecordingIdentityAudit>());
+        services.AddSingleton<IAuditTrail>(provider => provider.GetRequiredService<RecordingIdentityAudit>());
         configure?.Invoke(services);
         return new UnitIdentity(services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = validateScopes }), stores, clock);
     }

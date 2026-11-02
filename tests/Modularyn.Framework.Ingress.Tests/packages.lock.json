@@ -185,6 +185,18 @@
       "modularyn.framework.api.contracts": {
         "type": "Project"
       },
+      "modularyn.framework.audit": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Authorization.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Observability": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.EfCore": "[1.0.0, )",
+          "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )"
+        }
+      },
       "modularyn.framework.authorization": {
         "type": "Project",
         "dependencies": {
@@ -203,6 +215,7 @@
         "type": "Project",
         "dependencies": {
           "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )"
         }
@@ -233,6 +246,7 @@
         "type": "Project",
         "dependencies": {
           "Modularyn.Framework.Api": "[1.0.0, )",
+          "Modularyn.Framework.Audit": "[1.0.0, )",
           "Modularyn.Framework.Modularity": "[1.0.0, )",
           "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Observability": "[1.0.0, )"
@@ -278,6 +292,7 @@
       "modularyn.framework.settings": {
         "type": "Project",
         "dependencies": {
+          "Modularyn.Framework.Audit": "[1.0.0, )",
           "Modularyn.Framework.Authorization.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Caching": "[1.0.0, )",
           "Modularyn.Framework.Configuration": "[1.0.0, )",
@@ -294,6 +309,7 @@
       "modularyn.framework.tenancy": {
         "type": "Project",
         "dependencies": {
+          "Modularyn.Framework.Audit": "[1.0.0, )",
           "Modularyn.Framework.Authorization.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Ingress": "[1.0.0, )",
           "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",

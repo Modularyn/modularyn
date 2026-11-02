@@ -102,6 +102,12 @@ public sealed class ExecutionContextTests
             await Task.Delay(Timeout.Infinite, cancellationToken);
             return true;
         }
+
+        public async ValueTask<DateTimeOffset?> MemberSinceAsync(ActorReference actor, Guid tenantId, CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            return DateTimeOffset.MinValue;
+        }
     }
 
     private async Task<PropagatedTenantContext> CaptureAsync(IServiceProvider services)

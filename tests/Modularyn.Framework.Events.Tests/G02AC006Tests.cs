@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Modularyn.Framework.Audit;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
 using Modularyn.Framework.Tenancy.Abstractions;
@@ -64,7 +65,7 @@ public sealed class G02AC006Tests(ITestOutputHelper output)
         var other = await host.TenantAsync();
         await using var otherUnit = await host.EnterServiceAsync(other);
         Assert.Empty(await host.RowsAsync<InboxEvent>(database.Consumer, otherUnit.Context));
-        Assert.NotEmpty(host.Audit.Hosts);
+        Assert.NotEmpty(await database.AuditAsync(AuditActions.HostScopeGranted));
     }
 
     private static async Task ReorderedAsync(bool contract)
@@ -228,7 +229,11 @@ public sealed class G02AC006Tests(ITestOutputHelper output)
         var encoded = JsonSerializer.Serialize(envelope);
         Assert.DoesNotContain("Propagated", encoded, StringComparison.Ordinal);
         Assert.Equal(envelope, JsonSerializer.Deserialize<EventEnvelope>(encoded));
-        Assert.Equal(envelope, new EventEnvelope(receipt.Id, receipt.Kind, receipt.SchemaVersion, receipt.OrderingKey, receipt.Position, receipt.Payload));
+        // A side whose row has run or was delivered keeps no payload (TM-G02-039); otherwise both carry the same one.
+        var received = new EventEnvelope(receipt.Id, receipt.Kind, receipt.SchemaVersion, receipt.OrderingKey, receipt.Position, receipt.Payload);
+        if (Audit.DurablePayloads.IsRedacted(source.Payload) || Audit.DurablePayloads.IsRedacted(receipt.Payload))
+            Assert.Equal(envelope with { Payload = "" }, received with { Payload = "" });
+        else Assert.Equal(envelope, received);
     }
 
     internal sealed class StopAt(EventCheckpoint checkpoint) : IEventObserver

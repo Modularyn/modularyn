@@ -25,11 +25,24 @@ inventory contains the identity, health and bootstrap routes; a composed host's
 inventory contains only its mapped routes. Application services never become
 remotely callable merely through service registration.
 
-Versioned routes contain `v{version}`. Supported responses carry
+Versioned routes contain `v{version}`. A client-visible endpoint, which generates
+client methods that pin a version, must be versioned, and a client-visible
+mutation idempotent; inventory validation refuses either otherwise. Supported responses carry
 `Modularyn-Api-Version`; an unsupported version returns 426 and `MAP003`.
-`UseModularynApi` supplies a server-issued correlation even to an early refusal.
-API problems use `application/problem+json`, a stable code, status and correlation;
-SEC-05's refusal codes retain their meanings. Existing identity code responses
+`UseModularynApi` supplies a server-issued correlation even to an early refusal:
+`AddModularynApi` stops the server from adopting an inbound `traceparent` or
+baggage, and a request continues a peer's trace only when its direct peer is a
+declared proxy (`RequestCorrelation`, TM-G02-053). `UseModularynApi` decides that
+once per request, from the connection's own address before the ingress rewrites
+it, and later steps keep the decision, so the response header, the endpoint's
+trace and a problem body's `correlationId` always agree. API problems use
+`application/problem+json`, a stable code, status and correlation; SEC-05's
+refusal codes retain their meanings and appear only where SEC-05 decided. A
+refusal that left no body, such as the ingress's, a missing route or a method the
+route does not answer, is answered by `UseModularynApi` with a code that says only
+what its status says: `MAP004` for a missing route, `MAP003` for a version
+mismatch, `MAP007` for unavailability and `MAP009` for every other status, never
+a permission decision or a peer's contract violation. Existing identity code responses
 and health text are separately represented in OpenAPI. Requests have a 30-second
 endpoint deadline; the request cancellation token reaches the handler and its
 unit. Validation precedes writes. The shared ingress retains its body, header,
@@ -52,6 +65,7 @@ The real-provider fixture includes that refusal case.
 | `MAP006` | The mutation's outcome requires reconciliation |
 | `MAP007` | A dependency is unavailable |
 | `MAP008` | The peer's response violates the contract |
+| `MAP009` | The request was refused before or without reaching an endpoint, as its status says |
 
 ## Transaction-bound operations
 
@@ -91,5 +105,6 @@ Feature evaluation still uses its existing gate, and a missing gate yields false
 
 Compilation and real-provider qualification remain Builder checks. The contract
 fixture uses PostgreSQL, actual sessions, tenancy, authorization, tracked writes
-and TLS. Its authority-audit seam remains test scaffolding for SEC-07; these tests
-cannot establish SEC-07 or broader security acceptance.
+and TLS. Its authority-audit seam is test scaffolding; the audit package's own
+tests exercise the real store, and these tests establish no broader security
+acceptance.

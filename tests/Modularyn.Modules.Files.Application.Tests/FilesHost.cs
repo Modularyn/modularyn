@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Modularyn.Framework.Authorization;
 using Modularyn.Framework.Authorization.Abstractions;
+using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Modularity;
 using Modularyn.Framework.Modularity.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
@@ -54,14 +55,34 @@ internal sealed class TestClock : TimeProvider
     public void Advance(TimeSpan by) => Interlocked.Add(ref elapsed, by.Ticks);
 }
 
-/// <summary>Records authority changes before they commit, as SEC-07's audit will.</summary>
-internal sealed class RecordingAuthorityAudit : IAuthorityAudit
+/// <summary>
+/// Takes authority changes, identity's audited changes and file grant changes, through each change's own unit, as SEC-07's
+/// store records them. Scaffolding for the Files decisions: the audit tests exercise the real store.
+/// </summary>
+internal sealed class RecordingAuthorityAudit : IAuthorityAudit, Framework.Audit.IAuditTrail
 {
     internal ConcurrentQueue<AuthorityChangeRecord> Records { get; } = new();
+    internal ConcurrentQueue<Framework.Audit.AuditEntry> Entries { get; } = new();
 
-    public ValueTask RecordAsync(AuthorityChangeRecord record, CancellationToken cancellationToken)
+    /// <summary>Fails the change records, as an unavailable audit store would.</summary>
+    internal bool Failing { get; set; }
+
+    public ValueTask RecordAsync(IUnitOfWork work, AuthorityChangeRecord record, CancellationToken cancellationToken)
     {
         Records.Enqueue(record);
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask RecordAsync(IUnitOfWork work, Framework.Audit.AuditEntry entry, CancellationToken cancellationToken)
+    {
+        if (Failing) throw new InvalidOperationException("The audit store is unavailable.");
+        Entries.Enqueue(entry);
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask RecordAccessAsync(Framework.Audit.AuditEntry entry, CancellationToken cancellationToken)
+    {
+        Entries.Enqueue(entry);
         return ValueTask.CompletedTask;
     }
 }
@@ -134,7 +155,7 @@ internal sealed class FilesHost : IAsyncDisposable
     internal RecordingAuthorityAudit Audit { get; } = new();
     internal IServiceProvider Services => provider;
     internal IPermissionEvaluator Evaluator => Get<IPermissionEvaluator>();
-    internal FileMetadataStore Metadata => new(FilesModule);
+    internal FileMetadataStore Metadata => new(FilesModule, Audit);
     internal static CancellationToken Cancellation => TestContext.Current.CancellationToken;
 
     internal static async Task<FilesHost> CreateAsync()
@@ -179,6 +200,7 @@ internal sealed class FilesHost : IAsyncDisposable
         services.AddModularynTenancy(Directory);
         new TestSeams().Register(services, identity: true, membership: false, authority: false, audit: true);
         services.AddSingleton<IAuthorityAudit>(Audit);
+        services.AddSingleton<Framework.Audit.IAuditTrail>(Audit);
         services.AddModularynIdentity(configuration);
         services.AddModularynIdentityPostgreSql(Identity);
         services.AddModularynServiceIdentity(FileWorker.Service, [FilePermissions.Read, FilePermissions.Release]);

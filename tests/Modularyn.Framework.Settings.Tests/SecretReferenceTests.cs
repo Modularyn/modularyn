@@ -39,7 +39,8 @@ public sealed class SecretReferenceTests
             await File.WriteAllTextAsync(mounted, first, Cancellation);
             var store = new FileSecretStore(Options.Create(new SecretStoreOptions { Directory = directory }));
             var settings = new SettingsService(database.Module, database.Definitions, database.Services.GetRequiredService<ScopedValueCache>(),
-                database.Services.GetRequiredService<TenantWorkRunner>(), database.Clock, store, database.Permissions);
+                database.Services.GetRequiredService<TenantWorkRunner>(), database.Clock, store, database.Permissions,
+                database.Services.GetRequiredService<Audit.IAuditTrail>());
             var errors = new List<string>();
             foreach (var (context, scope) in new[] { (host, ValueSource.Global), (a, ValueSource.Tenant), (a, ValueSource.User) })
             {

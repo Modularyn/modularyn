@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Modularyn.Framework.Audit;
 using Modularyn.Framework.Authorization;
 using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Hosting;
@@ -37,7 +38,8 @@ public static class BackgroundJobsServiceCollectionExtensions
     {
         if (module.ModuleId != BackgroundJobsDefinition.ModuleId) throw new ArgumentException("Use the Background Jobs module.", nameof(module));
         var handlers = definitions.ToArray();
-        services.AddSingleton(provider => new JobStore(module, provider.GetRequiredService<TimeProvider>(), policy ?? new JobPolicy()));
+        services.AddSingleton(provider => new JobStore(module, provider.GetRequiredService<TimeProvider>(), policy ?? new JobPolicy(),
+            provider.GetService<IAuditTrail>()));
         services.AddSingleton(provider => new JobWorker(provider.GetRequiredService<JobStore>(), provider.GetRequiredService<AuthorizedWorkRunner>(),
             provider.GetRequiredService<IPermissionEvaluator>(), handlers));
         services.AddSingleton<ScheduleWorker>();

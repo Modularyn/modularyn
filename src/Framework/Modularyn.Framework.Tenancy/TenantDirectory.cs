@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Modularyn.Framework.Audit;
 using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Ingress;
 using Modularyn.Framework.Modularity.Abstractions;
@@ -87,10 +88,15 @@ public sealed class TenantDirectory : ITenantDirectory
 
 /// <summary>
 /// Directory changes, each a host operation: they run only in an active host-scope context granted for
-/// <see cref="OperationId"/>, and every domain must be a configured public origin's host.
+/// <see cref="OperationId"/>, and every domain must be a configured public origin's host. Each change is recorded in audit,
+/// naming the tenant it affects, in the change's own transaction; without the audit trail no change is made.
 /// </summary>
 public sealed class TenantDirectoryAdministration
 {
+    public const string TenantCreatedAction = "tenancy.tenant-created";
+    public const string DomainAddedAction = "tenancy.domain-added";
+    public const string StateChangedAction = "tenancy.tenant-state-changed";
+
     public const string OperationId = "modularyn.tenancy.directory";
 
     /// <summary>The directory's host operation, which reaches the directory's tenants and domains and nothing else.</summary>
@@ -99,12 +105,14 @@ public sealed class TenantDirectoryAdministration
 
     private readonly PostgreSqlModule module;
     private readonly PublicOrigins? origins;
+    private readonly IAuditTrail? audit;
 
-    public TenantDirectoryAdministration(PostgreSqlModule module, PublicOrigins? origins)
+    public TenantDirectoryAdministration(PostgreSqlModule module, PublicOrigins? origins, IAuditTrail? audit = null)
     {
         TenantDirectoryModule.Require(module);
         this.module = module;
         this.origins = origins;
+        this.audit = audit;
     }
 
     public async Task<Guid> CreateTenantAsync(TenantContext host, string name, CancellationToken cancellationToken = default)
@@ -113,8 +121,10 @@ public sealed class TenantDirectoryAdministration
         if (string.IsNullOrWhiteSpace(name) || name.Length > 200 || name != name.Trim() || name.Any(char.IsControl))
             throw new ArgumentException("A tenant name is 1 to 200 characters with no surrounding whitespace or control characters.", nameof(name));
         var id = Guid.NewGuid();
+        var trail = RequireAudit();
         await using var work = await EfCoreUnitOfWork.BeginAsync(module, host, cancellationToken: cancellationToken).ConfigureAwait(false);
         work.Context.Add(new TenantRecord { Id = id, Name = name, State = TenantState.Active });
+        await RecordAsync(trail, work, Entry(TenantCreatedAction, host, id, "tenant", id.ToString("D")), cancellationToken).ConfigureAwait(false);
         Require(await work.CompleteAsync(cancellationToken).ConfigureAwait(false));
         return id;
     }
@@ -126,6 +136,7 @@ public sealed class TenantDirectoryAdministration
             throw new ArgumentException("A tenant domain is a lowercase ASCII host name without a port or trailing dot.", nameof(domain));
         if (origins is null || !origins.Values.Any(origin => string.Equals(new Uri(origin).Host, domain, StringComparison.OrdinalIgnoreCase)))
             throw new TenancyException("MTN020", "A tenant domain must be the host of a configured public origin.");
+        var trail = RequireAudit();
         await using var work = await EfCoreUnitOfWork.BeginAsync(module, host, cancellationToken: cancellationToken).ConfigureAwait(false);
         var context = (TenantDirectoryContext)work.Context;
         if (!await context.Tenants.AnyAsync(row => row.Id == tenantId, cancellationToken).ConfigureAwait(false))
@@ -133,6 +144,7 @@ public sealed class TenantDirectoryAdministration
         if (await context.Domains.AnyAsync(row => row.Host == domain, cancellationToken).ConfigureAwait(false))
             throw new TenancyException("MTN020", "The domain already names a tenant.");
         context.Add(new TenantDomainRecord { Host = domain, TenantId = tenantId });
+        await RecordAsync(trail, work, Entry(DomainAddedAction, host, tenantId, "tenant.domain", domain), cancellationToken).ConfigureAwait(false);
         Require(await work.CompleteAsync(cancellationToken).ConfigureAwait(false));
     }
 
@@ -140,12 +152,38 @@ public sealed class TenantDirectoryAdministration
     {
         RequireAuthority(host);
         if (!Enum.IsDefined(state)) throw new ArgumentOutOfRangeException(nameof(state));
+        var trail = RequireAudit();
         await using var work = await EfCoreUnitOfWork.BeginAsync(module, host, cancellationToken: cancellationToken).ConfigureAwait(false);
         var row = await ((TenantDirectoryContext)work.Context).Tenants.SingleOrDefaultAsync(row => row.Id == tenantId, cancellationToken).ConfigureAwait(false)
             ?? throw new TenancyException("MTN021", "The tenant does not exist.");
+        await RecordAsync(trail, work, Entry(StateChangedAction, host, tenantId, "tenant", tenantId.ToString("D")) with { Detail = "state " + row.State + " to " + state },
+            cancellationToken).ConfigureAwait(false);
         row.State = state;
         Require(await work.CompleteAsync(cancellationToken).ConfigureAwait(false));
     }
+
+    private IAuditTrail RequireAudit() => audit
+        ?? throw new TenancyException("MTN023", "Directory changes are recorded in audit, and no audit trail is registered, so no change is made.");
+
+    // A record that cannot be written ends the change with the same refusal; the unit never commits without it.
+    private static async Task RecordAsync(IAuditTrail trail, EfCoreUnitOfWork work, AuditEntry entry, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await trail.RecordAsync(work, entry, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            throw new TenancyException("MTN023", "The directory change could not be recorded in audit, so it was not made.");
+        }
+    }
+
+    // A host operation's record names the tenant it affects, as well as the scope's unit, operation and reason.
+    private static AuditEntry Entry(string action, TenantContext host, Guid tenant, string type, string resource) =>
+        AuditEntry.InContext(action, host) with
+        {
+            TenantId = tenant, ResourceType = type, ResourceId = resource, OperationId = host.HostGrant!.OperationId, Reason = host.HostGrant.Reason
+        };
 
     private static void RequireAuthority(TenantContext host)
     {

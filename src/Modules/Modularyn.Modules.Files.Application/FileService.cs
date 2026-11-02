@@ -92,7 +92,7 @@ public sealed class FileService : IFiles
                         throw new FileStorageException(FileStorageError.NotFound);
                     intent.Add(new FileUpload { TenantId = tenantId, Id = revisionId, FileId = fileId, Length = expected.Length,
                         Sha256 = expected.Sha256, ContentType = contentType, CreatedAt = createdAt,
-                        PropagatedContext = PropagatedTenantContext.Capture(tenant, time).ToJson() });
+                        PropagatedContext = PropagatedTenantContext.Capture(tenant, time).ToJson(UploadBinding(revisionId)) });
                     await intent.CommitAsync(cancellationToken).ConfigureAwait(false);
                 }
                 committed = true;
@@ -244,6 +244,8 @@ public sealed class FileService : IFiles
             Verifier = token.ComputeVerifier(tenantId), CreatedByKind = creator.Kind, CreatedBy = creator.Subject, CreatedAt = now,
             ExpiresAt = FileTime.Normalize(now + lifetime) };
         unit.Add(grant);
+        // Who issued which grant, for which version, purpose and expiry, with the grant: never its token or verifier.
+        await unit.RecordAsync(Audited(FileAuditRecord.GrantIssued, tenant, principal, grant), cancellationToken).ConfigureAwait(false);
         await unit.CommitAsync(cancellationToken).ConfigureAwait(false);
         return new(Inform(grant, now), token);
     }
@@ -270,6 +272,7 @@ public sealed class FileService : IFiles
         if (grant!.RevokedAt is null)
         {
             grant.RevokedAt = now;
+            await unit.RecordAsync(Audited(FileAuditRecord.GrantRevoked, tenant, principal, grant), cancellationToken).ConfigureAwait(false);
             await unit.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
         return Inform(grant, now);
@@ -334,8 +337,18 @@ public sealed class FileService : IFiles
     public Task<TenantWorkOutcome> RecoverAsync(string propagated, TenantWorkRunner runner, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(runner);
-        return runner.RunAsync(propagated, async (unit, token) => { await RecoverAsync(unit.Context, token).ConfigureAwait(false); }, cancellationToken);
+        return runner.RunAsync(propagated, RecoveryBinding, async (unit, token) => { await RecoverAsync(unit.Context, token).ConfigureAwait(false); },
+            cancellationToken);
     }
+
+    /// <summary>
+    /// What a scheduled recovery's reference is bound to. Recovery reconciles the reference's own tenant and is safe to
+    /// repeat, so one binding serves every schedule; a reference sealed for any other purpose never opens as recovery.
+    /// </summary>
+    public static PropagationBinding RecoveryBinding { get; } = new("modularyn.files.recovery", "tenant");
+
+    /// <summary>What an upload intent's provenance reference is bound to: the intent's revision.</summary>
+    public static PropagationBinding UploadBinding(Guid revisionId) => PropagationBinding.ForRow("modularyn.files.upload", revisionId);
 
     private async Task<FileVersionInfo> PublishAsync(TenantContext tenant, Guid tenantId, IFileBlobStaging staging, Guid fileId, DateTimeOffset createdAt,
         CancellationToken cancellationToken)
@@ -441,7 +454,7 @@ public sealed class FileService : IFiles
         try
         {
             using var deadline = new CancellationTokenSource(ScheduleTimeout, time);
-            await recovery.ScheduleAsync(PropagatedTenantContext.Capture(tenant, time).ToJson(), deadline.Token).ConfigureAwait(false);
+            await recovery.ScheduleAsync(PropagatedTenantContext.Capture(tenant, time).ToJson(RecoveryBinding), deadline.Token).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
@@ -498,6 +511,14 @@ public sealed class FileService : IFiles
     };
 
     private static ActorReference? OwnerOf(FileAsset file) => string.IsNullOrEmpty(file.CreatedBy) ? null : new(file.CreatedByKind, file.CreatedBy);
+
+    private static FileAuditRecord Audited(string action, TenantContext tenant, ExecutionPrincipal? principal, FileGrant grant) =>
+        new(action, tenant.Actor, grant.TenantId, tenant.UnitId, grant.Id, "file " + grant.FileId.ToString("D") + " version " + grant.VersionId.ToString("D")
+            + " purpose " + grant.Purpose + " expires " + grant.ExpiresAt.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff'Z'", System.Globalization.CultureInfo.InvariantCulture))
+        {
+            Subject = principal is { EffectiveSubject: { } effective } && effective.Id != tenant.Actor.Subject
+                ? new ActorReference(effective.Kind == IdentityKind.User ? ActorKind.User : ActorKind.Service, effective.Id) : null
+        };
 
     private static bool IsOpen(FileGrant grant, DateTimeOffset now) => grant.RevokedAt is null && grant.ConsumedAt is null && now < grant.ExpiresAt;
 

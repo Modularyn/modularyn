@@ -18,11 +18,18 @@ public static class IdentityHttpServiceCollectionExtensions
     /// <c>UseAuthentication</c> yourself. Startup is refused unless the ingress policy is registered, because the session
     /// cookie relies on its HTTPS enforcement, and unless the identity module is registered.
     /// </summary>
-    public static IServiceCollection AddModularynIdentityHttp(this IServiceCollection services)
+    /// <remarks>
+    /// Startup is also refused while the default authentication scheme, the one ASP.NET Core authenticates every request
+    /// with, is not the session scheme, so another handler registered later cannot quietly become the request's identity.
+    /// A host that authenticates through another scheme on purpose says so with
+    /// <see cref="IdentityHttpOptions.AllowOtherDefaultScheme"/>.
+    /// </remarks>
+    public static IServiceCollection AddModularynIdentityHttp(this IServiceCollection services, IdentityHttpOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         if (services.Any(descriptor => descriptor.ServiceType == typeof(IdentityHttpCheck)))
             throw new InvalidOperationException("The identity HTTP adapter is already registered. Register it once.");
+        services.AddSingleton(options ?? new IdentityHttpOptions());
         services.AddAuthentication(AuthenticationScheme)
             .AddScheme<SessionAuthenticationOptions, SessionAuthenticationHandler>(AuthenticationScheme, _ => { });
         services.TryAddSingleton<Framework.Tenancy.Abstractions.ITenantActorResolver, SessionTenantActorResolver>();
@@ -32,6 +39,16 @@ public static class IdentityHttpServiceCollectionExtensions
         services.AddOptions<IdentityHttpCheck>().ValidateOnStart();
         return services;
     }
+}
+
+/// <summary>The host's explicit choices about the identity HTTP adapter.</summary>
+public sealed class IdentityHttpOptions
+{
+    /// <summary>
+    /// True only when the host deliberately authenticates requests by default through a scheme other than the session
+    /// scheme, such as a test adapter or a gateway's; startup otherwise refuses any other default.
+    /// </summary>
+    public bool AllowOtherDefaultScheme { get; init; }
 }
 
 /// <summary>Carries no values; its startup validation refuses a host whose session cookie would not be confined to HTTPS.</summary>
@@ -49,6 +66,10 @@ internal sealed class IdentityHttpValidation(IServiceProvider services) : IValid
         var schemes = services.GetRequiredService<IOptions<AuthenticationOptions>>().Value;
         if (schemes.Schemes.SingleOrDefault(scheme => scheme.Name == IdentityHttpServiceCollectionExtensions.AuthenticationScheme)?.HandlerType != typeof(SessionAuthenticationHandler))
             failures.Add("The session authentication scheme was replaced after the identity HTTP adapter registered it.");
+        var effective = schemes.DefaultAuthenticateScheme ?? schemes.DefaultScheme;
+        if (effective != IdentityHttpServiceCollectionExtensions.AuthenticationScheme && !services.GetRequiredService<IdentityHttpOptions>().AllowOtherDefaultScheme)
+            failures.Add("Requests are authenticated by default through another scheme than the session scheme. Remove the later default, "
+                + "or set IdentityHttpOptions.AllowOtherDefaultScheme when the host does so deliberately.");
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }
 }

@@ -127,7 +127,7 @@ public sealed class ModuleHost : IHostedLifecycleService, IDisposable
                 if (cancelled) operation.Cancel();
                 diagnostics.Add(new(cancelled ? ModuleHostDiagnosticCodes.StartupCancelled : ModuleHostDiagnosticCodes.ValidationFailed,
                     cancelled ? "Composition validation was cancelled. Retry startup with an active cancellation token."
-                        : $"Composition validation did not complete: {exception.GetType().Name}: {exception.Message}. Resolve the validation failure before retrying.", states.Keys));
+                        : $"Composition validation did not complete: {exception.GetType().Name}: {SecretForms.Scrub(exception.Message)}. Resolve the validation failure before retrying.", states.Keys));
                 SetHostState(ModuleHostState.Failed);
                 throw;
             }
@@ -216,7 +216,7 @@ public sealed class ModuleHost : IHostedLifecycleService, IDisposable
                     _ => ModuleHostDiagnosticCodes.StartFailed
                 };
                 var failedOperation = currentId is null ? "Module selection startup" : $"Module '{currentId}' {stage}";
-                var message = $"{failedOperation} {(cancelled ? "was cancelled" : "failed")}: {exception.GetType().Name}: {exception.Message}. Complete cleanup and resolve the cause before restarting.";
+                var message = $"{failedOperation} {(cancelled ? "was cancelled" : "failed")}: {exception.GetType().Name}: {SecretForms.Scrub(exception.Message)}. Complete cleanup and resolve the cause before restarting.";
                 diagnostics.Add(new(code, message, currentId is null ? [] : [currentId]));
                 SetHostState(ModuleHostState.Stopping);
                 Work.StopAccepting();
@@ -302,7 +302,7 @@ public sealed class ModuleHost : IHostedLifecycleService, IDisposable
                 Record(id, ModuleStage.Shutdown, exception is OperationCanceledException && cancellationToken.IsCancellationRequested
                     ? ModuleStageOutcome.Cancelled : ModuleStageOutcome.Failed);
                 diagnostics.Add(new(ModuleHostDiagnosticCodes.ShutdownFailed,
-                    $"Module '{id}' Shutdown did not complete: {exception.GetType().Name}: {exception.Message}. Retry StopAsync to release this instance before restarting.", [id]));
+                    $"Module '{id}' Shutdown did not complete: {exception.GetType().Name}: {SecretForms.Scrub(exception.Message)}. Retry StopAsync to release this instance before restarting.", [id]));
                 Publish();
             }
         }

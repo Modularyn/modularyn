@@ -55,6 +55,10 @@ internal sealed class TestMembership : ITenantMembership
         if (Failing) throw new InvalidOperationException("The membership store is unavailable.");
         return ValueTask.FromResult(members.ContainsKey((actor.Subject, tenantId)));
     }
+
+    // The double keeps no membership start, so every grant of a current member counts.
+    public async ValueTask<DateTimeOffset?> MemberSinceAsync(ActorReference actor, Guid tenantId, CancellationToken cancellationToken) =>
+        await IsMemberAsync(actor, tenantId, cancellationToken) ? DateTimeOffset.MinValue : null;
 }
 
 /// <summary>
@@ -122,15 +126,41 @@ internal sealed class TestServiceIdentities : IServiceIdentityScopes, IPrincipal
     }
 }
 
-internal sealed class RecordingAudit : IHostScopeAudit
+internal sealed class RecordingAudit : IHostScopeAudit, IFilterBypassAudit, Audit.IAuditTrail
 {
     internal ConcurrentQueue<HostScopeAuditRecord> Records { get; } = new();
+    internal ConcurrentQueue<FilterBypassRecord> Bypasses { get; } = new();
+    internal ConcurrentQueue<Audit.AuditEntry> Changes { get; } = new();
     internal bool Failing { get; set; }
+
+    /// <summary>Fails only the change records, so a context can still be entered while its changes cannot be recorded.</summary>
+    internal bool ChangesFailing { get; set; }
+
+    public ValueTask RecordAsync(Persistence.Abstractions.IUnitOfWork work, Audit.AuditEntry entry, CancellationToken cancellationToken)
+    {
+        if (Failing || ChangesFailing) throw new InvalidOperationException("The audit store is unavailable.");
+        Changes.Enqueue(entry);
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask RecordAccessAsync(Audit.AuditEntry entry, CancellationToken cancellationToken)
+    {
+        if (Failing || ChangesFailing) throw new InvalidOperationException("The audit store is unavailable.");
+        Changes.Enqueue(entry);
+        return ValueTask.CompletedTask;
+    }
 
     public ValueTask RecordAsync(HostScopeAuditRecord record, CancellationToken cancellationToken)
     {
         if (Failing) throw new InvalidOperationException("The audit store is unavailable.");
         Records.Enqueue(record);
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask RecordAsync(FilterBypassRecord record, CancellationToken cancellationToken)
+    {
+        if (Failing) throw new InvalidOperationException("The audit store is unavailable.");
+        Bypasses.Enqueue(record);
         return ValueTask.CompletedTask;
     }
 }
@@ -178,14 +208,27 @@ internal sealed class TestSeams
     internal RecordingAudit Audit { get; } = new();
     internal TestServiceIdentities ServiceIdentities { get; } = new();
 
+    /// <summary>
+    /// The real seal over an in-memory key ring shared by every test host in the process that registers these seams, so a
+    /// reference one host stores opens in another over the same database. It replaces the seal over a declared ring.
+    /// </summary>
+    internal static IPropagationSeal Seal { get; } = new PropagationSeal(new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider());
+
+    /// <summary>A binding for references a test captures and opens itself, apart from any store's rows.</summary>
+    internal static PropagationBinding Binding { get; } = new("tests.propagated-work", "unit");
+
     internal void Register(IServiceCollection services, bool identity = true, bool membership = true, bool authority = true, bool audit = true)
     {
+        services.Replace(ServiceDescriptor.Singleton(Seal));
         services.TryAddSingleton<IServiceIdentityScopes>(ServiceIdentities);
         services.TryAddSingleton<IPrincipalFreshness>(ServiceIdentities);
         if (identity) services.AddSingleton<ITenantActorResolver>(Identity);
         if (membership) services.AddSingleton<ITenantMembership>(Membership);
         if (authority) services.AddSingleton<IHostAuthority>(Authority);
-        if (audit) services.AddSingleton<IHostScopeAudit>(Audit);
+        if (!audit) return;
+        services.AddSingleton<IHostScopeAudit>(Audit);
+        services.AddSingleton<IFilterBypassAudit>(Audit);
+        services.TryAddSingleton<Audit.IAuditTrail>(Audit);
     }
 }
 

@@ -3,6 +3,7 @@ using Modularyn.Framework.Events.Tests;
 using Modularyn.Framework.Jobs;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
+using Modularyn.Framework.Tenancy.Abstractions;
 using Npgsql;
 using Xunit;
 
@@ -131,9 +132,10 @@ public sealed class JobRecoveryTests
             Assert.Equal(UnitOfWorkState.Committed, (await work.CompleteAsync(Token)).State);
         }
         Assert.Equal(0, await scheduler.MaterializeAsync(dispatch, principal, limit: 1, cancellationToken: Token));
-        var backlog = Assert.Single(await host.RowsAsync<JobSchedule>(database.Producer, source.Context), row => row.Payload == "backlog");
+        var backlog = Assert.Single(await host.RowsAsync<JobSchedule>(database.Producer, source.Context), row => row.Code == "BacklogLimit");
         Assert.False(backlog.Enabled);
-        Assert.Equal("BacklogLimit", backlog.Code);
+        // A disabled schedule never runs again, so it keeps no payload.
+        Assert.Equal(Framework.Audit.DurablePayloads.Redacted, backlog.Payload);
         await using (var work = await EfCoreUnitOfWork.BeginAsync(database.Producer, source.Context, cancellationToken: Token))
         {
             host.JobStore.Schedule(work, "durable.counter", "due", new("America/Chicago", new(6, 0)), new(2026, 11, 1));
@@ -182,7 +184,74 @@ public sealed class JobRecoveryTests
     }
 
     [Fact]
-    public async Task A_job_whose_stored_context_names_another_tenant_is_bounded_without_stopping_other_jobs()
+    public async Task A_validly_sealed_job_reference_naming_another_tenant_than_its_row_is_bounded_and_never_runs()
+    {
+        await using var database = await DurableDatabase.CreateAsync();
+        var clock = new DurableClock();
+        await using var host = DurableHost.Create(database, clock);
+        await using var owner = await host.EnterServiceAsync(await host.TenantAsync());
+        await using var other = await host.EnterServiceAsync(await host.TenantAsync());
+        var job = await host.QueueAsync(owner, "elsewhere");
+        // Sealed with the host's key ring for this very row, but captured in another tenant: it opens and revalidates for
+        // that tenant, so only the worker's tenant check behind the seal keeps it from the row. That failure takes the
+        // bounded deferrals, so the job ends visibly instead of staying due without bound.
+        await ForgeAsync(database, "Jobs", job, PropagatedTenantContext.Capture(other.Context, clock).ToJson(host.JobStore.JobBinding(job)));
+        var dispatch = await host.HostAsync();
+        var principal = host.WorkerPrincipal();
+        for (var pass = 1; pass <= host.JobStore.Policy.MaxAttempts; pass++)
+        {
+            Assert.Equal(0, await host.Worker().RunDueAsync(dispatch, principal, cancellationToken: Token));
+            clock.Advance(TimeSpan.FromMinutes(1));
+        }
+        var row = Assert.Single(await host.RowsAsync<JobRecord>(database.Producer, owner.Context));
+        Assert.Equal((JobState.Failed, "DispatchFailed", host.JobStore.Policy.MaxAttempts, 0), (row.State, row.Code, row.Deferrals, row.Attempts));
+        foreach (var unit in new[] { owner, other })
+        {
+            Assert.Empty(await host.RowsAsync<JobAttempt>(database.Producer, unit.Context));
+            Assert.Empty(await host.RowsAsync<DurableEffect>(database.Producer, unit.Context));
+        }
+        Assert.Empty(await host.RowsAsync<JobRecord>(database.Producer, other.Context));
+    }
+
+    [Fact]
+    public async Task A_validly_sealed_schedule_reference_naming_another_tenant_than_its_row_disables_the_schedule()
+    {
+        await using var database = await DurableDatabase.CreateAsync();
+        var clock = new DurableClock();
+        clock.Set(new DateTimeOffset(2026, 11, 1, 12, 0, 0, TimeSpan.Zero));
+        await using var host = DurableHost.Create(database, clock);
+        await using var owner = await host.EnterServiceAsync(await host.TenantAsync());
+        await using var other = await host.EnterServiceAsync(await host.TenantAsync());
+        var schedule = await ScheduleAsync(host, owner, "elsewhere");
+        // The same forgery on a schedule: only the materializer's tenant check stands between it and the row, and the
+        // bounded deferrals then disable the schedule, which materializes nothing in either tenant.
+        await ForgeAsync(database, "JobSchedules", schedule,
+            PropagatedTenantContext.Capture(other.Context, clock).ToJson(host.JobStore.ScheduleBinding(schedule)));
+        var scheduler = new ScheduleWorker(host.JobStore, host.Get<AuthorizedWorkRunner>());
+        var dispatch = await host.HostAsync();
+        var principal = host.WorkerPrincipal();
+        for (var pass = 1; pass <= host.JobStore.Policy.MaxAttempts; pass++)
+        {
+            Assert.Equal(0, await scheduler.MaterializeAsync(dispatch, principal, cancellationToken: Token));
+            clock.Advance(TimeSpan.FromMinutes(1));
+        }
+        var row = Assert.Single(await host.RowsAsync<JobSchedule>(database.Producer, owner.Context));
+        Assert.Equal((false, "ScheduleFailed", host.JobStore.Policy.MaxAttempts, Framework.Audit.DurablePayloads.Redacted),
+            (row.Enabled, row.Code, row.Deferrals, row.Payload));
+        foreach (var unit in new[] { owner, other })
+        {
+            Assert.Empty(await host.RowsAsync<JobRecord>(database.Producer, unit.Context));
+            Assert.Empty(await host.RowsAsync<ScheduleOccurrence>(database.Producer, unit.Context));
+        }
+    }
+
+    // Replaces a row's stored reference directly, as only a database writer could.
+    private static Task ForgeAsync(DurableDatabase database, string table, Guid id, string propagated) =>
+        database.ExecuteAsync("UPDATE \"" + database.Producer.Schema + "\".\"" + table + "\" SET \"Propagated\" = @propagated WHERE \"Id\" = @id",
+            new NpgsqlParameter("propagated", propagated), new NpgsqlParameter("id", id));
+
+    [Fact]
+    public async Task A_job_whose_stored_reference_was_copied_from_another_row_is_denied_without_stopping_other_jobs()
     {
         await using var database = await DurableDatabase.CreateAsync();
         var clock = new DurableClock();
@@ -192,8 +261,8 @@ public sealed class JobRecoveryTests
         var swappedId = await host.QueueAsync(swapped, "swapped");
         clock.Advance(TimeSpan.FromSeconds(1));
         var healthyId = await host.QueueAsync(healthy, "healthy");
-        // A stored reference copied from another tenant's row: revalidation succeeds for that other tenant, so only the
-        // worker's own tenant check stands between it and the row. The swapped job is due first.
+        // A stored reference copied from another tenant's row is sealed for that row, so it never opens for this one
+        // (SEC-07); the worker's own tenant check stays behind the seal. The swapped job is due first.
         var jobs = "\"" + database.Producer.Schema + "\".\"Jobs\"";
         await database.ExecuteAsync("UPDATE " + jobs + " SET \"Propagated\" = (SELECT \"Propagated\" FROM " + jobs + " WHERE \"Id\" = @healthy) WHERE \"Id\" = @swapped",
             new NpgsqlParameter("healthy", healthyId), new NpgsqlParameter("swapped", swappedId));
@@ -203,16 +272,9 @@ public sealed class JobRecoveryTests
         Assert.Equal(JobState.Completed, Assert.Single(await host.RowsAsync<JobRecord>(database.Producer, healthy.Context)).State);
         var effect = Assert.Single(await host.RowsAsync<DurableEffect>(database.Producer, healthy.Context));
         Assert.Equal(("healthy", 1), (effect.Key, effect.Count));
-        for (var deferral = 1; deferral <= host.JobStore.Policy.MaxAttempts; deferral++)
-        {
-            if (deferral > 1) Assert.Equal(0, await host.Worker().RunDueAsync(dispatch, principal, cancellationToken: Token));
-            var row = Assert.Single(await host.RowsAsync<JobRecord>(database.Producer, swapped.Context));
-            Assert.Equal("DispatchFailed", row.Code);
-            Assert.Equal(deferral, row.Deferrals);
-            Assert.Equal(0, row.Attempts);
-            Assert.Equal(deferral < host.JobStore.Policy.MaxAttempts ? JobState.Retry : JobState.Failed, row.State);
-            clock.Advance(TimeSpan.FromSeconds(1 << (deferral - 1)));
-        }
+        var row = Assert.Single(await host.RowsAsync<JobRecord>(database.Producer, swapped.Context));
+        Assert.Equal((JobState.Denied, Framework.Tenancy.TenancyCodes.Unsealed, 0, Framework.Audit.DurablePayloads.Redacted), (row.State, row.Code, row.Attempts, row.Payload));
+        clock.Advance(TimeSpan.FromMinutes(1));
         Assert.Equal(0, await host.Worker().RunDueAsync(dispatch, principal, cancellationToken: Token));
         Assert.Empty(await host.RowsAsync<JobAttempt>(database.Producer, swapped.Context));
         Assert.Empty(await host.RowsAsync<DurableEffect>(database.Producer, swapped.Context));

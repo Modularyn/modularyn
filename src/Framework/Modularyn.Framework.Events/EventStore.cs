@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Modularyn.Framework.Audit;
 using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
@@ -7,11 +8,26 @@ using Modularyn.Framework.Tenancy.Abstractions;
 
 namespace Modularyn.Framework.Events;
 
-public sealed class EventStore(PostgreSqlModule module, TimeProvider clock)
+/// <summary>
+/// The durable event store of one module. Operator replays are recorded through <paramref name="audit"/> in the replay's
+/// own transaction; without it no replay is made.
+/// </summary>
+public sealed class EventStore(PostgreSqlModule module, TimeProvider clock, IAuditTrail? audit = null)
 {
     public const string ReplayPermission = "events.replay";
+    public const string ReplayedAction = "events.replayed";
+    public const string DispatchReplayedAction = "events.dispatch-replayed";
     public static readonly TimeSpan ReceiptRetention = TimeSpan.FromHours(24);
+
+    /// <summary>How long a quarantined row keeps its payload for replay, from its last due time, before redaction may remove it.</summary>
+    public static readonly TimeSpan QuarantineRetention = TimeSpan.FromDays(30);
     public PostgreSqlModule Module { get; } = module;
+
+    /// <summary>What this store's outbox row <paramref name="id"/> binds its propagated reference to; dispatch opens it under this binding alone.</summary>
+    public PropagationBinding OutboxBinding(Guid id) => PropagationBinding.ForRow("modularyn.events.outbox/" + Module.ModuleId, id);
+
+    /// <summary>What this store's inbox receipt <paramref name="id"/> binds its propagated reference to; consumption opens it under this binding alone.</summary>
+    public PropagationBinding InboxBinding(Guid id) => PropagationBinding.ForRow("modularyn.events.inbox/" + Module.ModuleId, id);
 
     /// <summary>Stages intent in the business transaction. A suppressed or completed unit is refused.</summary>
     public Guid Append(EfCoreUnitOfWork work, EventIntent intent)
@@ -20,14 +36,19 @@ public sealed class EventStore(PostgreSqlModule module, TimeProvider clock)
         if (string.IsNullOrWhiteSpace(intent.Consumer) || intent.Consumer.Length > 128
             || string.IsNullOrWhiteSpace(intent.Kind) || intent.Kind.Length > 128
             || string.IsNullOrWhiteSpace(intent.OrderingKey) || intent.OrderingKey.Length > 200
-            || intent.Position < 1 || intent.SchemaVersion < 1 || intent.Payload is null || intent.Payload.Length > 1_048_576)
+            || intent.Position < 1 || intent.SchemaVersion < 1)
             throw new ArgumentException("An event needs a bounded consumer, kind, ordering key, positive version and position, and payload.", nameof(intent));
+        // The payload rule: references only, never a secret form or a propagated context (TM-G02-039).
+        DurablePayloads.Require(intent.Payload, nameof(intent));
+        DurablePayloads.RequireReference(intent.OrderingKey, nameof(intent));
         var now = UtcMicroseconds.Now(clock);
+        var id = Guid.NewGuid();
         var row = new OutboxEvent
         {
-            Id = Guid.NewGuid(), Consumer = intent.Consumer, Kind = intent.Kind, SchemaVersion = intent.SchemaVersion,
+            Id = id, Consumer = intent.Consumer, Kind = intent.Kind, SchemaVersion = intent.SchemaVersion,
             OrderingKey = intent.OrderingKey, Position = intent.Position, Payload = intent.Payload,
-            Propagated = PropagatedTenantContext.Capture(work.Context.Tenant!, clock).ToJson(), CreatedAt = now, DueAt = now
+            // Captured from the producing unit, bound to this row and sealed, so it opens for this row's dispatch alone.
+            Propagated = PropagatedTenantContext.Capture(work.Context.Tenant!, clock).ToJson(OutboxBinding(id)), CreatedAt = now, DueAt = now
         };
         work.Context.Add(row);
         return row.Id;
@@ -40,8 +61,10 @@ public sealed class EventStore(PostgreSqlModule module, TimeProvider clock)
         var existing = await work.Context.Set<InboxEvent>().SingleOrDefaultAsync(row => row.Id == source.Id, token).ConfigureAwait(false);
         if (existing is not null)
         {
+            // A receipt that has run, or was denied, no longer holds its payload; its identity still names the same event.
             if (existing.Consumer != source.Consumer || existing.Kind != source.Kind || existing.SchemaVersion != source.SchemaVersion
-                || existing.OrderingKey != source.OrderingKey || existing.Position != source.Position || existing.Payload != source.Payload)
+                || existing.OrderingKey != source.OrderingKey || existing.Position != source.Position
+                || existing.Payload != source.Payload && !DurablePayloads.IsRedacted(existing.Payload))
                 throw new InvalidOperationException("An event identity cannot name different content.");
             return;
         }
@@ -51,7 +74,7 @@ public sealed class EventStore(PostgreSqlModule module, TimeProvider clock)
             Id = source.Id, Consumer = source.Consumer, Kind = source.Kind, SchemaVersion = source.SchemaVersion,
             OrderingKey = source.OrderingKey, Position = source.Position, Payload = source.Payload,
             // Capture anew from the revalidated receiving unit; never copy a propagated reference from the outbox.
-            Propagated = PropagatedTenantContext.Capture(work.Context.Tenant!, clock).ToJson(), ReceivedAt = now, DueAt = now
+            Propagated = PropagatedTenantContext.Capture(work.Context.Tenant!, clock).ToJson(InboxBinding(source.Id)), ReceivedAt = now, DueAt = now
         });
     }
 
@@ -66,20 +89,68 @@ public sealed class EventStore(PostgreSqlModule module, TimeProvider clock)
         return rows.Count;
     }
 
+    /// <summary>
+    /// Redacts the payloads of quarantined inbox and outbox rows whose last due time is at least
+    /// <see cref="QuarantineRetention"/> old, at most <paramref name="limit"/> of each in the unit's tenant. A redacted row
+    /// stays visible to diagnostics with its code and budgets, and can no longer be replayed.
+    /// </summary>
+    public async Task<int> RedactQuarantinedAsync(EfCoreUnitOfWork work, int limit = 100, CancellationToken cancellationToken = default)
+    {
+        RequireProducer(work);
+        if (limit is < 1 or > 1000) throw new ArgumentOutOfRangeException(nameof(limit));
+        var cutoff = UtcMicroseconds.Now(clock) - QuarantineRetention;
+        var received = await work.Context.Set<InboxEvent>().Where(row => row.State == EventState.Poison && row.DueAt <= cutoff && row.Payload != DurablePayloads.Redacted)
+            .OrderBy(row => row.DueAt).Take(limit).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var sent = await work.Context.Set<OutboxEvent>().Where(row => row.State == EventState.Poison && row.DueAt <= cutoff && row.Payload != DurablePayloads.Redacted)
+            .OrderBy(row => row.DueAt).Take(limit).ToListAsync(cancellationToken).ConfigureAwait(false);
+        foreach (var row in received) row.Payload = DurablePayloads.Redacted;
+        foreach (var row in sent) row.Payload = DurablePayloads.Redacted;
+        return received.Count + sent.Count;
+    }
+
+    /// <summary>
+    /// The unit's tenant's quarantined and denied events, outbox and inbox, newest first, under the diagnostics permission
+    /// at the current profile. Each shows its identity, kind, ordering key, position, state, budgets and code, and of its
+    /// payload only whether it is still held and its length.
+    /// </summary>
+    public async Task<IReadOnlyList<EventDiagnostic>> QuarantineAsync(TenantContext context, ExecutionPrincipal? principal, IPermissionEvaluator? evaluator,
+        int limit = 100, CancellationToken cancellationToken = default)
+    {
+        if (limit is < 1 or > 1000) throw new ArgumentOutOfRangeException(nameof(limit));
+        await DiagnosticsAccess.RequireTenantAsync(evaluator, context, principal, cancellationToken).ConfigureAwait(false);
+        await using var work = await EfCoreUnitOfWork.BeginAsync(Module, context, cancellationToken: cancellationToken).ConfigureAwait(false);
+        var sent = await work.Context.Set<OutboxEvent>().AsNoTracking().Where(row => row.State == EventState.Poison || row.State == EventState.Denied)
+            .OrderByDescending(row => row.DueAt).Take(limit).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var received = await work.Context.Set<InboxEvent>().AsNoTracking().Where(row => row.State == EventState.Poison || row.State == EventState.Denied)
+            .OrderByDescending(row => row.DueAt).Take(limit).ToListAsync(cancellationToken).ConfigureAwait(false);
+        return sent.Select(row => new EventDiagnostic(EventSide.Outbox, row.Id, row.Consumer, row.Kind, row.SchemaVersion, row.OrderingKey, row.Position,
+                row.State, row.Attempts, 0, row.Conflicts, row.Code, row.DueAt, PayloadSummary.Of(row.Payload)))
+            .Concat(received.Select(row => new EventDiagnostic(EventSide.Inbox, row.Id, row.Consumer, row.Kind, row.SchemaVersion, row.OrderingKey,
+                row.Position, row.State, row.Attempts, row.GapWaits, row.Conflicts, row.Code, row.DueAt, PayloadSummary.Of(row.Payload))))
+            .OrderByDescending(row => row.DueAt).ThenBy(row => row.Id).Take(limit).ToArray();
+    }
+
     public async Task<bool> ReplayAsync(TenantContext context, ExecutionPrincipal principal, IPermissionEvaluator evaluator,
         Guid id, CancellationToken cancellationToken = default)
     {
         var decision = await evaluator.AuthorizeAsync(new(context, principal, ReplayPermission) { RequireCurrent = true }, cancellationToken).ConfigureAwait(false);
         if (!decision.Permitted) return false;
+        var trail = RequireAudit();
         await using var work = await EfCoreUnitOfWork.BeginAsync(Module, context, cancellationToken: cancellationToken).ConfigureAwait(false);
         var row = await work.Context.Set<InboxEvent>().SingleOrDefaultAsync(row => row.Id == id, cancellationToken).ConfigureAwait(false);
-        if (row is null || row.State != EventState.Poison) return false;
+        // A quarantined row whose payload its retention redacted has nothing left to replay.
+        if (row is null || row.State != EventState.Poison || DurablePayloads.IsRedacted(row.Payload)) return false;
+        // The record keeps what the replay resets and what the next disposition overwrites: the quarantine code, the
+        // budgets spent and the original producer, so the replay is told apart from new work.
+        var entry = Replay(ReplayedAction, "event.inbox", context, principal, row.Id,
+            $"code {row.Code} attempts {row.Attempts} gap-waits {row.GapWaits} conflicts {row.Conflicts}", row.Propagated);
         row.State = EventState.Pending;
         row.Attempts = 0;
         row.GapWaits = 0;
         row.Conflicts = 0;
         row.Code = "ReplayRequested";
         row.DueAt = UtcMicroseconds.Now(clock);
+        await trail.RecordAsync(work, entry, cancellationToken).ConfigureAwait(false);
         // The original producer remains the authority for execution. Replay never calls the handler directly.
         return (await work.CompleteAsync(cancellationToken).ConfigureAwait(false)).State == UnitOfWorkState.Committed;
     }
@@ -90,16 +161,36 @@ public sealed class EventStore(PostgreSqlModule module, TimeProvider clock)
     {
         var decision = await evaluator.AuthorizeAsync(new(context, principal, ReplayPermission) { RequireCurrent = true }, cancellationToken).ConfigureAwait(false);
         if (!decision.Permitted) return false;
+        var trail = RequireAudit();
         await using var work = await EfCoreUnitOfWork.BeginAsync(Module, context, cancellationToken: cancellationToken).ConfigureAwait(false);
         var row = await work.Context.Set<OutboxEvent>().SingleOrDefaultAsync(row => row.Id == id, cancellationToken).ConfigureAwait(false);
-        if (row is null || row.State != EventState.Poison) return false;
+        if (row is null || row.State != EventState.Poison || DurablePayloads.IsRedacted(row.Payload)) return false;
+        var entry = Replay(DispatchReplayedAction, "event.outbox", context, principal, row.Id,
+            $"code {row.Code} attempts {row.Attempts} conflicts {row.Conflicts}", row.Propagated);
         row.State = EventState.Pending;
         row.Attempts = 0;
         row.Conflicts = 0;
         row.Code = "ReplayRequested";
         row.DueAt = UtcMicroseconds.Now(clock);
+        await trail.RecordAsync(work, entry, cancellationToken).ConfigureAwait(false);
         return (await work.CompleteAsync(cancellationToken).ConfigureAwait(false)).State == UnitOfWorkState.Committed;
     }
+
+    private IAuditTrail RequireAudit() => audit
+        ?? throw new InvalidOperationException("An operator replay is recorded in audit, and this store has no audit trail, so nothing is replayed.");
+
+    /// <summary>
+    /// The operator's record of one replay: who replayed which row and when, with what it reset and its original
+    /// provenance, the producer and producing unit its stored reference names, so the replay is told apart from new work.
+    /// </summary>
+    private static AuditEntry Replay(string action, string type, TenantContext context, ExecutionPrincipal principal, Guid id, string reset,
+        string propagated) => AuditEntry.InContext(action, context, principal) with
+    {
+        ResourceType = type, ResourceId = id.ToString("D"),
+        Detail = reset + (PropagatedTenantContext.TryParse(propagated, out var producer)
+            ? " producer " + (producer!.Actor.Kind == ActorKind.User ? "user:" : "service:") + producer.Actor.Subject + " unit " + producer.ProducerUnitId.ToString("D")
+            : " producer unreadable")
+    };
 
     private void RequireProducer(EfCoreUnitOfWork work)
     {

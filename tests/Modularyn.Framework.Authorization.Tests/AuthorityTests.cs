@@ -324,9 +324,9 @@ public sealed class AuthorityTests(ITestOutputHelper output)
         var report = await host.HostAsync(Items.Report.Id);
         await using (var work = await EfCoreUnitOfWork.BeginAsync(database.ItemsModule, report, cancellationToken: Cancellation))
         {
-            Assert.Equal(1, await work.Context.AcrossTenants<Item>().Query.CountAsync(Cancellation));
-            Assert.Equal("MPS043", Assert.Throws<PersistenceContractException>(() => work.Context.AcrossTenants<ItemJob>()).Code);
-            Assert.Equal("MPS043", Assert.Throws<PersistenceContractException>(() => work.Sql.AcrossTenants<ItemJob>()).Code);
+            Assert.Equal(1, await (await work.Context.AcrossTenantsAsync<Item>(Cancellation)).Query.CountAsync(Cancellation));
+            Assert.Equal("MPS043", (await Assert.ThrowsAsync<PersistenceContractException>(() => work.Context.AcrossTenantsAsync<ItemJob>(Cancellation))).Code);
+            Assert.Equal("MPS043", (await Assert.ThrowsAsync<PersistenceContractException>(() => work.Sql.AcrossTenantsAsync<ItemJob>(Cancellation))).Code);
             Assert.Equal("MPS043", (await Assert.ThrowsAsync<PersistenceContractException>(() => work.Sql.UpdateForTenantAsync<ItemJob, Guid, string>(tenant.Id,
                 row => row.Id, Guid.NewGuid(), Guid.NewGuid(), row => row.State, "denied", Cancellation))).Code);
         }

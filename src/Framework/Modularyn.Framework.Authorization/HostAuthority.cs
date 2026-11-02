@@ -108,7 +108,7 @@ public sealed class HostAuthorityAdministration
                 ActorKind = kind, Actor = actor.Subject, OperationId = operationId, GrantedAt = now, GrantedByKind = (int)host.Actor.Kind, GrantedBy = host.Actor.Subject
             });
         else db.Remove(row!);
-        await changes.AuditAsync(new AuthorityChangeRecord(Guid.NewGuid(), grant ? AuthorityChangeKind.HostAuthorityGranted : AuthorityChangeKind.HostAuthorityRevoked,
+        await changes.AuditAsync(work, new AuthorityChangeRecord(Guid.NewGuid(), grant ? AuthorityChangeKind.HostAuthorityGranted : AuthorityChangeKind.HostAuthorityRevoked,
             null, host.Actor, actor, "host-operation:" + operationId, [], now, Activity.Current?.TraceId.ToHexString()), cancellationToken).ConfigureAwait(false);
         work.OnCompleted(result =>
         {
@@ -137,7 +137,7 @@ public sealed class HostAuthorityAdministration
                 TenantId = tenantId, OwnerKind = kind, Owner = owner.Subject, AddedAt = now, AddedByKind = (int)host.Actor.Kind, AddedBy = host.Actor.Subject
             });
         else db.Remove(row!);
-        await changes.AuditAsync(new AuthorityChangeRecord(Guid.NewGuid(), add ? AuthorityChangeKind.TenantOwnerAdded : AuthorityChangeKind.TenantOwnerRemoved,
+        await changes.AuditAsync(work, new AuthorityChangeRecord(Guid.NewGuid(), add ? AuthorityChangeKind.TenantOwnerAdded : AuthorityChangeKind.TenantOwnerRemoved,
             tenantId, host.Actor, owner, "tenant-owner", [], now, Activity.Current?.TraceId.ToHexString()), cancellationToken).ConfigureAwait(false);
         work.OnCompleted(result =>
         {

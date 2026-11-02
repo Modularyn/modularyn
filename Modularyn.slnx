@@ -22,6 +22,7 @@
     <Project Path="src/Framework/Modularyn.Framework.Security.Abstractions/Modularyn.Framework.Security.Abstractions.csproj" />
     <Project Path="src/Framework/Modularyn.Framework.Authorization.Abstractions/Modularyn.Framework.Authorization.Abstractions.csproj" />
     <Project Path="src/Framework/Modularyn.Framework.Authorization/Modularyn.Framework.Authorization.csproj" />
+    <Project Path="src/Framework/Modularyn.Framework.Audit/Modularyn.Framework.Audit.csproj" />
     <Project Path="src/Framework/Modularyn.Framework.Events/Modularyn.Framework.Events.csproj" />
     <Project Path="src/Framework/Modularyn.Framework.Jobs/Modularyn.Framework.Jobs.csproj" />
   </Folder>
@@ -59,6 +60,7 @@
     <Project Path="tests/Modularyn.Modules.Identity.Persistence.EfCore.Tests/Modularyn.Modules.Identity.Persistence.EfCore.Tests.csproj" />
     <Project Path="tests/Modularyn.Modules.Identity.HttpApi.Tests/Modularyn.Modules.Identity.HttpApi.Tests.csproj" />
     <Project Path="tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj" />
+    <Project Path="tests/Modularyn.Framework.Audit.Tests/Modularyn.Framework.Audit.Tests.csproj" />
     <Project Path="tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj" />
     <Project Path="tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj" />
     <Project Path="tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj" />

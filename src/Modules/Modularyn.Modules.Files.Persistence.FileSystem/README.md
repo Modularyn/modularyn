@@ -209,6 +209,15 @@ A denied context, such as a removed uploader's, does not run recovery; the next
 quota check still reclaims the abandoned upload. This module introduces no
 host-wide dispatcher or implicit host scope.
 
+The schedule receives a sealed reference as a string, bound to
+`FileService.RecoveryBinding`, which serves every recovery because recovery
+reconciles only the reference's own tenant and is safe to repeat. When CODE-05's
+jobs take recovery over, the job must run from its own captured reference, the
+one the job store seals for the job's row, and the string seam and
+`RecoveryBinding` retire: a durable job payload refuses a propagated context, so
+the string cannot travel in the job's payload, and a reference opens only under
+the binding it was sealed for.
+
 ## Reads, deletion and restore
 
 Reads take no lease and run concurrently. Every read verifies the entire stored
@@ -268,8 +277,8 @@ the tests that exercise it and what remains, with the work order it waits on.
 `Application.Tests` is `Modularyn.Modules.Files.Application.Tests`, whose tests
 with the trait `Requires=PostgreSQL` run over PostgreSQL through the database
 script with the real tenancy runtime, identity, SEC-05's authorization and the
-filesystem provider; only the request's authentication and SEC-07's audit seams
-are doubles. `FileSystem.Tests` is
+filesystem provider; only the request's authentication and the audit seams are
+doubles, and the audit package's own tests exercise the real store. `FileSystem.Tests` is
 `Modularyn.Modules.Files.Persistence.FileSystem.Tests`, whose PostgreSQL tests
 use a permissive evaluator double, because they exercise storage, not
 authorization. Tests without the trait run on every CI platform. SEC-08 maps
@@ -303,8 +312,12 @@ every control to its evidence.
   `FileRulesTests` (`TM_G02_044_*`). Remaining: the endpoints that send the
   delivery headers and the declared endpoint inventory (CODE-06, CODE-09); the
   bounded-bearer profile for public files, which no G-02 work order covers;
-  audit of grant issue and revocation (SEC-07); adversarial evidence for
-  AC-003-N01 and AC-004 (SEC-08).
+  adversarial evidence for AC-003-N01 and AC-004 (SEC-08). Each grant's issue and
+  revocation is recorded in audit with the change, naming the grant, file,
+  version, purpose and expiry, never its token or verifier, and a grant whose
+  record cannot be written is neither issued nor revoked (SEC-07;
+  `Application.Tests`
+  `DownloadGrantTests.TM_G02_051_Each_grant_issue_and_revocation_commits_with_its_record_or_not_at_all`).
 - **TM-G02-045, partly.** Delivered: the declared size refused before the
   intent and bytes bounded while they stream; pending uploads reserved under the
   tenant's lease and bounded by count and bytes; uploads past their deadline

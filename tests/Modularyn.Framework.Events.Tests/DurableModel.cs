@@ -19,6 +19,14 @@ public sealed class DurableEffect : ITenantScoped, IConcurrencyTracked
     public Guid Version { get; set; }
 }
 
+/// <summary>A tenant's note that is soft-deleted rather than removed, so a read can bypass the soft-delete predicate.</summary>
+public sealed class DurableNote : ITenantScoped, ISoftDeleted
+{
+    public Guid TenantId { get; set; }
+    public string Key { get; set; } = "";
+    public bool IsDeleted { get; set; }
+}
+
 internal static class DurableModel
 {
     internal const string ProducerId = "Test.DurableProducer";
@@ -27,7 +35,7 @@ internal static class DurableModel
     internal const string Consumer = "projection";
     internal static readonly SemanticVersion Version = SemanticVersion.Parse("1.0.0");
     internal static readonly HostOperation Dispatch = new("test.durable.dispatch",
-        new[] { ProducerId, ConsumerId }.SelectMany(module => new[] { "OutboxEvents", "InboxEvents", "Jobs", "JobAttempts", "JobSchedules" }
+        new[] { ProducerId, ConsumerId }.SelectMany(module => new[] { "OutboxEvents", "InboxEvents", "Jobs", "JobAttempts", "JobSchedules", "Notes" }
             .Select(table => new HostReach(module, table))));
     internal static PermissionDefinition[] Permissions => [new(ProducerId, Apply, Version, PermissionFreshness.Current),
         new(ProducerId, EventStore.ReplayPermission, Version, PermissionFreshness.Current)];
@@ -42,6 +50,11 @@ internal static class DurableModel
             entity.ToTable("Effects");
             entity.HasKey(row => new { row.TenantId, row.Key });
         });
+        model.Entity<DurableNote>(entity =>
+        {
+            entity.ToTable("Notes");
+            entity.HasKey(row => new { row.TenantId, row.Key });
+        });
     }
 
     internal static void Migrate(MigrationBuilder migration, string schema)
@@ -54,6 +67,10 @@ internal static class DurableModel
             TenantId = table.Column<Guid>("uuid"), Key = table.Column<string>("text"), Count = table.Column<int>("integer"),
             Position = table.Column<long>("bigint"), Version = table.Column<Guid>("uuid")
         }, constraints: table => table.PrimaryKey("PK_Effects", row => new { row.TenantId, row.Key }));
+        migration.CreateTable("Notes", schema: schema, columns: table => new
+        {
+            TenantId = table.Column<Guid>("uuid"), Key = table.Column<string>("text"), IsDeleted = table.Column<bool>("boolean")
+        }, constraints: table => table.PrimaryKey("PK_Notes", row => new { row.TenantId, row.Key }));
     }
 
     internal static async Task EffectAsync(EfCoreUnitOfWork work, string key, long position, CancellationToken token)

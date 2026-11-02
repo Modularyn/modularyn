@@ -29,6 +29,55 @@ public sealed class DownloadGrantTests
         Assert.Equal(FileStorageError.GrantRefused, (await Assert.ThrowsAsync<FileStorageException>(() => RedeemAsync(files, member, token, purpose))).Code);
 
     [Fact]
+    public async Task TM_G02_051_Each_grant_issue_and_revocation_commits_with_its_record_or_not_at_all()
+    {
+        await using var host = await FilesHost.CreateAsync();
+        var tenant = await host.TenantAsync("Tenant A");
+        var author = await host.MemberAsync(tenant, "author-1");
+        await host.GrantAsync(tenant, author, FilePermissions.Release);
+        var files = host.Files(release: new TestReleasePolicy());
+        await using var member = await host.EnterAsync(author, tenant.Id);
+        var version = await ReleasedAsync(files, member, FilesHost.Text(40, 'a'));
+        host.Audit.Entries.Clear();
+
+        // The issue is recorded with the grant: who, in which unit and tenant, which grant, version, purpose and expiry; never its token.
+        var issued = await files.IssueGrantAsync(member.Context, member.Principal, version.FileId, version.VersionId, FileGrantPurpose.Download,
+            TimeSpan.FromMinutes(10), Cancellation);
+        var record = Assert.Single(host.Audit.Entries);
+        Assert.Equal(FileAuditRecord.GrantIssued, record.Action);
+        Assert.Equal(author.Actor, record.Actor);
+        Assert.Equal(tenant.Id, record.TenantId);
+        Assert.Equal(member.Context.UnitId, record.UnitId);
+        Assert.Equal("file.grant", record.ResourceType);
+        Assert.Equal(issued.Grant.GrantId.ToString("D"), record.ResourceId);
+        Assert.StartsWith("file " + version.FileId.ToString("D") + " version " + version.VersionId.ToString("D") + " purpose Download expires ", record.Detail,
+            StringComparison.Ordinal);
+        var token = issued.Token.Reveal();
+        Assert.DoesNotContain(token[(FileGrantToken.Prefix.Length + 32)..], record.ToString(), StringComparison.Ordinal);
+        await files.RevokeGrantAsync(member.Context, member.Principal, issued.Grant.GrantId, Cancellation);
+        Assert.Equal([FileAuditRecord.GrantIssued, FileAuditRecord.GrantRevoked], host.Audit.Entries.Select(entry => entry.Action));
+
+        // Without its record, a grant is neither issued nor revoked.
+        var open = await files.IssueGrantAsync(member.Context, member.Principal, version.FileId, version.VersionId, FileGrantPurpose.Download,
+            TimeSpan.FromMinutes(10), Cancellation);
+        var before = await files.ListGrantsAsync(member.Context, member.Principal, version.FileId, Cancellation);
+        host.Audit.Failing = true;
+        try
+        {
+            Assert.Equal(FileStorageError.AuditUnavailable, (await Assert.ThrowsAsync<FileStorageException>(() => files.IssueGrantAsync(member.Context,
+                member.Principal, version.FileId, version.VersionId, FileGrantPurpose.Download, TimeSpan.FromMinutes(10), Cancellation))).Code);
+            Assert.Equal(FileStorageError.AuditUnavailable, (await Assert.ThrowsAsync<FileStorageException>(() =>
+                files.RevokeGrantAsync(member.Context, member.Principal, open.Grant.GrantId, Cancellation))).Code);
+        }
+        finally
+        {
+            host.Audit.Failing = false;
+        }
+        Assert.Equal(before, await files.ListGrantsAsync(member.Context, member.Principal, version.FileId, Cancellation));
+        Assert.Equal(FilesHost.Text(40, 'a'), await FilesHost.ReadAllAsync(await RedeemAsync(files, member, open.Token)));
+    }
+
+    [Fact]
     public async Task TM_G02_044_A_download_grant_is_bound_to_its_tenant_version_purpose_and_expiry_and_stored_only_as_a_verifier()
     {
         await using var host = await FilesHost.CreateAsync();

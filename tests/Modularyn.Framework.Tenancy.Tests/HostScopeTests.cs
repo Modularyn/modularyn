@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
 using Modularyn.Framework.Tenancy.Abstractions;
@@ -151,11 +152,11 @@ public sealed class HostScopeDatabaseTests
             var items = (ItemsContext)work.Context;
             Assert.Equal("MPS038", (await Assert.ThrowsAsync<PersistenceContractException>(() => items.Items.CountAsync(Cancellation))).Code);
             Assert.Equal("MPS038", (await Assert.ThrowsAsync<PersistenceContractException>(() => work.Sql.Query<Item>().CountAsync(Cancellation))).Code);
-            var across = work.Context.AcrossTenants<Item>();
+            var across = await work.Context.AcrossTenantsAsync<Item>(Cancellation);
             Assert.Same(host.HostGrant, across.Grant);
             // Only the tenant predicate is lifted: soft delete still applies, on both paths.
             Assert.Equal(["a-1", "b-1"], await across.Query.OrderBy(row => row.Code).Select(row => row.Code).ToArrayAsync(Cancellation));
-            Assert.Equal(["a-1", "b-1"], await work.Sql.AcrossTenants<Item>().Query.OrderBy(row => row.Code).Select(row => row.Code).ToArrayAsync(Cancellation));
+            Assert.Equal(["a-1", "b-1"], await (await work.Sql.AcrossTenantsAsync<Item>(Cancellation)).Query.OrderBy(row => row.Code).Select(row => row.Code).ToArrayAsync(Cancellation));
             // The bypass cannot carry a bulk write, and tracked cross-tenant rows cannot be saved.
             Assert.Equal("MPS038", (await Assert.ThrowsAsync<PersistenceContractException>(() => across.Query.ExecuteDeleteAsync(Cancellation))).Code);
             Assert.Equal("MPS038", (await Assert.ThrowsAsync<PersistenceContractException>(() => across.Query
@@ -166,7 +167,7 @@ public sealed class HostScopeDatabaseTests
         }
         // Once the host scope has ended, a cross-tenant query is refused at execution, not just at construction.
         await using (var leaked = await EfCoreUnitOfWork.BeginAsync(database.Items, UnitOfWorkMode.Suppress, cancellationToken: Cancellation))
-            Assert.Equal("MPS038", Assert.Throws<PersistenceContractException>(() => leaked.Context.AcrossTenants<Item>()).Code);
+            Assert.Equal("MPS038", (await Assert.ThrowsAsync<PersistenceContractException>(() => leaked.Context.AcrossTenantsAsync<Item>(Cancellation))).Code);
         Assert.Equal("MPS035", (await Assert.ThrowsAsync<PersistenceContractException>(() =>
             EfCoreUnitOfWork.BeginAsync(database.Items, ended, cancellationToken: Cancellation))).Code);
         Assert.Equal(["a-1", "b-1", "b-deleted"], (await database.InventoryAsync("Items", "Code")).Select(row => row.Value).Order());
@@ -177,13 +178,57 @@ public sealed class HostScopeDatabaseTests
         await using (tenantScope)
         await using (var work = await EfCoreUnitOfWork.BeginAsync(database.Items, tenantA, cancellationToken: Cancellation))
         {
-            Assert.Equal("MPS038", Assert.Throws<PersistenceContractException>(() => work.Context.AcrossTenants<Item>()).Code);
-            Assert.Equal("MPS038", Assert.Throws<PersistenceContractException>(() => work.Sql.AcrossTenants<Item>()).Code);
+            Assert.Equal("MPS038", (await Assert.ThrowsAsync<PersistenceContractException>(() => work.Context.AcrossTenantsAsync<Item>(Cancellation))).Code);
+            Assert.Equal("MPS038", (await Assert.ThrowsAsync<PersistenceContractException>(() => work.Sql.AcrossTenantsAsync<Item>(Cancellation))).Code);
             Assert.Equal("MPS038", (await Assert.ThrowsAsync<PersistenceContractException>(() => work.Sql.UpdateForTenantAsync<Item, Guid, string>(
                 database.TenantB, row => row.Id, bItem, Guid.NewGuid(), row => row.Name, "x", Cancellation))).Code);
             Assert.Equal(["a-1"], await ((ItemsContext)work.Context).Items.Select(row => row.Code).ToArrayAsync(Cancellation));
         }
         Assert.NotEqual(Guid.Empty, aItem);
+    }
+
+    [Fact]
+    public async Task TM_G02_029_Each_filter_bypass_is_recorded_through_its_context_s_audit_or_refused()
+    {
+        await using var database = await TenancyDatabase.CreateAsync();
+        await using var services = database.Services();
+        await database.SeedAsync(services);
+        await AddAsync(database, services, "user-a", database.TenantA, "a-1");
+        database.Seams.Authority.Grant("host-1", TenancyServer.HostReport);
+        var (scope, host) = await Units.EnterHostAsync(services, "host-1", TenancyServer.HostReport);
+        await using (scope)
+        await using (var work = await EfCoreUnitOfWork.BeginAsync(database.Items, host, UnitOfWorkMode.Suppress, cancellationToken: Cancellation))
+        {
+            await work.Context.AcrossTenantsAsync<Item>(Cancellation);
+            var record = Assert.Single(database.Seams.Audit.Bypasses);
+            Assert.Equal((host.UnitId, host.Actor, TenantScope.Host, (Guid?)null, FilterBypass.CrossTenant, "Items", "Items", TenancyServer.HostReport,
+                host.HostGrant!.Reason), (record.UnitId, record.Actor, record.Scope, record.TenantId, record.Bypass, record.ModuleId, record.Table,
+                record.OperationId, record.Reason));
+            // A bypass whose record fails is refused before its query exists.
+            database.Seams.Audit.Failing = true;
+            Assert.Equal("MPS047", (await Assert.ThrowsAsync<PersistenceContractException>(() => work.Sql.AcrossTenantsAsync<Item>(Cancellation))).Code);
+            database.Seams.Audit.Failing = false;
+        }
+        var (tenantScope, tenant) = await Units.EnterAsync(services, "user-a", database.TenantA);
+        await using (tenantScope)
+        await using (var work = await EfCoreUnitOfWork.BeginAsync(database.Items, tenant, cancellationToken: Cancellation))
+        {
+            await work.Context.IncludingSoftDeletedAsync<Item>(new SoftDeleteBypass("Inspect deleted items", "filter-test"), Cancellation);
+            Assert.Contains(database.Seams.Audit.Bypasses, entry => entry is { Bypass: FilterBypass.SoftDeleted, Scope: TenantScope.Tenant, OperationId: "filter-test" }
+                && entry.TenantId == database.TenantA && entry.UnitId == tenant.UnitId);
+        }
+        // A context established where no bypass audit is registered has none attached, so it bypasses no filter.
+        await using var unaudited = database.Services(collection => collection.RemoveAll<IFilterBypassAudit>());
+        var (bareScope, bare) = await Units.EnterAsync(unaudited, "user-a", database.TenantA);
+        await using (bareScope)
+        await using (var work = await EfCoreUnitOfWork.BeginAsync(database.Items, bare, cancellationToken: Cancellation))
+        {
+            Assert.Equal("MPS047", (await Assert.ThrowsAsync<PersistenceContractException>(() =>
+                work.Context.IncludingSoftDeletedAsync<Item>(new SoftDeleteBypass("Inspect deleted items", "filter-test"), Cancellation))).Code);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => bare.RecordBypassAsync(FilterBypass.SoftDeleted, "Items", "Items", "filter-test", "Direct",
+                Cancellation).AsTask());
+        }
+        Assert.Equal(2, database.Seams.Audit.Bypasses.Count);
     }
 
     [Fact]
@@ -196,7 +241,7 @@ public sealed class HostScopeDatabaseTests
         database.Seams.Authority.Grant("host-1", TenancyServer.HostReport);
         var (scope, host) = await Units.EnterHostAsync(services, "host-1", TenancyServer.HostReport);
         await using var work = await EfCoreUnitOfWork.BeginAsync(database.Items, host, UnitOfWorkMode.Suppress, cancellationToken: Cancellation);
-        var query = work.Context.AcrossTenants<Item>().Query;
+        var query = (await work.Context.AcrossTenantsAsync<Item>(Cancellation)).Query;
         Assert.Equal(1, await query.CountAsync(Cancellation));
         await scope.DisposeAsync();
         Assert.False(host.IsActive);
@@ -280,11 +325,11 @@ public sealed class HostScopeDatabaseTests
         await using (var unit = await EfCoreUnitOfWork.BeginAsync(database.Items, work, cancellationToken: Cancellation))
         {
             Assert.Equal(new HostReach("Items", "WorkItems"), Assert.Single(work.HostGrant!.Reach));
-            Assert.Equal(0, await unit.Context.AcrossTenants<WorkItem>().Query.CountAsync(Cancellation));
-            Assert.Equal(0, await unit.Sql.AcrossTenants<WorkItem>().Query.CountAsync(Cancellation));
+            Assert.Equal(0, await (await unit.Context.AcrossTenantsAsync<WorkItem>(Cancellation)).Query.CountAsync(Cancellation));
+            Assert.Equal(0, await (await unit.Sql.AcrossTenantsAsync<WorkItem>(Cancellation)).Query.CountAsync(Cancellation));
             // Reading tenant data, recording a named tenant's row and changing host data outside the reach are each refused.
-            Assert.Equal("MPS043", Assert.Throws<PersistenceContractException>(() => unit.Context.AcrossTenants<Item>()).Code);
-            Assert.Equal("MPS043", Assert.Throws<PersistenceContractException>(() => unit.Sql.AcrossTenants<Item>()).Code);
+            Assert.Equal("MPS043", (await Assert.ThrowsAsync<PersistenceContractException>(() => unit.Context.AcrossTenantsAsync<Item>(Cancellation))).Code);
+            Assert.Equal("MPS043", (await Assert.ThrowsAsync<PersistenceContractException>(() => unit.Sql.AcrossTenantsAsync<Item>(Cancellation))).Code);
             Assert.Equal("MPS043", (await Assert.ThrowsAsync<PersistenceContractException>(() => unit.Sql.UpdateForTenantAsync<Item, Guid, string>(
                 database.TenantA, row => row.Id, item, Guid.NewGuid(), row => row.Name, "x", Cancellation))).Code);
             Assert.Equal("MPS043", (await Assert.ThrowsAsync<PersistenceContractException>(() => unit.Sql.InsertAsync(new Lookup { Id = "direct", Name = "x" },
@@ -299,7 +344,7 @@ public sealed class HostScopeDatabaseTests
                 Assert.Equal(UnitOfWorkState.Committed, (await unit.CompleteAsync(Cancellation)).State);
             }
             await using (var unit = await EfCoreUnitOfWork.BeginAsync(database.Items, lookups, cancellationToken: Cancellation))
-                Assert.Equal("MPS043", Assert.Throws<PersistenceContractException>(() => unit.Context.AcrossTenants<WorkItem>()).Code);
+                Assert.Equal("MPS043", (await Assert.ThrowsAsync<PersistenceContractException>(() => unit.Context.AcrossTenantsAsync<WorkItem>(Cancellation))).Code);
         }
         // An operation whose module declared no reach reaches nothing at all, though its scope exists and was audited.
         var (nothingScope, nothing) = await Units.EnterHostAsync(services, "host-1", "test.reach.nothing");
@@ -307,7 +352,7 @@ public sealed class HostScopeDatabaseTests
         await using (var unit = await EfCoreUnitOfWork.BeginAsync(database.Items, nothing, cancellationToken: Cancellation))
         {
             Assert.Empty(nothing.HostGrant!.Reach);
-            Assert.Equal("MPS043", Assert.Throws<PersistenceContractException>(() => unit.Context.AcrossTenants<WorkItem>()).Code);
+            Assert.Equal("MPS043", (await Assert.ThrowsAsync<PersistenceContractException>(() => unit.Context.AcrossTenantsAsync<WorkItem>(Cancellation))).Code);
             unit.Context.Add(new Lookup { Id = "unreached", Name = "outside the reach" });
             Assert.Equal("MPS043", (await Assert.ThrowsAsync<PersistenceContractException>(() => unit.CompleteAsync(Cancellation))).Code);
         }

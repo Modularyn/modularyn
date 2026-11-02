@@ -79,7 +79,8 @@ internal sealed class AuthenticatorSeedService(IAuthenticatorSeedStore store, Cr
             var tag = new byte[ProtectedSeed.TagLength];
             using (var cipher = new AesGcm(key, ProtectedSeed.TagLength))
                 cipher.Encrypt(nonce, seed.Span, ciphertext, tag, ProtectedSeed.AssociatedData(accountId, version));
-            await store.SaveAsync(new ProtectedSeed(accountId, version, nonce, ciphertext, tag, clock.Now), cancellationToken).ConfigureAwait(false);
+            await IdentityAudited.RunAsync(() => store.SaveAsync(new ProtectedSeed(accountId, version, nonce, ciphertext, tag, clock.Now),
+                IdentityAuthorization.ActorOf(authority), cancellationToken)).ConfigureAwait(false);
         }
         finally { CryptographicOperations.ZeroMemory(key); }
     }
@@ -126,7 +127,7 @@ internal sealed class AuthenticatorSeedService(IAuthenticatorSeedStore store, Cr
     public async Task<bool> RemoveAsync(IdentityAuthority authority, Guid accountId, CancellationToken cancellationToken)
     {
         await authorization.RequireOwnerOrHostAsync(authority, accountId, IdentityHostOperations.CredentialsId, cancellationToken).ConfigureAwait(false);
-        return await store.RemoveAsync(accountId, cancellationToken).ConfigureAwait(false);
+        return await IdentityAudited.RunAsync(() => store.RemoveAsync(accountId, IdentityAuthorization.ActorOf(authority), cancellationToken)).ConfigureAwait(false);
     }
 }
 
@@ -143,8 +144,8 @@ internal sealed class RecoveryCodeService(IRecoveryCodeStore store, IAccountDire
         var now = clock.Now;
         var setId = Guid.NewGuid();
         var codes = Enumerable.Range(0, RecoveryCodes.CodesPerSet).Select(_ => RecoveryCodes.Generate()).ToArray();
-        await store.ReplaceAsync(accountId, codes.Select(code => RecoveryCodes.CreateVerifier(accountId, setId, code, now)).ToArray(), now,
-            cancellationToken).ConfigureAwait(false);
+        await IdentityAudited.RunAsync(() => store.ReplaceAsync(accountId, codes.Select(code => RecoveryCodes.CreateVerifier(accountId, setId, code, now)).ToArray(),
+            now, IdentityAuthorization.ActorOf(authority), cancellationToken)).ConfigureAwait(false);
         return new RecoveryCodeSet(setId, Array.AsReadOnly(codes.Select(code => new SecretText(code)).ToArray()));
     }
 
@@ -191,8 +192,9 @@ internal sealed class PasskeyCredentialService(IPasskeyCredentialStore store, Cr
         byte[] tag;
         try { tag = HMACSHA256.HashData(key, canonical); }
         finally { CryptographicOperations.ZeroMemory(key); }
-        return await store.AddAsync(new PasskeyCredentialRecord(Guid.NewGuid(), enrollment.AccountId, enrollment.CredentialId.ToArray(),
-            enrollment.RelyingPartyId, enrollment.PublicKey.ToArray(), enrollment.Algorithm, clock.Now, version, tag), cancellationToken).ConfigureAwait(false);
+        return await IdentityAudited.RunAsync(() => store.AddAsync(new PasskeyCredentialRecord(Guid.NewGuid(), enrollment.AccountId,
+            enrollment.CredentialId.ToArray(), enrollment.RelyingPartyId, enrollment.PublicKey.ToArray(), enrollment.Algorithm, clock.Now, version, tag),
+            IdentityAuthorization.ActorOf(authority), cancellationToken)).ConfigureAwait(false);
     }
 
     public async Task<PasskeyLookup> FindForSignInAsync(byte[] credentialId, string relyingPartyId, CancellationToken cancellationToken)
@@ -225,6 +227,7 @@ internal sealed class PasskeyCredentialService(IPasskeyCredentialStore store, Cr
     {
         ArgumentNullException.ThrowIfNull(credentialId);
         await authorization.RequireOwnerOrHostAsync(authority, accountId, IdentityHostOperations.CredentialsId, cancellationToken).ConfigureAwait(false);
-        return await store.RemoveAsync(accountId, credentialId, cancellationToken).ConfigureAwait(false);
+        return await IdentityAudited.RunAsync(() => store.RemoveAsync(accountId, credentialId, IdentityAuthorization.ActorOf(authority), cancellationToken))
+            .ConfigureAwait(false);
     }
 }

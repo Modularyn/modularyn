@@ -48,6 +48,18 @@ public sealed class ContractDefinitionTests
     }
 
     [Fact]
+    public void TM_G02_011_A_client_visible_endpoint_is_versioned()
+    {
+        var model = new ApiModel("ItemView", [new("Id", "uuid")]);
+        static ApiInventory Inventory(ApiModel model, ApiEndpoint endpoint) => new(1, 1, [model], [endpoint]);
+        Inventory(model, new ApiEndpoint("GetItem", "GET", "/api/v{version}/items/{id}", "Anonymous", null, true, null, "ItemView")).Validate();
+        // Generated client methods pin a version, so an unversioned route is never client-visible; as a non-client route it is.
+        Assert.Throws<FormatException>(() => Inventory(model, new ApiEndpoint("GetItem", "GET", "/api/items/{id}", "Anonymous", null, true, null, "ItemView",
+            Versioned: false)).Validate());
+        Inventory(model, new ApiEndpoint("GetItem", "GET", "/api/items/{id}", "Anonymous", null, false, null, "ItemView", Versioned: false)).Validate();
+    }
+
+    [Fact]
     public void TM_G02_014_Only_explicit_nonsecret_definitions_can_be_client_visible()
     {
         var version = SemanticVersion.Parse("1.0.0");

@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
@@ -65,7 +66,7 @@ internal interface IAuthoritySource
 /// Reads authority from the authorization module's tables, in units bound to the request's validated tenant context, so the
 /// tenant filters confine every read to that tenant. A tenant's owners are host-scoped rows, read for the context's tenant.
 /// </summary>
-internal sealed class PostgreSqlAuthoritySource(PostgreSqlModule module, AuthorizationClock clock) : IAuthoritySource
+internal sealed class PostgreSqlAuthoritySource(PostgreSqlModule module, AuthorizationClock clock, IServiceProvider services) : IAuthoritySource
 {
     // Every tenant-level change rotates the tenant's version, so equal versions before and after mean the reads in between
     // saw one state. A tenant that keeps changing faster than it can be read is reported unavailable rather than half-read.
@@ -75,29 +76,51 @@ internal sealed class PostgreSqlAuthoritySource(PostgreSqlModule module, Authori
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(subject);
+        var since = await MemberSinceAsync(services, subject, context.TenantId!.Value, cancellationToken).ConfigureAwait(false);
         await using var work = await EfCoreUnitOfWork.BeginAsync(module, context, UnitOfWorkMode.Suppress, cancellationToken: cancellationToken).ConfigureAwait(false);
         var db = (AuthorizationContext)work.Context;
         for (var attempt = 1; attempt <= Attempts; attempt++)
         {
             var before = await VersionAsync(db, cancellationToken).ConfigureAwait(false);
-            var snapshot = await ReadCoreAsync(db, context.TenantId!.Value, subject, before, clock.Now, cancellationToken).ConfigureAwait(false);
+            var snapshot = await ReadCoreAsync(db, context.TenantId!.Value, subject, before, clock.Now, since, cancellationToken).ConfigureAwait(false);
             if (await VersionAsync(db, cancellationToken).ConfigureAwait(false) == before) return snapshot;
         }
         throw new InvalidOperationException("The tenant's authority changed throughout the read.");
     }
 
-    /// <summary>Reads within an open unit of the tenant; administration calls it after it has locked the tenant's authority.</summary>
-    internal static async Task<AuthoritySnapshot> ReadCoreAsync(AuthorizationContext db, Guid tenant, ActorReference subject, Guid? version, DateTimeOffset readAt,
-        CancellationToken cancellationToken)
+    /// <summary>
+    /// The instant from which a subject's tenant-level grants count: the start of its current membership of the tenant, so
+    /// removing a membership ends the grants made during it, and adding the member again revives none of them. Null when
+    /// the subject is not a member now, so nothing counts. A service identity holds no grants and is never a member.
+    /// </summary>
+    internal static async Task<DateTimeOffset?> MemberSinceAsync(IServiceProvider services, ActorReference subject, Guid tenant, CancellationToken cancellationToken)
     {
+        if (subject.Kind != ActorKind.User) return DateTimeOffset.MinValue;
+        var membership = services.GetService<ITenantMembership>() ?? throw new InvalidOperationException("Membership cannot be read, so no authority is.");
+        return await membership.MemberSinceAsync(subject, tenant, cancellationToken).ConfigureAwait(false) is { } since ? AuthorizationClock.Floor(since) : null;
+    }
+
+    /// <summary>
+    /// Reads within an open unit of the tenant; administration calls it after it has locked the tenant's authority. Only the
+    /// grants and role assignments made since <paramref name="since"/>, the subject's current membership's start, count.
+    /// </summary>
+    internal static async Task<AuthoritySnapshot> ReadCoreAsync(AuthorizationContext db, Guid tenant, ActorReference subject, Guid? version, DateTimeOffset readAt,
+        DateTimeOffset? since, CancellationToken cancellationToken)
+    {
+        if (since is not { } start) return new AuthoritySnapshot(subject, false, [], [], version, readAt);
         var kind = (int)subject.Kind;
         var member = subject.Subject;
         var owner = await db.TenantOwners.AsNoTracking().AnyAsync(row => row.TenantId == tenant && row.OwnerKind == kind && row.Owner == member,
             cancellationToken).ConfigureAwait(false);
-        var direct = await db.PermissionGrants.AsNoTracking().Where(row => row.MemberKind == kind && row.Member == member)
-            .Select(row => row.Permission).ToListAsync(cancellationToken).ConfigureAwait(false);
-        var roles = await (from membership in db.RoleMembers.AsNoTracking()
-                           where membership.MemberKind == kind && membership.Member == member
+        var grants = db.PermissionGrants.AsNoTracking().Where(row => row.MemberKind == kind && row.Member == member);
+        var assignments = db.RoleMembers.AsNoTracking().Where(row => row.MemberKind == kind && row.Member == member);
+        if (start != DateTimeOffset.MinValue)
+        {
+            grants = grants.Where(row => row.GrantedAt >= start);
+            assignments = assignments.Where(row => row.AddedAt >= start);
+        }
+        var direct = await grants.Select(row => row.Permission).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var roles = await (from membership in assignments
                            join role in db.Roles.AsNoTracking() on new { membership.TenantId, Name = membership.Role } equals new { role.TenantId, role.Name }
                            select new { role.Permissions, role.Ceiling }).ToListAsync(cancellationToken).ConfigureAwait(false);
         return new AuthoritySnapshot(subject, owner, direct.Concat(roles.SelectMany(role => AuthoritySnapshot.Split(role.Permissions))),
@@ -111,9 +134,10 @@ internal sealed class PostgreSqlAuthoritySource(PostgreSqlModule module, Authori
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(resource);
+        if (await MemberSinceAsync(services, subject, context.TenantId!.Value, cancellationToken).ConfigureAwait(false) is not { } since) return false;
         await using var work = await EfCoreUnitOfWork.BeginAsync(module, context, UnitOfWorkMode.Suppress, cancellationToken: cancellationToken).ConfigureAwait(false);
         var kind = (int)subject.Kind;
-        return await ((AuthorizationContext)work.Context).ResourceGrants.AsNoTracking().AnyAsync(row => row.ResourceType == resource.Type
+        return await Current(((AuthorizationContext)work.Context).ResourceGrants.AsNoTracking(), since).AnyAsync(row => row.ResourceType == resource.Type
             && row.ResourceId == resource.Id && row.MemberKind == kind && row.Member == subject.Subject && row.Permission == permission
             && (row.ExpiresAt == null || row.ExpiresAt > now), cancellationToken).ConfigureAwait(false);
     }
@@ -121,12 +145,17 @@ internal sealed class PostgreSqlAuthoritySource(PostgreSqlModule module, Authori
     public async Task<IReadOnlyList<string>> GrantedResourcesAsync(TenantContext context, ActorReference subject, string resourceType, string permission,
         DateTimeOffset now, CancellationToken cancellationToken)
     {
+        if (await MemberSinceAsync(services, subject, context.TenantId!.Value, cancellationToken).ConfigureAwait(false) is not { } since) return [];
         await using var work = await EfCoreUnitOfWork.BeginAsync(module, context, UnitOfWorkMode.Suppress, cancellationToken: cancellationToken).ConfigureAwait(false);
         var kind = (int)subject.Kind;
-        return await ((AuthorizationContext)work.Context).ResourceGrants.AsNoTracking().Where(row => row.ResourceType == resourceType
+        return await Current(((AuthorizationContext)work.Context).ResourceGrants.AsNoTracking(), since).Where(row => row.ResourceType == resourceType
                 && row.MemberKind == kind && row.Member == subject.Subject && row.Permission == permission && (row.ExpiresAt == null || row.ExpiresAt > now))
             .Select(row => row.ResourceId).Distinct().ToListAsync(cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>The resource grants made since the subject's current membership began; those of an earlier membership no longer count.</summary>
+    private static IQueryable<ResourceGrantRow> Current(IQueryable<ResourceGrantRow> grants, DateTimeOffset since) =>
+        since == DateTimeOffset.MinValue ? grants : grants.Where(row => row.GrantedAt >= since);
 }
 
 /// <summary>

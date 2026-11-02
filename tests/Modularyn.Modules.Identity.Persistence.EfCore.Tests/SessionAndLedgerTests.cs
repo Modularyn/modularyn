@@ -183,7 +183,7 @@ public sealed class SessionAndLedgerTests(ITestOutputHelper output)
         Assert.Contains("whole microseconds", (await Assert.ThrowsAnyAsync<Exception>(() => store.CreateAsync(unnormalized, Cancellation))).ToString());
         Assert.Null(await store.FindAsync(unnormalized.Id, Cancellation));
         Assert.Contains("whole microseconds", (await Assert.ThrowsAnyAsync<Exception>(() =>
-            store.EndAsync(idle.SessionId, SessionEndReason.Revoked, raw, Cancellation))).ToString());
+            store.EndAsync(idle.SessionId, SessionEndReason.Revoked, raw, null, Cancellation))).ToString());
         Assert.Null((await RecordAsync(database, idle.SessionId)).Ended);
         output.WriteLine("Sessions, a delegation and an account delay decided their limits at the instants the module reported, before and after PostgreSQL.");
     }

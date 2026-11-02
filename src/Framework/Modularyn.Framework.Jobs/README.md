@@ -3,9 +3,12 @@
 Include `JobModel.Configure` and `JobModel.CreateTables` in an owning module's
 context and migration. `JobStore.Enqueue` writes in that module's active tenant
 transaction. The store captures `PropagatedTenantContext` from the validated
-producing context; callers supply only kind, payload and due time. It also owns
-capture for schedules and materialized jobs, capturing anew in the revalidated
-schedule unit instead of copying the schedule's stored reference.
+producing context, binds it to the job (`JobBinding`) or schedule
+(`ScheduleBinding`) and seals it with the declared key ring; callers supply only
+kind, payload and due time. It also owns capture for schedules and materialized
+jobs, capturing anew in the revalidated schedule unit instead of copying the
+schedule's stored reference. A run or materialization opens the reference only
+under its seal and that row's binding.
 
 `JobWorker.RunDueAsync` scans under an audited host operation reaching `Jobs`
 and `JobAttempts`. `ScheduleWorker.MaterializeAsync` additionally needs reach to
@@ -51,12 +54,17 @@ and creates no attempt; cancellation during ownership is `CancelledDuringRun`
 with a cancelled attempt and no committed transactional effect. Shutdown leaves
 the lease recoverable. Permanent authorization refusal is `Denied`; transient
 refusals have a separate bounded deferral count, leaving handler attempts distinct.
-A failure outside a handler's attempt, such as a stored reference that names
-another tenant than its row, takes the same bounded deferrals with the code
-`DispatchFailed` and never ends the pass for other jobs. A refusal on expired ownership closes the previous attempt in the same host
+A stored reference that does not open under its seal and its row's binding, such
+as one copied from another row, is denied at once with `MTN014`, before any claim;
+the worker's own tenant check stays behind the seal: a validly sealed reference
+that names another tenant than its row fails before any claim, and the
+materializer's before any read. Any such failure outside a handler's attempt takes
+the same bounded deferrals, with the code `DispatchFailed` for a job and
+`ScheduleFailed` for a schedule, and never ends the pass for other jobs. A refusal on expired ownership closes the previous attempt in the same host
 disposition transaction. Exhaustion is visible as `Failed`. Schedules also bound
 authorization deferrals; exhaustion disables the schedule while retaining its
-cursor, deferral count and last refusal code for inspection. A failure in one
+cursor, deferral count and last refusal code for inspection, and redacts its
+payload. A failure in one
 schedule's own evaluation, such as a stored zone that the host's time-zone database
 no longer resolves, rolls back that schedule's transaction and takes the same
 bounded deferrals with the code `ScheduleFailed`, so it never ends the pass for
@@ -88,9 +96,38 @@ queues the latest missed occurrence unless a timely occurrence is already queued
 in that pass. Each skipped, missed or queued date remains visible. The scan stores
 a next-check instant so future schedules leave room for due work. A backlog of
 more than 3,660 inclusive dates disables that schedule with `BacklogLimit`, keeping
-its cursor for inspection instead of silently dropping history. An operator can
+its cursor for inspection, but not its payload, instead of silently dropping history. An operator can
 stop it and create a replacement schedule with an explicit first date. Stopping a
 schedule prevents future materialization; existing jobs have separate cancellation.
+
+## Operator actions
+
+`CancelAsync` and `StopScheduleAsync` need the current `jobs.cancel` and
+`jobs.schedule` permissions through the evaluator. Each is recorded in audit, with
+who acted, when, in which unit, on which job or schedule and the state, attempts
+or next date it ended, in the transaction of the change itself (TM-G02-037,
+TM-G02-051); a store built without an audit trail, or whose record cannot be
+written, changes nothing.
+
+## Payloads and retention
+
+A job or schedule payload follows the durable-payload rule
+([audit](../Modularyn.Framework.Audit/README.md#durable-payloads)): 1 to 65,536
+characters of references, never a secret form or a propagated context, refused at
+`Enqueue` and `Schedule`. A job without arguments still carries a payload, such as
+`{}`, so a redacted one is told apart. A job that can no longer run keeps no
+payload: completion, failure, cancellation and denial redact it in the transaction
+that ends the job, and stopping, ending or disabling a schedule redacts the
+schedule's. Queued and retrying jobs keep theirs until they end.
+
+## Diagnostics
+
+`HistoryAsync(context, principal, evaluator)` lists the unit's tenant's jobs, newest
+first, under `modularyn.diagnostics.read` at the current profile (TM-G02-054): each
+job's identity, kind, state, attempts, deferrals, code, times and schedule, and of
+its payload only whether it is still held and its length.
+
+## Growth
 
 Job history has no retention yet, and nothing removes it. Jobs grow by one row
 per enqueue and per queued or caught-up occurrence, job attempts by one row per

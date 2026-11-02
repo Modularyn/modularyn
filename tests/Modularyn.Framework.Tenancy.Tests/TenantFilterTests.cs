@@ -66,8 +66,8 @@ public sealed class TenantFilterTests
             Assert.Empty(await work.Sql.Query<Item, Guid>(row => row.Id, fixture.B1).ToArrayAsync(Cancellation));
             // The soft-delete bypass keeps the tenant predicate.
             var bypass = new SoftDeleteBypass("Inspect deleted items", "filter-test");
-            Assert.Equal(["a-1", "a-2"], await items.IncludingSoftDeleted<Item>(bypass).Query.OrderBy(row => row.Code).Select(row => row.Code).ToArrayAsync(Cancellation));
-            Assert.Equal(["a-1", "a-2"], await work.Sql.IncludingSoftDeleted<Item>(bypass).Query.OrderBy(row => row.Code).Select(row => row.Code).ToArrayAsync(Cancellation));
+            Assert.Equal(["a-1", "a-2"], await (await items.IncludingSoftDeletedAsync<Item>(bypass, Cancellation)).Query.OrderBy(row => row.Code).Select(row => row.Code).ToArrayAsync(Cancellation));
+            Assert.Equal(["a-1", "a-2"], await (await work.Sql.IncludingSoftDeletedAsync<Item>(bypass, Cancellation)).Query.OrderBy(row => row.Code).Select(row => row.Code).ToArrayAsync(Cancellation));
             // The tenant and scope filters cannot be lifted by EF Core's own bypass, on either path, or by raw SQL that
             // forges the tenant column.
             foreach (var query in new[] { items.Items, work.Sql.Query<Item>() })

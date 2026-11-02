@@ -1,10 +1,11 @@
-using System.Collections.Concurrent;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Modularyn.Framework.Audit;
 using Modularyn.Framework.Authorization;
 using Modularyn.Framework.Authorization.Abstractions;
+using Modularyn.Framework.Configuration;
 using Modularyn.Framework.Ingress;
 using Modularyn.Framework.Jobs;
 using Modularyn.Framework.Persistence.Abstractions;
@@ -31,18 +32,6 @@ internal sealed class DurableClock : TimeProvider
     public void Set(DateTimeOffset at) => Interlocked.Exchange(ref ticks, at.UtcTicks);
 }
 
-// Audit is an observation seam for the future audit store, not evidence of its durability or policy.
-internal sealed class DurableAudit : IHostScopeAudit, IAuthorityAudit
-{
-    internal ConcurrentQueue<HostScopeAuditRecord> Hosts { get; } = new();
-    public ValueTask RecordAsync(HostScopeAuditRecord record, CancellationToken cancellationToken)
-    {
-        Hosts.Enqueue(record);
-        return ValueTask.CompletedTask;
-    }
-    public ValueTask RecordAsync(AuthorityChangeRecord record, CancellationToken cancellationToken) => ValueTask.CompletedTask;
-}
-
 internal sealed record DurableUser(Guid Id, string Name, string Password)
 {
     public ActorReference Actor => new(ActorKind.User, Id.ToString("D"));
@@ -57,22 +46,20 @@ internal sealed class DurableHost : IAsyncDisposable
     internal const string Service = "svc-durable";
     private readonly ServiceProvider provider;
     private readonly List<IAsyncDisposable> scopes = [];
-    private DurableHost(ServiceProvider provider, DurableDatabase database, DurableClock clock, DurableAudit audit)
+    private DurableHost(ServiceProvider provider, DurableDatabase database, DurableClock clock)
     {
         this.provider = provider;
         Database = database;
         Clock = clock;
-        Audit = audit;
     }
     internal DurableDatabase Database { get; }
     internal DurableClock Clock { get; }
-    internal DurableAudit Audit { get; }
     internal IServiceProvider Services => provider;
     internal static CancellationToken Token => DurableDatabase.Token;
     internal T Get<T>() where T : notnull => provider.GetRequiredService<T>();
-    internal EventStore Outbox => new(Database.Producer, Clock);
-    internal EventStore Inbox => new(Database.Consumer, Clock);
-    internal JobStore JobStore => new(Database.Producer, Clock, new JobPolicy());
+    internal EventStore Outbox => new(Database.Producer, Clock, Get<IAuditTrail>());
+    internal EventStore Inbox => new(Database.Consumer, Clock, Get<IAuditTrail>());
+    internal JobStore JobStore => new(Database.Producer, Clock, new JobPolicy(), Get<IAuditTrail>());
 
     internal static DurableHost Create(DurableDatabase database, DurableClock clock, IEnumerable<string>? servicePermissions = null)
     {
@@ -80,7 +67,8 @@ internal sealed class DurableHost : IAsyncDisposable
         {
             ["Modularyn:Authorization:HostOperators:0:Kind"] = "Service",
             ["Modularyn:Authorization:HostOperators:0:Subject"] = Service,
-            ["Modularyn:Ingress:PublicOrigins:0"] = "https://durable.example.test"
+            ["Modularyn:Ingress:PublicOrigins:0"] = "https://durable.example.test",
+            ["Modularyn:DataProtection:ApplicationName"] = "Modularyn.DurableTests"
         };
         var index = 0;
         foreach (var operation in database.Registry.HostOperations)
@@ -90,16 +78,17 @@ internal sealed class DurableHost : IAsyncDisposable
         services.AddLogging();
         services.AddSingleton<TimeProvider>(clock);
         services.AddModularynIngress(configuration);
+        // The declared key ring that seals propagated references, in memory and shared by every host over the database.
+        services.AddModularynDataProtection(configuration, keyStore: _ => database.Keys);
         services.AddModularynTenancy(database.Directory);
-        var audit = new DurableAudit();
-        services.AddSingleton<IHostScopeAudit>(audit);
-        services.AddSingleton<IAuthorityAudit>(audit);
+        // The real audit store, on the same database: authority changes, host scopes, filter bypasses and operator actions.
+        services.AddModularynAudit(database.Audit);
         services.AddModularynIdentity(configuration);
         services.AddModularynIdentityPostgreSql(database.Identity);
         services.AddModularynServiceIdentity(Service, servicePermissions ?? database.Registry.Permissions.Select(permission => permission.Name));
         services.AddModularynIdentityHttp();
         services.AddModularynAuthorization(configuration, database.Authority, database.Registry);
-        return new(services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true }), database, clock, audit);
+        return new(services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true }), database, clock);
     }
 
     internal async Task<TenantContext> HostAsync(string? operation = null)

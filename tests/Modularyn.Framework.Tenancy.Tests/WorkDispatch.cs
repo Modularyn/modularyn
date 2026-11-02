@@ -16,6 +16,9 @@ internal static class WorkDispatch
 {
     internal const string Operation = "test.dispatch";
 
+    /// <summary>What a work item binds its stored reference to: the item itself.</summary>
+    internal static PropagationBinding Binding(Guid id) => PropagationBinding.ForRow("tests.work-item", id);
+
     internal sealed record Run(WorkItem Item, TenantWorkOutcome Outcome, ContextSnapshot? Context);
 
     internal static async Task EnqueueAsync(TenancyDatabase database, IServiceProvider services, string subject, Guid tenant, string kind, string payload)
@@ -24,7 +27,8 @@ internal static class WorkDispatch
         await using (scope)
         {
             await using var work = await EfCoreUnitOfWork.BeginAsync(database.Items, context, cancellationToken: TestContext.Current.CancellationToken);
-            work.Context.Add(new WorkItem { Id = Guid.NewGuid(), Kind = kind, Payload = payload, Propagated = PropagatedTenantContext.Capture(context).ToJson() });
+            var id = Guid.NewGuid();
+            work.Context.Add(new WorkItem { Id = id, Kind = kind, Payload = payload, Propagated = PropagatedTenantContext.Capture(context).ToJson(Binding(id)) });
             Assert.Equal(UnitOfWorkState.Committed, (await work.CompleteAsync(TestContext.Current.CancellationToken)).State);
         }
     }
@@ -38,12 +42,12 @@ internal static class WorkDispatch
         {
             List<WorkItem> queued;
             await using (var read = await EfCoreUnitOfWork.BeginAsync(database.Items, host, UnitOfWorkMode.Suppress, cancellationToken: cancellationToken))
-                queued = await read.Context.AcrossTenants<WorkItem>().Query.AsNoTracking().Where(item => item.State == "queued")
+                queued = await (await read.Context.AcrossTenantsAsync<WorkItem>(cancellationToken)).Query.AsNoTracking().Where(item => item.State == "queued")
                     .OrderBy(item => item.Payload).ToListAsync(cancellationToken);
             var runner = services.GetRequiredService<TenantWorkRunner>();
             foreach (var item in queued)
             {
-                var outcome = await runner.RunAsync(item.Propagated, async (unit, token) =>
+                var outcome = await runner.RunAsync(item.Propagated, Binding(item.Id), async (unit, token) =>
                 {
                     await using var work = await EfCoreUnitOfWork.BeginAsync(database.Items, unit.Context, cancellationToken: token);
                     var items = (ItemsContext)work.Context;

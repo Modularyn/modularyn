@@ -1,3 +1,4 @@
+using Modularyn.Framework.Audit;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Tenancy.Abstractions;
 
@@ -71,6 +72,10 @@ public sealed class ScheduleOccurrence : ITenantScoped
 }
 
 public sealed record JobRequest(string Kind, string Payload, DateTimeOffset DueAt);
+
+/// <summary>A job as diagnostics show it: references, budgets, codes and times, and of its payload only a summary.</summary>
+public sealed record JobDiagnostic(Guid Id, string Kind, JobState State, int Attempts, int Deferrals, string Code, DateTimeOffset CreatedAt,
+    DateTimeOffset DueAt, Guid? ScheduleId, PayloadSummary Payload);
 public sealed record JobClaim(Guid Id, Guid Lease, int Attempt, DateTimeOffset LeaseUntil);
 
 public sealed class JobPolicy

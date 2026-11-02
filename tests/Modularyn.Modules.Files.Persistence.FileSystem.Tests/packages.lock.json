@@ -173,10 +173,23 @@
           "xunit.v3.runner.common": "[4.0.2]"
         }
       },
+      "modularyn.framework.audit": {
+        "type": "Project",
+        "dependencies": {
+          "Modularyn.Framework.Authorization.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Observability": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.EfCore": "[1.0.0, )",
+          "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )"
+        }
+      },
       "modularyn.framework.authorization.abstractions": {
         "type": "Project",
         "dependencies": {
           "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
+          "Modularyn.Framework.Persistence.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Security.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Tenancy.Abstractions": "[1.0.0, )"
         }
@@ -197,6 +210,9 @@
         }
       },
       "modularyn.framework.modularity.abstractions": {
+        "type": "Project"
+      },
+      "modularyn.framework.observability": {
         "type": "Project"
       },
       "modularyn.framework.persistence.abstractions": {
@@ -221,6 +237,7 @@
       "modularyn.framework.tenancy": {
         "type": "Project",
         "dependencies": {
+          "Modularyn.Framework.Audit": "[1.0.0, )",
           "Modularyn.Framework.Authorization.Abstractions": "[1.0.0, )",
           "Modularyn.Framework.Ingress": "[1.0.0, )",
           "Modularyn.Framework.Modularity.Abstractions": "[1.0.0, )",
@@ -261,6 +278,7 @@
       "modularyn.modules.files.persistence.efcore": {
         "type": "Project",
         "dependencies": {
+          "Modularyn.Framework.Audit": "[1.0.0, )",
           "Modularyn.Framework.Persistence.EfCore": "[1.0.0, )",
           "Modularyn.Modules.Files.Domain": "[1.0.0, )"
         }

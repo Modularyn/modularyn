@@ -50,8 +50,8 @@ public sealed class OwnerBoundUnitTests
             Assert.Equal("MPS035", (await Assert.ThrowsAsync<PersistenceContractException>(() => work.Sql.Query<Item>().CountAsync(Cancellation))).Code);
             Assert.Equal("MPS035", (await Assert.ThrowsAsync<PersistenceContractException>(() => work.Sql.InsertAsync(
                 new ItemNote { Id = Guid.NewGuid(), TenantId = database.TenantA, ItemId = item, Text = "from owner" }, Cancellation))).Code);
-            Assert.Equal("MPS038", Assert.Throws<PersistenceContractException>(() => items.AcrossTenants<Item>()).Code);
-            Assert.Equal("MPS038", Assert.Throws<PersistenceContractException>(() => work.Sql.AcrossTenants<Item>()).Code);
+            Assert.Equal("MPS038", (await Assert.ThrowsAsync<PersistenceContractException>(() => items.AcrossTenantsAsync<Item>(Cancellation))).Code);
+            Assert.Equal("MPS038", (await Assert.ThrowsAsync<PersistenceContractException>(() => work.Sql.AcrossTenantsAsync<Item>(Cancellation))).Code);
             Assert.Equal("MPS038", (await Assert.ThrowsAsync<PersistenceContractException>(() => work.Sql.UpdateForTenantAsync<Item, Guid, string>(
                 database.TenantA, row => row.Id, item, Guid.NewGuid(), row => row.Name, "from owner", Cancellation))).Code);
         }
@@ -111,13 +111,13 @@ public sealed class OwnerBoundUnitTests
 
         // The owner-bound unit sees no tenant's rows; only the audited host scope reads across tenants.
         await using (var owned = await EfCoreUnitOfWork.BeginOwnedAsync(database.Items, ItemsOwner, UnitOfWorkMode.Suppress, cancellationToken: Cancellation))
-            Assert.Equal("MPS038", Assert.Throws<PersistenceContractException>(() => owned.Context.AcrossTenants<Item>()).Code);
+            Assert.Equal("MPS038", (await Assert.ThrowsAsync<PersistenceContractException>(() => owned.Context.AcrossTenantsAsync<Item>(Cancellation))).Code);
         database.Seams.Authority.Grant("host-1", TenancyServer.HostReport);
         var audited = database.Seams.Audit.Records.Count;
         var (hostScope, host) = await Units.EnterHostAsync(services, "host-1", TenancyServer.HostReport);
         await using (hostScope)
         await using (var work = await EfCoreUnitOfWork.BeginAsync(database.Items, host, UnitOfWorkMode.Suppress, cancellationToken: Cancellation))
-            Assert.Equal(["a-1", "b-1"], await work.Context.AcrossTenants<Item>().Query.OrderBy(row => row.Code).Select(row => row.Code).ToArrayAsync(Cancellation));
+            Assert.Equal(["a-1", "b-1"], await (await work.Context.AcrossTenantsAsync<Item>(Cancellation)).Query.OrderBy(row => row.Code).Select(row => row.Code).ToArrayAsync(Cancellation));
         Assert.Equal(audited + 1, database.Seams.Audit.Records.Count);
     }
 }

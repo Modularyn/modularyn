@@ -1,4 +1,5 @@
 using Modularyn.Framework.Security.Abstractions;
+using Modularyn.Framework.Tenancy;
 using Modularyn.Framework.Tenancy.Abstractions;
 using Modularyn.Modules.Identity.Application.Contracts;
 using Modularyn.Modules.Identity.Domain;
@@ -40,7 +41,8 @@ internal sealed class AccountService(IAccountDirectory accounts, VerificationGat
         if (!UserNames.IsPlausible(userName)) return new(AccountCreationStatus.InvalidUserName, null);
         if (password.Length < policies.Passwords.MinimumLength || password.Length > PasswordPolicy.MaximumLength)
             return new(AccountCreationStatus.PasswordPolicy, null);
-        var created = await accounts.CreateAsync(userName, password, cancellationToken).ConfigureAwait(false);
+        var created = await IdentityAudited.RunAsync(() => accounts.CreateAsync(userName, password, IdentityAuthorization.ActorOf(authority), cancellationToken))
+            .ConfigureAwait(false);
         return new((AccountCreationStatus)(int)created.Outcome, created.AccountId);
     }
 
@@ -61,7 +63,8 @@ internal sealed class AccountService(IAccountDirectory accounts, VerificationGat
         await using var attempt = await gate.EnterAsync(source,
             ThrottleKey.ForUserName(ThrottleKind.Password, account.UserName), now, cancellationToken).ConfigureAwait(false);
         if (attempt.RefusedUntil is { } retryAt) return new(PasswordChangeStatus.Throttled, retryAt);
-        var outcome = await accounts.ChangePasswordAsync(accountId, currentPassword, newPassword, cancellationToken).ConfigureAwait(false);
+        var outcome = await IdentityAudited.RunAsync(() => accounts.ChangePasswordAsync(accountId, currentPassword, newPassword,
+            IdentityChangeActor.Owner(accountId), cancellationToken)).ConfigureAwait(false);
         switch (outcome)
         {
             case PasswordChangeOutcome.CurrentPasswordRejected:
@@ -80,7 +83,8 @@ internal sealed class AccountService(IAccountDirectory accounts, VerificationGat
     public async Task<bool> DisableAsync(IdentityAuthority authority, Guid accountId, CancellationToken cancellationToken)
     {
         IdentityAuthorization.RequireHost(authority, IdentityHostOperations.AccountsId);
-        if (!await accounts.SetDisabledAsync(accountId, true, cancellationToken).ConfigureAwait(false)) return false;
+        if (!await IdentityAudited.RunAsync(() => accounts.SetDisabledAsync(accountId, true, IdentityAuthorization.ActorOf(authority), cancellationToken))
+                .ConfigureAwait(false)) return false;
         await sessions.EndAllAsync(accountId, SessionEndReason.AccountDisabled, cancellationToken).ConfigureAwait(false);
         return true;
     }
@@ -88,13 +92,14 @@ internal sealed class AccountService(IAccountDirectory accounts, VerificationGat
     public Task<bool> EnableAsync(IdentityAuthority authority, Guid accountId, CancellationToken cancellationToken)
     {
         IdentityAuthorization.RequireHost(authority, IdentityHostOperations.AccountsId);
-        return accounts.SetDisabledAsync(accountId, false, cancellationToken);
+        return IdentityAudited.RunAsync(() => accounts.SetDisabledAsync(accountId, false, IdentityAuthorization.ActorOf(authority), cancellationToken));
     }
 
     public async Task<bool> SecurityStateChangedAsync(IdentityAuthority authority, Guid accountId, CancellationToken cancellationToken)
     {
         IdentityAuthorization.RequireHost(authority, IdentityHostOperations.AccountsId);
-        if (!await accounts.RotateSecurityStampAsync(accountId, cancellationToken).ConfigureAwait(false)) return false;
+        if (!await IdentityAudited.RunAsync(() => accounts.RotateSecurityStampAsync(accountId, IdentityAuthorization.ActorOf(authority), cancellationToken))
+                .ConfigureAwait(false)) return false;
         await sessions.EndAllAsync(accountId, SessionEndReason.SecurityStateChanged, cancellationToken).ConfigureAwait(false);
         return true;
     }
@@ -105,23 +110,32 @@ internal sealed class AccountService(IAccountDirectory accounts, VerificationGat
 /// scope, so a membership, which decides who may establish a tenant context, is authority data behind host authority and
 /// audit, never an owner-bound write.
 /// </summary>
-internal sealed class TenantMembershipService(ITenantMembershipStore store, IdentityClock clock) : ITenantMemberships
+internal sealed class TenantMembershipService(ITenantMembershipStore store, IdentityClock clock, TenantCache? cache = null) : ITenantMemberships
 {
-    public Task<bool> AddMemberAsync(IdentityAuthority authority, Guid accountId, Guid tenantId, CancellationToken cancellationToken)
+    public async Task<bool> AddMemberAsync(IdentityAuthority authority, Guid accountId, Guid tenantId, CancellationToken cancellationToken)
     {
         var host = IdentityAuthorization.RequireHost(authority, IdentityHostOperations.MembershipsId);
-        return tenantId == Guid.Empty ? throw new ArgumentException("Name the tenant by its identifier.", nameof(tenantId))
-            : store.AddAsync(host, accountId, tenantId, clock.Now, cancellationToken);
+        if (tenantId == Guid.Empty) throw new ArgumentException("Name the tenant by its identifier.", nameof(tenantId));
+        return Changed(await IdentityAudited.RunAsync(() => store.AddAsync(host, accountId, tenantId, clock.Now, cancellationToken)).ConfigureAwait(false), tenantId);
     }
 
-    public Task<bool> RemoveMemberAsync(IdentityAuthority authority, Guid accountId, Guid tenantId, CancellationToken cancellationToken)
+    public async Task<bool> RemoveMemberAsync(IdentityAuthority authority, Guid accountId, Guid tenantId, CancellationToken cancellationToken)
     {
         var host = IdentityAuthorization.RequireHost(authority, IdentityHostOperations.MembershipsId);
-        return store.RemoveAsync(host, accountId, tenantId, cancellationToken);
+        return Changed(await IdentityAudited.RunAsync(() => store.RemoveAsync(host, accountId, tenantId, clock.Now, cancellationToken)).ConfigureAwait(false),
+            tenantId);
     }
 
     public Task<bool> IsMemberAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken) =>
         tenantId == Guid.Empty ? Task.FromResult(false) : store.IsMemberAsync(accountId, tenantId, cancellationToken);
+
+    // A membership's start decides which of the member's grants count, so the tenant's cached authority, which this process
+    // may hold from an earlier membership, becomes unreachable at once; another process sees the change within its bound.
+    private bool Changed(bool changed, Guid tenantId)
+    {
+        if (changed) cache?.InvalidateTenant(tenantId);
+        return changed;
+    }
 }
 
 /// <summary>
@@ -136,4 +150,30 @@ internal sealed class IdentityTenantMembership(ITenantMembershipStore store) : I
         return actor.Kind == ActorKind.User && tenantId != Guid.Empty && Guid.TryParseExact(actor.Subject, "D", out var accountId)
             && await store.IsMemberAsync(accountId, tenantId, cancellationToken).ConfigureAwait(false);
     }
+
+    public async ValueTask<DateTimeOffset?> MemberSinceAsync(ActorReference actor, Guid tenantId, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        return actor.Kind == ActorKind.User && tenantId != Guid.Empty && Guid.TryParseExact(actor.Subject, "D", out var accountId)
+            ? await store.MemberSinceAsync(accountId, tenantId, cancellationToken).ConfigureAwait(false) : null;
+    }
+}
+
+/// <summary>Runs an audited identity write, reporting a change that could not be recorded in audit with its stable code.</summary>
+internal static class IdentityAudited
+{
+    internal static async Task<T> RunAsync<T>(Func<Task<T>> write)
+    {
+        try { return await write().ConfigureAwait(false); }
+        catch (IdentityAuditUnavailableException) { throw Unrecorded(); }
+    }
+
+    internal static async Task RunAsync(Func<Task> write)
+    {
+        try { await write().ConfigureAwait(false); }
+        catch (IdentityAuditUnavailableException) { throw Unrecorded(); }
+    }
+
+    private static IdentityAuthorityException Unrecorded() =>
+        new(IdentityAuthorityCodes.AuditUnavailable, "The identity change could not be recorded in audit, so it was not made.");
 }

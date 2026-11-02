@@ -13,12 +13,15 @@ namespace Modularyn.Modules.Identity.Persistence.EfCore;
 /// autocommitted connection for reads. Every query is ordinary LINQ over the module context and every change a tracked
 /// write; there is no raw SQL and no bulk write.
 /// </summary>
-internal abstract class IdentityStore(PostgreSqlModule module, ModuleOwnerScope? owner)
+internal abstract class IdentityStore(PostgreSqlModule module, ModuleOwnerScope? owner, IdentityAudit? audit = null)
 {
     // A concurrent writer can win a race a bounded number of times before an operation that retries gives up.
     protected const int Attempts = 4;
 
     protected PostgreSqlModule Module { get; } = module ?? throw new ArgumentNullException(nameof(module));
+
+    /// <summary>Records a change in its own unit of work, so the record commits exactly when the change does.</summary>
+    protected IdentityAudit Audit => audit ?? throw new IdentityAuditUnavailableException();
 
     protected async Task<T> ReadAsync<T>(Func<IdentityModuleContext, Task<T>> read, CancellationToken cancellationToken)
     {
@@ -30,7 +33,11 @@ internal abstract class IdentityStore(PostgreSqlModule module, ModuleOwnerScope?
     /// Runs one transactional change. When a concurrency token shows that another writer changed a row first, nothing is
     /// committed and <paramref name="conflicted"/> is returned; any other failure to commit is an error.
     /// </summary>
-    protected async Task<T> WriteAsync<T>(Func<IdentityModuleContext, Task<T>> write, T conflicted, CancellationToken cancellationToken)
+    protected Task<T> WriteAsync<T>(Func<IdentityModuleContext, Task<T>> write, T conflicted, CancellationToken cancellationToken) =>
+        WriteAsync((context, _) => write(context), conflicted, cancellationToken);
+
+    /// <summary>The transactional change with its unit of work, through which the change records itself in audit.</summary>
+    protected async Task<T> WriteAsync<T>(Func<IdentityModuleContext, EfCoreUnitOfWork, Task<T>> write, T conflicted, CancellationToken cancellationToken)
     {
         var scope = owner ?? throw new InvalidOperationException("This store writes authority data only in an audited host scope.");
         await using var work = await EfCoreUnitOfWork.BeginOwnedAsync(Module, scope, cancellationToken: cancellationToken).ConfigureAwait(false);
@@ -39,9 +46,10 @@ internal abstract class IdentityStore(PostgreSqlModule module, ModuleOwnerScope?
 
     /// <summary>
     /// Runs one transactional change in the caller's active host scope, whose operation must reach the entity it changes;
-    /// the persistence adapter refuses any other scope or entity.
+    /// the persistence adapter refuses any other scope or entity. The change records itself in audit through the unit.
     /// </summary>
-    protected async Task<T> HostWriteAsync<T>(TenantContext host, Func<IdentityModuleContext, Task<T>> write, T conflicted, CancellationToken cancellationToken)
+    protected async Task<T> HostWriteAsync<T>(TenantContext host, Func<IdentityModuleContext, EfCoreUnitOfWork, Task<T>> write, T conflicted,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(host);
         if (host.Scope != TenantScope.Host) throw new InvalidOperationException("Authority data changes only in an audited host scope.");
@@ -49,10 +57,10 @@ internal abstract class IdentityStore(PostgreSqlModule module, ModuleOwnerScope?
         return await CommitAsync(work, write, conflicted, cancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task<T> CommitAsync<T>(EfCoreUnitOfWork work, Func<IdentityModuleContext, Task<T>> write, T conflicted,
+    private static async Task<T> CommitAsync<T>(EfCoreUnitOfWork work, Func<IdentityModuleContext, EfCoreUnitOfWork, Task<T>> write, T conflicted,
         CancellationToken cancellationToken)
     {
-        var result = await write((IdentityModuleContext)work.Context).ConfigureAwait(false);
+        var result = await write((IdentityModuleContext)work.Context, work).ConfigureAwait(false);
         var outcome = await work.CompleteAsync(cancellationToken).ConfigureAwait(false);
         if (outcome.State == UnitOfWorkState.Committed) return result;
         if (outcome.Conflicts.Count > 0) return conflicted;
@@ -64,7 +72,7 @@ internal abstract class IdentityStore(PostgreSqlModule module, ModuleOwnerScope?
 /// Session records. The record has no concurrency token, so parallel requests of one session never conflict; each write
 /// changes only its own columns, so recording activity never undoes an end that committed meanwhile.
 /// </summary>
-internal sealed class SessionStore(PostgreSqlModule module) : IdentityStore(module, IdentityOwnerScopes.Sessions), ISessionStore
+internal sealed class SessionStore(PostgreSqlModule module, IdentityAudit audit) : IdentityStore(module, IdentityOwnerScopes.Sessions, audit), ISessionStore
 {
     public Task CreateAsync(SessionRecord session, CancellationToken cancellationToken)
     {
@@ -103,26 +111,32 @@ internal sealed class SessionStore(PostgreSqlModule module) : IdentityStore(modu
         }, false, cancellationToken);
     }
 
-    public Task<bool> EndAsync(Guid sessionId, SessionEndReason reason, DateTimeOffset now, CancellationToken cancellationToken)
+    public Task<bool> EndAsync(Guid sessionId, SessionEndReason reason, DateTimeOffset now, IdentityChangeActor? by, CancellationToken cancellationToken)
     {
         var at = now.ToUniversalTime();
-        return WriteAsync(async context =>
+        return WriteAsync(async (context, work) =>
         {
             var row = await context.Set<SessionRow>().SingleOrDefaultAsync(row => row.Id == sessionId, cancellationToken).ConfigureAwait(false);
             if (row is null || row.EndedAt is not null) return false;
             (row.EndedAt, row.EndReason) = (at, (int)reason);
+            // A revocation names who revoked the session; the record names the account, never the session.
+            if (by is not null)
+                await Audit.ChangeAsync(work, IdentityAuditActions.SessionRevoked, by, row.AccountId, cancellationToken, detail: "reason " + reason).ConfigureAwait(false);
             return true;
         }, false, cancellationToken);
     }
 
-    public Task<int> EndAllAsync(Guid accountId, SessionEndReason reason, DateTimeOffset now, CancellationToken cancellationToken)
+    public Task<int> EndAllAsync(Guid accountId, SessionEndReason reason, DateTimeOffset now, IdentityChangeActor? by, CancellationToken cancellationToken)
     {
         var at = now.ToUniversalTime();
-        return WriteAsync(async context =>
+        return WriteAsync(async (context, work) =>
         {
             var active = await context.Set<SessionRow>().Where(row => row.AccountId == accountId && row.EndedAt == null)
                 .ToListAsync(cancellationToken).ConfigureAwait(false);
             foreach (var row in active) (row.EndedAt, row.EndReason) = (at, (int)reason);
+            if (by is not null)
+                await Audit.ChangeAsync(work, IdentityAuditActions.SessionsRevoked, by, accountId, cancellationToken,
+                    detail: "reason " + reason + " sessions " + active.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)).ConfigureAwait(false);
             return active.Count;
         }, 0, cancellationToken);
     }
@@ -240,13 +254,13 @@ internal sealed class VerificationLedger(PostgreSqlModule module) : IVerificatio
 }
 
 /// <summary>Delegation records. Revocation is a tracked write under the row's concurrency token, so it happens once.</summary>
-internal sealed class DelegationStore(PostgreSqlModule module) : IdentityStore(module, IdentityOwnerScopes.Delegations), IDelegationStore
+internal sealed class DelegationStore(PostgreSqlModule module, IdentityAudit audit) : IdentityStore(module, IdentityOwnerScopes.Delegations, audit), IDelegationStore
 {
-    public Task CreateAsync(DelegationGrant grant, CancellationToken cancellationToken)
+    public Task CreateAsync(DelegationGrant grant, IdentityChangeActor by, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(grant);
         var authority = grant.Authority;
-        return WriteAsync(context =>
+        return WriteAsync(async (context, work) =>
         {
             context.Add(new DelegationRow
             {
@@ -255,9 +269,18 @@ internal sealed class DelegationStore(PostgreSqlModule module) : IdentityStore(m
                 IssuedById = grant.IssuedBy.Id, IssuedByKind = (int)grant.IssuedBy.Kind, IssuedAt = grant.IssuedAt.ToUniversalTime(),
                 NotBefore = authority.NotBefore.ToUniversalTime(), ExpiresAt = authority.ExpiresAt.ToUniversalTime()
             });
-            return Task.FromResult(true);
+            await Audit.ChangeAsync(work, IdentityAuditActions.DelegationIssued, by, SubjectAccount(grant.Subject), cancellationToken, "delegation",
+                grant.Id.ToString("D"), Describe(grant.Actor, authority.Tenant)).ConfigureAwait(false);
+            return true;
         }, false, cancellationToken);
     }
+
+    /// <summary>A delegation's record names its subject's account; a subject that is not an account is refused, as it never resolves.</summary>
+    private static Guid SubjectAccount(PrincipalReference subject) => Guid.TryParseExact(subject.Id, "D", out var account) ? account
+        : throw new InvalidOperationException("A delegation's subject is an account.");
+
+    private static string Describe(PrincipalReference actor, Guid? tenant) =>
+        "delegate " + (actor.Kind == IdentityKind.User ? "user:" : "service:") + actor.Id + (tenant is { } scoped ? " tenant " + scoped.ToString("D") : "");
 
     public Task<DelegationGrant?> FindAsync(Guid grantId, CancellationToken cancellationToken) => ReadAsync(async context =>
     {
@@ -276,30 +299,32 @@ internal sealed class DelegationStore(PostgreSqlModule module) : IdentityStore(m
         }
     }, cancellationToken);
 
-    public Task<bool> RevokeAsync(Guid grantId, PrincipalReference revokedBy, DateTimeOffset now, CancellationToken cancellationToken)
+    public Task<bool> RevokeAsync(Guid grantId, PrincipalReference revokedBy, DateTimeOffset now, IdentityChangeActor by, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(revokedBy);
         var at = now.ToUniversalTime();
-        return WriteAsync(async context =>
+        return WriteAsync(async (context, work) =>
         {
             var row = await context.Set<DelegationRow>().SingleOrDefaultAsync(row => row.Id == grantId, cancellationToken).ConfigureAwait(false);
             if (row is null || row.RevokedAt is not null) return false;
             (row.RevokedAt, row.RevokedById, row.RevokedByKind) = (at, revokedBy.Id, (int)revokedBy.Kind);
+            await Audit.ChangeAsync(work, IdentityAuditActions.DelegationRevoked, by, SubjectAccount(new(row.SubjectId, (IdentityKind)row.SubjectKind)),
+                cancellationToken, "delegation", row.Id.ToString("D"), Describe(new(row.ActorId, (IdentityKind)row.ActorKind), row.Tenant)).ConfigureAwait(false);
             return true;
         }, false, cancellationToken);
     }
 }
 
-internal sealed class AuthenticatorSeedStore(PostgreSqlModule module) : IdentityStore(module, IdentityOwnerScopes.Credentials), IAuthenticatorSeedStore
+internal sealed class AuthenticatorSeedStore(PostgreSqlModule module, IdentityAudit audit) : IdentityStore(module, IdentityOwnerScopes.Credentials, audit), IAuthenticatorSeedStore
 {
-    public async Task SaveAsync(ProtectedSeed seed, CancellationToken cancellationToken)
+    public async Task SaveAsync(ProtectedSeed seed, IdentityChangeActor by, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(seed);
         for (var attempt = 1; attempt <= Attempts; attempt++)
         {
             try
             {
-                if (await WriteAsync(async context =>
+                if (await WriteAsync(async (context, work) =>
                     {
                         var earlier = await context.Set<AuthenticatorSeedRow>().SingleOrDefaultAsync(row => row.AccountId == seed.AccountId, cancellationToken)
                             .ConfigureAwait(false);
@@ -309,6 +334,8 @@ internal sealed class AuthenticatorSeedStore(PostgreSqlModule module) : Identity
                             AccountId = seed.AccountId, KeyVersion = seed.KeyVersion, Nonce = seed.Nonce.ToArray(), Ciphertext = seed.Ciphertext.ToArray(),
                             Tag = seed.Tag.ToArray(), CreatedAt = seed.CreatedAt.ToUniversalTime()
                         });
+                        await Audit.ChangeAsync(work, IdentityAuditActions.AuthenticatorSeedStored, by, seed.AccountId, cancellationToken, "credential.seed",
+                            seed.AccountId.ToString("D"), "key-version " + seed.KeyVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)).ConfigureAwait(false);
                         return true;
                     }, false, cancellationToken).ConfigureAwait(false)) return;
             }
@@ -326,11 +353,13 @@ internal sealed class AuthenticatorSeedStore(PostgreSqlModule module) : Identity
         return row is null ? null : new ProtectedSeed(row.AccountId, row.KeyVersion, row.Nonce, row.Ciphertext, row.Tag, row.CreatedAt);
     }, cancellationToken);
 
-    public Task<bool> RemoveAsync(Guid accountId, CancellationToken cancellationToken) => WriteAsync(async context =>
+    public Task<bool> RemoveAsync(Guid accountId, IdentityChangeActor by, CancellationToken cancellationToken) => WriteAsync(async (context, work) =>
     {
         var row = await context.Set<AuthenticatorSeedRow>().SingleOrDefaultAsync(row => row.AccountId == accountId, cancellationToken).ConfigureAwait(false);
         if (row is null) return false;
         context.Remove(row);
+        await Audit.ChangeAsync(work, IdentityAuditActions.AuthenticatorSeedRemoved, by, accountId, cancellationToken, "credential.seed", accountId.ToString("D"))
+            .ConfigureAwait(false);
         return true;
     }, false, cancellationToken);
 }
@@ -339,16 +368,17 @@ internal sealed class AuthenticatorSeedStore(PostgreSqlModule module) : Identity
 /// Recovery-code verifiers. Each row has a concurrency token, so of any number of concurrent consumptions of one code,
 /// and of a consumption racing a replacement of its set, exactly one write commits.
 /// </summary>
-internal sealed class RecoveryCodeStore(PostgreSqlModule module) : IdentityStore(module, IdentityOwnerScopes.Credentials), IRecoveryCodeStore
+internal sealed class RecoveryCodeStore(PostgreSqlModule module, IdentityAudit audit) : IdentityStore(module, IdentityOwnerScopes.Credentials, audit), IRecoveryCodeStore
 {
-    public async Task ReplaceAsync(Guid accountId, IReadOnlyList<RecoveryCodeVerifier> verifiers, DateTimeOffset now, CancellationToken cancellationToken)
+    public async Task ReplaceAsync(Guid accountId, IReadOnlyList<RecoveryCodeVerifier> verifiers, DateTimeOffset now, IdentityChangeActor by,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(verifiers);
         if (verifiers.Any(verifier => verifier.AccountId != accountId)) throw new ArgumentException("Every verifier belongs to the account.", nameof(verifiers));
         var at = now.ToUniversalTime();
         for (var attempt = 1; attempt <= Attempts; attempt++)
         {
-            var replaced = await WriteAsync(async context =>
+            var replaced = await WriteAsync(async (context, work) =>
             {
                 foreach (var row in await context.Set<RecoveryCodeRow>().Where(row => row.AccountId == accountId && row.ConsumedAt == null && row.InvalidatedAt == null)
                              .ToListAsync(cancellationToken).ConfigureAwait(false))
@@ -358,6 +388,9 @@ internal sealed class RecoveryCodeStore(PostgreSqlModule module) : IdentityStore
                     Id = verifier.Id, AccountId = verifier.AccountId, SetId = verifier.SetId, Salt = verifier.Salt.ToArray(), Verifier = verifier.Verifier.ToArray(),
                     Iterations = verifier.Iterations, CreatedAt = verifier.CreatedAt.ToUniversalTime()
                 }));
+                await Audit.ChangeAsync(work, IdentityAuditActions.RecoveryCodesReplaced, by, accountId, cancellationToken, "credential.recovery-codes",
+                    verifiers.Select(verifier => verifier.SetId).Distinct().SingleOrDefault().ToString("D"),
+                    "codes " + verifiers.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)).ConfigureAwait(false);
                 return true;
             }, false, cancellationToken).ConfigureAwait(false);
             // A code consumed while the set was being replaced changed a row first; the next try invalidates what is left.
@@ -387,14 +420,14 @@ internal sealed class RecoveryCodeStore(PostgreSqlModule module) : IdentityStore
     }
 }
 
-internal sealed class PasskeyCredentialStore(PostgreSqlModule module) : IdentityStore(module, IdentityOwnerScopes.Credentials), IPasskeyCredentialStore
+internal sealed class PasskeyCredentialStore(PostgreSqlModule module, IdentityAudit audit) : IdentityStore(module, IdentityOwnerScopes.Credentials, audit), IPasskeyCredentialStore
 {
-    public async Task<bool> AddAsync(PasskeyCredentialRecord record, CancellationToken cancellationToken)
+    public async Task<bool> AddAsync(PasskeyCredentialRecord record, IdentityChangeActor by, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(record);
         try
         {
-            return await WriteAsync(async context =>
+            return await WriteAsync(async (context, work) =>
             {
                 var credentialId = record.CredentialId.ToArray();
                 if (await context.Set<PasskeyCredentialRow>().AnyAsync(row => row.CredentialId == credentialId, cancellationToken).ConfigureAwait(false)) return false;
@@ -404,6 +437,8 @@ internal sealed class PasskeyCredentialStore(PostgreSqlModule module) : Identity
                     PublicKey = record.PublicKey.ToArray(), Algorithm = record.Algorithm, CreatedAt = record.CreatedAt.ToUniversalTime(),
                     KeyVersion = record.KeyVersion, IntegrityTag = record.IntegrityTag.ToArray()
                 });
+                await Audit.ChangeAsync(work, IdentityAuditActions.PasskeyAdded, by, record.AccountId, cancellationToken, "credential.passkey", record.Id.ToString("D"),
+                    "relying-party " + record.RelyingPartyId).ConfigureAwait(false);
                 return true;
             }, false, cancellationToken).ConfigureAwait(false);
         }
@@ -426,15 +461,17 @@ internal sealed class PasskeyCredentialStore(PostgreSqlModule module) : Identity
         }, cancellationToken);
     }
 
-    public Task<bool> RemoveAsync(Guid accountId, byte[] credentialId, CancellationToken cancellationToken)
+    public Task<bool> RemoveAsync(Guid accountId, byte[] credentialId, IdentityChangeActor by, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(credentialId);
-        return WriteAsync(async context =>
+        return WriteAsync(async (context, work) =>
         {
             var row = await context.Set<PasskeyCredentialRow>().SingleOrDefaultAsync(row => row.AccountId == accountId && row.CredentialId == credentialId, cancellationToken)
                 .ConfigureAwait(false);
             if (row is null) return false;
             context.Remove(row);
+            await Audit.ChangeAsync(work, IdentityAuditActions.PasskeyRemoved, by, accountId, cancellationToken, "credential.passkey", row.Id.ToString("D"))
+                .ConfigureAwait(false);
             return true;
         }, false, cancellationToken);
     }
@@ -442,20 +479,22 @@ internal sealed class PasskeyCredentialStore(PostgreSqlModule module) : Identity
 
 /// <summary>
 /// Global accounts' tenant memberships, read afresh for every check. A membership decides who may establish a tenant
-/// context, so it changes only in the caller's audited host scope, never in an owner-bound unit.
+/// context, so it changes only in the caller's audited host scope, never in an owner-bound unit, and each change is recorded
+/// in audit, as an authority change, in the change's own transaction.
 /// </summary>
-internal sealed class TenantMembershipStore(PostgreSqlModule module) : IdentityStore(module, null), ITenantMembershipStore
+internal sealed class TenantMembershipStore(PostgreSqlModule module, IdentityAudit audit) : IdentityStore(module, null, audit), ITenantMembershipStore
 {
     public async Task<bool> AddAsync(TenantContext host, Guid accountId, Guid tenantId, DateTimeOffset now, CancellationToken cancellationToken)
     {
         try
         {
-            return await HostWriteAsync(host, async context =>
+            return await HostWriteAsync(host, async (context, work) =>
             {
                 if (!await context.Set<IdentityAccount>().AnyAsync(account => account.Id == accountId, cancellationToken).ConfigureAwait(false)
                     || await context.Set<TenantMembershipRow>().AnyAsync(row => row.AccountId == accountId && row.TenantId == tenantId, cancellationToken)
                         .ConfigureAwait(false)) return false;
                 context.Add(new TenantMembershipRow { AccountId = accountId, TenantId = tenantId, AddedAt = now.ToUniversalTime() });
+                await Audit.MembershipAsync(work, true, host, accountId, tenantId, now, cancellationToken).ConfigureAwait(false);
                 return true;
             }, false, cancellationToken).ConfigureAwait(false);
         }
@@ -466,18 +505,26 @@ internal sealed class TenantMembershipStore(PostgreSqlModule module) : IdentityS
         }
     }
 
-    public Task<bool> RemoveAsync(TenantContext host, Guid accountId, Guid tenantId, CancellationToken cancellationToken) => HostWriteAsync(host, async context =>
-    {
-        var row = await context.Set<TenantMembershipRow>().SingleOrDefaultAsync(row => row.AccountId == accountId && row.TenantId == tenantId, cancellationToken)
-            .ConfigureAwait(false);
-        if (row is null) return false;
-        context.Remove(row);
-        return true;
-    }, false, cancellationToken);
+    public Task<bool> RemoveAsync(TenantContext host, Guid accountId, Guid tenantId, DateTimeOffset now, CancellationToken cancellationToken) =>
+        HostWriteAsync(host, async (context, work) =>
+        {
+            var row = await context.Set<TenantMembershipRow>().SingleOrDefaultAsync(row => row.AccountId == accountId && row.TenantId == tenantId, cancellationToken)
+                .ConfigureAwait(false);
+            if (row is null) return false;
+            context.Remove(row);
+            await Audit.MembershipAsync(work, false, host, accountId, tenantId, now, cancellationToken).ConfigureAwait(false);
+            return true;
+        }, false, cancellationToken);
 
     public Task<bool> IsMemberAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken) => ReadAsync(context =>
         (from membership in context.Set<TenantMembershipRow>()
          join account in context.Set<IdentityAccount>() on membership.AccountId equals account.Id
          where membership.AccountId == accountId && membership.TenantId == tenantId && !account.Disabled
          select membership).AnyAsync(cancellationToken), cancellationToken);
+
+    public Task<DateTimeOffset?> MemberSinceAsync(Guid accountId, Guid tenantId, CancellationToken cancellationToken) => ReadAsync(context =>
+        (from membership in context.Set<TenantMembershipRow>()
+         join account in context.Set<IdentityAccount>() on membership.AccountId equals account.Id
+         where membership.AccountId == accountId && membership.TenantId == tenantId && !account.Disabled
+         select (DateTimeOffset?)membership.AddedAt).SingleOrDefaultAsync(cancellationToken), cancellationToken);
 }

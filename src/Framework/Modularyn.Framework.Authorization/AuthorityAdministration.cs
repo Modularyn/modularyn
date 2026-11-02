@@ -102,11 +102,14 @@ public sealed partial class AuthorityAdministration
             var existing = await change.Db.Roles.AsNoTracking().SingleOrDefaultAsync(row => row.Name == role, cancellationToken).ConfigureAwait(false)
                 ?? throw Refuse(AuthorizationCodes.ChangeInvalid, "The role does not exist in the tenant.");
             change.RequireAssignable(RoleDefinitions(existing));
-            await change.RequireMemberAsync(member, cancellationToken).ConfigureAwait(false);
+            var since = await change.RequireMemberAsync(member, cancellationToken).ConfigureAwait(false);
             var kind = (int)member.Kind;
-            if (await change.Db.RoleMembers.AnyAsync(row => row.Role == role && row.MemberKind == kind && row.Member == member.Subject, cancellationToken)
-                    .ConfigureAwait(false)) return false;
-            change.Db.Add(new RoleMemberRow
+            var assigned = await change.Db.RoleMembers.SingleOrDefaultAsync(row => row.Role == role && row.MemberKind == kind && row.Member == member.Subject,
+                cancellationToken).ConfigureAwait(false);
+            if (assigned is not null && assigned.AddedAt >= since) return false;
+            // An assignment from an earlier membership no longer counts, so assigning the role again makes it anew.
+            if (assigned is not null) (assigned.AddedAt, assigned.AddedByKind, assigned.AddedBy) = (change.Now, (int)change.Actor.Kind, change.Actor.Subject);
+            else change.Db.Add(new RoleMemberRow
             {
                 Role = role, MemberKind = kind, Member = member.Subject, AddedAt = change.Now, AddedByKind = (int)change.Actor.Kind, AddedBy = change.Actor.Subject
             });
@@ -145,11 +148,14 @@ public sealed partial class AuthorityAdministration
         {
             change.RequireManage();
             change.RequireAssignable([definition]);
-            await change.RequireMemberAsync(member, cancellationToken).ConfigureAwait(false);
+            var since = await change.RequireMemberAsync(member, cancellationToken).ConfigureAwait(false);
             var kind = (int)member.Kind;
-            if (await change.Db.PermissionGrants.AnyAsync(row => row.MemberKind == kind && row.Member == member.Subject && row.Permission == definition.Name,
-                    cancellationToken).ConfigureAwait(false)) return false;
-            change.Db.Add(new PermissionGrantRow
+            var granted = await change.Db.PermissionGrants.SingleOrDefaultAsync(row => row.MemberKind == kind && row.Member == member.Subject
+                && row.Permission == definition.Name, cancellationToken).ConfigureAwait(false);
+            if (granted is not null && granted.GrantedAt >= since) return false;
+            // A grant from an earlier membership no longer counts, so granting the permission again makes it anew.
+            if (granted is not null) (granted.GrantedAt, granted.GrantedByKind, granted.GrantedBy) = (change.Now, (int)change.Actor.Kind, change.Actor.Subject);
+            else change.Db.Add(new PermissionGrantRow
             {
                 MemberKind = kind, Member = member.Subject, Permission = definition.Name, GrantedAt = change.Now, GrantedByKind = (int)change.Actor.Kind,
                 GrantedBy = change.Actor.Subject
@@ -193,10 +199,16 @@ public sealed partial class AuthorityAdministration
         {
             change.RequireSharing(resource, definition);
             if (until <= change.Now) throw Refuse(AuthorizationCodes.ChangeInvalid, "A resource grant expires after it is made.");
-            await change.RequireMemberAsync(member, cancellationToken).ConfigureAwait(false);
+            var since = await change.RequireMemberAsync(member, cancellationToken).ConfigureAwait(false);
             var kind = (int)member.Kind;
             var row = await change.Db.ResourceGrants.SingleOrDefaultAsync(row => row.ResourceType == resource.Type && row.ResourceId == resource.Id
                 && row.MemberKind == kind && row.Member == member.Subject && row.Permission == definition.Name, cancellationToken).ConfigureAwait(false);
+            if (row is not null && row.GrantedAt < since)
+            {
+                // A share from an earlier membership no longer counts, so sharing again makes it anew.
+                (row.ExpiresAt, row.GrantedAt, row.GrantedByKind, row.GrantedBy) = (until, change.Now, (int)change.Actor.Kind, change.Actor.Subject);
+                return true;
+            }
             if (row is not null)
             {
                 if (row.ExpiresAt == until) return false;
@@ -256,10 +268,12 @@ public sealed partial class AuthorityAdministration
             }
             // From here the tenant's authority is locked until this transaction ends, so what the actor holds cannot change under the decision.
             await RequireCurrentAsync(context, principal, cancellationToken).ConfigureAwait(false);
-            var grantor = await PostgreSqlAuthoritySource.ReadCoreAsync(db, tenant, actor, null, now, cancellationToken).ConfigureAwait(false);
+            var grantor = await PostgreSqlAuthoritySource.ReadCoreAsync(db, tenant, actor, null, now,
+                await PostgreSqlAuthoritySource.MemberSinceAsync(services, actor, tenant, cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
             // A change that changes nothing is not made: its transaction rolls back, version and all, and nothing is recorded.
             if (!await apply(new Change(this, db, context, actor, grantor, now)).ConfigureAwait(false)) return false;
-            await AuditAsync(new AuthorityChangeRecord(Guid.NewGuid(), kind, tenant, actor, member, target, permissions, now,
+            // Recorded through this unit, so the record commits with the change, and a change that retries or rolls back leaves none.
+            await AuditAsync(work, new AuthorityChangeRecord(Guid.NewGuid(), kind, tenant, actor, member, target, permissions, now,
                 Activity.Current?.TraceId.ToHexString()), cancellationToken).ConfigureAwait(false);
             work.OnCompleted(result =>
             {
@@ -314,11 +328,11 @@ public sealed partial class AuthorityAdministration
             throw Refuse(AuthorizationCodes.ChangeNotPermitted, "The actor's principal is no longer current.");
     }
 
-    internal async Task AuditAsync(AuthorityChangeRecord record, CancellationToken cancellationToken)
+    internal async Task AuditAsync(EfCoreUnitOfWork work, AuthorityChangeRecord record, CancellationToken cancellationToken)
     {
         if (services.GetService<IAuthorityAudit>() is not { } audit)
             throw Refuse(AuthorizationCodes.AuditUnavailable, "No audit is registered, so no authority change is made.");
-        try { await audit.RecordAsync(record, cancellationToken).ConfigureAwait(false); }
+        try { await audit.RecordAsync(work, record, cancellationToken).ConfigureAwait(false); }
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             throw Refuse(AuthorizationCodes.AuditUnavailable, "The change could not be recorded in audit, so it was not made.");
@@ -404,14 +418,19 @@ public sealed partial class AuthorityAdministration
                 throw Refuse(AuthorizationCodes.BeyondCeiling, "Only the resource's owner with the share permission, or an administrator within its ceiling, grants on it.");
         }
 
-        /// <summary>Grants go only to current members of the tenant; a service identity is never granted anything.</summary>
-        internal async Task RequireMemberAsync(ActorReference member, CancellationToken cancellationToken)
+        /// <summary>
+        /// Grants go only to current members of the tenant; a service identity is never granted anything. Returns when the
+        /// member's current membership began: a grant made before it belongs to an earlier membership and no longer counts.
+        /// </summary>
+        internal async Task<DateTimeOffset> RequireMemberAsync(ActorReference member, CancellationToken cancellationToken)
         {
             if (member.Kind != ActorKind.User) throw Refuse(AuthorizationCodes.ChangeInvalid, "Only users are granted authority; a service identity has its declared scope.");
             if (owner.services.GetService<ITenantMembership>() is not { } membership)
                 throw Refuse(AuthorizationCodes.Unavailable, "Membership cannot be checked, so no authority change is made.");
-            if (!await membership.IsMemberAsync(member, context.TenantId!.Value, cancellationToken).ConfigureAwait(false))
+            if (!await membership.IsMemberAsync(member, context.TenantId!.Value, cancellationToken).ConfigureAwait(false)
+                || await PostgreSqlAuthoritySource.MemberSinceAsync(owner.services, member, context.TenantId!.Value, cancellationToken).ConfigureAwait(false) is not { } since)
                 throw Refuse(AuthorizationCodes.ChangeInvalid, "Authority is granted only to a current member of the tenant.");
+            return since;
         }
     }
 }

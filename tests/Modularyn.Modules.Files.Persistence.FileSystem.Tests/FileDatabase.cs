@@ -53,7 +53,7 @@ internal sealed class FileDatabase : IAsyncDisposable
     internal Guid TenantA { get; private set; }
     internal Guid TenantB { get; private set; }
     internal ServiceProvider Services { get; private set; } = null!;
-    internal FileMetadataStore Metadata => new(FilesModule);
+    internal FileMetadataStore Metadata => new(FilesModule, Services.GetRequiredService<Framework.Audit.IAuditTrail>());
     internal TimeProvider Clock { get; } = new PrecisionClock();
 
     internal static async Task<FileDatabase> CreateAsync()
@@ -76,12 +76,16 @@ internal sealed class FileDatabase : IAsyncDisposable
             await database.ExecuteAsync("INSERT INTO " + Quote(database.IdentitySchema) + ".\"HostGrants\" VALUES ('fixture-host', @operation)",
                 new NpgsqlParameter("operation", TenantDirectoryAdministration.OperationId));
             var services = new ServiceCollection();
+            // The tests' shared key ring seals the propagated references the stores keep.
+            services.AddSingleton(Framework.Tenancy.Tests.TestSeams.Seal);
             services.AddModularynTenancy(database.DirectoryModule);
             services.AddSingleton<ITenantActorResolver>(new FixtureActor());
             services.AddSingleton<ITenantMembership>(new DatabaseMembership(database));
             var hostBoundary = new DatabaseHostBoundary(database);
             services.AddSingleton<IHostAuthority>(hostBoundary);
             services.AddSingleton<IHostScopeAudit>(hostBoundary);
+            services.AddSingleton<IFilterBypassAudit>(hostBoundary);
+            services.AddSingleton<Framework.Audit.IAuditTrail>(hostBoundary);
             database.Services = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
             // The real directory is provisioned through its administration service in an explicit granted host scope.
             // The database-backed fixture seams are not an implementation or qualification of security policy.
@@ -268,10 +272,35 @@ internal sealed class FileDatabase : IAsyncDisposable
             await database.ScalarAsync<bool>(cancellationToken, "SELECT EXISTS (SELECT 1 FROM " + Quote(database.IdentitySchema)
                 + ".\"Members\" WHERE \"TenantId\" = @tenant AND \"Subject\" = @subject)",
                 new NpgsqlParameter("tenant", tenantId), new NpgsqlParameter("subject", actor.Subject));
+
+        // The fixture's memberships keep no start, so every grant of a current member counts.
+        public async ValueTask<DateTimeOffset?> MemberSinceAsync(ActorReference actor, Guid tenantId, CancellationToken cancellationToken) =>
+            await IsMemberAsync(actor, tenantId, cancellationToken) ? DateTimeOffset.MinValue : null;
     }
 
-    private sealed class DatabaseHostBoundary(FileDatabase database) : IHostAuthority, IHostScopeAudit
+    private sealed class DatabaseHostBoundary(FileDatabase database) : IHostAuthority, IHostScopeAudit, IFilterBypassAudit, Framework.Audit.IAuditTrail
     {
+        internal System.Collections.Concurrent.ConcurrentQueue<FilterBypassRecord> Bypasses { get; } = new();
+        internal System.Collections.Concurrent.ConcurrentQueue<Framework.Audit.AuditEntry> Changes { get; } = new();
+
+        public ValueTask RecordAsync(Framework.Persistence.Abstractions.IUnitOfWork work, Framework.Audit.AuditEntry entry, CancellationToken cancellationToken)
+        {
+            Changes.Enqueue(entry);
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask RecordAccessAsync(Framework.Audit.AuditEntry entry, CancellationToken cancellationToken)
+        {
+            Changes.Enqueue(entry);
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask RecordAsync(FilterBypassRecord record, CancellationToken cancellationToken)
+        {
+            Bypasses.Enqueue(record);
+            return ValueTask.CompletedTask;
+        }
+
         // The fixture grants only directory administration, whose reach is the directory module's own declaration.
         public async ValueTask<HostOperation?> AuthorizeAsync(ActorReference actor, string operationId, CancellationToken cancellationToken) =>
             operationId == TenantDirectoryAdministration.OperationId && await database.ScalarAsync<bool>(cancellationToken, "SELECT EXISTS (SELECT 1 FROM "

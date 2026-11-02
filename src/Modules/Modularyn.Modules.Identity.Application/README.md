@@ -48,8 +48,11 @@ authenticated user, and `UseModularynIngress` refuses a pipeline that already
 called `UseAuthentication` or `UseAuthorization`. A host with tenancy registers it
 with `AddModularynTenancy` and places `UseModularynTenancy` after routing and
 before authorization, as shown. Startup is refused while a store is missing,
-while the ingress policy is not registered, or after the session scheme was
-replaced. Startup is also refused when authorization services are registered but
+while the ingress policy is not registered, after the session scheme was
+replaced, or while requests would be authenticated by default through another
+scheme than the session's, as the authenticate default or the overall default,
+unless the host opts out explicitly with
+`AddModularynIdentityHttp(new IdentityHttpOptions { AllowOtherDefaultScheme = true })`. Startup is also refused when authorization services are registered but
 `UseAuthorization` is never called after the ingress, since WebApplication would
 then add authorization ahead of the whole pipeline, before authentication.
 
@@ -319,6 +322,20 @@ operations for authorization's registry; list them in the identity module's
 manifest. The module's own use cases, sign-in, validation, sign-out, a password
 change with the current password and delegations, are unchanged.
 
+Every administrative write and every security change is recorded in audit in the
+change's own transaction (TM-G02-051): account creation, disabling, enabling and
+security-state changes, password changes, each revocation of a session or of all
+an account's sessions, a delegation's issue and revocation, a seed stored or
+removed, recovery codes replaced and a passkey added or removed, each with who
+acted, in which host unit and operation, and the account it changes; tenant
+memberships are recorded as authority changes through authorization's seam.
+Each use of a delegation is recorded before the request acts under it, and a
+delegation whose use cannot be recorded does not resolve. Records hold
+references only, never a password, verifier, token, session identifier, code or
+seed. Without the audit trail, or when a record cannot be written, the change is
+refused with `MID004` and nothing changes. A session that ends by expiry, sign-out
+or an account change is the change's consequence and has no record of its own.
+
 ## Tenancy
 
 Every identity record is host-scoped: accounts, credentials, sessions, the
@@ -368,7 +385,7 @@ implicitly:
   administrator's membership confers nothing in identity.
 - **Administrative acts.** Identity's administrative writes are gated as
   [Administration](#administration) states, before any unit opens. They have no
-  endpoint and no audit record of their own yet; SEC-07 records them.
+  endpoint, and each is recorded in audit with the change (SEC-07).
 - **Authority data.** Under the owner-bound rule, a module writes its own
   host-scoped records without host authority. Records that are themselves
   authority stay behind an audited, authorized scope instead. Identity's tenant
@@ -459,9 +476,10 @@ evidence.
   authority (SEC-05; `Framework.Authorization.Tests` `DecisionTests` and
   `AuthorityTests`). Remaining: delegation and impersonation issued by an
   administrator rather than by the subject, which no G-02 work order specifies
-  as a journey; audit records of issue, use and revocation (SEC-07); jobs and
-  handlers running through `IServiceIdentityScopes` (CODE-05, with
-  TM-G02-041).
+  as a journey; jobs and handlers running through `IServiceIdentityScopes`
+  (CODE-05, with TM-G02-041). A delegation's issue and revocation are recorded
+  with the change and each use before it acts (SEC-07; `Framework.Audit.Tests`
+  `AdministrationAuditTests.TM_G02_051_*`).
 - **TM-G02-055, done.** Delivered: salted PBKDF2-HMAC-SHA512 verifiers with
   their parameters recorded, at no fewer than 210,000 iterations; upgrade at
   sign-in; no credential, session token or verifier in a log, a response or an
@@ -482,8 +500,8 @@ evidence.
 - **TM-G02-058, partly.** Delivered: the integrity-tagged stored form, checked
   before use; enrolment only by the owner and revocation by the owner or an
   identity administrator (SEC-05). Tests: the same three classes,
-  `TM_G02_058_*`. Remaining: passkey registration and sign-in (G-03); audit of
-  credential changes (SEC-07).
+  `TM_G02_058_*`. Each credential change is recorded in audit with the change
+  (SEC-07). Remaining: passkey registration and sign-in (G-03).
 
 `G02AC003Tests.AC_003_B02_DelegationHonorsScopeExpiryAndActorIdentity_Unit` and
 `_Isolation` cover the reference case AC-003-B02: a delegated read inside its

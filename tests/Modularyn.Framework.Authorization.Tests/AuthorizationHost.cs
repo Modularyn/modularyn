@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Modularyn.Framework.Authorization.Abstractions;
+using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Features;
 using Modularyn.Framework.Security.Abstractions;
 using Modularyn.Framework.Settings;
@@ -44,20 +45,37 @@ internal sealed class TestClock : TimeProvider
     }
 }
 
-/// <summary>Records authority changes before they commit, as SEC-07's audit will; it can be made to fail.</summary>
-internal sealed class RecordingAuthorityAudit : IAuthorityAudit
+/// <summary>
+/// Takes authority changes inside the change's transaction, through the change's own unit, as SEC-07's store records them;
+/// it can be made to fail. It also takes identity's other audited changes. Scaffolding for authorization's decisions: the
+/// audit tests exercise the real store.
+/// </summary>
+internal sealed class RecordingAuthorityAudit : IAuthorityAudit, Framework.Audit.IAuditTrail
 {
     internal ConcurrentQueue<AuthorityChangeRecord> Records { get; } = new();
+    internal ConcurrentQueue<string> Changes { get; } = new();
     internal bool Failing { get; set; }
 
     /// <summary>Runs inside the change's transaction, after its decision and before its commit, so a test can hold it there.</summary>
     internal Func<AuthorityChangeRecord, Task>? Holding { get; set; }
 
-    public async ValueTask RecordAsync(AuthorityChangeRecord record, CancellationToken cancellationToken)
+    public async ValueTask RecordAsync(IUnitOfWork work, AuthorityChangeRecord record, CancellationToken cancellationToken)
     {
         if (Failing) throw new InvalidOperationException("The audit store is unavailable.");
         Records.Enqueue(record);
         if (Holding is { } hold) await hold(record);
+    }
+
+    public ValueTask RecordAsync(IUnitOfWork work, Framework.Audit.AuditEntry entry, CancellationToken cancellationToken)
+    {
+        Changes.Enqueue(entry.Action);
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask RecordAccessAsync(Framework.Audit.AuditEntry entry, CancellationToken cancellationToken)
+    {
+        Changes.Enqueue(entry.Action);
+        return ValueTask.CompletedTask;
     }
 }
 
@@ -136,6 +154,7 @@ internal sealed class AuthorizationHost : IAsyncDisposable
         services.AddModularynTenancy(database.Directory);
         seams.Register(services, identity: claimsActors, membership: false, authority: false, audit: true);
         services.AddSingleton<IAuthorityAudit>(audit);
+        services.AddSingleton<Framework.Audit.IAuditTrail>(audit);
         services.AddModularynIdentity(configuration);
         services.AddModularynIdentityPostgreSql(database.Identity);
         services.AddModularynServiceIdentity(Items.Service, [Items.Update, Items.BulkUpdate, Items.Reindex]);

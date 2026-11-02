@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Tenancy.Abstractions;
@@ -17,6 +18,7 @@ public sealed class EfCoreUnitOfWork : IUnitOfWork
     private readonly IDbContextTransaction? transaction;
     private readonly List<Action<UnitOfWorkResult>> callbacks = [];
     private readonly List<ConcurrencyConflict> conflicts = [];
+    private readonly HashSet<PostgreSqlModule> journals = [];
     private int openJoins;
     private bool joinedComplete;
     private bool disposed;
@@ -132,6 +134,55 @@ public sealed class EfCoreUnitOfWork : IUnitOfWork
             await context.DisposeAsync().ConfigureAwait(false);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Appends an append-only record, such as an audit record, to a table of <paramref name="journal"/>'s schema in this
+    /// unit's own transaction, so the record commits exactly when the unit's change commits and rolls back with it. The
+    /// journal is another module of the same database, whose model maps the record as a host-scoped, append-only entity of
+    /// one table; its ownership is checked on this unit's connection before the first append. The unit's tenant, host,
+    /// deployment or owner binding does not widen or narrow the append, which writes only that one row. A suppressed unit
+    /// has no transaction and is refused, and a failed append prevents commit.
+    /// </summary>
+    public async Task AppendAsync<TRecord>(PostgreSqlModule journal, TRecord record, CancellationToken cancellationToken = default)
+        where TRecord : class, IAppendOnly
+    {
+        ArgumentNullException.ThrowIfNull(journal);
+        ArgumentNullException.ThrowIfNull(record);
+        cancellationToken.ThrowIfCancellationRequested();
+        EnsureActive();
+        if (root.transaction is null)
+            throw new PersistenceContractException("MPS045",
+                "An append-only record commits with the change it records, so it needs a transactional unit of work; a suppressed unit has none.");
+        var entity = JournalEntity(journal, typeof(TRecord));
+        try
+        {
+            if (!root.journals.Contains(journal))
+            {
+                await ModuleSchemaOwnership.RequireAsync((Npgsql.NpgsqlConnection)Context.Database.GetDbConnection(), journal, cancellationToken)
+                    .ConfigureAwait(false);
+                root.journals.Add(journal);
+            }
+            await ModuleSql.InsertRowAsync(Context, journal, entity, ModuleSql.ScalarProperties(entity), record, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            root.rollbackOnly = true;
+            throw;
+        }
+    }
+
+    private IEntityType JournalEntity(PostgreSqlModule journal, Type type)
+    {
+        if (!string.Equals(journal.Options.ConnectionString, Context.Module.Options.ConnectionString, StringComparison.Ordinal))
+            throw new PersistenceContractException("MPS046", "A journal is a module of the database of the unit that appends to it.");
+        // The model is built and cached without opening a connection; the journal's context is never used for a query.
+        using var model = journal.CreateContext();
+        var entity = model.Model.FindEntityType(type);
+        if (entity is null || !typeof(IAppendOnly).IsAssignableFrom(entity.ClrType) || !ModuleSqlText.IsDirectSqlEntity(entity)
+            || TenantModel.TenantProperty(entity) is not null)
+            throw new PersistenceContractException("MPS046", "Append a host-scoped, append-only entity that the journal module maps to one table of its own.");
+        return entity;
     }
 
     public void OnCompleted(Action<UnitOfWorkResult> callback)

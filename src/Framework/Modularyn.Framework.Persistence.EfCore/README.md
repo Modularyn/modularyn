@@ -116,7 +116,7 @@ lifts only the tenant predicate therefore stays within a tenant unit's tenant.
 Their values are read for each execution, so a cached query never carries
 another unit's tenant. Without an active tenant-scope context,
 tenant-scoped data is refused, never returned unfiltered or empty (`MPS035`). A
-host-scope context reaches it only through `AcrossTenants`, on the EF and
+host-scope context reaches it only through `AcrossTenantsAsync`, on the EF and
 direct-SQL paths. That lifts only the tenant predicate, keeps soft delete, module
 filters and the scope check, and returns the audited grant (`MPS038` otherwise).
 
@@ -131,7 +131,7 @@ such as a denied disposition.
 
 A host grant reaches only the entities its operation declares, each named by
 its module and table, with an owned type following the entity that owns it.
-`AcrossTenants`, `UpdateForTenantAsync` and every host-scoped write in a host
+`AcrossTenantsAsync`, `UpdateForTenantAsync` and every host-scoped write in a host
 scope, on the EF and direct-SQL paths, refuse any other entity (`MPS043`). An
 operation whose module writes its records in its own owner-bound unit declares
 no reach, so its host scope reaches nothing here.
@@ -146,7 +146,7 @@ coordinator's lock and do not use units of work.
 
 Cross-tenant host authority and a module writing its own host-scoped data are
 different things. The first reaches or changes tenant data from host level,
-through `AcrossTenants` and `UpdateForTenantAsync`, and stays gated by the audited
+through `AcrossTenantsAsync` and `UpdateForTenantAsync`, and stays gated by the audited
 host scope. The second is the owner-bound unit: a module changes the host-scoped
 records it owns, such as identity's accounts and sessions, through its own
 context, for its own use cases.
@@ -160,7 +160,7 @@ context, for its own use cases.
   Joining a unit of another module is refused (`MPS013`), as is joining with a
   different binding (`MPS035`).
 - **No tenant access and no host authority.** It refuses every tenant-scoped read
-  and write (`MPS035`), and `AcrossTenants` and `UpdateForTenantAsync` still
+  and write (`MPS035`), and `AcrossTenantsAsync` and `UpdateForTenantAsync` still
   require an active host grant (`MPS038`). Bulk LINQ writes to host-scoped data
   stay refused (`MPS037`). A tenant unit still cannot change host-scoped data
   (`MPS037`), and an owner-bound unit carries no tenant: a module that writes
@@ -183,15 +183,37 @@ declares. These rules rest on that source check, the architecture rules that kee
 a module from referencing another module's persistence project, and the context
 type check at run time; they do not resist reflection.
 
+## Append-only journals
+
+An entity marked `IAppendOnly`, such as audit's record, is inserted only through
+`EfCoreUnitOfWork.AppendAsync(journal, record)`, which writes it in the calling
+unit's own transaction, so it commits exactly when the unit's change commits. Every
+other insert of one, and every update or delete, is refused, through tracked
+saves, `ModuleSql` and LINQ bulk writes alike (`MPS044`). A suppressed unit has no
+transaction to append in (`MPS045`). The journal must be a module of the unit's
+own database, mapping the record as a host-scoped, append-only, direct-SQL entity
+in a table of its own, and its schema ownership is checked once per unit
+(`MPS046`). An append that fails leaves the unit rolled back on completion, even
+when the caller catches the failure, so the change never commits without its
+record.
+
 ## Filters and query guard
 
 `ConfigureFilters(IQueryFilterRegistry)` is the shared extension seam. Names
 beginning with `Modularyn.` belong to the adapter (`MPS012`). The adapter
 registers a named soft-delete predicate for `ISoftDeleted` entities and converts
-tracked deletions to flag updates. `IncludingSoftDeleted` bypasses only that
+tracked deletions to flag updates. `IncludingSoftDeletedAsync` bypasses only that
 named predicate for its returned query; other predicates remain active. It
-requires a reason and operation identity, retained with the query for a future
-audit integration. It grants no authority and writes no audit record.
+requires a reason and operation identity. It grants no authority.
+
+Each bypass is recorded before its query exists (TM-G02-029): the adapter calls
+the unit's `TenantContext.RecordBypassAsync`, which records, through the audit
+tenancy attached to the context, the unit, actor, scope, tenant, module, table,
+operation and reason. A soft-deleted read in a tenant or host context and every
+cross-tenant read are recorded so; a bypass whose record cannot be written, or a
+unit with no context, is refused (`MPS047`). A soft-deleted read in a named
+deployment scope, which exists for framework metadata, seeds and tests under
+deployment authority, is not recorded.
 
 Every module context registers a query-expression interceptor, which inspects
 each LINQ query before EF translates it, on `Set<T>()` and `ModuleSql` alike, and
@@ -199,7 +221,7 @@ a command interceptor:
 
 - EF Core's general `IgnoreQueryFilters()`, and every named form that the adapter
   did not issue, are refused (`MPS033`), in subqueries and compiled queries too.
-  The adapter's two bypasses, `IncludingSoftDeleted` and `AcrossTenants`, carry a
+  The adapter's two bypasses, `IncludingSoftDeletedAsync` and `AcrossTenantsAsync`, carry a
   marker, a call to a private adapter method, that the guard checks and removes;
   each must ignore exactly its own filter.
 - A `FromSql` root is accepted only when it carries `ModuleSql`'s marker and its
@@ -238,7 +260,7 @@ adapter, and cannot see code outside the repository.
 This adapter enforces the tenant scope that the tenancy runtime validates; it
 does not resolve tenants and makes no authorization, key-storage or
 secret-management decision. Connection strings remain configured options. The
-bypass audit implementation belongs to SEC-07.
+bypass audit is audit's (SEC-07), through the context's seam.
 
 ## Raw SQL sites
 
@@ -248,6 +270,7 @@ Each raw or direct SQL site in this adapter, and how it keeps the tenant filter:
 |---|---|---|
 | `ModuleSql.Query` and its filtered overload, through `Read` | `SELECT *` from one owned table, optionally where one column `IS NOT DISTINCT FROM` a parameter, both from `ModuleSqlText` | EF composes `Modularyn.Tenant`, `Modularyn.Scope`, soft delete and module filters over the `SELECT`; the guard accepts this root only under the adapter's marker and only with the template's exact text for its entity |
 | `ModuleSql.InsertAsync` | `INSERT` of one scalar row, every value a parameter | An insert has nothing to filter, so the row's tenant is set from, or must equal, the unit's tenant; a host-scoped row needs a host, deployment or owner scope |
+| `EfCoreUnitOfWork.AppendAsync` | The same `INSERT`, of one append-only journal row, on the unit's connection and transaction | A journal row is host-scoped and holds no tenant data; the journal must be a module of the unit's own database |
 | `ModuleSql.UpdateAsync` and `UpdateForTenantAsync` | EF's direct update of one value and the version, by key and expected version | Every filter applies, and the tenant column cannot be the value; the host form lifts only the tenant predicate, adds the named tenant as an explicit predicate and requires an active host grant |
 | `ModuleSchemaOwnership` | Ownership-row and catalog reads on the unit's connection | Framework metadata of the module schema; no tenant data |
 | `MigrationProgressStore`, `PostgreSqlMigrationLock` | Schema, ownership and progress tables, and the advisory lock | Framework metadata under the migration lock; no tenant data |

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Modularyn.Framework.Audit;
 using Modularyn.Framework.Authorization;
 using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Persistence.Abstractions;
@@ -21,7 +22,7 @@ public sealed class ScheduleWorker(JobStore store, AuthorizedWorkRunner runner)
         if (limit is < 1 or > 1000) throw new ArgumentOutOfRangeException(nameof(limit));
         var scanAt = store.Now;
         await using var scan = await EfCoreUnitOfWork.BeginAsync(store.Module, host, cancellationToken: cancellationToken).ConfigureAwait(false);
-        var candidates = await scan.Context.AcrossTenants<JobSchedule>().Query.AsNoTracking()
+        var candidates = await (await scan.Context.AcrossTenantsAsync<JobSchedule>(cancellationToken).ConfigureAwait(false)).Query.AsNoTracking()
             .Where(row => row.Enabled && row.NextCheckAt <= scanAt)
             .OrderBy(row => row.NextCheckAt).ThenBy(row => row.Id).Take(limit).ToListAsync(cancellationToken).ConfigureAwait(false);
         var added = 0;
@@ -31,13 +32,14 @@ public sealed class ScheduleWorker(JobStore store, AuthorizedWorkRunner runner)
             TenantWorkOutcome outcome;
             try
             {
-                outcome = await runner.RunAsync(principal, candidate.Propagated, SchedulePermission, async (unit, _, token) =>
+                outcome = await runner.RunAsync(principal, candidate.Propagated, store.ScheduleBinding(candidate.Id), SchedulePermission, async (unit, _, token) =>
                 {
                     if (unit.Context.TenantId != candidate.TenantId) throw new InvalidOperationException("The schedule is outside its producer's tenant.");
                     await using var work = await EfCoreUnitOfWork.BeginAsync(store.Module, unit.Context, cancellationToken: token).ConfigureAwait(false);
-                    var row = await work.Context.Set<JobSchedule>().SingleAsync(row => row.Id == candidate.Id, token).ConfigureAwait(false);
+                    // The unit's tenant filter finds the schedule only in its own tenant, which the check above already holds.
+                    var row = await work.Context.Set<JobSchedule>().SingleOrDefaultAsync(row => row.Id == candidate.Id, token).ConfigureAwait(false);
                     var now = store.Now;
-                    if (!row.Enabled || row.NextCheckAt > now) return;
+                    if (row is null || !row.Enabled || row.NextCheckAt > now) return;
                     var schedule = new DailySchedule(row.TimeZone, row.LocalTime, row.Misfire);
                     var today = schedule.LocalDate(now);
                     var occurrences = new List<ScheduleOccurrence>();
@@ -46,6 +48,7 @@ public sealed class ScheduleWorker(JobStore store, AuthorizedWorkRunner runner)
                         // Preserve the cursor and history for operator inspection instead of blocking other schedules.
                         row.Enabled = false;
                         row.Code = "BacklogLimit";
+                        row.Payload = DurablePayloads.Redacted;
                     }
                     else
                     {
@@ -71,6 +74,8 @@ public sealed class ScheduleWorker(JobStore store, AuthorizedWorkRunner runner)
                             && occurrences.LastOrDefault(entry => entry.State == OccurrenceState.Missed) is { } catchUp)
                             catchUp.State = OccurrenceState.CatchUp;
                         row.Code = row.Enabled ? "Evaluated" : "ScheduleEnded";
+                        // The occurrences above copied the payload; an ended schedule never runs again and keeps none.
+                        if (!row.Enabled) row.Payload = DurablePayloads.Redacted;
                         // A gap is revisited at most once a minute until its civil date arrives, then visibly skipped.
                         // Future schedules leave the due scan, so they cannot starve work in other time zones.
                         row.NextCheckAt = schedule.Resolve(row.NextDate) ?? now + MisfireGrace;
@@ -126,6 +131,10 @@ public sealed class ScheduleWorker(JobStore store, AuthorizedWorkRunner runner)
             {
                 var disabled = await disposition.Sql.UpdateForTenantAsync<JobSchedule, Guid, bool>(candidate.TenantId, row => row.Id, candidate.Id,
                     next.Version!.Value, row => row.Enabled, false, cancellationToken).ConfigureAwait(false);
+                if (!disabled.Succeeded) continue;
+                // A disabled schedule never runs again, so its payload is redacted with the disposition that disables it.
+                disabled = await disposition.Sql.UpdateForTenantAsync<JobSchedule, Guid, string>(candidate.TenantId, row => row.Id, candidate.Id,
+                    disabled.Version!.Value, row => row.Payload, DurablePayloads.Redacted, cancellationToken).ConfigureAwait(false);
                 if (!disabled.Succeeded) continue;
             }
             await disposition.CompleteAsync(cancellationToken).ConfigureAwait(false);
