@@ -209,7 +209,8 @@ The published sample image also has a runtime ownership check: root owns every
 file beneath its application directory, and no file grants group or other write
 permission. The check uses no network, no capabilities, no privilege escalation,
 a read-only root and the pinned local image. The fixture's existing ownership
-check remains. The additional container commands follow the same internal-network
+check remains. A repository test requires that each of the two checks fails
+unless its find, on the line before, finds nothing. The additional container commands follow the same internal-network
 and hardening rules as the AC-001 commands. Each new or changed command has an
 exact allowlist entry and a rejection case in `EvidencePipelineTests`.
 

@@ -45,6 +45,8 @@ public sealed class EvidencePipelineTests
     [InlineData("method=Select_the_planned_methods_that_no_collected_report_ran")]
     [InlineData("method=Assemble_the_bundle_half_from_the_collected_reports")]
     [InlineData("- name: Build the evidence assembler")]
+    [InlineData("[ -z \"${writable}\" ] || fail \"Root must own every file of the sample image, and its user may write none.\"")]
+    [InlineData("[ -z \"${writable}\" ] || fail \"Root must own every file of the composition fixture image, and its user may write none: ${writable}\"")]
     public void Removing_a_bundle_stage_is_rejected(string text)
     {
         var files = RepositoryFiles.Current.ToDictionary(pair => pair.Key, pair => pair.Value.Replace(text, "removed-stage", StringComparison.Ordinal), StringComparer.Ordinal);
@@ -130,6 +132,14 @@ internal static class EvidencePipelineContract
     internal const string ContainerResultsScriptPath = ".github/scripts/g02-container-results.sh";
     internal const string AssemblerBuildStep = "Build the evidence assembler";
 
+    // The published sample image's and the composition fixture image's runtime ownership checks (docs/ci.md, "Container build"
+    // and "Container acceptance").
+    private static readonly (string Image, string Check)[] OwnershipChecks =
+    [
+        ("${SAMPLE_IMAGE}", "[ -z \"${writable}\" ] || fail \"Root must own every file of the sample image, and its user may write none.\""),
+        ("${COMPOSITION_IMAGE}", "[ -z \"${writable}\" ] || fail \"Root must own every file of the composition fixture image, and its user may write none: ${writable}\"")
+    ];
+
     // Each assembler command and the EvidenceBundleCommandTests method that performs it.
     private static readonly (string Command, string Method)[] Commands =
     [
@@ -171,6 +181,17 @@ internal static class EvidencePipelineContract
         foreach (var step in new[] { ToolPinContract.HostEvidenceCheckStep, ToolPinContract.ContainerEvidenceCheckStep })
             if (!ci.Contains("- name: " + step + "\n        if: ${{ always() }}", StringComparison.Ordinal))
                 errors.Add("Bundle checking must also run after a test failure.");
+        // Each image's runtime ownership check acts on what its find reports: the next line fails unless it found nothing. The
+        // allowlist holds the find line itself exactly.
+        var lines = ci.Split('\n').Select(line => line.Trim()).ToList();
+        foreach (var (image, check) in OwnershipChecks)
+        {
+            var at = lines.IndexOf(check);
+            if (at < 1 || lines.Count(line => line == check) != 1 || !lines[at - 1].StartsWith("writable=\"$(docker run ", StringComparison.Ordinal)
+                || !lines[at - 1].Contains("--entrypoint=find \"" + image + "\" /app ", StringComparison.Ordinal))
+                errors.Add($"{ToolPinContract.CiPath}: the runtime ownership check of {image} must fail unless its find, on the line before, finds nothing.");
+        }
+
         var build = ci.IndexOf("      - name: " + AssemblerBuildStep + "\n", StringComparison.Ordinal);
         var rows = ci.IndexOf("      - name: " + ToolPinContract.CompositionTestStep + "\n", StringComparison.Ordinal);
         var job = ci.IndexOf("\n  " + ToolPinContract.ContainerJob + ":\n", StringComparison.Ordinal);
