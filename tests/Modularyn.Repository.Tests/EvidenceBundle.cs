@@ -74,11 +74,11 @@ internal static class EvidenceBundle
 
     internal static JsonNode Read(string path) => Parse(Text(File.ReadAllBytes(path)));
 
-    /// <summary>Strict UTF-8, with or without a byte-order mark.</summary>
+    /// <summary>Strict UTF-8, with or without a byte-order mark, which VSTest writes at the start of every TRX report.</summary>
     internal static string Text(byte[] bytes)
     {
-        var preamble = Utf8.GetPreamble();
-        var body = bytes.AsSpan().StartsWith(preamble) ? bytes.AsSpan(preamble.Length) : bytes.AsSpan();
+        ReadOnlySpan<byte> mark = [0xEF, 0xBB, 0xBF];
+        var body = bytes.AsSpan().StartsWith(mark) ? bytes.AsSpan(mark.Length) : bytes.AsSpan();
         return Utf8.GetString(body);
     }
 

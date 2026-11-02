@@ -177,6 +177,27 @@ public sealed class EvidenceBundleTests
         Assert.Equal(expected == "skipped" ? "blocked" : "failed", MethodOutcome(test, Host, rows));
     }
 
+    [Theory]
+    [InlineData("trx")]
+    [InlineData("ctrf")]
+    public void A_report_that_begins_with_a_byte_order_mark_is_collected(string format)
+    {
+        // VSTest writes every TRX report with a UTF-8 byte-order mark; invalid UTF-8 is still refused.
+        using var run = new BundleRun();
+        var test = PlannedTests(run.Plan).First();
+        var name = Str(test["name"])!;
+        var raw = Path.Combine(run.Directory, "runner.raw");
+        var text = format == "trx" ? "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" + Trx((name, name, "Passed", "")) : Ctrf(Ctrf(name, name, "passed"));
+        File.WriteAllBytes(raw, [0xEF, 0xBB, 0xBF, .. Encoding.UTF8.GetBytes(text)]);
+        EvidenceBundle.Collect(Files, run.Directory, run.Commit, run.Mode, run.Run, Str(test["project"]), raw, format, "marked", null);
+        var collected = Read(Path.Combine(run.Directory, "reports", "marked.json"));
+        Assert.Equal("passed", Str(collected["rows"]!.AsArray().Single(row => Str(row!["name"]) == name)!["status"]));
+        File.WriteAllBytes(raw, [0xEF, 0xBB, 0xBF, 0xFF, .. Encoding.UTF8.GetBytes(text)]);
+        Assert.ThrowsAny<Exception>(() => EvidenceBundle.Collect(Files, run.Directory, run.Commit, run.Mode, run.Run, Str(test["project"]), raw, format, "invalid", null));
+        Assert.False(File.Exists(raw));
+        Assert.False(File.Exists(Path.Combine(run.Directory, "reports", "invalid.json")));
+    }
+
     [Fact]
     public void A_display_name_never_identifies_a_planned_method()
     {
