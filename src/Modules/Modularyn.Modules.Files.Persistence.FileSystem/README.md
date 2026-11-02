@@ -125,7 +125,16 @@ var files = new FileService(metadata, blobs, evaluator, timeProvider, policy, re
 
 The allowlist must be nonempty and name types that detection returns; it cannot
 name `application/octet-stream`, which detection returns for bytes it does not
-recognize. The policy releases a version only when its verified length is at most
+recognize. Nor may it name active or executable content, even when a host lists
+it (`ActiveContentTypes`): `text/html`, `application/xhtml+xml`,
+`image/svg+xml`, `text/xml` and `application/xml`, which a browser or viewer runs
+script or markup in, and the executables detection recognizes,
+`application/vnd.microsoft.portable-executable`, `application/x-executable` and
+`application/x-mach-binary`. Archives, PostScript and PDF stay listable, and are
+released unscanned like any other listed type. The maximum is from one byte to
+1 GiB (`MaximumLengthLimit`), the largest request body the ingress admits, so no
+upload over HTTP is larger; Files fixes no upload limit of its own, since the
+store's maximum is the deployment's. The policy releases a version only when its verified length is at most
 the maximum and the type `FileContentTypes.Detect` finds again in its verified
 bytes is on the allowlist and is the type recorded for it. Every other version
 stays in quarantine as it was: the policy defers, so the version stays `Pending`
@@ -339,7 +348,8 @@ every control to its evidence.
   `Application.Tests` `AllowlistReleasePolicyTests` and `AllowlistReleaseTests`
   (`TM_G02_042_*`). Removal checks: skipping the allowlist, the maximum, the
   second detection, the text check of the header or of the rest, or the byte
-  count, allowing the generic binary type or a maximum below one byte, rejecting
+  count, allowing the generic binary type, active or executable content, or a
+  maximum below one byte or above 1 GiB, rejecting
   instead of leaving pending, or composing the policy by default fails one of
   them. Remaining: a scanner or
   moderation adapter, which the deployment supplies and no G-02 work order

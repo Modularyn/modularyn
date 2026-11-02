@@ -19,8 +19,31 @@ public sealed class AllowlistReleasePolicyTests
         string[][] refused = [[], ["image/svg"], ["IMAGE/PNG"], [FileContentTypes.Binary], [FileContentTypes.Png, FileContentTypes.Binary]];
         foreach (var types in refused)
             Assert.Throws<ArgumentException>(() => new AllowlistFileReleasePolicy(types, 4096));
-        foreach (var maximum in new[] { 0L, -1L, long.MinValue })
+        foreach (var maximum in new[] { 0L, -1L, long.MinValue, AllowlistFileReleasePolicy.MaximumLengthLimit + 1, long.MaxValue })
             Assert.Throws<ArgumentOutOfRangeException>(() => new AllowlistFileReleasePolicy([FileContentTypes.Png], maximum));
+        // The largest maximum is 1 GiB, the largest request body the ingress admits.
+        Assert.Equal(1024L * 1024 * 1024, AllowlistFileReleasePolicy.MaximumLengthLimit);
+        Assert.Equal(AllowlistFileReleasePolicy.MaximumLengthLimit,
+            new AllowlistFileReleasePolicy([FileContentTypes.Png], AllowlistFileReleasePolicy.MaximumLengthLimit).MaximumLength);
+    }
+
+    [Fact]
+    public void TM_G02_042_The_allowlist_policy_never_releases_active_or_executable_content_even_when_a_host_lists_it()
+    {
+        Assert.True(AllowlistFileReleasePolicy.ActiveContentTypes.SetEquals([
+            "text/html", "application/xhtml+xml", "image/svg+xml", "text/xml", "application/xml",
+            "application/vnd.microsoft.portable-executable", "application/x-executable", "application/x-mach-binary"]));
+        // Every one of them that detection can return is refused, alone and beside an allowed type.
+        var detectable = AllowlistFileReleasePolicy.ActiveContentTypes.Where(FileContentTypes.Detectable.Contains).ToArray();
+        Assert.Equal(6, detectable.Length);
+        foreach (var type in AllowlistFileReleasePolicy.ActiveContentTypes)
+        {
+            Assert.Throws<ArgumentException>(() => new AllowlistFileReleasePolicy([type], 4096));
+            Assert.Throws<ArgumentException>(() => new AllowlistFileReleasePolicy([FileContentTypes.Png, type], 4096));
+        }
+        // Every other recognized type may be listed.
+        var listable = FileContentTypes.Detectable.Except(AllowlistFileReleasePolicy.ActiveContentTypes).Except([FileContentTypes.Binary]).ToArray();
+        Assert.Equal(listable.Length, new AllowlistFileReleasePolicy(listable, 4096).AllowedContentTypes.Count);
     }
 
     [Fact]

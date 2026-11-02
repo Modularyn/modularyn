@@ -18,8 +18,26 @@ public sealed class AllowlistFileReleasePolicy : IFileReleasePolicy
     // A version this policy does not release stays in quarantine as it was: pending, not rejected, which would be final.
     private const FileReleaseVerdict Refused = FileReleaseVerdict.Defer;
 
-    /// <param name="allowedContentTypes">The detected types to release, each one that detection returns and recognizes.</param>
-    /// <param name="maximumLength">The largest version to release, in bytes.</param>
+    /// <summary>
+    /// The largest maximum a host may give, 1 GiB: the largest request body the ingress admits, so no upload over HTTP is
+    /// larger. The Files module fixes no upload limit of its own; the store's maximum is the deployment's.
+    /// </summary>
+    public const long MaximumLengthLimit = 1024L * 1024 * 1024;
+
+    /// <summary>
+    /// Active or executable content the policy never releases, even when a host lists it: HTML, XHTML, SVG and XML, which a
+    /// browser or viewer runs script or markup in, and the executables detection recognizes.
+    /// </summary>
+    public static IReadOnlySet<string> ActiveContentTypes { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        FileContentTypes.Html, "application/xhtml+xml", FileContentTypes.Svg, FileContentTypes.Xml, "application/xml",
+        FileContentTypes.WindowsExecutable, FileContentTypes.Executable, FileContentTypes.MachExecutable
+    };
+
+    /// <param name="allowedContentTypes">
+    /// The detected types to release, each one that detection returns and recognizes, and none of <see cref="ActiveContentTypes"/>.
+    /// </param>
+    /// <param name="maximumLength">The largest version to release, in bytes, from 1 to <see cref="MaximumLengthLimit"/>.</param>
     public AllowlistFileReleasePolicy(IEnumerable<string> allowedContentTypes, long maximumLength)
     {
         ArgumentNullException.ThrowIfNull(allowedContentTypes);
@@ -27,7 +45,10 @@ public sealed class AllowlistFileReleasePolicy : IFileReleasePolicy
         // Detection returns the generic binary type for bytes it does not recognize, so that type is never on an allowlist.
         if (allowed.Count == 0 || !allowed.IsSubsetOf(FileContentTypes.Detectable) || allowed.Contains(FileContentTypes.Binary))
             throw new ArgumentException("Allow only types that detection recognizes.", nameof(allowedContentTypes));
+        if (allowed.Overlaps(ActiveContentTypes))
+            throw new ArgumentException("The allowlist policy never releases active or executable content.", nameof(allowedContentTypes));
         ArgumentOutOfRangeException.ThrowIfLessThan(maximumLength, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(maximumLength, MaximumLengthLimit);
         AllowedContentTypes = allowed;
         MaximumLength = maximumLength;
     }
