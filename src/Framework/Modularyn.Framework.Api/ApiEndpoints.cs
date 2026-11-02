@@ -115,15 +115,17 @@ public static partial class ApiEndpoints
         var declarations = new List<ApiEndpoint>();
         foreach (var endpoint in endpoints)
         {
+            // Each refusal names the routed endpoint it is about, its methods and route template, never a request value.
+            var named = string.Join(",", endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods ?? ["*"]) + " " + endpoint.RoutePattern.RawText;
             var declared = endpoint.Metadata.GetMetadata<ApiEndpointMetadata>()
-                ?? throw new InvalidOperationException("Every endpoint requires an API inventory declaration.");
+                ?? throw new InvalidOperationException("Every endpoint requires an API inventory declaration; " + named + " has none.");
             var point = points.Single(point => point.Route == endpoint.RoutePattern.RawText
                 && point.Methods.SequenceEqual(endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Order(StringComparer.Ordinal)));
             if (point.Kind.ToString() != declared.Contract.Authorization || point.Permission != declared.Contract.Permission
                 || point.Kind is AuthorizationEntryPointKind.InterceptionOnly or AuthorizationEntryPointKind.Undeclared)
-                throw new InvalidOperationException("The endpoint authorization wrapper must match its inventory classification.");
+                throw new InvalidOperationException("The endpoint authorization wrapper must match its inventory classification; " + named + " does not.");
             if (OptsOutOfAntiforgery(declared.Contract, endpoint))
-                throw new InvalidOperationException("A form post must keep its antiforgery validation.");
+                throw new InvalidOperationException("A form post must keep its antiforgery validation; " + named + " does not.");
             declarations.Add(declared.Contract);
         }
         var models = endpoints.SelectMany(endpoint => endpoint.Metadata.GetMetadata<ApiEndpointMetadata>()!.Inventory.Models)

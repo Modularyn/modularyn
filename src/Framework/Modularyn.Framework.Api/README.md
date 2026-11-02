@@ -46,7 +46,8 @@ no byte of the handler's arrives. An empty response, such as a redirect or a bar
 status, needs no type.
 
 `ApiEndpoints.Describe` reads every mapped endpoint, including non-client routes,
-and combines its declared schemas. Undeclared routes fail validation. The built-in
+and combines its declared schemas. Undeclared routes fail validation, and each
+refusal names the endpoint it is about by its methods and route template. The built-in
 inventory contains the identity, health and bootstrap routes; a composed host's
 inventory contains only its mapped routes. Application services never become
 remotely callable merely through service registration.
