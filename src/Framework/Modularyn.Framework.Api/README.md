@@ -50,7 +50,13 @@ and combines its declared schemas. Undeclared routes fail validation, and each
 refusal names the endpoint it is about by its methods and route template. The built-in
 inventory contains the identity, health and bootstrap routes; a composed host's
 inventory contains only its mapped routes. Application services never become
-remotely callable merely through service registration.
+remotely callable merely through service registration. The inventory covers
+routed endpoints only: terminal middleware added with `Run`, `Map` or `MapWhen`
+that maps no endpoint is outside it and is never checked. A host may map the
+health probes at other routes through `MapModularynHealthChecks`' liveness and
+readiness patterns; each probe's declaration then carries that route, so the
+host's inventory, not the framework's default `/health/live` and `/health/ready`,
+says where its probes answer.
 
 Versioned routes contain `v{version}`. A client-visible endpoint, which generates
 client methods that pin a version, must be versioned, and a client-visible
