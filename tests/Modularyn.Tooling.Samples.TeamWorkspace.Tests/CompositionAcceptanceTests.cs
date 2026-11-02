@@ -11,9 +11,8 @@ namespace Modularyn.Tooling.Samples.TeamWorkspace.Tests;
 public sealed class CompositionAcceptanceTests
 {
     [Theory]
-    [InlineData("single-host")]
-    [InlineData("single-host-container")]
-    [Trait("Requires", "PostgreSQL")]
+    [InlineData(DeploymentMode.Host, Traits = new[] { "Requires", "PostgreSQL", "Deployment", DeploymentMode.Host })]
+    [InlineData(DeploymentMode.Container, Traits = new[] { "Deployment", DeploymentMode.Container })]
     public Task AC_001_B01_CompatibilityEdgesHonorTheDeclaredRange_Integration(string mode) =>
         RunAsync("AC-001-B01", mode, async (observations, token) =>
         {
@@ -55,9 +54,8 @@ public sealed class CompositionAcceptanceTests
         });
 
     [Theory]
-    [InlineData("single-host")]
-    [InlineData("single-host-container")]
-    [Trait("Requires", "PostgreSQL")]
+    [InlineData(DeploymentMode.Host, Traits = new[] { "Requires", "PostgreSQL", "Deployment", DeploymentMode.Host })]
+    [InlineData(DeploymentMode.Container, Traits = new[] { "Deployment", DeploymentMode.Container })]
     public Task AC_001_N01_InvalidGraphsRefuseActivationWithDiagnostics_Integration(string mode) =>
         RunAsync("AC-001-N01", mode, async (observations, token) =>
         {
@@ -107,9 +105,8 @@ public sealed class CompositionAcceptanceTests
         });
 
     [Theory]
-    [InlineData("single-host")]
-    [InlineData("single-host-container")]
-    [Trait("Requires", "PostgreSQL")]
+    [InlineData(DeploymentMode.Host, Traits = new[] { "Requires", "PostgreSQL", "Deployment", DeploymentMode.Host })]
+    [InlineData(DeploymentMode.Container, Traits = new[] { "Deployment", DeploymentMode.Container })]
     public Task AC_001_P01_DependenciesInitializeOnceAndStopInReverseOrder_Integration(string mode) =>
         RunAsync("AC-001-P01", mode, async (observations, token) =>
         {
@@ -152,9 +149,8 @@ public sealed class CompositionAcceptanceTests
         });
 
     [Theory]
-    [InlineData("single-host")]
-    [InlineData("single-host-container")]
-    [Trait("Requires", "PostgreSQL")]
+    [InlineData(DeploymentMode.Host, Traits = new[] { "Requires", "PostgreSQL", "Deployment", DeploymentMode.Host })]
+    [InlineData(DeploymentMode.Container, Traits = new[] { "Deployment", DeploymentMode.Container })]
     public Task AC_001_R01_FailedInitializationCleansUpAndRecovers_Integration(string mode) =>
         RunAsync("AC-001-R01", mode, async (observations, token) =>
         {
@@ -237,23 +233,44 @@ public sealed class CompositionAcceptanceTests
         Assert.Equal("Healthy", await response.Content.ReadAsStringAsync(token));
     }
 
+    /// <summary>
+    /// The published sample image's own readiness, observed over HTTP from inside the composition fixture image. It is a
+    /// container observation of the shipped image, not AC-001 coverage: that image carries no test module or composition
+    /// switch, so the four cases' container rows run in the fixture image instead.
+    /// </summary>
+    [Fact]
+    [Trait("Deployment", DeploymentMode.Container)]
+    public async Task The_published_sample_image_is_ready_over_HTTP()
+    {
+        Assert.SkipWhen(DeploymentMode.Current() != DeploymentMode.Container, DeploymentMode.ContainerOnly);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromMinutes(1));
+        var address = Environment.GetEnvironmentVariable("MODULARYN_SAMPLE_BASE_URL");
+        Assert.False(string.IsNullOrWhiteSpace(address), "A container run names the published sample container in MODULARYN_SAMPLE_BASE_URL.");
+        Assert.True(Uri.TryCreate(address, UriKind.Absolute, out var origin) && origin.Scheme is "http" or "https"
+            && origin.UserInfo.Length == 0 && origin.AbsolutePath == "/" && origin.Query.Length == 0 && origin.Fragment.Length == 0,
+            "The sample address must be an HTTP origin without credentials, path or query parameters.");
+        using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { BaseAddress = origin, Timeout = TimeSpan.FromSeconds(30) };
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/health/ready");
+        // The image listens on private HTTP behind the TLS proxy its configuration declares (the host README). Over HTTP this
+        // run is that declared proxy, so it forwards the scheme; the image applies the header only from its declared proxy.
+        if (origin.Scheme == Uri.UriSchemeHttp) request.Headers.Add("X-Forwarded-Proto", Uri.UriSchemeHttps);
+        using var health = await client.SendAsync(request, timeout.Token);
+        Assert.Equal(HttpStatusCode.OK, health.StatusCode);
+        Assert.Equal("Healthy", await health.Content.ReadAsStringAsync(timeout.Token));
+    }
+
     private static async Task RunAsync(string caseId, string mode, Func<CaseObservations, CancellationToken, Task> action)
     {
+        // A row runs only in its own deployment: host rows on a runner or workstation, container rows inside the composition
+        // fixture image. A skipped row writes no record.
+        var current = DeploymentMode.Current();
+        Assert.SkipWhen(mode == DeploymentMode.Container && current != DeploymentMode.Container, DeploymentMode.ContainerOnly);
+        Assert.SkipWhen(mode == DeploymentMode.Host && current != DeploymentMode.Host,
+            "Host rows run outside the composition fixture image, and this process runs inside it (MODULARYN_DEPLOYMENT_MODE=single-host-container).");
+        Assert.Equal(current, mode);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         timeout.CancelAfter(TimeSpan.FromMinutes(5));
-        if (mode == "single-host-container")
-        {
-            var address = Environment.GetEnvironmentVariable("MODULARYN_SAMPLE_BASE_URL");
-            Assert.SkipWhen(string.IsNullOrWhiteSpace(address), "Container mode requires MODULARYN_SAMPLE_BASE_URL for an externally started sample container.");
-            Assert.True(Uri.TryCreate(address, UriKind.Absolute, out var origin) && origin.Scheme is "http" or "https"
-                && origin.UserInfo.Length == 0 && origin.Query.Length == 0 && origin.Fragment.Length == 0,
-                "The sample address must be an HTTP origin without credentials or query parameters.");
-            using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { BaseAddress = origin, Timeout = TimeSpan.FromSeconds(30) };
-            using var health = await client.GetAsync("/health/ready", timeout.Token);
-            Assert.Equal(HttpStatusCode.OK, health.StatusCode);
-            Assert.Skip("The published sample has no graph-selection, fault-injection or lifecycle-observation HTTP surface. Container AC-001 observations require a separately authorized product change; HTTP health alone cannot pass the case.");
-        }
-        Assert.Equal("single-host", mode);
         var run = EvidenceRun.FromEnvironment();
         var observations = new CaseObservations();
         var outcome = EvidenceOutcome.Failed;
@@ -269,6 +286,26 @@ public sealed class CompositionAcceptanceTests
             if (run is not null) await EvidenceWriter.WriteAsync(run, caseId, mode, outcome, observations);
         }
     }
+}
+
+/// <summary>
+/// The deployment a process runs in. The composition fixture image sets MODULARYN_DEPLOYMENT_MODE to single-host-container;
+/// a runner or workstation leaves it unset. Any other value is refused rather than read as either deployment.
+/// </summary>
+internal static class DeploymentMode
+{
+    internal const string Variable = "MODULARYN_DEPLOYMENT_MODE";
+    internal const string Host = "single-host";
+    internal const string Container = "single-host-container";
+    internal const string ContainerOnly = "Container rows and observations run only inside the composition fixture image, which sets "
+        + "MODULARYN_DEPLOYMENT_MODE=single-host-container; CI's container-build job runs them there.";
+
+    internal static string Current() => Environment.GetEnvironmentVariable(Variable) switch
+    {
+        null or "" => Host,
+        Container => Container,
+        _ => throw new InvalidOperationException(Variable + " must be unset or " + Container + "."),
+    };
 }
 
 internal sealed class CaseObservations
