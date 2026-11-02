@@ -15,7 +15,7 @@ remove_raw() {
 }
 trap 'remove_raw "${stage}"' EXIT
 if [ "${stage}" = prepare ]; then
-  MODULARYN_EVIDENCE_MEASURE=1 MODULARYN_EVIDENCE_BINARIES="${GITHUB_WORKSPACE}/tests" dotnet "${sample}" -noLogo -noColor -failSkips -method Modularyn.Tooling.Samples.TeamWorkspace.Tests.EvidenceMeasurementTests.Measure_the_evidence_run_before_collecting_results > /dev/null 2>&1 || fail
+  MODULARYN_EVIDENCE_MEASURE=1 MODULARYN_EVIDENCE_BINARIES="${GITHUB_WORKSPACE}/tests" dotnet "${sample}" -noLogo -noColor -failSkips -method Modularyn.Tooling.Samples.TeamWorkspace.Tests.EvidenceMeasurementTests.Measure_the_evidence_run_before_collecting_results 2>&1 | awk -f .github/scripts/g02-project-output.awk || fail
   exit 0
 fi
 [ "${stage}" = complete ] || fail
@@ -33,7 +33,7 @@ while IFS= read -r project; do
   while IFS= read -r method; do selected+=(-method "${method}"); done < "${methods}"
   if [ "${#selected[@]}" -gt 0 ]; then
     report="${MODULARYN_EVIDENCE_DIR}/${name}.raw.json"
-    dotnet "$(dirname "${project}")/bin/Release/net10.0/${name}.dll" -noLogo -noColor -preEnumerateTheories -failSkips "${selected[@]}" -result-ctrf "${report}" > /dev/null 2>&1 || status=1
+    dotnet "$(dirname "${project}")/bin/Release/net10.0/${name}.dll" -noLogo -noColor -preEnumerateTheories -failSkips "${selected[@]}" -result-ctrf "${report}" 2>&1 | awk -f .github/scripts/g02-project-output.awk || status=1
     if [ -f "${report}" ]; then
       MODULARYN_EVIDENCE_PROJECT="${project}" MODULARYN_EVIDENCE_REPORT="${report}" MODULARYN_EVIDENCE_LABEL="${name}-remaining" MODULARYN_EVIDENCE_METHODS="${methods}" bash .github/scripts/evidence-bundle.sh collect || fail
     else
