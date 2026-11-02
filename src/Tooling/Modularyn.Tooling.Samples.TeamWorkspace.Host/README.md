@@ -132,10 +132,13 @@ dotnet "$workspace_publish/Modularyn.Tooling.Samples.TeamWorkspace.Host.dll" pro
   or database failure, after which the command can be run again. Each outcome
   prints a fixed message that names no account, operation or setting.
 
-The account must already exist. The sample has no command or endpoint that
-creates one, since Identity's administrative writes have no endpoint, nor one
-through which the first operator names tenant owners or grants host authority
-further; its host endpoints are tenant creation and membership addition.
+The account must already exist, and **a deployed sample has no path to a first
+account or a tenant owner**. Identity's administrative writes have no endpoint,
+and the sample adds no command or endpoint that creates an account, names a
+tenant owner or grants host authority further; its host endpoints are tenant
+creation and membership addition. Accounts, tenant owners and the member role's
+first assignments therefore exist only in the test fixtures. G-03's identity
+onboarding brings that path; until then this is an accepted limit of the sample.
 
 After provisioning and assigning the member role, `/sign-in` accepts the account
 credentials and tenant identifier and opens `/t/{tenant}/notes/new`. Create a

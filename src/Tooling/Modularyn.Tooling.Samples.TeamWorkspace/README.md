@@ -154,9 +154,14 @@ output and runs it, as the host README describes.
 The development endpoint seeds only project/note data after authorization.
 Tenant/member/role seed data lives in the isolated smoke fixture, where
 credentials and deployment identities are generated at run time. Production
-refuses the development-seed switch. Account and tenant-owner provisioning,
-email delivery, browser evidence, exhaustive G-02 acceptance and generated
-sample client execution remain outside this delivery.
+refuses the development-seed switch.
+
+A deployed sample has no path to a first account or a tenant owner. The host's
+provisioning command makes an existing account the first host operator, but
+nothing outside the test fixtures creates an account or names a tenant owner,
+so a deployment cannot onboard a user until G-03's identity onboarding brings
+that path. Email delivery, browser evidence, exhaustive G-02 acceptance and
+generated sample client execution also remain outside this delivery.
 
 See the sibling host README for deployment and the test README for the smoke
 scenario and its execution limitations.
