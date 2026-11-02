@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../Modularyn.Tooling.Samples.TeamWorkspace/Modularyn.Tooling.Samples.TeamWorkspace.csproj" />
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Hosting/Modularyn.Framework.Hosting.csproj" />
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Ingress/Modularyn.Framework.Ingress.csproj" />
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Configuration/Modularyn.Framework.Configuration.csproj" />
+    <ProjectReference Include="../../Modules/Modularyn.Modules.Identity.Application/Modularyn.Modules.Identity.Application.csproj" />
+    <ProjectReference Include="../../Modules/Modularyn.Modules.Identity.Persistence.EfCore/Modularyn.Modules.Identity.Persistence.EfCore.csproj" />
+    <ProjectReference Include="../../Modules/Modularyn.Modules.Identity.HttpApi/Modularyn.Modules.Identity.HttpApi.csproj" />
+    <ProjectReference Include="../../Modules/Modularyn.Modules.Files.Application/Modularyn.Modules.Files.Application.csproj" />
+    <ProjectReference Include="../../Modules/Modularyn.Modules.Files.Persistence.EfCore/Modularyn.Modules.Files.Persistence.EfCore.csproj" />
+    <ProjectReference Include="../../Modules/Modularyn.Modules.Files.Persistence.FileSystem/Modularyn.Modules.Files.Persistence.FileSystem.csproj" />
+    <Content Include="wwwroot/sign-in.js" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

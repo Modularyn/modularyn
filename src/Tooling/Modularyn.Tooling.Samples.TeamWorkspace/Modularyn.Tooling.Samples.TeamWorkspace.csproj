@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Api/Modularyn.Framework.Api.csproj" />
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Audit/Modularyn.Framework.Audit.csproj" />
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Authorization/Modularyn.Framework.Authorization.csproj" />
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Events/Modularyn.Framework.Events.csproj" />
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Jobs/Modularyn.Framework.Jobs.csproj" />
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Features/Modularyn.Framework.Features.csproj" />
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Localization/Modularyn.Framework.Localization.csproj" />
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Settings/Modularyn.Framework.Settings.csproj" />
+    <ProjectReference Include="../../Framework/Modularyn.Framework.Persistence.EfCore/Modularyn.Framework.Persistence.EfCore.csproj" />
+    <ProjectReference Include="../../Modules/Modularyn.Modules.Files.Application.Contracts/Modularyn.Modules.Files.Application.Contracts.csproj" />
+  </ItemGroup>
+</Project>

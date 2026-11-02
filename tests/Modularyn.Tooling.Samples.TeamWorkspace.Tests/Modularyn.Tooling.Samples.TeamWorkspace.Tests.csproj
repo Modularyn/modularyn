@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../src/Tooling/Modularyn.Tooling.Samples.TeamWorkspace/Modularyn.Tooling.Samples.TeamWorkspace.csproj" />
+    <ProjectReference Include="../../src/Tooling/Modularyn.Tooling.Samples.TeamWorkspace.Host/Modularyn.Tooling.Samples.TeamWorkspace.Host.csproj" />
+    <Compile Include="../Modularyn.Repository.Tests/PostgreSqlProbe.cs" Link="PostgreSqlProbe.cs" />
+    <Compile Include="../Modularyn.Framework.Persistence.EfCore.Tests/PostgreSqlTestLock.cs" Link="PostgreSqlTestLock.cs" />
+  </ItemGroup>
+</Project>
