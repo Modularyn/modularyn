@@ -156,10 +156,29 @@ public static class WorkspaceEndpoints
         void MapHost(string name, string operation, Func<HttpContext, Task<IResult>> handler)
         {
             var contract = WorkspaceApi.Endpoint(name);
-            app.MapMethods(contract.Route, [contract.Method], handler).RequireHostAuthority(operation, "Administer workspace directory")
-                .WithApiContract(contract, WorkspaceApi.Inventory);
+            app.MapMethods(contract.Route, [contract.Method], async (HttpContext context) =>
+            {
+                try { return await handler(context); }
+                catch (Exception exception) when (HostRefusal(exception) is { } refusal) { throw refusal; }
+            }).RequireHostAuthority(operation, "Administer workspace directory").WithApiContract(contract, WorkspaceApi.Inventory);
         }
     }
+
+    /// <summary>
+    /// The problem a host endpoint answers for a refusal of directory or identity administration: invalid input is a
+    /// validation failure, a change that did not commit or could not be audited is unavailable, and anything else they
+    /// refuse is forbidden.
+    /// Every other exception keeps the API wrapper's answer.
+    /// </summary>
+    public static ApiException? HostRefusal(Exception exception) => exception switch
+    {
+        ArgumentException => new ApiException(ApiCodes.Validation, 400),
+        TenancyException { Code: "MTN022" or "MTN023" } refused => new ApiException(refused.Code, 503),
+        TenancyException refused => new ApiException(refused.Code, 403),
+        IdentityAuthorityException { Code: IdentityAuthorityCodes.AuditUnavailable } refused => new ApiException(refused.Code, 503),
+        IdentityAuthorityException refused => new ApiException(refused.Code, 403),
+        _ => null
+    };
 
     private static async Task<IResult> UploadAsync(HttpContext c)
     {

@@ -4,8 +4,10 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Configuration;
 using Modularyn.Framework.Api.Contracts;
 using Modularyn.Framework.Jobs;
+using Modularyn.Framework.Tenancy;
 using Modularyn.Framework.Tenancy.Abstractions;
 using Modularyn.Modules.Files.Application.Contracts;
+using Modularyn.Modules.Identity.Application.Contracts;
 using Modularyn.Tooling.Samples.TeamWorkspace.Host;
 using Xunit;
 
@@ -92,6 +94,22 @@ public sealed class UnitTests
     public async Task The_provisioning_command_takes_exactly_one_account_identifier_and_nothing_else(string arguments) =>
         // Refused as a usage error before any configuration is read, so no secret can ride on the command line.
         Check.That(await Program.Main(arguments.Split(' ')) == 2, "provisioning-usage");
+
+    [Fact]
+    public void Host_endpoints_answer_directory_and_identity_refusals_with_their_own_problems()
+    {
+        static (string Code, int Status)? Problem(Exception exception) =>
+            WorkspaceEndpoints.HostRefusal(exception) is { } refusal ? (refusal.Code, refusal.Status) : null;
+        Check.That(Problem(new ArgumentException("name")) == (ApiCodes.Validation, 400), "host-validation");
+        Check.That(Problem(new TenancyException("MTN009", "authority")) == ("MTN009", 403), "host-tenancy-refusal");
+        Check.That(Problem(new TenancyException("MTN023", "audit")) == ("MTN023", 503), "host-tenancy-audit");
+        Check.That(Problem(new TenancyException("MTN022", "commit")) == ("MTN022", 503), "host-tenancy-commit");
+        Check.That(Problem(new IdentityAuthorityException(IdentityAuthorityCodes.HostOperationRequired, "operation"))
+            == (IdentityAuthorityCodes.HostOperationRequired, 403), "host-identity-refusal");
+        Check.That(Problem(new IdentityAuthorityException(IdentityAuthorityCodes.AuditUnavailable, "audit"))
+            == (IdentityAuthorityCodes.AuditUnavailable, 503), "host-identity-audit");
+        Check.That(Problem(new InvalidOperationException("other")) is null, "host-other-unchanged");
+    }
 
     [Theory]
     [InlineData(null, null)]

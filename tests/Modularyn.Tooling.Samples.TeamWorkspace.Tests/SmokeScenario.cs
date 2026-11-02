@@ -162,6 +162,12 @@ public static class SmokeScenario
             new WorkspaceEndpoints.MembershipChange(member.Id, Guid.NewGuid()), token))
             Check.That(refused.StatusCode == HttpStatusCode.Forbidden, "host-memberships-refused-without-host-authority");
         await host.GrantHostAuthorityAsync(owner.Id, [TenantDirectoryAdministration.OperationId, IdentityHostOperations.MembershipsId], token);
+        // Invalid input is a validation failure, not an outcome the caller cannot know.
+        using (var invalid = await SendAsync(ownerClient, HttpMethod.Post, "/api/v1/host/tenants", new WorkspaceEndpoints.TenantCreation(" Padded name "), token))
+            Check.That(invalid.StatusCode == HttpStatusCode.BadRequest, "host-tenant-name-validated");
+        using (var invalid = await SendAsync(ownerClient, HttpMethod.Post, "/api/v1/host/memberships",
+            new WorkspaceEndpoints.MembershipChange(member.Id, Guid.Empty), token))
+            Check.That(invalid.StatusCode == HttpStatusCode.BadRequest, "host-membership-tenant-validated");
         var created = await JsonAsync<IdentityView>(ownerClient, HttpMethod.Post, "/api/v1/host/tenants", new WorkspaceEndpoints.TenantCreation("Created tenant"), token);
         var projects = "/api/v1/t/" + created.Id.ToString("D") + "/projects";
         using (var before = await memberClient.GetAsync(projects, token)) Check.That(before.StatusCode == HttpStatusCode.NotFound, "created-tenant-not-yet-joined");
