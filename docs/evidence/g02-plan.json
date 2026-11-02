@@ -58,7 +58,7 @@
     },
     "CODE-09": {
       "owner": "Implementation contributor",
-      "scope": "Compose the team workspace and its host, container and minimal Razor surfaces."
+      "scope": "Compose the team workspace, its Modularyn.Tooling.Samples.TeamWorkspace.Host host and container, and minimal Razor surfaces."
     },
     "CODE-10": {
       "owner": "Implementation contributor",
