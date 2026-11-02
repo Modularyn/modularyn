@@ -112,6 +112,22 @@ public sealed class ContractDefinitionTests
     }
 
     [Fact]
+    public void TM_G02_011_The_sample_s_sign_in_page_and_its_form_are_declarable_beside_identity_s_endpoints()
+    {
+        // The sign-in page is an anonymous page that needs no credential. It posts to identity's declared sign-in endpoint,
+        // which accepts JSON with the antiforgery token that identity's own endpoint issues, so the page sends it from script;
+        // it is no form post of its own. The note form is a member's page and its POST, which declares antiforgery.
+        var signIn = Page() with { Name = "GetSignInPage", Route = "/sign-in", Authorization = "Anonymous", Authentication = "none" };
+        var inventory = FrameworkApi.Inventory with { Endpoints = [.. FrameworkApi.Inventory.Endpoints, signIn, Page(), Page("POST")] };
+        inventory.Validate();
+        Assert.False(signIn.Antiforgery);
+        Assert.True(Page("POST").Antiforgery);
+        Assert.Equal(("POST", false, false), (FrameworkApi.Endpoint("SignIn").Method, FrameworkApi.Endpoint("SignIn").Page,
+            FrameworkApi.Endpoint("SignIn").Antiforgery));
+        Assert.Equal("Anonymous", FrameworkApi.Endpoint("GetAntiforgery").Authorization);
+    }
+
+    [Fact]
     public void TM_G02_011_An_upload_declares_its_explicit_request_media_types()
     {
         Valid(Upload("image/png", "application/pdf"));
