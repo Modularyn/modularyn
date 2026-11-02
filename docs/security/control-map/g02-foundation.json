@@ -339,7 +339,8 @@
         }
       ],
       "residuals": [
-        "RR-G02-001"
+        "RR-G02-001",
+        "RR-G02-019"
       ]
     },
     {
@@ -2271,9 +2272,10 @@
     {
       "id": "RR-G02-019",
       "title": "Module code is trusted in process",
-      "statement": "Module code runs in process with the host's authority. Code that opens the connection itself can run any SQL past every filter, reflection can build the adapter's markers and internal constructors, and owner-bound rules rest on a source check. Server code that builds a session-scheme claims principal can establish a member context for any member; since SEC-08 it gives a service identity no authority there. The query guard depends on EF Core 10.0.14's query shapes.",
+      "statement": "Module code runs in process with the host's authority. Code that opens the connection itself can run any SQL past every filter, reflection can build the adapter's markers and internal constructors, and owner-bound rules rest on a source check. Server code that builds a session-scheme claims principal can establish a member context for any member; since SEC-08 it gives a service identity no authority there. A handler that casts the request's IHttpResponseFeature to IHttpResponseBodyFeature, which is the server's own object, writes a response of any media type past the media-type check that every supported write path passes. The query guard depends on EF Core 10.0.14's query shapes.",
       "controls": [
         "TM-G02-004",
+        "TM-G02-011",
         "TM-G02-025",
         "TM-G02-028",
         "TM-G02-029",
@@ -2293,6 +2295,7 @@
         }
       ],
       "sources": [
+        "src/Framework/Modularyn.Framework.Api/README.md",
         "src/Framework/Modularyn.Framework.Persistence.EfCore/README.md",
         "src/Framework/README.md"
       ],

@@ -15,9 +15,11 @@ using Xunit;
 
 namespace Modularyn.Framework.Hosting.Tests;
 
-// TM-G02-011: a response's media type is checked at run time against its endpoint's inventory declaration, so an endpoint
-// can never answer HTML, binary or any other content it did not declare. The handlers here deliberately send every kind of
-// type through every way a handler writes, over a real Kestrel server.
+// TM-G02-011: a response's media type is checked at run time against its endpoint's inventory declaration, so no handler can
+// answer HTML, binary or any other content its endpoint did not declare by any supported write path. The handlers here
+// deliberately send every kind of type through every supported way a handler writes, over a real Kestrel server. A handler
+// that casts the request's IHttpResponseFeature to the server's own body feature writes past the check, which module trust
+// covers (RR-G02-019).
 public sealed class ResponseMediaTypeTests
 {
     private const string Undeclared = "8400";

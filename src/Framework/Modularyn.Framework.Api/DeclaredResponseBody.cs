@@ -10,14 +10,19 @@ namespace Modularyn.Framework.Api;
 internal sealed class UndeclaredMediaTypeException() : InvalidOperationException("The response's media type is not one its endpoint declares.");
 
 /// <summary>
-/// The response body of a declared endpoint (TM-G02-011). Nothing reaches the client until the response's media type is one
-/// its declaration allows: JSON for a JSON endpoint, HTML for a page, one of a download's declared types, plain text where the
-/// inventory declares it, and the API's own problem document for any endpoint. Parameters such as a charset are ignored.
-/// Bytes or a file sent with no type, or with any other, are refused before they are written, and so is everything after
-/// them; the endpoint wrapper then answers 500 with <see cref="ApiCodes.Protocol"/>, or aborts the connection when the
-/// response had already started. An empty response, such as a redirect or a bare status, needs no type, and an explicit start of
-/// a response that names no type waits for its first bytes.
+/// The response body of a declared endpoint (TM-G02-011). Nothing written through this feature reaches the client until the
+/// response's media type is one its declaration allows: JSON for a JSON endpoint, HTML for a page, one of a download's declared
+/// types, plain text where the inventory declares it, and the API's own problem document for any endpoint. Parameters such as a
+/// charset are ignored. Bytes or a file sent with no type, or with any other, are refused before they are written, and so is
+/// everything after them; the endpoint wrapper then answers 500 with <see cref="ApiCodes.Protocol"/>, or aborts the connection
+/// when the response had already started. An empty response, such as a redirect or a bare status, needs no type, and an explicit
+/// start of a response that names no type waits for its first bytes.
 /// </summary>
+/// <remarks>
+/// Every supported write path goes through this feature for the handler's duration. A handler that reaches the server's own
+/// body feature another way, such as by casting the request's <see cref="IHttpResponseFeature"/>, writes past it; module code is
+/// trusted in process (RR-G02-019).
+/// </remarks>
 internal sealed class DeclaredResponseBody : Stream, IHttpResponseBodyFeature
 {
     internal const string ProblemMediaType = "application/problem+json";

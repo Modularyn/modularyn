@@ -458,8 +458,11 @@ code can change or remove it. A browser therefore renders a response only as its
 before the pipeline runs, Kestrel's own and the host's host filtering's empty 400
 for an unconfigured host, do not carry it. Response media types are declared in
 the [API inventory](Modularyn.Framework.Api.Contracts/README.md), and the
-endpoint wrapper refuses, at run time, any response whose type its declaration
-does not allow ([endpoint conventions](Modularyn.Framework.Api/README.md)).
+endpoint wrapper refuses, at run time, any response a handler writes by a
+supported write path with a type its declaration does not allow. A handler that
+reaches the server's own body feature directly writes past it, as trusted
+in-process module code can (`RR-G02-019`;
+[endpoint conventions](Modularyn.Framework.Api/README.md)).
 
 The options are validated before startup: public and cross-origin origins are
 exact HTTPS origins with ASCII hosts and no wildcard, path, query or user
