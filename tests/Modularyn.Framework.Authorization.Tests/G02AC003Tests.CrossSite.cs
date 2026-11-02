@@ -201,7 +201,7 @@ public sealed partial class G02AC003Tests
         // waits on the tenant's authority row, the grant commits under the earlier ceiling, and the reduction cannot recall it.
         var grantHeld = HoldChange(host, AuthorityChangeKind.PermissionGranted, out var releaseGrant);
         var grant = Grant();
-        await grantHeld.WaitAsync(Cancellation);
+        await SignalledAsync(grantHeld, grant);
         var reduction = Reduce();
         Assert.NotSame(reduction, await Task.WhenAny(reduction, Task.Delay(TimeSpan.FromMilliseconds(500), Cancellation)));
         releaseGrant();
@@ -217,7 +217,7 @@ public sealed partial class G02AC003Tests
         Assert.True(await Restore());
         var reductionHeld = HoldChange(host, AuthorityChangeKind.RoleDefined, out var releaseReduction);
         reduction = Reduce();
-        await reductionHeld.WaitAsync(Cancellation);
+        await SignalledAsync(reductionHeld, reduction);
         grant = Grant();
         Assert.NotSame(grant, await Task.WhenAny(grant, Task.Delay(TimeSpan.FromMilliseconds(500), Cancellation)));
         releaseReduction();
@@ -243,7 +243,7 @@ public sealed partial class G02AC003Tests
         {
             if (change.Kind != kind) return;
             reached.TrySetResult();
-            await gate.Task.WaitAsync(TestContext.Current.CancellationToken);
+            await gate.Task.WaitAsync(SignalDeadline, TestContext.Current.CancellationToken);
         };
         return reached.Task;
     }

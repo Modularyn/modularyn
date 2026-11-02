@@ -26,6 +26,21 @@ public sealed partial class G02AC003Tests(ITestOutputHelper output)
 {
     private static CancellationToken Cancellation => TestContext.Current.CancellationToken;
 
+    // How long a test waits for running work to reach a point it holds the work at, and how long held work waits to be
+    // released. Each step takes milliseconds; the deadline only turns a lost signal into a failure instead of an endless wait.
+    private static readonly TimeSpan SignalDeadline = TimeSpan.FromMinutes(2);
+
+    /// <summary>Waits until running work gives its signal. If the work ends first, its own failure fails the test, and a signal
+    /// that never comes fails it at the deadline: neither waits forever.</summary>
+    private static async Task SignalledAsync(Task signal, Task work)
+    {
+        if (await Task.WhenAny(signal, work).WaitAsync(SignalDeadline, Cancellation) == work && !signal.IsCompleted)
+        {
+            await work;
+            Assert.Fail("The work ended without reaching the point the test holds it at.");
+        }
+    }
+
     [Fact]
     public async Task AC_003_P01_EveryEntryPointAppliesTheSameGrant_Unit()
     {
