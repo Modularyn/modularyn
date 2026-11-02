@@ -798,8 +798,8 @@ public sealed class ToolPinTests
                 files[ScriptPath] = ReplaceText(files[ScriptPath], "  local status\n", "  echo \"${name}\" >> \"${GITHUB_PATH}\"\n  local status\n");
                 break;
             case "tests-to-github-env":
-                files[TestsScriptPath] = ReplaceText(files[TestsScriptPath], "  count_results \"${results}\" \"${names[@]}\"\n",
-                    "  echo \"results=${results}\" >> \"${GITHUB_ENV}\"\n  count_results \"${results}\" \"${names[@]}\"\n");
+                files[TestsScriptPath] = ReplaceText(files[TestsScriptPath], "  (count_results \"${results}\" \"${names[@]}\") || outcome=1\n",
+                    "  echo \"results=${results}\" >> \"${GITHUB_ENV}\"\n  (count_results \"${results}\" \"${names[@]}\") || outcome=1\n");
                 break;
             case "database-to-github-env":
                 files[ScriptPath] = Changed(files[ScriptPath], files[ScriptPath].Replace("  local status\n",
