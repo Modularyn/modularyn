@@ -42,8 +42,21 @@ set, and logs error 8400 naming the endpoint. A handler that catches the refusal
 is refused all the same. A start of a response that names no type waits for its
 first bytes, so a late refusal can still answer `MAP008`; once a handler's flush
 has sent an untyped response's headers, the connection is aborted instead, and
-no byte of the handler's arrives. An empty response, such as a redirect or a bare
+no byte of the handler's arrives. On Linux and Windows the client's connection is
+reset at once. On macOS the abort does not always reach the client, which then
+waits with nothing after the headers until it gives up; the supported tuple is
+Linux x64. An empty response, such as a redirect or a bare
 status, needs no type.
+
+The check covers every supported write path, because each goes through the
+response body feature that the wrapper installs for the handler's duration: the
+body's stream and its pipe writer, a file, and starting, flushing or completing
+the response. No handler can answer content its endpoint does not declare by any
+of them. The check is not a boundary against the handler's own code: a handler
+that casts the request's `IHttpResponseFeature` to `IHttpResponseBodyFeature`,
+which is the server's own object, writes past it. Module code is trusted in
+process (`RR-G02-019` in the [control map](../../../docs/security/control-map/README.md)),
+so such a cast is a matter for module review, not for this check.
 
 `ApiEndpoints.Describe` reads every mapped endpoint, including non-client routes,
 and combines its declared schemas. Undeclared routes fail validation, and each
@@ -152,9 +165,12 @@ Feature evaluation still uses its existing gate, and a missing gate yields false
   a page, its form, a download or an upload, fails its test. A form post's
   antiforgery is TM-G02-007's, recorded in [the framework](../README.md#threat-model-controls).
   Each response's media type is checked at run time against its declaration
-  (SEC-08): a handler that sends a type its endpoint does not declare is refused
-  with `MAP008` before any of its bytes leaves, or its connection aborted once an
-  untyped response's headers are out. Tests: `Hosting.Tests`
+  (SEC-08): a handler that sends a type its endpoint does not declare, by any
+  supported write path, is refused with `MAP008` before any of its bytes leaves,
+  or its connection aborted once an untyped response's headers are out. A handler
+  that casts the request's `IHttpResponseFeature` to `IHttpResponseBodyFeature`,
+  the server's own object, writes past the check, as in-process module code can
+  (`RR-G02-019`). Tests: `Hosting.Tests`
   `ResponseMediaTypeTests.TM_G02_011_*`; removing the check, or the refusal of a
   handler that caught it, fails it. The ingress also disables content sniffing
   on every response, so a mislabelled response is not rendered as a type it

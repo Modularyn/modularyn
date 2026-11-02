@@ -71,7 +71,10 @@ internal sealed class SecretReferenceJsonConverter : JsonConverter<SecretReferen
     public override void Write(Utf8JsonWriter writer, SecretReference value, JsonSerializerOptions options) => writer.WriteStringValue(value.ToString());
 }
 
-/// <summary>Resolves secret references. Implementations name only the reference when a secret is unavailable.</summary>
+/// <summary>
+/// Resolves secret references. When a secret is unavailable, an implementation refuses with its reason only, never the
+/// secret's name, value or location: a reference's name is a secret form, which telemetry, records and payloads keep out.
+/// </summary>
 public interface ISecretStore
 {
     ValueTask<SecretValue> GetAsync(SecretReference reference, CancellationToken cancellationToken);
@@ -127,7 +130,10 @@ internal sealed class SecretValueJsonConverter : JsonConverter<SecretValue>
     public override void Write(Utf8JsonWriter writer, SecretValue value, JsonSerializerOptions options) => writer.WriteStringValue(SecretValue.Redacted);
 }
 
-/// <summary>A secret could not be resolved. The message names the reference only; there is never an inner exception.</summary>
+/// <summary>
+/// A secret could not be resolved. The message gives the reason and the remedy only, never the secret's name, value or
+/// location, and no property carries them; there is never an inner exception.
+/// </summary>
 public sealed class SecretResolutionException(string message) : Exception(message);
 
 public sealed class SecretStoreOptions
@@ -139,7 +145,8 @@ public sealed class SecretStoreOptions
 /// <summary>
 /// Reads each secret from a file named by the reference in the mounted secret directory. A link is followed only
 /// when its final target stays inside the directory. Empty files and files over 64 KiB are refused, and the file's
-/// bytes are returned exactly.
+/// bytes are returned exactly. A refusal states why and asks the operator to compare the mounted directory with the
+/// configuration's references; it never names the secret.
 /// </summary>
 public sealed class FileSecretStore : ISecretStore
 {
@@ -166,31 +173,31 @@ public sealed class FileSecretStore : ISecretStore
             {
                 var target = file.ResolveLinkTarget(returnFinalTarget: true);
                 if (target is null || !Path.GetFullPath(target.FullName).StartsWith(directory + Path.DirectorySeparatorChar, StringComparison.Ordinal))
-                    throw Refused(name, "is a link whose target is outside the secret store");
+                    throw Refused("is a link whose target is outside the secret store");
                 file = new FileInfo(target.FullName);
             }
-            if (!file.Exists) throw Refused(name, "is not present in the secret store");
-            if (file.Length == 0) throw Refused(name, "is empty");
-            if (file.Length > MaximumBytes) throw Refused(name, $"is larger than {MaximumBytes} bytes");
+            if (!file.Exists) throw Refused("is not present in the secret store");
+            if (file.Length == 0) throw Refused("is empty");
+            if (file.Length > MaximumBytes) throw Refused($"is larger than {MaximumBytes} bytes");
             await using var stream = new FileStream(file.FullName, new FileStreamOptions
             {
                 Mode = FileMode.Open, Access = FileAccess.Read, Share = FileShare.Read, Options = FileOptions.Asynchronous
             });
             buffer = new byte[stream.Length];
-            if (buffer.Length is 0 or > MaximumBytes) throw Refused(name, "changed while it was read");
+            if (buffer.Length is 0 or > MaximumBytes) throw Refused("changed while it was read");
             await stream.ReadExactlyAsync(buffer, cancellationToken).ConfigureAwait(false);
-            if (stream.ReadByte() != -1) throw Refused(name, "changed while it was read");
+            if (stream.ReadByte() != -1) throw Refused("changed while it was read");
             var value = SecretValue.Own(buffer);
             buffer = null;
             return value;
         }
         catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
         {
-            throw Refused(name, "is not present in the secret store");
+            throw Refused("is not present in the secret store");
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or EndOfStreamException)
         {
-            throw Refused(name, "could not be read from the secret store");
+            throw Refused("could not be read from the secret store");
         }
         finally
         {
@@ -198,8 +205,9 @@ public sealed class FileSecretStore : ISecretStore
         }
     }
 
-    private static SecretResolutionException Refused(string name, string reason) =>
-        new($"Secret '{name}' {reason}. Mount the secret through the deployment's secret store.");
+    // A reference's name is a secret form, so a refusal gives its reason and the remedy, never the name.
+    private static SecretResolutionException Refused(string reason) => new($"A referenced secret {reason}. The secret's name is not "
+        + "reported: compare the mounted secret directory with the configuration's secret references.");
 }
 
 internal sealed class SecretStoreOptionsValidation(string sectionPath) : IValidateOptions<SecretStoreOptions>

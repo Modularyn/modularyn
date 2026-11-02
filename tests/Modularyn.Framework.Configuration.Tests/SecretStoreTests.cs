@@ -87,14 +87,17 @@ public sealed class SecretStoreTests : IDisposable
         Assert.Contains("\"Password\":\"secret:database-password\"", JsonSerializer.Serialize(options), StringComparison.Ordinal);
     }
 
-    [Theory(DisplayName = "TM-G02-047 unavailable or escaping secrets are refused by reference name only")]
-    [InlineData("missing", "Secret 'database-password' is not present in the secret store.")]
-    [InlineData("empty", "Secret 'database-password' is empty.")]
-    [InlineData("oversized", "Secret 'database-password' is larger than 65536 bytes.")]
-    [InlineData("directory", "Secret 'database-password' is not present in the secret store.")]
-    [InlineData("outside-link", "Secret 'database-password' is a link whose target is outside the secret store.")]
+    // What every refusal of a referenced secret asks of the operator, since it cannot name the secret (SEC-08).
+    private const string Remedy = " The secret's name is not reported: compare the mounted secret directory with the configuration's secret references.";
+
+    [Theory(DisplayName = "TM-G02-047 unavailable or escaping secrets are refused for their reason, never by their name")]
+    [InlineData("missing", "A referenced secret is not present in the secret store." + Remedy)]
+    [InlineData("empty", "A referenced secret is empty." + Remedy)]
+    [InlineData("oversized", "A referenced secret is larger than 65536 bytes." + Remedy)]
+    [InlineData("directory", "A referenced secret is not present in the secret store." + Remedy)]
+    [InlineData("outside-link", "A referenced secret is a link whose target is outside the secret store." + Remedy)]
     [InlineData("discarded", "A discarded literal value is not a secret reference, so nothing was resolved.")]
-    public async Task TM_G02_047_Unavailable_or_escaping_secrets_are_refused_by_reference_name_only(string mutation, string expected)
+    public async Task TM_G02_047_Unavailable_or_escaping_secrets_are_refused_for_their_reason_never_by_their_name(string mutation, string expected)
     {
         var sentinel = Sentinel();
         var path = Path.Combine(secrets, "database-password");
@@ -118,10 +121,44 @@ public sealed class SecretStoreTests : IDisposable
         }
         var store = new FileSecretStore(Options.Create(new SecretStoreOptions { Directory = secrets }));
         var exception = await Assert.ThrowsAsync<SecretResolutionException>(() => store.GetAsync(reference, Cancellation).AsTask());
-        Assert.StartsWith(expected, exception.Message, StringComparison.Ordinal);
+        Assert.Equal(expected, exception.Message);
         Assert.Null(exception.InnerException);
+        Assert.DoesNotContain("database-password", exception.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain(root, exception.ToString(), StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(sentinel, exception.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact(DisplayName = "TM-G02-047 a refused resolution, logged through the framework's logging and scrubber, carries no secret name")]
+    public async Task TM_G02_047_A_refused_resolution_logged_through_the_framework_carries_no_secret_name()
+    {
+        // Names generated for this run, in no form the scrubber recognizes: the old refusal, Secret '<name>', passed it
+        // untouched, so only the refusal's own text can keep a name out of the log.
+        var missing = "db-" + Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(6));
+        var empty = "db-" + Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(6));
+        Assert.Equal($"Secret '{missing}' is not present", Observability.SecretForms.Scrub($"Secret '{missing}' is not present"));
+        File.WriteAllBytes(Path.Combine(secrets, empty), []);
+        var logs = new CapturedLogs();
+        using var host = Host(logs);
+        await host.StartAsync(Cancellation);
+        var store = host.Services.GetRequiredService<ISecretStore>();
+        var logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Any.Module");
+        var refusals = new List<SecretResolutionException>();
+        foreach (var name in new[] { missing, empty })
+        {
+            var refused = await Assert.ThrowsAsync<SecretResolutionException>(() => store.GetAsync(SecretReference.Parse(SecretReference.Scheme + name), Cancellation).AsTask());
+            refusals.Add(refused);
+            logger.LogError(refused, "Resolution refused: {Reason}", refused.Message);
+        }
+        await host.StopAsync(Cancellation);
+
+        // Each logged refusal keeps its reason and its remedy, and no part of it, its exception included, names the secret.
+        var logged = logs.Entries.Where(entry => entry.Contains("Resolution refused: ", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(2, logged.Length);
+        Assert.Contains(logged, entry => entry.Contains("A referenced secret is not present in the secret store." + Remedy, StringComparison.Ordinal));
+        Assert.Contains(logged, entry => entry.Contains("A referenced secret is empty." + Remedy, StringComparison.Ordinal));
+        var everything = string.Join("\n", logs.Entries.Concat(refusals.Select(refused => refused.ToString())));
+        Assert.DoesNotContain(missing, everything, StringComparison.Ordinal);
+        Assert.DoesNotContain(empty, everything, StringComparison.Ordinal);
     }
 
     [Fact(DisplayName = "TM-G02-047 a link inside the mounted store resolves to its target")]
@@ -186,7 +223,9 @@ public sealed class SecretStoreTests : IDisposable
             var exception = await Assert.ThrowsAsync<ModuleLifecycleException>(() => host.StartAsync(Cancellation));
             var diagnostic = Assert.Single(exception.Report.Diagnostics);
             Assert.Equal("MDC101", diagnostic.Code);
-            Assert.Contains("SecretResolutionException: Secret 'absent' is not present in the secret store.", diagnostic.Message, StringComparison.Ordinal);
+            Assert.Contains("SecretResolutionException: A referenced secret is not present in the secret store." + Remedy, diagnostic.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("absent", diagnostic.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("absent", exception.ToString(), StringComparison.Ordinal);
             Assert.DoesNotContain(root, diagnostic.Message, StringComparison.OrdinalIgnoreCase);
             AssertAbsent(sentinel, logs, diagnostic.Message, exception.ToString());
         }
