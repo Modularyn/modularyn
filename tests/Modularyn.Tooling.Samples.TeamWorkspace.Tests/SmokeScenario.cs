@@ -87,13 +87,14 @@ public static class SmokeScenario
         await DeadlineAsync(host, member, tenant, grant.Token, token);
         using (var next = await DownloadAsync(client, prefix, grant.Token, token)) Success(next, "download-slot-released");
 
-        // PDF passes the upload detector but is outside this deployment's release allowlist.
+        // PDF passes the upload detector but is outside this deployment's release allowlist. The allowlist policy leaves a
+        // version it does not release pending in quarantine, never rejected, which would be final.
         var pdf = await UploadAsync(client, prefix, note.Id, Encoding.ASCII.GetBytes("%PDF-1.7\n%%EOF\n"), "document.pdf", token);
         var rejected = new AttachmentReference(pdf.FileId, pdf.VersionId);
         await JsonAsync<IdentityView>(client, HttpMethod.Post, prefix + "/releases", rejected, token);
         await host.Services.GetRequiredService<WorkspaceDispatcher>().RunAsync(token);
         var refusedVersions = await client.GetFromJsonAsync<FileVersionInfo[]>(prefix + "/files/" + pdf.FileId.ToString("D") + "/versions", token);
-        Check.That(refusedVersions is [{ Quarantine: FileQuarantineState.Rejected }], "allowlist-refusal");
+        Check.That(refusedVersions is [{ Quarantine: FileQuarantineState.Pending }], "allowlist-refusal");
         using (var refused = await SendAsync(client, HttpMethod.Post, prefix + "/grants", rejected, token))
             Check.That(refused.StatusCode == HttpStatusCode.NotFound, "rejected-content-unreadable");
 
