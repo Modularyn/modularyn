@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Modularyn.Framework.Api.Contracts;
 using Modularyn.Modules.Files.Application.Contracts;
 using Modularyn.Tooling.Samples.TeamWorkspace.Host;
+using FileVersionInfo = Modularyn.Modules.Files.Application.Contracts.FileVersionInfo;
 
 namespace Modularyn.Tooling.Samples.TeamWorkspace.Tests;
 
