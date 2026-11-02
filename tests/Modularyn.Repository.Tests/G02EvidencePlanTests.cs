@@ -53,6 +53,7 @@ public sealed class G02EvidencePlanTests
         var rows = plan["cases"]!.AsArray();
         var first = rows[0]!;
         var test = first["plannedTests"]![0]!;
+        var files = RepositoryFiles.Current;
         switch (mutation)
         {
             case "missing-case": rows.RemoveAt(0); break;
@@ -73,7 +74,17 @@ public sealed class G02EvidencePlanTests
             case "test-status": test["status"] = "passed"; break;
             case "existing-name": test["name"] = test["name"]!.GetValue<string>() + "_Renamed"; break;
             case "existing-planned": test["status"] = "planned"; break;
-            case "planned-existing": first["plannedTests"]!.AsArray().Last()!["status"] = "existing"; break;
+            case "planned-existing":
+            {
+                var planned = first["plannedTests"]!.AsArray().Last()!;
+                planned["status"] = "existing";
+                // The planned test's project exists once its sample is merged, so this claim is checked against the
+                // repository without that project: a test claimed as existing in an absent project stays refused for that.
+                var absent = planned["project"]!.GetValue<string>();
+                Assert.Contains(absent, files.Keys);
+                files = files.Where(file => file.Key != absent).ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
+                break;
+            }
             case "case-order": first["workOrder"] = "CODE-02"; break;
             case "layers": first["layers"]!.AsArray().RemoveAt(0); break;
             case "test-layer": test["layer"] = "ui"; break;
@@ -92,7 +103,7 @@ public sealed class G02EvidencePlanTests
             case "unknown-field": first["qualified"] = true; break;
             default: throw new ArgumentOutOfRangeException(nameof(mutation));
         }
-        AssertDiagnostic(ValidatePlan(plan), diagnostic);
+        AssertDiagnostic(G02EvidencePlanContract.ValidatePlan(plan.ToJsonString(), files), diagnostic);
     }
 
     [Theory]
