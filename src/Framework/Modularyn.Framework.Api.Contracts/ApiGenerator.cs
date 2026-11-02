@@ -51,6 +51,8 @@ public static class ApiGenerator
                 {
                     ["description"] = "Authoritative response",
                     ["content"] = endpoint.SuccessStatus == 204 ? new JsonObject()
+                        : endpoint.Download is { } download ? MediaContent(download.MediaTypes)
+                        : endpoint.Page ? new JsonObject { [ApiMediaTypes.Html] = new JsonObject { ["schema"] = Schema("string") } }
                         : endpoint.ResponseSchema is { } schema ? InlineContent(endpoint.ResponseMediaType, schema) : Content(endpoint.Response, false),
                     ["headers"] = Headers(endpoint)
                 }
@@ -84,9 +86,19 @@ public static class ApiGenerator
                 ["x-modularyn-idempotent"] = endpoint.Idempotent, ["parameters"] = parameters, ["responses"] = responses,
                 ["security"] = security
             };
-            if (endpoint.Request is not null || endpoint.RequestSchema is not null)
+            // An upload's body is its declared media types, a page's form is posted form-encoded, and every other declared request
+            // body is JSON.
+            if (endpoint.Upload is { } upload)
+                operation["requestBody"] = new JsonObject { ["required"] = true, ["content"] = MediaContent(upload.MediaTypes) };
+            else if (endpoint.Request is not null || endpoint.RequestSchema is not null)
                 operation["requestBody"] = new JsonObject { ["required"] = true, ["content"] = endpoint.RequestSchema is { } requestSchema
-                    ? InlineContent("application/json", requestSchema) : Content(endpoint.Request, false) };
+                    ? InlineContent(endpoint.Page ? ApiMediaTypes.Form : ApiMediaTypes.Json, requestSchema) : Content(endpoint.Request, false) };
+            // Pages, form posts, downloads and uploads are described only where declared, so every other operation's description
+            // is unchanged.
+            if (endpoint.Page) operation["x-modularyn-page"] = true;
+            if (endpoint.Page || endpoint.Antiforgery) operation["x-modularyn-antiforgery"] = endpoint.Antiforgery;
+            if (endpoint.Download is { } declared) operation["x-modularyn-download"] = declared.Disposition;
+            if (endpoint.Upload is { } accepted) operation["x-modularyn-upload"] = accepted.MediaTypes is [ApiMediaTypes.Multipart] ? "form" : "binary";
             if (paths[route] is not JsonObject path) paths[route] = path = new JsonObject();
             path[endpoint.Method.ToLowerInvariant()] = operation;
         }
@@ -210,6 +222,10 @@ public static class ApiGenerator
     {
         [mediaType] = new JsonObject { ["schema"] = JsonNode.Parse(schema.GetRawText()) }
     };
+
+    // OpenAPI 3.1 describes binary content, and a form upload whose parts are not modelled, by its media type alone.
+    private static JsonObject MediaContent(IReadOnlyList<string> types) =>
+        new(types.Select(type => KeyValuePair.Create(type, (JsonNode?)new JsonObject())));
 
     private static JsonObject Headers(ApiEndpoint endpoint)
     {

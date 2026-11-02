@@ -54,6 +54,7 @@ public sealed class ArchitectureTests
     [InlineData("Modularyn.UI.Admin.Shell", "UI", "", "", "community")]
     [InlineData("Modularyn", "FrontDoor", "", "", "community")]
     [InlineData("dotnet-modularyn", "Tooling", "", "", "community")]
+    [InlineData("Modularyn.Tooling.Samples.TeamWorkspace.Host", "Tooling", "", "", "community")]
     public void Package_identity_uses_the_names_contract(string id, string family, string module, string role, string edition)
     {
         var policy = ArchitecturePolicy.Load(RepositoryFiles.Current);

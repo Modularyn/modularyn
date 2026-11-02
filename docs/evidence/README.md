@@ -27,12 +27,15 @@ AC-001's existing unit methods are in
 [Hosting's AcceptanceTests](../../tests/Modularyn.Framework.Hosting.Tests/AcceptanceTests.cs)
 and [Modularity's CompositionTests](../../tests/Modularyn.Framework.Modularity.Tests/CompositionTests.cs),
 as merged on main at `86c364a`. CODE-02 supplies those seven methods. CODE-09's
-sample application is planned as `Modularyn.Tooling.Samples.TeamWorkspace`, a
-Tooling sample host composed from foundation modules. Under the layout contract,
-its project is
-`src/Tooling/Modularyn.Tooling.Samples.TeamWorkspace/Modularyn.Tooling.Samples.TeamWorkspace.csproj`
-and its tests are in
-`tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests.csproj`.
+sample application, the team workspace, is planned with its host
+`Modularyn.Tooling.Samples.TeamWorkspace.Host`, the sample's composition root
+under the [dependency rules](../architecture/dependencies.md#composition-roots),
+composed from foundation modules. Under the layout contract, the host's project
+is
+`src/Tooling/Modularyn.Tooling.Samples.TeamWorkspace.Host/Modularyn.Tooling.Samples.TeamWorkspace.Host.csproj`
+and the sample's tests are in
+`tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests.csproj`,
+the one test project that may reference that host.
 CODE-10 writes its four planned AC-001 integration methods. Each must run on
 both Linux x64 host and container deployments with real PostgreSQL and the
 filesystem store. Container execution is a deployment of the corpus's

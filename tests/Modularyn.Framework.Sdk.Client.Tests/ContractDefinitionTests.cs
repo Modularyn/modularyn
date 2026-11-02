@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -60,6 +61,163 @@ public sealed class ContractDefinitionTests
     }
 
     [Fact]
+    public void TM_G02_011_HTML_is_declared_only_for_a_page_and_a_page_s_form_declares_antiforgery()
+    {
+        Valid(Page());
+        Valid(Page("POST"));
+        Valid(Page("POST") with { RequestSchema = FormSchema });
+        // HTML is a page's, and a page answers HTML.
+        Invalid(Page() with { Page = false });
+        Invalid(Page() with { ResponseMediaType = ApiMediaTypes.Json });
+        Invalid(Page() with { ResponseMediaType = ApiMediaTypes.PlainText });
+        // A page that accepts a form declares antiforgery, and only a page's form does.
+        Invalid(Page("POST") with { Antiforgery = false });
+        Invalid(Page() with { Antiforgery = true });
+        Invalid(new ApiEndpoint("Mutate", "POST", "/items", "Anonymous", null, false, null, null, Mutation: true, Versioned: false, Antiforgery: true));
+        // A page is a browser surface: GET, or POST for its form, reached with a session or no credential, with no JSON models.
+        Invalid(Page("PUT"));
+        Invalid(Page("POST") with { Idempotent = true });
+        Invalid(Page() with { Authentication = "explicitCredential" });
+        Invalid(Page() with { Response = "ItemView" });
+        Invalid(Page() with { ResponseSchema = FormSchema });
+        Invalid(Page() with { RequestSchema = FormSchema });
+        Invalid(Page("POST") with { Request = "ItemView" });
+    }
+
+    [Fact]
+    public void TM_G02_011_Binary_is_declared_only_for_a_download_with_explicit_content_types_and_a_disposition()
+    {
+        Valid(Download("application/pdf", "image/png", "text/plain"));
+        Valid(Download("image/png") with { Download = new("inline", ["image/png"]) });
+        Valid(Download(ApiMediaTypes.Binary));
+        // Binary is a download's, and a download answers binary.
+        Invalid(Download("application/pdf") with { Download = null });
+        Invalid(Download("application/pdf") with { ResponseMediaType = ApiMediaTypes.Json });
+        Invalid(Download("application/pdf") with { ResponseMediaType = "application/pdf" });
+        // Each content type is explicit: concrete, lowercase and without parameters, and neither HTML nor JSON.
+        foreach (var type in new[]
+        {
+            "image/*", "*/*", "application/PDF", "text/plain; charset=utf-8", "pdf", "image/png\n", "", "text/html", "application/xhtml+xml",
+            "application/json", "application/problem+json", "application/ld+json", null!
+        })
+            Invalid(Download(type));
+        Invalid(Download());
+        Invalid(Download("image/png", "image/png"));
+        Invalid(Download("image/png") with { Download = new("preview", ["image/png"]) });
+        Invalid(Download("image/png") with { Download = new("attachment", null!) });
+        // A download sends bytes, not a model, and it is not a page.
+        Invalid(Download("image/png") with { Response = "ItemView" });
+        Invalid(Download("image/png") with { ResponseSchema = FormSchema });
+        Invalid(Download("image/png") with { Page = true });
+    }
+
+    [Fact]
+    public void TM_G02_011_The_sample_s_sign_in_page_and_its_form_are_declarable_beside_identity_s_endpoints()
+    {
+        // The sign-in page is an anonymous page that needs no credential. It posts to identity's declared sign-in endpoint,
+        // which accepts JSON with the antiforgery token that identity's own endpoint issues, so the page sends it from script;
+        // it is no form post of its own. The note form is a member's page and its POST, which declares antiforgery.
+        var signIn = Page() with { Name = "GetSignInPage", Route = "/sign-in", Authorization = "Anonymous", Authentication = "none" };
+        var inventory = FrameworkApi.Inventory with { Endpoints = [.. FrameworkApi.Inventory.Endpoints, signIn, Page(), Page("POST")] };
+        inventory.Validate();
+        Assert.False(signIn.Antiforgery);
+        Assert.True(Page("POST").Antiforgery);
+        Assert.Equal(("POST", false, false), (FrameworkApi.Endpoint("SignIn").Method, FrameworkApi.Endpoint("SignIn").Page,
+            FrameworkApi.Endpoint("SignIn").Antiforgery));
+        Assert.Equal("Anonymous", FrameworkApi.Endpoint("GetAntiforgery").Authorization);
+    }
+
+    [Fact]
+    public void TM_G02_011_An_upload_declares_its_explicit_request_media_types()
+    {
+        Valid(Upload("image/png", "application/pdf"));
+        Valid(Upload(ApiMediaTypes.Binary) with { Method = "PUT" });
+        Valid(Upload("text/plain") with { Response = "ItemView" });
+        Valid(FormUpload());
+        Valid(Page("POST") with { Upload = new([ApiMediaTypes.Multipart]) });
+        // Each binary type is explicit: concrete, lowercase and without parameters; neither HTML, JSON nor another form encoding.
+        foreach (var type in new[]
+        {
+            "image/*", "*/*", "multipart/*", "multipart/form-data; boundary=x", "Image/PNG", "image/png\n", "", "text/html", "application/xhtml+xml",
+            "application/json", "application/ld+json", ApiMediaTypes.Form, "multipart/mixed", null!
+        })
+            Invalid(Upload(type));
+        Invalid(Upload());
+        Invalid(Upload("image/png", "image/png"));
+        Invalid(Upload("image/png") with { Upload = new(null!) });
+        // A form upload is exactly multipart/form-data, never mixed with binary types.
+        Invalid(Upload(ApiMediaTypes.Multipart, "image/png"));
+        // An upload's body is the upload: a POST or PUT with no JSON request.
+        Invalid(Upload("image/png") with { Method = "GET", Mutation = false });
+        Invalid(Upload("image/png") with { Method = "PATCH" });
+        Invalid(Upload("image/png") with { Request = "ItemView" });
+        Invalid(Upload("image/png") with { RequestSchema = FormSchema });
+        // A form post declares antiforgery, a page's form and a form upload alike, and a binary upload does not; a page's form
+        // uploads only as multipart/form-data.
+        Invalid(FormUpload() with { Antiforgery = false });
+        Invalid(Upload("image/png") with { Antiforgery = true });
+        Invalid(Page("POST") with { Upload = new(["image/png"]) });
+        Invalid(Page("POST") with { Upload = new([ApiMediaTypes.Multipart]), Antiforgery = false });
+        // Generated clients send JSON only, so an upload is never client-visible, binary or form alike, though the same client
+        // endpoint without the upload is.
+        var client = Upload("image/png") with
+        {
+            Route = "/api/v{version}/t/{tenant}/attachments", ClientVisible = true, Versioned = true, Idempotent = true, Response = "ItemView"
+        };
+        Valid(client with { Upload = null });
+        Invalid(client);
+        Invalid(client with { Upload = new([ApiMediaTypes.Multipart]), Antiforgery = true });
+    }
+
+    [Fact]
+    public void TM_G02_011_A_client_visible_endpoint_answers_JSON()
+    {
+        // Generated client methods read JSON, so no text, page or download response is ever a client's.
+        var client = new ApiEndpoint("GetItem", "GET", "/api/v{version}/items/{id}", "Anonymous", null, true, null, "ItemView");
+        Valid(client);
+        Invalid(client with { ResponseMediaType = ApiMediaTypes.PlainText });
+        Invalid(client with { ResponseMediaType = "application/xml" });
+        Invalid(client with { ResponseMediaType = ApiMediaTypes.Html, Page = true, Authentication = "session" });
+        Invalid(client with { ResponseMediaType = ApiMediaTypes.Binary, Download = new("attachment", ["image/png"]) });
+        // Health's plain text stays an inventoried response that no client calls.
+        Valid(FrameworkApi.Endpoint("GetLiveness"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TM_G02_007_A_form_post_never_maps_without_its_antiforgery_validation(bool upload)
+    {
+        var form = (upload ? FormUpload() : Page("POST")) with { Authorization = "Anonymous" };
+        await using var app = WebApplication.CreateSlimBuilder().Build();
+        app.MapPost(form.Route, () => Results.Content("<p>Saved</p>", ApiMediaTypes.Html)).AllowAnonymous().WithApiContract(form);
+        var declared = Assert.Single(ApiEndpoints.Describe(Source(app)).Endpoints);
+        Assert.True(declared.Antiforgery && declared.Page != upload);
+
+        // The ingress validates the token unless the endpoint opts out, so an endpoint that opts out, before or after its
+        // declaration, is not the declared form post: the inventory check refuses the host, and the endpoint refuses each request.
+        foreach (var before in new[] { true, false })
+        {
+            await using var optedOut = WebApplication.CreateSlimBuilder().Build();
+            var invoked = false;
+            var mapped = optedOut.MapPost(form.Route, () => { invoked = true; return Results.Content("<p>Saved</p>", ApiMediaTypes.Html); })
+                .AllowAnonymous();
+            if (before) mapped.DisableAntiforgery().WithApiContract(form);
+            else mapped.WithApiContract(form).DisableAntiforgery();
+            var refused = Assert.Throws<InvalidOperationException>(() => ApiEndpoints.Describe(Source(optedOut)));
+            Assert.Contains("antiforgery", refused.Message, StringComparison.Ordinal);
+
+            var endpoint = Assert.Single(Source(optedOut).Endpoints);
+            var context = new DefaultHttpContext { RequestServices = optedOut.Services };
+            context.Response.Body = new MemoryStream();
+            context.SetEndpoint(endpoint);
+            await endpoint.RequestDelegate!(context);
+            Assert.Equal(500, context.Response.StatusCode);
+            Assert.False(invoked);
+        }
+    }
+
+    [Fact]
     public void TM_G02_014_Only_explicit_nonsecret_definitions_can_be_client_visible()
     {
         var version = SemanticVersion.Parse("1.0.0");
@@ -70,4 +228,25 @@ public sealed class ContractDefinitionTests
     }
 
     private static EndpointDataSource Source(WebApplication app) => new CompositeEndpointDataSource(((IEndpointRouteBuilder)app).DataSources);
+
+    private static readonly JsonElement FormSchema = JsonDocument.Parse("""
+        {"type":"object","properties":{"title":{"type":"string"}},"required":["title"]}
+        """).RootElement;
+
+    private static ApiEndpoint Page(string method = "GET") => new(method[0] + method[1..].ToLowerInvariant() + "NoteForm", method,
+        "/t/{tenant}/notes/new", "MemberOnly", null, false, null, null, Mutation: method != "GET", Versioned: false,
+        ResponseMediaType: ApiMediaTypes.Html, Authentication: "session", Page: true, Antiforgery: method == "POST");
+
+    private static ApiEndpoint Download(params string[] types) => new("DownloadAttachment", "GET", "/t/{tenant}/attachments/{attachment}/content",
+        "MemberOnly", null, false, null, null, Versioned: false, ResponseMediaType: ApiMediaTypes.Binary, Authentication: "session",
+        Download: new("attachment", types));
+
+    private static ApiEndpoint Upload(params string[] types) => new("UploadAttachment", "POST", "/t/{tenant}/attachments", "MemberOnly", null,
+        false, null, null, Mutation: true, Versioned: false, Authentication: "session", Upload: new(types));
+
+    private static ApiEndpoint FormUpload() => Upload(ApiMediaTypes.Multipart) with { Antiforgery = true };
+
+    private static ApiInventory InventoryOf(ApiEndpoint endpoint) => new(1, 1, [new ApiModel("ItemView", [new("Id", "uuid")])], [endpoint]);
+    private static void Valid(ApiEndpoint endpoint) => InventoryOf(endpoint).Validate();
+    private static void Invalid(ApiEndpoint endpoint) => Assert.Throws<FormatException>(() => InventoryOf(endpoint).Validate());
 }

@@ -150,6 +150,7 @@ public sealed class ArchitectureDiscoveryTests
     [InlineData("event-role")]
     [InlineData("names-grammar")]
     [InlineData("duplicate-field")]
+    [InlineData("composition-root-diagnostic")]
     public void Policy_and_prose_drift_is_rejected(string mutation)
     {
         var graph = new ArchitectureFixture();
@@ -170,10 +171,51 @@ public sealed class ArchitectureDiscoveryTests
                 graph.Files[NamesAndLayoutContract.CompanionPath] = names.ToJsonString();
                 break;
             case "duplicate-field": break;
+            case "composition-root-diagnostic": rules["diagnostics"]!.AsObject().Remove("DEP014"); break;
             default: throw new ArgumentOutOfRangeException(nameof(mutation));
         }
         graph.Files[ArchitecturePolicy.RulesPath] = rules.ToJsonString();
         if (mutation == "duplicate-field") graph.Files[ArchitecturePolicy.RulesPath] = graph.Files[ArchitecturePolicy.RulesPath].Replace("\"formatVersion\":1", "\"formatVersion\":1,\"formatVersion\":1");
         Assert.Contains(graph.Validate(), error => error.StartsWith("DEP013: The dependency companion, guide and names contract must agree.", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("prefix")]
+    [InlineData("suffix")]
+    [InlineData("role")]
+    [InlineData("tests")]
+    public void The_composition_root_stays_the_recorded_decision_even_when_companion_and_guide_agree(string mutation)
+    {
+        // Widening the role needs a new decision, not a companion edit with a regenerated guide.
+        var graph = new ArchitectureFixture();
+        Assert.Empty(graph.Validate());
+        var rules = JsonNode.Parse(graph.Files[ArchitecturePolicy.RulesPath])!;
+        string row;
+        string widened;
+        switch (mutation)
+        {
+            case "prefix":
+                rules["compositionRootPrefix"] = "Modularyn.Tooling.";
+                (row, widened) = ("| `compositionRootPrefix` | `Modularyn.Tooling.Samples.` |", "| `compositionRootPrefix` | `Modularyn.Tooling.` |");
+                break;
+            case "suffix":
+                rules["compositionRootSuffix"] = ".Hosting";
+                (row, widened) = ("| `compositionRootSuffix` | `.Host` |", "| `compositionRootSuffix` | `.Hosting` |");
+                break;
+            case "tests":
+                rules["compositionRootTestSuffix"] = ".Host.Tests";
+                (row, widened) = ("| `compositionRootTestSuffix` | `.Tests` |", "| `compositionRootTestSuffix` | `.Host.Tests` |");
+                break;
+            case "role":
+                rules["compositionRootReferences"]!.AsArray().Add("domain");
+                row = "| `compositionRootReferences` | `application-contracts`, `application-services`, `persistence-adapter`, `http-endpoints` |";
+                widened = row[..^2] + ", `domain` |";
+                break;
+            default: throw new ArgumentOutOfRangeException(nameof(mutation));
+        }
+        Assert.Contains(row, graph.Files[ArchitecturePolicy.GuidePath], StringComparison.Ordinal);
+        graph.Files[ArchitecturePolicy.RulesPath] = rules.ToJsonString();
+        graph.Files[ArchitecturePolicy.GuidePath] = graph.Files[ArchitecturePolicy.GuidePath].Replace(row, widened, StringComparison.Ordinal);
+        Assert.Equal(["DEP013: The dependency companion, guide and names contract must agree. composition root role"], graph.Validate());
     }
 }

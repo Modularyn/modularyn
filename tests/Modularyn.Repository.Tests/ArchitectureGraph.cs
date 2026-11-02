@@ -51,6 +51,9 @@ internal static partial class ArchitectureContract
                 if (edge.Kind == "PackageReference" && (edge.Version is null || !Regex.IsMatch(edge.Version, policy.Text("paidCommunityVersionPattern"),
                     RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)))) Reject("DEP005");
             }
+            // A composition root composes module implementations, so no project may depend on it and reach them through it,
+            // except its own sample's test project, which runs the real host.
+            if (policy.CompositionRoot(target) && !policy.SampleTests(source, target)) Reject("DEP014");
             if (source.IsTest) continue;
             if (target.IsTest)
             {
@@ -71,7 +74,9 @@ internal static partial class ArchitectureContract
                 }
                 else if (source.Module.Length == 0)
                 {
-                    if (target.Role != policy.Text("eventContractRole")) Reject("DEP009");
+                    // Only a composition root reaches past a module's contracts, and only to its listed implementation roles.
+                    var allowed = policy.CompositionRoot(source) ? policy.List("compositionRootReferences") : [policy.Text("eventContractRole")];
+                    if (!allowed.Contains(target.Role, StringComparer.Ordinal)) Reject("DEP009");
                 }
                 else if (!policy.Targets("otherModuleReferences", source.Role).Contains(target.Role, StringComparer.Ordinal)) Reject("DEP009");
             }

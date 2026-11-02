@@ -1,0 +1,86 @@
+using Modularyn.Modules.Files.Application.Contracts;
+
+namespace Modularyn.Modules.Files.Application;
+
+/// <summary>
+/// An opt-in release policy for a host that accepts releasing content nobody has scanned. It releases a pending version only
+/// when the type detected from its verified bytes is on the host's allowlist and its length is at most the host's maximum.
+/// Every other version, including one whose type its bytes do not confirm, stays in quarantine, pending and unreadable, where
+/// a later policy or the deployment's own decision may still handle it. It does no malware or content
+/// scanning and makes no file safe: it reads the bytes only to detect their type and count them, and never consults the
+/// display name. Files never installs it; a host constructs it with its allowlist and maximum and passes it to
+/// <see cref="FileService"/>.
+/// </summary>
+public sealed class AllowlistFileReleasePolicy : IFileReleasePolicy
+{
+    private const int BufferLength = 81920;
+
+    // A version this policy does not release stays in quarantine as it was: pending, not rejected, which would be final.
+    private const FileReleaseVerdict Refused = FileReleaseVerdict.Defer;
+
+    /// <summary>
+    /// The largest maximum a host may give, 1 GiB: the largest request body the ingress admits, so no upload over HTTP is
+    /// larger. The Files module fixes no upload limit of its own; the store's maximum is the deployment's.
+    /// </summary>
+    public const long MaximumLengthLimit = 1024L * 1024 * 1024;
+
+    /// <summary>
+    /// Active or executable content the policy never releases, even when a host lists it: HTML, XHTML, SVG and XML, which a
+    /// browser or viewer runs script or markup in, PostScript, which is itself a program, and the executables detection recognizes.
+    /// </summary>
+    public static IReadOnlySet<string> ActiveContentTypes { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        FileContentTypes.Html, "application/xhtml+xml", FileContentTypes.Svg, FileContentTypes.Xml, "application/xml", FileContentTypes.PostScript,
+        FileContentTypes.WindowsExecutable, FileContentTypes.Executable, FileContentTypes.MachExecutable
+    };
+
+    /// <param name="allowedContentTypes">
+    /// The detected types to release, each one that detection returns and recognizes, and none of <see cref="ActiveContentTypes"/>.
+    /// </param>
+    /// <param name="maximumLength">The largest version to release, in bytes, from 1 to <see cref="MaximumLengthLimit"/>.</param>
+    public AllowlistFileReleasePolicy(IEnumerable<string> allowedContentTypes, long maximumLength)
+    {
+        ArgumentNullException.ThrowIfNull(allowedContentTypes);
+        var allowed = allowedContentTypes.ToHashSet(StringComparer.Ordinal);
+        // Detection returns the generic binary type for bytes it does not recognize, so that type is never on an allowlist.
+        if (allowed.Count == 0 || !allowed.IsSubsetOf(FileContentTypes.Detectable) || allowed.Contains(FileContentTypes.Binary))
+            throw new ArgumentException("Allow only types that detection recognizes.", nameof(allowedContentTypes));
+        if (allowed.Overlaps(ActiveContentTypes))
+            throw new ArgumentException("The allowlist policy never releases active or executable content.", nameof(allowedContentTypes));
+        ArgumentOutOfRangeException.ThrowIfLessThan(maximumLength, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(maximumLength, MaximumLengthLimit);
+        AllowedContentTypes = allowed;
+        MaximumLength = maximumLength;
+    }
+
+    public IReadOnlySet<string> AllowedContentTypes { get; }
+    public long MaximumLength { get; }
+
+    public async ValueTask<FileReleaseVerdict> DecideAsync(FileReleaseCandidate candidate, Stream content, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(candidate);
+        ArgumentNullException.ThrowIfNull(content);
+        if (candidate.Length < 0 || candidate.Length > MaximumLength || !AllowedContentTypes.Contains(candidate.ContentType))
+            return Refused;
+        // The type is detected again from the verified bytes rather than taken from the record; a record and bytes that
+        // disagree leave the type uncertain.
+        var head = new byte[(int)Math.Min(candidate.Length, FileContentTypes.SniffLength)];
+        if (await content.ReadAtLeastAsync(head, head.Length, throwOnEndOfStream: false, cancellationToken).ConfigureAwait(false) != head.Length
+            || FileContentTypes.Detect(head) != candidate.ContentType)
+            return Refused;
+        // Detection calls a header text when it holds no binary data byte, or when it starts with a byte-order mark; text is
+        // confirmed only when no byte of the whole content is one, so UTF-16 text, whose bytes include them, is not released.
+        var text = candidate.ContentType == FileContentTypes.PlainText;
+        if (text && FileContentTypes.HasBinaryData(head)) return Refused;
+        var length = (long)head.Length;
+        var buffer = new byte[BufferLength];
+        int read;
+        while ((read = await content.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+        {
+            length += read;
+            if (length > candidate.Length || text && FileContentTypes.HasBinaryData(buffer.AsSpan(0, read))) return Refused;
+        }
+        // The bytes must also number exactly the verified length.
+        return length == candidate.Length ? FileReleaseVerdict.Release : Refused;
+    }
+}

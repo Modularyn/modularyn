@@ -35,7 +35,8 @@ Every edge must satisfy every applicable rule. An allowed family does not bypass
 a role rule. Within a module, only the listed role edges are allowed. Across
 modules, only the listed consumer roles can use `.Application.Contracts`, which
 also contains versioned event contracts. There is no new event suffix. A
-non-module consumer can reference a module only at `.Application.Contracts`.
+non-module consumer can reference a module only at `.Application.Contracts`,
+unless it is a composition root.
 
 The support-family table applies when a module references a non-module package.
 Domain and application contracts additionally limit Framework targets to the
@@ -56,6 +57,43 @@ literal NuGet version alone is a minimum, so the lock is part of the pin.
 The offline graph check validates the declaration; the existing lock checks and
 locked restore validate resolution. Package publication is a release
 fact and cannot be established by this offline source check.
+
+## Composition roots
+
+An application host must register module services, map their endpoints and
+configure their persistence adapters, which live in module implementation
+projects. A composition root is the one project that may do so: a project whose
+identifier starts with `Modularyn.Tooling.Samples.`, names its sample in at least
+one further segment and ends with `.Host`, such as
+`Modularyn.Tooling.Samples.TeamWorkspace.Host`. It may reference a module's
+application services, HTTP endpoints and persistence adapters as well as its
+application contracts, and the framework through Tooling's family row. It still
+cannot reference a module's domain, client or UI adapter, and every other rule
+applies to it: family, edition, test references and cycles.
+
+Only the same sample's test project may reference a composition root: the test
+project whose identity is the root's with `.Tests` in place of `.Host`, such as
+`tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests` for
+`Modularyn.Tooling.Samples.TeamWorkspace.Host`, so the sample's end-to-end tests
+run the real host. No other project may reference one, whether by project or
+package reference and whether it is a product or a test: not another sample's
+tests, not a test project named for the host package itself, and not a product
+(DEP014). Module implementations therefore reach no other product through a
+host. Like every test project, the sample's tests accompany the product of their
+own name, such as `Modularyn.Tooling.Samples.TeamWorkspace` (DEP001), which is
+not a composition root.
+
+DEP014 checks direct references only. References between test projects are not
+checked, as they were not before composition roots, so a test project that
+references a sample's own test project reaches that sample's host transitively.
+No product can, since DEP012 keeps every product from a test project. SEC-08
+carries that case.
+
+DEP009 stays in force for every other project, other Tooling projects included:
+a project under `Modularyn.Tooling.Samples.` that does not end in `.Host`, and a
+`.Host` project outside that prefix, reach a module only at
+`.Application.Contracts`. A composition-root role for applications built on
+Modularyn is a later decision.
 
 <!-- dependency-policy:start -->
 
@@ -126,6 +164,15 @@ An empty target set means no reference is allowed in that category.
 | `client` | `Framework` |
 | `ui-adapter` | `Framework`, `UI` |
 
+#### Composition roots
+
+| Setting | Value |
+|---|---|
+| `compositionRootPrefix` | `Modularyn.Tooling.Samples.` |
+| `compositionRootSuffix` | `.Host` |
+| `compositionRootTestSuffix` | `.Tests` |
+| `compositionRootReferences` | `application-contracts`, `application-services`, `persistence-adapter`, `http-endpoints` |
+
 #### Classification and boundary values
 
 | Setting | Value |
@@ -162,6 +209,7 @@ An empty target set means no reference is allowed in that category.
 | `DEP011` | Dependency cycles are forbidden. |
 | `DEP012` | Product projects must not reference test projects. |
 | `DEP013` | The dependency companion, guide and names contract must agree. |
+| `DEP014` | No project but its sample's own tests may reference a composition root. |
 
 <!-- dependency-policy:end -->
 
@@ -208,9 +256,10 @@ construct in-memory projects and references through the same discovery and graph
 checker, assert that their legal starting graph passes, then assert the specific
 diagnostic after the forbidden edge is introduced. They cover both forms of
 Community-to-paid references, every role matrix cell, family restrictions,
-cross-module implementation access, paid project references and version failures,
-platform adapters, hidden reference declarations, package and module cycles, and
-policy/prose drift. Fixtures never create product projects on disk.
+cross-module implementation access, composition roots and the projects that are
+not one, paid project references and version failures, platform adapters, hidden
+reference declarations, package and module cycles, and policy/prose drift.
+Fixtures never create product projects on disk.
 
 CI restores locked dependencies, builds Release and runs the repository test
 project on Linux, Windows and macOS at the exact checked-out head. A

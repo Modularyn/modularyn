@@ -67,9 +67,15 @@ public static class FileContentTypes
         if (Starts(head, 0x7F, 0x45, 0x4C, 0x46)) return Executable;
         if (Starts(head, 0xFE, 0xED, 0xFA, 0xCE) || Starts(head, 0xFE, 0xED, 0xFA, 0xCF)
             || Starts(head, 0xCE, 0xFA, 0xED, 0xFE) || Starts(head, 0xCF, 0xFA, 0xED, 0xFE)) return MachExecutable;
-        foreach (var value in head)
-            if (value is <= 0x08 or 0x0B or (>= 0x0E and <= 0x1A) or (>= 0x1C and <= 0x1F)) return Binary;
-        return PlainText;
+        return HasBinaryData(head) ? Binary : PlainText;
+    }
+
+    /// <summary>Whether the bytes hold one of the WHATWG binary data bytes, by which detection tells unrecognized content from text.</summary>
+    internal static bool HasBinaryData(ReadOnlySpan<byte> bytes)
+    {
+        foreach (var value in bytes)
+            if (value is <= 0x08 or 0x0B or (>= 0x0E and <= 0x1A) or (>= 0x1C and <= 0x1F)) return true;
+        return false;
     }
 
     private static bool Starts(ReadOnlySpan<byte> head, params ReadOnlySpan<byte> prefix) => head.StartsWith(prefix);

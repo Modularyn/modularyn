@@ -157,7 +157,7 @@ public sealed class EvidenceRecordTests
             .Select(package => (JsonNode)new JsonObject { ["id"] = package, ["version"] = null }).ToArray());
         record["implementationArtifacts"] = new JsonArray(new JsonObject
         {
-            ["location"] = "src/Tooling/Modularyn.Tooling.Samples.TeamWorkspace/Modularyn.Tooling.Samples.TeamWorkspace.csproj", ["sha256"] = null
+            ["location"] = "src/Tooling/Modularyn.Tooling.Samples.TeamWorkspace.Host/Modularyn.Tooling.Samples.TeamWorkspace.Host.csproj", ["sha256"] = null
         });
         record["documentation"] = new JsonArray("docs/evidence/README.md", "docs/acceptance/AC-001.md");
         record["knownLimitations"] = new JsonArray("Unexecuted metadata fixture; versions, artifacts and results remain unmeasured.");

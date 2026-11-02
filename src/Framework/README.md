@@ -444,6 +444,16 @@ package.
    antiforgery cookie is `__Host-Modularyn-Antiforgery`, Secure, HttpOnly and
    SameSite=Strict.
 
+Before these steps, the ingress disables content sniffing: every response the
+pipeline produces, its own refusals and redirects included, carries
+`X-Content-Type-Options: nosniff`, set as the response starts so that no later
+code can change or remove it. A browser therefore renders a response only as its
+`Content-Type` says, never as HTML it guessed from the body. Responses produced
+before the pipeline runs, Kestrel's own and the host's host filtering's empty 400
+for an unconfigured host, do not carry it. Response media types are declared in
+the [API inventory](Modularyn.Framework.Api.Contracts/README.md), and not yet
+checked at runtime against what a handler sends; SEC-08 carries that check.
+
 The options are validated before startup: public and cross-origin origins are
 exact HTTPS origins with ASCII hosts and no wildcard, path, query or user
 information; proxies are canonical single addresses; methods and headers are
@@ -679,6 +689,8 @@ The controls of TB-G02-04, identity and sessions, are recorded in
 and those of TB-G02-05, authorization, with SEC-05's parts of TM-G02-017,
 TM-G02-028 and TM-G02-033, in
 [authorization](Modularyn.Framework.Authorization/README.md#threat-model-controls).
+SEC-09's part of TM-G02-011, of TB-G02-03, the declared pages and downloads, is
+recorded in [the API conventions](Modularyn.Framework.Api/README.md#threat-model-controls).
 
 - **TM-G02-001, partly.** Delivered: the deployment lock and package integrity
   as a trust validator, and MDC108 for a host without one. Tests:
@@ -705,7 +717,9 @@ TM-G02-028 and TM-G02-033, in
   and `OwnershipTests.Host_refuses_declared_migrations_when_the_completion_gate_was_not_registered`).
   Declared endpoints: the inventory check refuses an undeclared or misclassified
   endpoint before the server listens (CODE-06; `Hosting.Tests`
-  `ApiHostingTests.TM_G02_011_*`). Remaining: disabling a module with a
+  `ApiHostingTests.TM_G02_011_*`), pages and downloads included, each declared
+  with its response media type (SEC-09; `Sdk.Client.Tests`
+  `ContractDefinitionTests.TM_G02_011_*`). Remaining: disabling a module with a
   report of its dependents, active work and retained data (FND-003), which no
   G-02 work order covers: CODE-02's scope excludes it and the tool command is
   DEV-005, Tooling, at G-06. Under the restart model, a selection that drops a
@@ -728,6 +742,12 @@ TM-G02-028 and TM-G02-033, in
   `MigrationCoordinationTests.A_different_registry_cannot_reassign_persisted_table_and_history_ownership`;
   `Identity.Persistence.EfCore.Tests`
   `MigrationTests.TM_G02_004_The_migration_creates_exactly_the_mapped_columns_in_the_module_schema`.
+  A sample's host, the one composition root that the dependency rules allow, may
+  reference modules' persistence adapters to configure them, but only that
+  sample's own test project may reference it, so no module reaches another's
+  persistence through it, and DEP009 holds for every other project (SEC-09;
+  `Repository.Tests` `CompositionRootTests`; removing DEP014 or its one
+  exception, or narrowing or widening either, fails them).
 - **TM-G02-005, deferred.** No extension-property mechanism exists, and no G-02
   work order covers FND-005.
 - **TM-G02-006, partly.** Delivered: declared-proxy forwarded headers, host
@@ -745,9 +765,21 @@ TM-G02-028 and TM-G02-033, in
   (`AC_003_N02_*`, `TM_G02_007_*`). The session cookie is the identity module's
   `__Host-` cookie, and antiforgery tokens are validated against the
   authenticated user (SEC-03; `AuthenticationOrderTests.TM_G02_007_*` and
-  `Identity.HttpApi.Tests` `SessionCookieTests.TM_G02_007_*`). Remaining: no state
-  change on safe methods, which the ingress cannot observe, through endpoint
-  conventions (CODE-06) and contract tests (SEC-08).
+  `Identity.HttpApi.Tests` `SessionCookieTests.TM_G02_007_*`). Every form post, a
+  page's form or a form upload, declares antiforgery in the inventory, and a
+  declared form post that opts out of validation never maps: the inventory check
+  refuses the host and the endpoint refuses each request (SEC-09;
+  `Sdk.Client.Tests` `ContractDefinitionTests.TM_G02_007_*`; removing either
+  check fails it).
+  Content sniffing is disabled on every response the pipeline produces, so a
+  response whose type a handler gets wrong is never rendered as HTML (SEC-09;
+  `Ingress.Tests` `ContentTypeOptionsTests.TM_G02_011_*`; removing the header, or
+  setting it before the handler instead of as the response starts, fails it).
+  Remaining: no state change on safe methods, which the ingress cannot observe,
+  through endpoint conventions (CODE-06) and contract tests (SEC-08); a runtime
+  check that each response's type is the one its endpoint declares, since
+  response media types are declared but not yet checked at runtime (SEC-08); the
+  sample's pages and their browser evidence (CODE-09, SEC-08).
 - **TM-G02-008, deferred.** Operation-specific input contracts and server-derived
   fields (CODE-06; SEC-08 for AC-003-N01).
 - **TM-G02-009, partly.** Delivered: body size, header size and count, request
