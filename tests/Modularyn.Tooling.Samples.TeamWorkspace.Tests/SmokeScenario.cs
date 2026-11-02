@@ -9,6 +9,8 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Modularyn.Framework.Api.Contracts;
+using Modularyn.Framework.Tenancy;
+using Modularyn.Modules.Identity.Application.Contracts;
 using Modularyn.Modules.Files.Application.Contracts;
 using Modularyn.Tooling.Samples.TeamWorkspace.Host;
 using FileVersionInfo = Modularyn.Modules.Files.Application.Contracts.FileVersionInfo;
@@ -123,6 +125,7 @@ public static class SmokeScenario
         using (var expired = await DownloadAsync(ownerClient, prefix, grant.Token, token))
             Check.That(expired.StatusCode == HttpStatusCode.NotFound, "expired-grant");
         using (var contract = await client.GetAsync(prefix + "/contract", token)) Success(contract, "active-openapi-inventory");
+        await HostAdministrationAsync(host, ownerClient, client, owner, member, token);
         using (var audit = await ownerClient.GetAsync(prefix + "/audit", token))
         {
             Success(audit, "audit-access");
@@ -140,6 +143,24 @@ public static class SmokeScenario
         Success(result, "identity-sign-in");
         using var current = await client.GetAsync("/identity/current-user", token);
         Success(current, "identity-session");
+    }
+
+    // The host endpoints run only in a host scope that the caller's own host authority grants: owning a tenant confers none.
+    private static async Task HostAdministrationAsync(SmokeHost host, HttpClient ownerClient, HttpClient memberClient, SmokeUser owner, SmokeUser member,
+        CancellationToken token)
+    {
+        using (var refused = await SendAsync(ownerClient, HttpMethod.Post, "/api/v1/host/tenants", new WorkspaceEndpoints.TenantCreation("Refused tenant"), token))
+            Check.That(refused.StatusCode == HttpStatusCode.Forbidden, "host-tenants-refused-without-host-authority");
+        using (var refused = await SendAsync(memberClient, HttpMethod.Post, "/api/v1/host/memberships",
+            new WorkspaceEndpoints.MembershipChange(member.Id, Guid.NewGuid()), token))
+            Check.That(refused.StatusCode == HttpStatusCode.Forbidden, "host-memberships-refused-without-host-authority");
+        await host.GrantHostAuthorityAsync(owner.Id, [TenantDirectoryAdministration.OperationId, IdentityHostOperations.MembershipsId], token);
+        var created = await JsonAsync<IdentityView>(ownerClient, HttpMethod.Post, "/api/v1/host/tenants", new WorkspaceEndpoints.TenantCreation("Created tenant"), token);
+        var projects = "/api/v1/t/" + created.Id.ToString("D") + "/projects";
+        using (var before = await memberClient.GetAsync(projects, token)) Check.That(before.StatusCode == HttpStatusCode.NotFound, "created-tenant-not-yet-joined");
+        await JsonAsync<JsonElement>(ownerClient, HttpMethod.Post, "/api/v1/host/memberships", new WorkspaceEndpoints.MembershipChange(member.Id, created.Id), token);
+        using (var after = await memberClient.GetAsync(projects, token))
+            Check.That(after.StatusCode == HttpStatusCode.Forbidden, "membership-added-confers-no-permission");
     }
 
     private static async Task PresentationAsync(HttpClient owner, HttpClient member, string prefix, CancellationToken token)

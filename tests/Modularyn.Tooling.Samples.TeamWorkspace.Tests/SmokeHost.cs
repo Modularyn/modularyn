@@ -118,7 +118,7 @@ internal sealed class SmokeHost : IAsyncDisposable
             ["Modularyn:Authorization:HostOperators:1:Operations:0"] = WorkspaceDefinition.Dispatch.Id
         };
         var operations = new[] { TenantDirectoryAdministration.OperationId, IdentityHostOperations.AccountsId,
-            IdentityHostOperations.MembershipsId, AuthorizationModule.TenantOwnersOperation.Id };
+            IdentityHostOperations.MembershipsId, AuthorizationModule.TenantOwnersOperation.Id, AuthorizationModule.HostAuthorityOperation.Id };
         for (var index = 0; index < operations.Length; index++) config["Modularyn:Authorization:HostOperators:0:Operations:" + index] = operations[index];
         app = await TeamWorkspaceHost.BuildAsync(new ConfigurationBuilder().AddInMemoryCollection(config).Build(), builder =>
         {
@@ -151,6 +151,15 @@ internal sealed class SmokeHost : IAsyncDisposable
         var decision = await scope.Services.GetRequiredService<TenantExecution>().EstablishServiceHostAsync(scope.Principal, operation, "Create isolated smoke data", token);
         Check.That(decision.Succeeded, "seed-host-scope");
         return decision.Context!;
+    }
+
+    /// <summary>Stores host authority for a user, granted in the fixture service's audited host scope.</summary>
+    internal async Task GrantHostAuthorityAsync(Guid user, IEnumerable<string> operations, CancellationToken token)
+    {
+        var host = await HostScopeAsync(AuthorizationModule.HostAuthorityOperation.Id, token);
+        foreach (var operation in operations)
+            Check.That(await Services.GetRequiredService<HostAuthorityAdministration>().GrantAsync(host, new(ActorKind.User, user.ToString("D")), operation, token),
+                "grant-host-authority");
     }
 
     internal async Task<Guid> TenantAsync(CancellationToken token) => await Services.GetRequiredService<TenantDirectoryAdministration>()

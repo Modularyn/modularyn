@@ -36,6 +36,7 @@ The scenario covers:
 - A stalled download followed by another download through the single read slot.
 - Durable inbox activity and one digest per occurrence in the member's IANA zone.
 - Active OpenAPI inventory and separately authorized audit access.
+- Host tenant creation and membership addition refused without host authority, even to a tenant owner, and working once the owner holds stored host authority for each.
 
 The scenario does not establish browser automation, container execution or
 exhaustive G-02 acceptance.
