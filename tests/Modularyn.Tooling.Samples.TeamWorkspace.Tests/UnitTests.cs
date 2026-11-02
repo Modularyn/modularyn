@@ -54,6 +54,24 @@ public sealed class UnitTests
         try { _ = new DailySchedule("../localtime", TimeOnly.MinValue); throw new SmokeFailure("iana-path-refusal"); }
         catch (ArgumentException) { }
     }
+
+    [Fact]
+    public void The_fixture_run_directory_is_owner_only_and_outside_the_repository()
+    {
+        // It holds the generated database password, so a run that dies before cleanup must leave nothing in the work tree.
+        DirectoryInfo? repository = new(AppContext.BaseDirectory);
+        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "Modularyn.slnx"))) repository = repository.Parent;
+        Check.That(repository is not null, "repository-root");
+        var path = RunDirectory.NewPath();
+        try
+        {
+            RunDirectory.Create(path);
+            Check.That(!path.StartsWith(repository!.FullName + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase), "run-directory-outside-repository");
+            if (!OperatingSystem.IsWindows())
+                Check.That(File.GetUnixFileMode(path) == (UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute), "run-directory-owner-only");
+        }
+        finally { if (Directory.Exists(path)) Directory.Delete(path, recursive: true); }
+    }
 }
 
 internal sealed class SmokeFailure(string check) : Exception("Smoke check failed: " + check);

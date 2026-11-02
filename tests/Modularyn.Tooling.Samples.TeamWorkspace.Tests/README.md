@@ -7,8 +7,9 @@ the unit tests. `SmokeTests` carries the trait `Requires=PostgreSQL` and runs th
 real-provider scenario, so the real-provider script runs it with the other
 PostgreSQL tests. It runs from a build output under this repository; it finds
 `Modularyn.slnx` by walking upward. All runtime secret files, the key ring and
-BLOBs live in an isolated `.run-*` directory inside this test project and are
-deleted on disposal.
+BLOBs live in an owner-only `modularyn-team-workspace-*` directory in the
+system's temporary directory, never in the repository, and are deleted on
+disposal.
 
 The scenario reads `MODULARYN_TEST_POSTGRESQL` exactly as the repository's database
 script provides it, calls the shared probe, holds `PostgreSqlTestLock`, and creates

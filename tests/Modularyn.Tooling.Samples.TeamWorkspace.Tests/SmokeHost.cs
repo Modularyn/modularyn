@@ -69,18 +69,14 @@ internal sealed class SmokeHost : IAsyncDisposable
         Check.That(session.ServerVersionNumber is >= 180000 and < 190000 && session.Parameters.GetValueOrDefault("is_superuser") == "off", "database-role-and-version");
         var connection = Environment.GetEnvironmentVariable(PostgreSqlTarget.Variable)!;
         var held = await PostgreSqlTestLock.AcquireAsync(connection, token);
-        DirectoryInfo? repository = new(AppContext.BaseDirectory);
-        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "Modularyn.slnx"))) repository = repository.Parent;
-        if (repository is null) { await held.DisposeAsync(); throw new SmokeFailure("workspace-root"); }
-        var root = Path.Combine(repository.FullName, "tests", "Modularyn.Tooling.Samples.TeamWorkspace.Tests", ".run-" + Guid.NewGuid().ToString("N"));
-        var host = new SmokeHost(connection, held, root);
+        var host = new SmokeHost(connection, held, RunDirectory.NewPath());
         try { await host.InitializeAsync(token); return host; }
         catch { await host.DisposeAsync(); throw; }
     }
 
     private async Task InitializeAsync(CancellationToken token)
     {
-        KeyRingDirectory.Create(directory);
+        RunDirectory.Create(directory);
         var keys = Path.Combine(directory, "keys");
         var secrets = Path.Combine(directory, "secrets");
         var blobs = Path.Combine(directory, "blobs");
@@ -223,6 +219,29 @@ internal sealed class SmokeHost : IAsyncDisposable
             finally { await databaseLock.DisposeAsync(); }
         }
     }
+}
+
+/// <summary>
+/// The fixture's run directory, which holds the generated secret file with the database password, the key ring and the
+/// BLOBs. It lives in the system's temporary directory, never in the repository, and is created owner-only.
+/// </summary>
+internal static class RunDirectory
+{
+    /// <summary>A new path in the temporary directory, its links resolved, since the BLOB store refuses links in its path.</summary>
+    internal static string NewPath()
+    {
+        var path = Path.GetFullPath(Path.GetTempPath());
+        var current = Path.GetPathRoot(path)!;
+        foreach (var segment in Path.GetRelativePath(current, path).Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var info = new DirectoryInfo(Path.Combine(current, segment));
+            current = info.LinkTarget is null ? info.FullName : info.ResolveLinkTarget(true)!.FullName;
+        }
+        return Path.Combine(current, "modularyn-team-workspace-" + Guid.NewGuid().ToString("N"));
+    }
+
+    /// <summary>Creates it owner-only: mode 0700 on Unix, and on Windows an access list protected to the current account.</summary>
+    internal static void Create(string path) => KeyRingDirectory.Create(path);
 }
 
 internal sealed class CapturedLogs : ILoggerProvider
