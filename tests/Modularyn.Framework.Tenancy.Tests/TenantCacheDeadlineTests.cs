@@ -7,8 +7,8 @@ namespace Modularyn.Framework.Tenancy.Tests;
 
 // TM-G02-034, in part: the one factory call that concurrent misses share runs under the cache's factory deadline. At the
 // deadline its token fires and every waiter is released with TenantCacheDeadlineException, whether or not the factory stops;
-// and the call is forgotten, so the next caller starts a new one. Time is the test's TimerClock, so the deadline passes
-// without any test waiting for it.
+// the call is forgotten, so the next caller starts a new one; and a value that arrives after the deadline is never cached.
+// Time is the test's TimerClock, so the deadline passes without any test waiting for it.
 public sealed class TenantCacheDeadlineTests : IAsyncDisposable
 {
     private static readonly TimeSpan Deadline = new TenantCacheOptions().FactoryDeadline;
@@ -118,6 +118,31 @@ public sealed class TenantCacheDeadlineTests : IAsyncDisposable
         gate.SetResult();
         foreach (var waiter in others) Assert.Equal("shared", await Released(waiter));
         Assert.False(given.IsCancellationRequested);
+    }
+
+    [Fact]
+    public async Task TM_G02_034_A_value_that_arrives_after_the_deadline_is_never_cached()
+    {
+        var a = await EnterAsync();
+        // A value the factory returns once the deadline has passed is neither delivered nor cached.
+        var entry = Entry("late");
+        await Assert.ThrowsAsync<TenantCacheDeadlineException>(() => Cache.GetOrCreateAsync(a, entry, _ =>
+        {
+            clock.Advance(Deadline);
+            return Task.FromResult("late");
+        }, Cancellation));
+        Assert.Equal("fresh", await Cache.GetOrCreateAsync(a, entry, _ => Task.FromResult("fresh"), Cancellation));
+
+        // Nor does one that arrives after its waiters were released replace the value a later call cached.
+        var abandoned = Entry("abandoned");
+        var gate = new TaskCompletionSource<string>();
+        var released = Cache.GetOrCreateAsync(a, abandoned, _ => gate.Task, Cancellation);
+        clock.Advance(Deadline);
+        await Assert.ThrowsAsync<TenantCacheDeadlineException>(() => Released(released));
+        Assert.Equal("current", await Cache.GetOrCreateAsync(a, abandoned, _ => Task.FromResult("current"), Cancellation));
+        gate.SetResult("late");
+        await gate.Task;
+        Assert.Equal("current", await Cache.GetOrCreateAsync<string>(a, abandoned, _ => throw new InvalidOperationException("Expected a hit."), Cancellation));
     }
 
     [Fact]
