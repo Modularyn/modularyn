@@ -686,17 +686,21 @@ unreachable at once. A fill that overruns its limit fails with
 share a single build, which a waiter's cancellation does not cancel, and a
 failed build is not cached.
 
-The build runs under the cache's factory deadline,
-`TenantCacheOptions.FactoryDeadline`: thirty seconds unless the host passes
-other options to `AddModularynTenancy`, which refuses a deadline outside one
-second to five minutes. At the deadline the build's token fires, apart from
-every waiter's, and every waiter receives `TenantCacheDeadlineException`,
-whether or not the build stops; the build is forgotten, so the next caller
-starts a new one, and a value that arrives after the deadline is neither
-delivered nor cached. A build that ignores its token runs on after its
-waiters are released, until its own bound ends it (`RR-G02-011` in
-[the control map](../../docs/security/control-map/README.md)). A deadline
-fault is an unavailable read and never a default: authorization refuses a
+The build starts on the thread pool, with its first caller's execution
+context, so no caller waits on its synchronous work, and runs under the
+cache's factory deadline, `TenantCacheOptions.FactoryDeadline`: thirty seconds
+unless the host passes other options to `AddModularynTenancy`, which refuses a
+deadline outside one second to five minutes. At the deadline the build's token
+fires, apart from every waiter's, and every waiter, the first caller included,
+receives `TenantCacheDeadlineException`, whether the build stops, ignores its
+token or blocks its thread synchronously. The build is forgotten, so the next
+caller starts a new one; a value that arrives after the deadline is neither
+delivered nor cached; and the fault is observed even when every waiter has
+left. What remains is the build itself (`RR-G02-011` in
+[the control map](../../docs/security/control-map/README.md)): one that
+ignores its token keeps running after its waiters are released, and holds its
+pool thread for as long as it blocks it, until its own bound ends it. A
+deadline fault is an unavailable read and never a default: authorization refuses a
 bounded decision whose fill reaches it with the transient `MAZ008` rather
 than reading the store again, and settings, with the features and bootstrap
 values read through them, report `ValueUnavailableException`. Both fills stop
@@ -1001,10 +1005,12 @@ recorded in [the API conventions](Modularyn.Framework.Api/README.md#threat-model
   principal, and caches rebuilt after a restore (SEC-08; `G02AC004Tests.AC_004_B02_*`
   and `AC_004_R02_*`).
 - **TM-G02-034, partly.** Delivered: one shared build for concurrent misses,
-  independent of a waiter's cancellation, no cached failures, a factory
-  deadline that releases every waiter of a stalled build, forgets the build
-  and caches nothing that arrives after it, and the declared outage behavior
-  of an in-process store that coordinates nothing across processes. Tests:
+  independent of a waiter's cancellation, no cached failures, a build started
+  on the thread pool with its first caller's execution context, a factory
+  deadline that releases every waiter of a stalled, token-ignoring or blocking
+  build, forgets the build, caches nothing that arrives after it and leaves
+  no fault unobserved, and the declared outage behavior of an in-process
+  store that coordinates nothing across processes. Tests:
   `TenantCacheTests.TM_G02_034_*` and `TenantCacheDeadlineTests.TM_G02_034_*`.
   The settings and feature caches use it (CODE-04), and a settings fill that
   overruns its staleness bound or the factory deadline is reported as
@@ -1013,9 +1019,11 @@ recorded in [the API conventions](Modularyn.Framework.Api/README.md#threat-model
   reaches the deadline refuses (`Authorization.Tests`
   `DecisionTests.TM_G02_034_*`). Removal checks: removing the deadline's token,
   the bounded wait, the deadline fault, the flight's removal, the check on a
-  late value, either caller's handling of the fault or either fill's stop at
-  the deadline fails its test. Remaining: a build that ignores its token runs
-  on after its waiters are released, until its own bound ends it
+  late value, the start on the thread pool, the execution context's flow, the
+  observation of the flight's fault, either caller's handling of the fault or
+  either fill's stop at the deadline fails its test. Remaining: a build that
+  ignores its token keeps running after its waiters are released, and holds
+  its pool thread for as long as it blocks it, until its own bound ends it
   (`RR-G02-011`); the operational-recovery evidence of AC-030, a
   website-profile family outside the G-02 reference plan.
 - **TM-G02-053, implemented.** Delivered: every log event, from any category,
