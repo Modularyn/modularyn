@@ -168,61 +168,107 @@ internal static class EvidenceBundle
         return null;
     }
 
-    /// <summary>Every expected row of a project's planned methods, missing rows included. Only the planned identity and a
-    /// bounded state survive; data arguments, messages, traces and output never do.</summary>
+    /// <summary>Every expected row of a project's planned methods, missing rows included. A runner result belongs to a planned
+    /// method by its test identity, the fully qualified type and method the report records, never by its display name, which a
+    /// DisplayName attribute or a data row replaces. A documented theory's row is also named by its exact display name; every
+    /// other planned method has one row, which all of its results make up, so each data row of a theory is required to have
+    /// passed. Only the planned identity and a bounded state survive; data arguments, messages, traces and output never do.</summary>
     internal static List<JsonObject> SanitizeReport(string raw, string project, JsonNode plan, string mode, string format)
     {
-        var expected = new List<(string Display, string Name, string Row)>();
+        var expected = new List<(string Name, string Row, string? Display)>();
         foreach (var test in PlannedTests(plan).Where(test => Str(test["project"]) == project))
+        {
+            var name = Str(test["name"])!;
             foreach (var (row, display) in RowNames(test, mode))
-                if (expected.All(item => item.Display != display)) expected.Add((display, Str(test["name"])!, row));
-        var observed = expected.ToDictionary(item => item.Display, _ => new List<string>(), StringComparer.Ordinal);
-        foreach (var (display, state) in format switch
+                if (expected.All(item => item.Name != name || item.Row != row)) expected.Add((name, row, row == "method" ? null : display));
+        }
+
+        var observed = expected.ToDictionary(item => (item.Name, item.Row), _ => new List<(string? Display, string State)>());
+        foreach (var (identity, display, state) in format switch
                  {
                      "ctrf" => CtrfRows(raw),
                      "trx" => TrxRows(raw),
                      _ => throw new EvidenceRefusal("unknown report format")
                  })
         {
-            if (display is not null && observed.TryGetValue(display, out var states)) states.Add(state);
+            if (identity is null) continue;
+            foreach (var item in expected.Where(item => item.Name == identity && (item.Display is null || item.Display == display)))
+                observed[(item.Name, item.Row)].Add((display, state));
         }
 
         var result = new List<JsonObject>();
-        foreach (var (display, name, row) in expected)
+        foreach (var (name, row, display) in expected)
         {
-            var states = observed[display];
-            Require(states.Count <= 1, "duplicate planned test row");
-            result.Add(new JsonObject { ["name"] = name, ["row"] = row, ["status"] = states.Count == 0 ? "missing" : states[0] });
+            var results = observed[(name, row)];
+            Require(display is null ? results.Select(item => item.Display).Distinct(StringComparer.Ordinal).Count() == results.Count : results.Count <= 1,
+                "duplicate planned test row");
+            var states = results.Select(item => item.State).ToList();
+            // An unexecuted data row blocks its method, even if another row failed.
+            var status = states.Count == 0 ? "missing"
+                : states.FirstOrDefault(state => state is "skipped" or "not-run")
+                ?? (states.Contains("failed", StringComparer.Ordinal) ? "failed" : "passed");
+            result.Add(new JsonObject { ["name"] = name, ["row"] = row, ["status"] = status });
         }
 
         return result;
     }
 
-    private static IEnumerable<(string? Display, string State)> CtrfRows(string raw)
+    // CTRF's test identity is its extra type and method, which xunit v3 records whatever the display name is.
+    private static IEnumerable<(string? Identity, string? Display, string State)> CtrfRows(string raw)
     {
-        var rows = new List<(string?, string)>();
+        var rows = new List<(string?, string?, string)>();
         foreach (var row in Parse(raw)["results"]!["tests"]!.AsArray())
         {
             var item = row!.AsObject();
-            rows.Add((Str(item["name"]), CtrfStates.GetValueOrDefault(Str(item["status"]) ?? "", "not-run")));
+            var extra = item["extra"] as JsonObject;
+            var type = Str(extra?["type"]);
+            var method = Str(extra?["method"]);
+            rows.Add((type is null || method is null ? null : type + "." + method, Str(item["name"]),
+                CtrfStates.GetValueOrDefault(Str(item["status"]) ?? "", "not-run")));
         }
 
         return rows;
     }
 
-    private static IEnumerable<(string? Display, string State)> TrxRows(string raw)
+    // TRX's test identity is the class and method name of the test definition that a result's testId names.
+    private static IEnumerable<(string? Identity, string? Display, string State)> TrxRows(string raw)
     {
         Require(!raw.Contains("<!DOCTYPE", StringComparison.Ordinal) && !raw.Contains("<!ENTITY", StringComparison.Ordinal), "XML entities refused");
         var settings = new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null, IgnoreComments = true };
-        var rows = new List<(string?, string)>();
-        using var reader = XmlReader.Create(new StringReader(raw), settings);
-        while (reader.Read())
+        var results = new List<(string? TestId, string? Display, string State)>();
+        var identities = new Dictionary<string, string>(StringComparer.Ordinal);
+        string? definition = null;
+        using (var reader = XmlReader.Create(new StringReader(raw), settings))
         {
-            if (reader.NodeType == XmlNodeType.Element && reader.LocalName == "UnitTestResult")
-                rows.Add((reader.GetAttribute("testName"), TrxStates.GetValueOrDefault(reader.GetAttribute("outcome") ?? "", "not-run")));
+            while (reader.Read())
+            {
+                if (reader.NodeType != XmlNodeType.Element) continue;
+                switch (reader.LocalName)
+                {
+                    case "UnitTestResult":
+                        results.Add((reader.GetAttribute("testId"), reader.GetAttribute("testName"),
+                            TrxStates.GetValueOrDefault(reader.GetAttribute("outcome") ?? "", "not-run")));
+                        break;
+                    case "UnitTest":
+                        definition = reader.GetAttribute("id");
+                        break;
+                    case "TestMethod" when definition is not null:
+                        var className = reader.GetAttribute("className");
+                        var method = reader.GetAttribute("name");
+                        if (className is not null && method is not null)
+                        {
+                            var identity = className + "." + method;
+                            Require(identities.TryAdd(definition, identity) || identities[definition] == identity, "conflicting test identity");
+                        }
+
+                        definition = null;
+                        break;
+                }
+            }
         }
 
-        return rows;
+        return results.Select(result => (result.TestId is not null && identities.TryGetValue(result.TestId, out var identity) ? identity : null,
+            result.Display, result.State)).ToList();
     }
 
     /// <summary>A planned method's outcome in a mode from its retained rows.</summary>

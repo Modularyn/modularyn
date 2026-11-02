@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using Xunit;
 using static Modularyn.Repository.Tests.EvidenceBundle;
 
@@ -148,23 +149,66 @@ public sealed class EvidenceBundleTests
         var name = Str(test["name"])!;
         var project = Str(test["project"])!;
         var marker = Guid.NewGuid().ToString("N");
-        var ctrf = new JsonObject
-        {
-            ["results"] = new JsonObject
-            {
-                ["tests"] = new JsonArray(
-                    new JsonObject { ["name"] = name, ["status"] = "passed", ["message"] = marker, ["trace"] = marker, ["stdout"] = marker },
-                    new JsonObject { ["name"] = name + "(" + marker + ")", ["status"] = "passed" })
-            }
-        };
-        var rows = SanitizeReport(ctrf.ToJsonString(), project, plan, Host, "ctrf");
+        var first = Ctrf(name, name, "passed");
+        first["message"] = marker;
+        first["trace"] = marker;
+        first["stdout"] = marker;
+        var rows = SanitizeReport(Ctrf(first, Ctrf(name, name + "(" + marker + ")", "passed")), project, plan, Host, "ctrf");
         Assert.DoesNotContain(marker, new JsonArray([.. rows]).ToJsonString(), StringComparison.Ordinal);
         Assert.Equal("passed", Str(rows.First(row => Str(row["name"]) == name)["status"]));
-        var trx = "<TestRun><Results><UnitTestResult testName=\"" + name + "\" outcome=\"Failed\"><Output>" + marker
-            + "</Output></UnitTestResult></Results></TestRun>";
+        var trx = Trx((name, name, "Failed", "<Output>" + marker + "</Output>"));
         rows = SanitizeReport(trx, project, plan, Host, "trx");
         Assert.DoesNotContain(marker, new JsonArray([.. rows]).ToJsonString(), StringComparison.Ordinal);
         Assert.Equal("failed", Str(rows.First(row => Str(row["name"]) == name)["status"]));
+    }
+
+    [Fact]
+    public void A_display_name_never_identifies_a_planned_method()
+    {
+        var plan = Plan;
+        var test = PlannedTests(plan).First();
+        var name = Str(test["name"])!;
+        var project = Str(test["project"])!;
+        // A result of another method, or one with no recorded identity, that displays the planned name supplies nothing.
+        var other = name[..name.LastIndexOf('.')] + ".Another_method";
+        var spoofed = Ctrf(other, name, "passed");
+        var unidentified = new JsonObject { ["name"] = name, ["status"] = "passed" };
+        Assert.Equal("missing", Str(SanitizeReport(Ctrf(spoofed, unidentified), project, plan, Host, "ctrf").Single(row => Str(row["name"]) == name)["status"]));
+        Assert.Equal("missing", Str(SanitizeReport(Trx((other, name, "Passed", "")), project, plan, Host, "trx").Single(row => Str(row["name"]) == name)["status"]));
+        Assert.Equal("missing", Str(SanitizeReport(Trx((null, name, "Passed", "")), project, plan, Host, "trx").Single(row => Str(row["name"]) == name)["status"]));
+    }
+
+    [Theory]
+    [InlineData("ctrf")]
+    [InlineData("trx")]
+    public void Every_data_row_of_a_planned_method_with_a_display_name_is_its_result(string format)
+    {
+        // AC-001-B01's activation-boundary theory carries a DisplayName, so no runner names a result after the method.
+        var plan = Plan;
+        var test = PlannedTests(plan).Single(test => Str(test["name"])!.EndsWith(".AC_001_B01_Only_inclusive_boundary_versions_activate", StringComparison.Ordinal));
+        var name = Str(test["name"])!;
+        var project = Str(test["project"])!;
+        string[] displays = ["(candidate: \"1.9.9\", compatible: False)", "(candidate: \"2.0.0\", compatible: True)",
+            "(candidate: \"2.2.0\", compatible: True)", "(candidate: \"2.2.1\", compatible: False)"];
+        string Status(params string[] states)
+        {
+            var results = displays.Zip(states, (display, state) => ("AC-001-B01 selected version boundaries at activation" + display, state)).ToArray();
+            var raw = format == "ctrf" ? Ctrf([.. results.Select(result => Ctrf(name, result.Item1, result.state))])
+                : Trx([.. results.Select(result => ((string?)name, result.Item1, result.state switch
+                {
+                    "passed" => "Passed", "failed" => "Failed", _ => "NotExecuted"
+                }, ""))]);
+            return Str(SanitizeReport(raw, project, plan, Host, format).Single(row => Str(row["name"]) == name)["status"])!;
+        }
+
+        Assert.Equal("passed", Status("passed", "passed", "passed", "passed"));
+        Assert.Equal("failed", Status("passed", "failed", "passed", "passed"));
+        Assert.Equal("skipped", Status("failed", "passed", "skipped", "passed"));
+        Assert.Equal("missing", Status());
+        // The same data row twice is an ambiguity, never a way to choose a pass.
+        var twice = format == "ctrf" ? Ctrf(Ctrf(name, "AC-001-B01" + displays[0], "failed"), Ctrf(name, "AC-001-B01" + displays[0], "passed"))
+            : Trx((name, "AC-001-B01" + displays[0], "Failed", ""), (name, "AC-001-B01" + displays[0], "Passed", ""));
+        Assert.Throws<EvidenceRefusal>(() => SanitizeReport(twice, project, plan, Host, format));
     }
 
     [Fact]
@@ -172,12 +216,10 @@ public sealed class EvidenceBundleTests
     {
         var plan = Plan;
         var test = plan["cases"]![0]!["plannedTests"]!.AsArray().Last()!;
-        var ctrf = new JsonObject
-        {
-            ["results"] = new JsonObject { ["tests"] = new JsonArray(new JsonObject { ["name"] = RowNames(test, Host)[0].Display, ["status"] = "passed" }) }
-        };
-        var rows = SanitizeReport(ctrf.ToJsonString(), Str(test["project"])!, plan, Container, "ctrf");
+        var rows = SanitizeReport(Ctrf(Ctrf(Str(test["name"])!, RowNames(test, Host)[0].Display, "passed")), Str(test["project"])!, plan, Container, "ctrf");
         Assert.Equal("blocked", MethodOutcome(test, Container, rows));
+        rows = SanitizeReport(Ctrf(Ctrf(Str(test["name"])!, RowNames(test, Container)[0].Display, "passed")), Str(test["project"])!, plan, Container, "ctrf");
+        Assert.Equal("passed", MethodOutcome(test, Container, rows));
     }
 
     [Theory]
@@ -189,13 +231,10 @@ public sealed class EvidenceBundleTests
         var test = PlannedTests(run.Plan).First();
         var marker = Guid.NewGuid().ToString("N");
         var raw = Path.Combine(run.Directory, "runner.raw.json");
-        File.WriteAllText(raw, new JsonObject
-        {
-            ["results"] = new JsonObject
-            {
-                ["tests"] = new JsonArray(new JsonObject { ["name"] = Str(test["name"]), ["status"] = "passed", ["message"] = marker, ["trace"] = marker })
-            }
-        }.ToJsonString());
+        var row = Ctrf(Str(test["name"])!, Str(test["name"])!, "passed");
+        row["message"] = marker;
+        row["trace"] = marker;
+        File.WriteAllText(raw, Ctrf(row));
         var collected = Path.Combine(run.Directory, "reports", "collected.json");
         void Collect() => EvidenceBundle.Collect(Files, run.Directory, invalid ? new string('2', 40) : run.Commit, run.Mode, run.Run,
             Str(test["project"]), raw, "ctrf", "collected", null);
@@ -290,17 +329,30 @@ public sealed class EvidenceBundleTests
             var name = Str(test["name"])!;
             var method = name[(name.LastIndexOf('.') + 1)..];
             var folder = Path.GetDirectoryName(Str(test["project"]))!.Replace('\\', '/') + "/";
-            var declaration = new Regex(@"(?:Task|void)\s+" + Regex.Escape(method) + @"\(", RegexOptions.CultureInvariant);
+            var declaration = new Regex(@"(?:Task|void)\s+" + Regex.Escape(method) + @"\((?<parameters>[^)]*)\)", RegexOptions.CultureInvariant);
             var source = Files.Where(file => file.Key.StartsWith(folder, StringComparison.Ordinal) && file.Key.EndsWith(".cs", StringComparison.Ordinal)
                     && !file.Key[folder.Length..].Contains('/')).Select(file => file.Value).First(text => declaration.IsMatch(text));
+            var match = declaration.Match(source);
             // The attributes directly above the method's declaration.
-            var attributes = source[..declaration.Match(source).Index].Split('\n').Reverse().Skip(1)
+            var attributes = source[..match.Index].Split('\n').Reverse().Skip(1)
                 .Select(line => line.Trim()).TakeWhile(line => line.StartsWith('[') || line.StartsWith("//", StringComparison.Ordinal)).ToList();
-            var documented = name.Contains(".CompositionAcceptanceTests.AC_001_", StringComparison.Ordinal)
-                || name.Contains(".G02AC008Tests.", StringComparison.Ordinal);
-            // A new theory needs an explicit expected-row inventory in RowNames.
-            Assert.True(documented == attributes.Any(line => line.StartsWith("[Theory", StringComparison.Ordinal)), name);
-            Assert.True(documented || attributes.Any(line => line.StartsWith("[Fact", StringComparison.Ordinal)), name);
+            var rows = Modes.SelectMany(mode => RowNames(test, mode)).Select(row => row.Row).Distinct(StringComparer.Ordinal).ToList();
+            if (rows is ["method"])
+            {
+                // One row, which every result of the method makes up, whatever its display name or data row.
+                Assert.True(attributes.Any(line => line.StartsWith("[Fact", StringComparison.Ordinal) || line.StartsWith("[Theory", StringComparison.Ordinal)), name);
+                continue;
+            }
+
+            // A documented theory's rows are named by their exact display names: a plain theory over exactly the inventory's
+            // values, whose one parameter names them.
+            var parameter = name.Contains(".G02AC008Tests.", StringComparison.Ordinal) ? "client" : "mode";
+            Assert.True(attributes.Contains("[Theory]"), name);
+            Assert.Equal("string " + parameter, match.Groups["parameters"].Value.Trim());
+            var data = attributes.Where(line => line.StartsWith("[InlineData(", StringComparison.Ordinal)).ToList();
+            Assert.Equal(parameter == "client" ? 2 : Modes.Length, data.Count);
+            Assert.All(parameter == "client" ? ["\"dotnet\"", "\"typescript\""] : new[] { "DeploymentMode.Host", "DeploymentMode.Container" },
+                value => Assert.Single(data, line => line.StartsWith("[InlineData(" + value, StringComparison.Ordinal)));
         }
     }
 
@@ -338,6 +390,34 @@ public sealed class EvidenceBundleTests
     {
         ["name"] = Str(test["name"]), ["row"] = row, ["status"] = status
     };
+
+    // One CTRF result as xunit v3 writes it: its display name, status, and its test identity as extra type and method.
+    private static JsonObject Ctrf(string identity, string display, string status) => new()
+    {
+        ["name"] = display, ["status"] = status,
+        ["extra"] = new JsonObject { ["type"] = identity[..identity.LastIndexOf('.')], ["method"] = identity[(identity.LastIndexOf('.') + 1)..] }
+    };
+
+    private static string Ctrf(params JsonObject[] results) => new JsonObject
+    {
+        ["results"] = new JsonObject { ["tests"] = new JsonArray([.. results]) }
+    }.ToJsonString();
+
+    // A VSTest TRX report: each result, and the test definition that its testId names, with the identity's class and method.
+    private static string Trx(params (string? Identity, string Display, string Outcome, string Inner)[] results)
+    {
+        var ids = results.Select(_ => Guid.NewGuid().ToString("D")).ToArray();
+        XNamespace ns = "http://microsoft.com/schemas/VisualStudio/TeamTest/2010";
+        return new XElement(ns + "TestRun",
+            new XElement(ns + "Results", results.Select((result, index) => new XElement(ns + "UnitTestResult",
+                new XAttribute("testId", ids[index]), new XAttribute("testName", result.Display), new XAttribute("outcome", result.Outcome),
+                XElement.Parse("<Inner>" + result.Inner + "</Inner>").Nodes()))),
+            new XElement(ns + "TestDefinitions", results.Select((result, index) => new XElement(ns + "UnitTest",
+                new XAttribute("name", result.Display), new XAttribute("id", ids[index]),
+                result.Identity is null ? null : new XElement(ns + "TestMethod",
+                    new XAttribute("className", result.Identity[..result.Identity.LastIndexOf('.')]),
+                    new XAttribute("name", result.Identity[(result.Identity.LastIndexOf('.') + 1)..])))))).ToString();
+    }
 
     // A transient metadata-validation bundle directory: a measurement, a report for every planned project with every row passed,
     // and AC-001's observations, as a CI run collects them. Nothing here was executed.

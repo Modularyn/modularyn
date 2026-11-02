@@ -216,9 +216,15 @@ each as one test method of the repository tests' executable. The host job
 collects VSTest TRX reports, then runs the planned methods absent from that
 provider selection through their own executables and collects CTRF reports.
 The container job collects CTRF reports from those executables inside the
-existing composition fixture image. Every row of a planned theory is required:
-AC-001 needs its deployment's row, and AC-008 needs both advertised clients.
-A row from another deployment cannot supply a result.
+existing composition fixture image. A result belongs to a planned method by the
+test identity its report records, the fully qualified type and method, never by
+its display name, which a `DisplayName` or a data row replaces. Every row of a
+planned theory is required: AC-001's integration methods need their
+deployment's row, and AC-008 needs both advertised clients, each named by its
+exact display name. Every other planned method has one row, made up of all its
+results, so each data row of a theory such as AC-001's unit theories must pass,
+and an unexecuted one blocks the case. A row from another deployment cannot
+supply a result.
 
 `EvidenceMeasurementTests` runs in the deployment before result collection. It
 probes PostgreSQL and measures the runtime, operating system, provider versions
