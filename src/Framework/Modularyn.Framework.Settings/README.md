@@ -86,7 +86,11 @@ operation; no gate means no enabled operation. Entitlement implementations
 it separately. Settings and flags never confer authority, alter
 installed composition, or expose client configuration endpoints. Feature
 management goes through the settings gate, with the same permission as the
-override at that scope. Audit of management changes is SEC-07's.
+override at that scope. Every set and reset of an override, at any scope, is
+recorded in audit in the change's own transaction (SEC-07, TM-G02-051): who changed
+which setting at which scope, never the value, and for a secret reference only
+that it is one. Without the audit trail, or when the record cannot be written, no
+override changes and the caller is refused with `MAZ024`.
 
 ## Cache and work lifetime
 

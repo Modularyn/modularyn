@@ -1,4 +1,4 @@
-# Framework composition, hosting, observability, configuration, ingress, tenancy and authorization
+# Framework composition, hosting, observability, configuration, ingress, tenancy, authorization and audit
 
 `Modularyn.Framework.Modularity.Abstractions` contains immutable manifests,
 SemVer values, explicit version intervals, composition validators and lifecycle
@@ -30,6 +30,10 @@ uses only the .NET shared framework, and the identity module implements it; see
 `Modularyn.Framework.Authorization` hold the permission definitions, the one
 evaluator, permission and host-authority administration and the entry points;
 see [authorization](Modularyn.Framework.Authorization/README.md).
+`Modularyn.Framework.Audit` keeps the audit record of privileged changes and
+accesses, in each change's own transaction, reads it and detailed diagnostics
+under their own authority, and holds the durable-payload rule; see
+[audit](Modularyn.Framework.Audit/README.md).
 
 ## Selection and validation
 
@@ -230,12 +234,32 @@ span ids. The activation context flows through module callbacks and lifecycle
 events; shutdown continues the activation trace. Identifiers are diagnostic data
 and carry no authority.
 
+A request's correlation is server-issued (TM-G02-053). `AddModularynApi`, which
+`AddModularynModules` includes, replaces the server's trace-context propagator, so
+ASP.NET Core extracts no inbound `traceparent` or baggage and starts every
+request's trace itself. `UseModularynApi` and `UseModularynRequests` continue a
+peer's trace only when the request's direct peer is a declared proxy
+(`Modularyn:Ingress:Proxies`), before forwarded headers rewrite its address, and
+otherwise leave any context the peer supplied. A client therefore never chooses
+the trace that its request's logs, audit records and `Modularyn-Correlation`
+response header carry, nor joins another request's.
+
 Lifecycle logs and trace events contain the module id, module version, stage
 and outcome. They never receive configuration, request bodies or exceptions.
 The existing composition and lifecycle report remains the explicit inspection
-surface for startup and cleanup diagnostics. `IDiagnosticRedactor` is an optional
-extension point applied to module metadata before logging or tracing; returning
-null omits that field. This package defines no redaction policy.
+surface for startup and cleanup diagnostics; its messages and the lifecycle
+exceptions scrub every recognized secret form from the failure they quote.
+`IDiagnosticRedactor` is an optional extension point applied to module metadata
+before logging or tracing; returning null omits that field.
+
+`AddModularynObservability` also wraps the host's logger factory once, so every
+event, from any category and before any provider sees it, has each secret form
+that `SecretForms` recognizes replaced by `[redacted]` in its message, structured
+values, scopes and exception: an authorization header's credential, a connection
+string's password, the session cookie and a bare session token, a file grant
+token, a data-protection payload, a JSON web token and a PEM private key. It is a
+deny list behind the rule that the framework's events carry allowlisted fields
+only, and it does not recognize a value outside those forms.
 
 The meter emits `modularyn.operations`, `modularyn.operation.duration` in seconds,
 and `modularyn.module.lifecycle.events`. Duration uses `TimeProvider` timestamps.
@@ -268,7 +292,8 @@ responsible for any logging they perform themselves.
 Place `UseModularynRequests` after routing and before module endpoints. It keeps
 health probes reachable while normal requests require a `ModuleWorkGate` lease.
 Each accepted request retains its lease until the pipeline completes. The
-middleware uses ASP.NET Core's W3C context and records no headers, URLs or bodies.
+middleware runs each request under its server-issued W3C trace, or a declared
+proxy's, and records no headers, URLs or bodies.
 Background entry points use the same gate's `TryEnter` and retain the returned
 lease until their work finishes. This gate applies only to consumers that use it.
 
@@ -281,6 +306,18 @@ cancellation, cleanup is attempted for every owned module, and the report names
 retained instances and the outstanding work count. Startup cannot resume while
 old leases or instances remain. Modules own durable checkpoints and resource
 release; the gate does not implement job or lease-provider semantics.
+
+## Host diagnostics
+
+`ModuleHostDiagnostics.ReadAsync(context)` reports the dependency, version and
+topology detail that probes never show (TM-G02-054): the host's state, each
+module's version and state, the host's diagnostic codes without their messages,
+each health check's status by name, the runtime version and the outstanding work.
+It needs an active host scope granted for `modularyn.diagnostics.host-read`, the
+diagnostics' own host operation, apart from audit reading and every
+administration operation, and refuses any other context before reading anything
+(`MAU002`). It is not mapped as an endpoint; a host that exposes it maps it behind
+that scope.
 
 ## Deployment options and secrets
 
@@ -419,8 +456,9 @@ resolution are not part of the ingress.
 
 `Modularyn.Framework.Tenancy.Abstractions` contains `ITenantScoped` and
 `IHostScoped`, the validated `TenantContext`, the canonical tenant identifier,
-the propagated-context format and four seams. Tenancy implements none of the
-seams; while one is absent or fails, every operation that needs it is refused:
+the propagated-context format and six seams. Tenancy implements only the
+propagation seal; while a seam is absent or fails, every operation that needs it
+is refused:
 
 | Seam | Answers | Supplied by |
 |---|---|---|
@@ -428,6 +466,8 @@ seams; while one is absent or fails, every operation that needs it is refused:
 | `ITenantMembership` | Whether an actor is currently a member of a tenant | Identity (SEC-03); roles within a membership are authorization's (SEC-05) |
 | `IHostAuthority` | Whether an actor currently holds host authority for one operation, and the operation's declared reach | Authorization (SEC-05) |
 | `IHostScopeAudit` | Records a host-scope grant before the scope exists | Audit (SEC-07) |
+| `IFilterBypassAudit` | Records each cross-tenant and soft-deleted read before its query exists | Audit (SEC-07) |
+| `IPropagationSeal` | Seals and opens stored propagated references | Tenancy, over the declared key ring (SEC-07) |
 
 The claim type `modularyn.tenant` is the tenant candidate that a principal may
 carry. Identity issues it only for a delegated request whose grant names a
@@ -442,7 +482,10 @@ registry and selection, so the migration coordinator applies its migration and
 the activation gate checks it. A tenant has an identifier, a name and a state;
 each domain names exactly one tenant. `TenantDirectoryAdministration` changes the
 directory only in a host scope granted for `modularyn.tenancy.directory`, and
-accepts a domain only when it is the host of a configured public origin.
+accepts a domain only when it is the host of a configured public origin. Each
+change is recorded in audit, naming the tenant it affects, in the change's own
+transaction; without the audit trail, or when the record cannot be written, no
+change is made (`MTN023`).
 Resolution reads the directory afresh for every unit, so a suspension or a
 removed domain takes effect at once.
 
@@ -505,12 +548,13 @@ such as a task started without it or a new scope, has none.
 
 Host scope exists only after `IHostAuthority` grants the operation and
 `IHostScopeAudit` has recorded the grant, with the unit, actor, operation,
-reason, source, time and correlation identifier. A request that names a tenant
+reason, source, time, at whole microseconds, and correlation identifier. A request that names a tenant
 in its route or header, or arrives on a tenant's domain, never gets host scope,
 and a tenant administrator's membership never implies it. A host-scope unit
-reads tenant data only through `AcrossTenants`, which still requires the scope
-to be active at each execution, and changes none of it except a named tenant's
-row through `ModuleSql.UpdateForTenantAsync`. Host-scoped data, such as the
+reads tenant data only through `AcrossTenantsAsync`, which still requires the scope
+to be active at each execution and records each such read in audit before its
+query exists, through the audit tenancy attached to the context, and changes none
+of it except a named tenant's row through `ModuleSql.UpdateForTenantAsync`. Host-scoped data, such as the
 directory, changes only in a host scope, in the persistence adapter's named
 `DeploymentScope`, which product code outside the adapter does not open, or in
 the owning module's owner-bound unit, which writes only that module's own
@@ -534,36 +578,48 @@ CODE-05 (events and jobs) and CODE-07 (Files) carry tenant context this way:
 1. **Produce in the tenant's unit.** Write the outbox event, job or
    file-processing row as an `ITenantScoped` entity in the producing tenant's
    unit, so its tenant comes from that unit and the row shares its transaction,
-   and store `PropagatedTenantContext.Capture(context).ToJson()` beside the
-   payload. The format holds the scope, the tenant, the actor's kind and subject,
-   the host operation and reason in host scope, the producing unit and the time:
-   references only, never a credential, token, request object or payload value.
-   The stored reference selects the authority the work runs with: a service
-   identity that runs the item acts for the actor it names. So only server code
-   produces one, with `Capture` from the validated context inside the producing
-   unit; never build one, or accept one, from a request, a payload or another
-   row. It carries no integrity tag yet, and revalidation checks the tenant and
-   the actor's membership, or a service actor's current declaration and
-   freshness, not that the named actor produced the item. CODE-05's
-   stores take over the capture, SEC-07 binds the producing unit to its audit
-   record, and SEC-08 tests forged and replayed references.
+   and store `PropagatedTenantContext.Capture(context).ToJson(binding)` beside the
+   payload, where the binding names the store's purpose and the row, such as
+   `EventStore.OutboxBinding(id)`. Format 2 holds the scope, the tenant, the
+   actor's kind and subject, the host operation and reason in host scope, the
+   producing unit, the time and the binding: references only, never a
+   credential, token, request object or payload value. The stored reference
+   selects the authority the work runs with: a service identity that runs the
+   item acts for the actor it names. So only server code produces one, with
+   `Capture` from the validated context inside the producing unit, and the store
+   seals it there with the host's declared data-protection key ring
+   (`IPropagationSeal`, SEC-07): the seal is the ring's protection of the SHA-256
+   digest of the reference's content and binding, and rotates and revokes with
+   the ring's keys. A reference that its store did not capture, that was altered,
+   or that was copied to another row, store or purpose, even in the same tenant,
+   never opens; one captured from a context with no seal attached, because the
+   host declared no key ring, is never stored. CODE-05's stores and CODE-07's
+   Files capture this way, and SEC-08 tests forged and replayed references.
 2. **Dispatch from host scope.** A dispatcher lists due work across tenants in an
-   audited host scope through `AcrossTenants`. It cannot change those rows, except
+   audited host scope through `AcrossTenantsAsync`. It cannot change those rows, except
    to record a disposition on one named tenant's row with `UpdateForTenantAsync`.
-3. **Revalidate on receipt.** Run each item with `TenantWorkRunner.RunAsync`. It
-   parses the stored reference strictly, revalidates it in a new service scope
+3. **Revalidate on receipt.** Run each item with
+   `TenantWorkRunner.RunAsync(propagated, binding, work)`, with the binding the
+   store expects for that row. It parses the stored reference strictly, opens it
+   only under its seal and that binding, revalidates it in a new service scope
    (the tenant still active and the actor still a member, or a service actor
    still a current declared identity, or, in host scope, host
    authority again with a new audit record, after the same check of a service
    actor's declaration and freshness) and passes the reconstructed context
    explicitly. Begin the item's units with that context, so its effect and its
    completion share one transaction. Never act for a tenant that the payload names.
+   Tenancy establishes a context only from a verified reference: one captured in
+   process and passed as an object, or one opened so. `PropagatedTenantContext.TryParse`
+   reads a stored reference for inspection only, such as naming a replayed event's
+   producer, and what it returns establishes nothing.
 4. **Record the disposition.** `Completed` ran the work. `Denied` is terminal, for
-   a malformed reference, an unknown or suspended tenant, an actor who is no longer
+   a malformed reference (`MTN001`), one whose seal or binding does not verify
+   (`MTN014`), an unknown or suspended tenant, an actor who is no longer
    a member, a service identity that is no longer current, or revoked host
    authority: record it and do not retry. `Deferred` is
-   transient, for an unavailable directory, seam or audit store, including a
-   service identity registry whose service provider shutdown has disposed: retry
+   transient, for an unavailable directory, seam or audit store, a host without a
+   declared key ring, and a service identity registry whose service provider
+   shutdown has disposed: retry
    under the bounded policy. An exception from the work itself propagates to that
    policy.
 5. **Files.** File metadata is tenant-scoped; storage locations derive from the
@@ -592,14 +648,18 @@ nothing across processes, which the single-node profile does not need.
 ## Threat-model controls
 
 For each control of boundaries TB-G02-01, TB-G02-02, TB-G02-06, TB-G02-08 and
-TB-G02-11, and for the tenant part of TM-G02-029, this records what these
-packages deliver, the tests that exercise it and what remains, with the work
-order it waits on. Tests are in the test project of the package named. The
-SEC-02 controls' tests are unit and local host tests. The tenancy tests with the
-trait `Requires=PostgreSQL` run against PostgreSQL, through CI's real-provider
-job, and the others are unit tests; identity, membership, host authority and
-audit come from test doubles of their seams. SEC-08 maps every control to its
+TB-G02-11, for the tenant part of TM-G02-029, and for TM-G02-053 of TB-G02-12,
+this records what these packages deliver, the tests that exercise it and what
+remains, with the work order it waits on. Tests are in the test project of the
+package named. The SEC-02 controls' tests are unit and local host tests. The
+tenancy tests with the trait `Requires=PostgreSQL` run against PostgreSQL,
+through CI's real-provider job, and the others are unit tests; identity,
+membership, host authority and audit come from test doubles of their seams, and
+the audit tests exercise the real store. SEC-08 maps every control to its
 evidence.
+The other controls of TB-G02-12, audit and diagnostics (TM-G02-051, TM-G02-052
+and TM-G02-054), are recorded in
+[audit](Modularyn.Framework.Audit/README.md#threat-model-controls).
 The controls of TB-G02-04, identity and sessions, are recorded in
 [the identity module](../Modules/Modularyn.Modules.Identity.Application/README.md#threat-model-controls),
 and those of TB-G02-05, authorization, with SEC-05's parts of TM-G02-017,
@@ -624,22 +684,36 @@ TM-G02-028 and TM-G02-033, in
   Declared permissions and host operations must match the composed manifests
   before activation (SEC-05, `MDC310`; `Authorization.Tests`
   `DecisionTests.TM_G02_002_*`).
-  Remaining: activation only after migrations complete (CODE-03); declared
-  endpoints (CODE-06); disabling a module with a
+  Activation only after migrations complete: the migration gate refuses a pending,
+  failed or interrupted migration before any module is constructed (CODE-03;
+  `Persistence.EfCore.Tests`
+  `MigrationCoordinationTests.Activation_is_refused_before_construction_for_pending_and_failed_migrations_then_recovers`
+  and `OwnershipTests.Host_refuses_declared_migrations_when_the_completion_gate_was_not_registered`).
+  Declared endpoints: the inventory check refuses an undeclared or misclassified
+  endpoint before the server listens (CODE-06; `Hosting.Tests`
+  `ApiHostingTests.TM_G02_011_*`). Remaining: disabling a module with a
   report of its dependents, active work and retained data (FND-003), which no
   G-02 work order covers: CODE-02's scope excludes it and the tool command is
   DEV-005, Tooling, at G-06. Under the restart model, a selection that drops a
   required module is already refused with MDC001 naming both modules
   (`Hosting.Tests` `AcceptanceTests.AC_001_N01_*`), but active work and retained
   data are not reported.
-- **TM-G02-003, not SEC-02's.** CODE-02 keeps the host unready after a lifecycle
+- **TM-G02-003, partly.** CODE-02 keeps the host unready after a lifecycle
   failure and CODE-08 adds readiness and draining; SEC-02 adds
   `DeploymentTrustHostingTests.TM_G02_001_Readiness_follows_a_verified_activation_and_a_refused_composition_stays_unready_with_status_only_health`.
-  Remaining: migration-readiness failure keeping the host unready (CODE-03) and
-  recovery evidence (CODE-10 on CI-01).
-- **TM-G02-004, not SEC-02's.** The architecture checks reject cross-module
-  persistence references (DEP009). Remaining: migrations confined to the owning
-  module's schema (CODE-03).
+  A pending, failed or interrupted migration keeps the host unready (CODE-03;
+  `MigrationCoordinationTests.Activation_is_refused_before_construction_for_pending_and_failed_migrations_then_recovers`
+  and `MigrationFailureTests`). Remaining: recovery evidence (CODE-10 on CI-01).
+- **TM-G02-004, implemented by CODE-03.** The architecture checks reject
+  cross-module persistence references (DEP009), and migrations are confined to
+  the owning module's schema: a closed operation vocabulary refuses raw SQL and
+  another schema's tables, and the registry refuses shared schemas and reassigned
+  ownership. Tests: `Persistence.EfCore.Tests`
+  `OwnershipTests.Foreign_migrations_sql_and_reserved_tables_are_rejected_before_execution`,
+  `OwnershipTests.A_second_context_cannot_map_the_first_modules_table` and
+  `MigrationCoordinationTests.A_different_registry_cannot_reassign_persisted_table_and_history_ownership`;
+  `Identity.Persistence.EfCore.Tests`
+  `MigrationTests.TM_G02_004_The_migration_creates_exactly_the_mapped_columns_in_the_module_schema`.
 - **TM-G02-005, deferred.** No extension-property mechanism exists, and no G-02
   work order covers FND-005.
 - **TM-G02-006, partly.** Delivered: declared-proxy forwarded headers, host
@@ -671,9 +745,15 @@ TM-G02-028 and TM-G02-033, in
   size above the store's maximum before any intent and bounds the streamed bytes
   (SEC-06; see [the Files module](../Modules/Modularyn.Modules.Files.Persistence.FileSystem/README.md#validation)),
   when CODE-06 declares it; per-tenant resource governance (OPS-018, G-08).
-- **TM-G02-010, deferred.** Stable public error codes with correlation (CODE-06,
-  with CODE-08's correlation). Ingress refusals are bare status codes with no
-  detail.
+- **TM-G02-010, partly.** Delivered: API problems with stable codes and a
+  server-issued correlation (CODE-06, CODE-08), and, under `UseModularynApi`,
+  refusals that left no body answered with the neutral `MAP009`, never a
+  permission decision or a peer contract violation, or with `MAP004`, `MAP003`
+  or `MAP007` for a missing route, a version mismatch or unavailability (SEC-07).
+  Tests: `Hosting.Tests` `CorrelationTests.TM_G02_010_A_bare_refusal_is_answered_with_a_neutral_code`
+  and `Sdk.Client.Tests` `G02AC008Tests`. Removal check: restoring the old
+  mapping fails the first. Remaining: a host without `UseModularynApi` still
+  answers ingress refusals with bare status codes; adversarial evidence (SEC-08).
 - **TM-G02-059, partly.** Delivered: credentialed access only for exactly listed
   origins. Tests: `CrossOriginTests` (`AC_003_N02_*`, `TM_G02_059_*`).
   Remaining: browser evidence on the sample's Razor surface (SEC-08 on CODE-09)
@@ -690,8 +770,8 @@ TM-G02-028 and TM-G02-033, in
 - **TM-G02-047, partly.** Delivered: secret references, the mounted file store
   and redacted secret values. Tests: `SecretStoreTests` and
   `DeploymentOptionsTests` (`TM_G02_047_*`). Remaining: masked secret settings
-  that accept only replacement (CODE-04); redaction in logs and traces (SEC-07);
-  secret scans of release artifacts (OPS-004, G-08). The repository scan runs in
+  that accept only replacement (CODE-04); secret scans of release artifacts
+  (OPS-004, G-08). Redaction in logs and traces is TM-G02-053's, below. The repository scan runs in
   CI.
 - **TM-G02-048, partly.** Delivered: deployment options validated before any
   hosted service starts, bound strictly and never reloaded. Tests:
@@ -741,13 +821,23 @@ TM-G02-028 and TM-G02-033, in
   or host authority with a new audit record, before any work; terminal and
   transient dispositions; the named-tenant update for recording a denial. Tests:
   `PropagationTests` and `PropagationDatabaseTests` (`TM_G02_027_*`, `TM_G02_041_*`)
-  and `G02AC004Tests.AC_004_R01_*`, over a test work table and dispatcher.
-  Remaining: the durable outbox, inbox and job store adopting the contract, with
-  AC-006 and AC-007 evidence (CODE-05), running each item through
-  authorization's `AuthorizedWorkRunner`, which decides the producer's current
-  permission for the specific action before any work (SEC-05;
-  `Authorization.Tests` `G02AC003Tests.AC_003_R01_*`); file processing steps
-  (CODE-07); adversarial evidence for AC-004-N03 (SEC-08).
+  and `G02AC004Tests.AC_004_R01_*`, over a test work table and dispatcher. The
+  durable outbox, inbox and job store capture and run through it (CODE-05), each
+  item through authorization's `AuthorizedWorkRunner`, which decides the
+  producer's current permission for the specific action before any work (SEC-05;
+  `Authorization.Tests` `G02AC003Tests.AC_003_R01_*`). Each stored reference is
+  bound to its store's purpose and row and sealed in its producing unit with the
+  declared key ring, and opens only under that seal and binding, so a reference
+  not captured by its store, altered or copied to another row, even of the same
+  tenant, is denied before any work (SEC-07). Tests: `Tenancy.Tests`
+  `PropagationTests.TM_G02_027_A_stored_reference_runs_only_under_its_own_seal_and_binding`
+  and `PropagationSealTests.TM_G02_027_*`; `Events.Tests`
+  `EventRecoveryTests.A_receipt_whose_stored_reference_was_copied_from_another_row_is_denied_without_an_effect`;
+  `BackgroundJobs.Application.Tests`
+  `JobRecoveryTests.A_job_whose_stored_reference_was_copied_from_another_row_is_denied_without_stopping_other_jobs`.
+  Removal checks: skipping the seal or binding check, or establishing a context
+  from an unverified reference, fails them. Remaining: adversarial evidence for
+  AC-004-N03, including replay of a reference on its own row (SEC-08).
 - **TM-G02-028, partly.** Delivered: host scope only under host authority for a
   named operation and after its audit record is written; never derived from, or
   combined with, a tenant the request names; tenant data reached only through the
@@ -764,9 +854,12 @@ TM-G02-028 and TM-G02-033, in
   host grant reaches only the entities its operation declares, on every host
   path (SEC-05; `HostScopeTests.TM_G02_028_*` and
   `HostScopeDatabaseTests.TM_G02_028_*`); the elevated policy and host-authority
-  grants are authorization's. Remaining: the audit store, records in the
-  transaction of the change and the affected tenants (SEC-07, TM-G02-051);
-  adversarial evidence for AC-004-N03 (SEC-08).
+  grants are authorization's. The audit store records each host-scope grant
+  before the scope exists, at whole microseconds, and each directory change, with
+  the tenant it affects, in the change's own transaction (SEC-07; `Audit.Tests`
+  `AuditStoreTests.TM_G02_051_Audit_and_host_grant_times_are_whole_microseconds_from_the_host_clock`
+  and `AdministrationAuditTests.TM_G02_051_*`). Remaining: adversarial evidence
+  for AC-004-N03 (SEC-08).
 - **TM-G02-029, tenant part (SEC-04), partly.** Delivered: every root entity
   declares its scope; the tenant and scope filters on CODE-03's seam for every
   tenant-scoped entity, on the EF and direct-SQL paths; the query guard, which
@@ -778,8 +871,12 @@ TM-G02-028 and TM-G02-033, in
   every key, index and reference, in the model and in migrations; no tenant rows
   in migrations; the repository check that keeps raw SQL inside the adapter. Tests: `Persistence.EfCore.Tests` `QueryGuardTests` and
   `TenantModelTests`, `Tenancy.Tests` `TenantFilterTests` (`TM_G02_029_*`) and
-  `Repository.Tests` `PersistenceBoundaryTests`. Remaining: audit records for the
-  soft-delete and cross-tenant bypasses (SEC-07); bounded paging and sorting on
+  `Repository.Tests` `PersistenceBoundaryTests`. Each cross-tenant read and each
+  read that includes soft-deleted rows is recorded in audit, through the unit's
+  own context, before its query exists, and refused when it cannot be (SEC-07;
+  `Audit.Tests` `BypassAuditTests.TM_G02_029_*` and `Tenancy.Tests`
+  `HostScopeTests.TM_G02_029_Each_filter_bypass_is_recorded_through_its_context_s_audit_or_refused`;
+  removing the record fails them). Remaining: bounded paging and sorting on
   declared fields (CODE-06); adversarial evidence for AC-004-N02 (SEC-08).
   In-process code that opens the connection itself can bypass every filter; only
   the repository check, over this repository's sources, covers that.
@@ -801,6 +898,29 @@ TM-G02-028 and TM-G02-033, in
   is reported as `ValueUnavailableException` (SEC-05; `Settings.Tests`
   `ManagementTests.TM_G02_034_*`). Remaining: the operational-recovery evidence
   of AC-030, a website-profile family outside the G-02 reference plan.
+- **TM-G02-053, implemented.** Delivered: every log event, from any category,
+  scrubbed of each recognized secret form in its message, values, scopes and
+  exception before any provider sees it; lifecycle diagnostics and exceptions
+  scrubbed of the failures they quote; framework activities and metrics carrying
+  allowlisted fields only, with metric labels limited to the finite operation and
+  outcome vocabularies and no tenant label (CODE-08); server-issued request
+  correlation, adopted from a `traceparent` only behind a declared proxy, with no
+  inbound baggage; no secret form in an audit record or a durable payload
+  (SEC-07). Tests: `Observability.Tests` `RedactionTests.TM_G02_053_*`;
+  `Hosting.Tests`
+  `CanaryTests.TM_G02_053_No_canary_reaches_a_log_trace_lifecycle_diagnostic_probe_problem_or_report`,
+  `CorrelationTests.TM_G02_053_A_peer_supplied_trace_is_adopted_only_from_a_declared_proxy`
+  and `HealthAndRequestTests`; `Audit.Tests`
+  `AuditStoreTests.TM_G02_053_An_audit_record_never_holds_a_secret_form` and
+  `PayloadRuleTests`; the identity module's
+  `LeakTests.TM_G02_055_No_credential_reaches_a_log_a_response_or_an_exception`.
+  Removal checks: removing the log redaction, the lifecycle scrubbing, the
+  propagator replacement or the declared-proxy condition fails its test.
+  Remaining: a value outside the recognized forms, such as personal data a
+  module logs itself, is not recognized, so modules keep logging allowlisted
+  fields; instrumentation a host adds, such as an exporter's HTTP tags, is the
+  host's to configure; host and container evidence for AC-025 and AC-031
+  (CODE-10 on CI-01).
 
 ## Coverage and verification
 

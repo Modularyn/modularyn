@@ -72,7 +72,9 @@ provider or mocked gateway substitutes for these tests.
 The six evidence-plan methods cover typed round trips, negative cases, version
 and cancellation edges, interrupted responses, concurrent duplicate attempts,
 and a new host reconciling a committed receipt. Provider tests isolate their
-schemas and take the shared PostgreSQL test lock. Audit remains SEC-07's test
-seam. The Builder must retain the execution evidence and obtain all six CI checks
+schemas and take the shared PostgreSQL test lock. Audit is a test seam here; the
+audit package's own tests exercise the real store. The fixture authenticates
+through its own adapter, so it opts out of identity's session-scheme default
+explicitly (`IdentityHttpOptions.AllowOtherDefaultScheme`). The Builder must retain the execution evidence and obtain all six CI checks
 at the final commit. Source checks performed before that do not establish those
 results.

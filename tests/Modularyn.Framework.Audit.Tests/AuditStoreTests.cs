@@ -133,9 +133,9 @@ public sealed class AuditStoreTests
     public async Task TM_G02_051_Audit_and_host_grant_times_are_whole_microseconds_from_the_host_clock()
     {
         await using var database = await DurableDatabase.CreateAsync();
-        // The clock carries ticks below a microsecond, which PostgreSQL's timestamptz cannot keep.
+        // The clock carries ticks below a microsecond, which PostgreSQL's timestamptz cannot keep and would round up.
         var clock = new DurableClock();
-        clock.Advance(TimeSpan.FromTicks(4));
+        clock.Advance(TimeSpan.FromTicks(7));
         Assert.NotEqual(0, clock.GetUtcNow().UtcTicks % TimeSpan.TicksPerMicrosecond);
         await using var host = DurableHost.Create(database, clock);
         var scope = await host.HostAsync();
@@ -145,6 +145,19 @@ public sealed class AuditStoreTests
         Assert.Equal(scope.HostGrant.GrantedAt, granted.At);
         Assert.Equal(scope.HostGrant.OperationId, granted.Operation);
         Assert.Equal("source HostAuthority", granted.Detail);
+
+        // A change's record and an access's record take the floored time of the host's clock too, not the database's rounding.
+        var trail = host.Get<IAuditTrail>();
+        await using (var unit = await host.EnterServiceAsync(await host.TenantAsync()))
+        await using (var work = await EfCoreUnitOfWork.BeginAsync(database.Producer, unit.Context, cancellationToken: Token))
+        {
+            await DurableModel.EffectAsync(work, "timed", 1, Token);
+            await trail.RecordAsync(work, AuditEntry.InContext("test.timed-change", unit.Context), Token);
+            Assert.Equal(UnitOfWorkState.Committed, (await work.CompleteAsync(Token)).State);
+        }
+        await trail.RecordAccessAsync(new AuditEntry("test.timed-access", scope.Actor), Token);
+        Assert.Equal(clock.Now, Assert.Single(await database.AuditAsync("test.timed-change")).At);
+        Assert.Equal(clock.Now, Assert.Single(await database.AuditAsync("test.timed-access")).At);
 
         // A grant time that is not whole microseconds is refused rather than truncated by the database.
         var audit = host.Get<IHostScopeAudit>();

@@ -42,7 +42,8 @@ registration is refused.
 Identity supplies `IPrincipalFreshness` and `ITenantMembership`; while either
 is absent, every current-profile decision and every authority change is
 refused. Audit (SEC-07) supplies `IAuthorityAudit`; while it is absent, every
-authority change is refused.
+authority change is refused. Identity's tenant memberships are recorded through
+the same seam, as `authority.membership-added` and `authority.membership-removed`.
 
 Options come from `Modularyn:Authorization`, bind strictly, are validated before
 any hosted service starts and change only on restart. A refusal names the
@@ -104,8 +105,22 @@ own validated context. Tenant owners and host-authority grants change only
 through `HostAuthorityAdministration`, in an active host scope granted for that
 record's own host operation, which tenancy establishes only under host
 authority and after host-scope audit. Each change is recorded through
-`IAuthorityAudit` before it commits; when audit is absent or fails, the change is
-refused with `MAZ024` and nothing changes.
+`IAuthorityAudit.RecordAsync(work, record)` in the change's own transaction, so the
+record commits exactly when the change does (TM-G02-051); when audit is absent or
+the record cannot be written, the change is refused with `MAZ024` and nothing
+changes. A change that retries after losing the tenant's lock leaves one record.
+
+### Membership ends its grants
+
+Removing a membership ends the member's authority in that tenant: the grants and
+role assignments made during the membership, and the resource grants made to the
+member, stop counting at once, and adding the member again revives none of them.
+Identity reports each current membership's start (`ITenantMembership.MemberSinceAsync`),
+and the evaluator, the visibility filter and the ceiling checks count only records
+made since that start; a grant made before it is ignored, not deleted, so the
+record of who granted what stays intact. A grantor's own authority is read the
+same way. A tenant owner, a host-level record, stays an owner across memberships
+but, like every subject, holds no authority in the tenant while not a member.
 
 ## Ceilings and serialization
 
@@ -128,7 +143,7 @@ transaction:
 2. It rechecks the actor's session and membership now.
 3. It reads the actor's authority as it stands under that lock and checks the
    change against it (`MAZ020`, `MAZ021`, `MAZ025`).
-4. It records the change in audit and commits.
+4. It records the change in audit, in the same transaction, and commits.
 
 Concurrent changes in a tenant therefore serialize on its row, and none can
 exceed a ceiling that another change reduced first. A change that loses the race
@@ -165,10 +180,13 @@ context it is the actor of, with exactly its scope.
 The stored propagated reference therefore decides whose authority a worker
 exercises. Only server code may produce one, with
 `PropagatedTenantContext.Capture` from the validated context in the producing
-unit, as the framework README's propagation contract says. The reference has no
-integrity tag and can be run more than once, each run decided afresh at the
-current profile. Binding it to its audited producing unit is SEC-07's, and the
-adversarial cases are SEC-08's.
+unit, as the framework README's propagation contract says. The store binds the
+reference to its row and seals it with the declared key ring, and the worker
+opens it only under that seal and binding (`AuthorizedWorkRunner.RunAsync(principal,
+propagated, binding, permission, work)`), so a reference not captured by its
+store, altered or copied to another row is denied before any decision (SEC-07).
+A reference can still run more than once on its own row, each run decided afresh
+at the current profile; the adversarial cases are SEC-08's.
 
 `VisibleAsync` answers which resources of one type the subject may see for a
 permission, for lists, counts, previews and exports: those it owns and those it
@@ -266,7 +284,7 @@ as the configuration that names them. Every further grant is stored: in a host
 scope for `modularyn.authorization.host-authority`, an actor grants or revokes
 only operations it holds itself. A tenant's owners are named in a host scope for
 `modularyn.authorization.tenant-owners`, for an active tenant only. Each change
-is audited before it commits and invalidates the affected cache entries: a
+is recorded in audit in its own transaction and invalidates the affected cache entries: a
 host-authority change, the host-scope entries of that operation and actor; a
 tenant owner change, the tenant's entries.
 
@@ -309,8 +327,9 @@ PostgreSQL through the database script, over the real tenancy runtime, identity,
 authorization, settings and an items fixture module, and those named
 `_Contract` and `_Isolation` also run a real Kestrel server behind the ingress.
 The others are unit tests. Only the request's authentication, in the tests that
-do not sign in through identity, and SEC-07's audit are test doubles. SEC-08 maps
-every control to its evidence.
+do not sign in through identity, and SEC-07's audit are test doubles here;
+`Framework.Audit.Tests` exercises the real audit store with the real
+authorization. SEC-08 maps every control to its evidence.
 
 - **TM-G02-019, partly.** Delivered: module-declared stable permission
   identifiers; deny by default; one evaluator behind every entry point, HTTP,
@@ -346,9 +365,10 @@ every control to its evidence.
   checked against the grantor's authority read under the tenant's lock in the
   change's own transaction; concurrent changes serialized; no authority change
   under a delegation or by a service identity; changes refused without audit.
-  Tests: `AuthorityTests.TM_G02_022_*`. Remaining: the audit store, with records
-  in the change's transaction (SEC-07, TM-G02-051); adversarial evidence for
-  AC-003-N02 (SEC-08).
+  Tests: `AuthorityTests.TM_G02_022_*`. Each change is recorded in its own
+  transaction, and a change whose record cannot be written changes nothing
+  (SEC-07; `Framework.Audit.Tests` `AuthorityAuditTests.TM_G02_051_*`).
+  Remaining: adversarial evidence for AC-003-N02 (SEC-08).
 - **TM-G02-023, partly.** Delivered: explicit entry points that wrap the
   endpoint, the worker and the use case, in the order stated under Entry points;
   the startup report of endpoints that rely on interception alone or declare
@@ -356,8 +376,8 @@ every control to its evidence.
   middleware runs. Tests: `DecisionTests` (`TM_G02_019_*`, `TM_G02_023_*`) and
   `G02AC003Tests.AC_003_P01_*_Contract`. Remaining: the endpoint conventions
   that place validation and transactions in the documented order for every
-  endpoint (CODE-06) and for every handler (CODE-05); audit in that order
-  (SEC-07).
+  endpoint (CODE-06) and for every handler (CODE-05). Audit takes its place in
+  the change's own transaction (SEC-07).
 - **TM-G02-024, partly.** Delivered: permissions, feature flags, settings and
   composition kept apart. A feature or setting never grants authority; a
   permission of a module the composition excludes can be neither granted nor
@@ -377,9 +397,13 @@ Carried into SEC-05 from other boundaries:
   their owner or an identity administrator only. Tests:
   `G02AC003Tests.AC_003_B01_*`, `AC_003_R01_*` and `AC_003_R02_*`,
   `DecisionTests.TM_G02_033_*` and `Identity.Application.Tests`
-  `AdministrationTests.TM_G02_017_*`. Remaining: a cache shared across
-  processes, which the single-node profile does not need; host and container
-  evidence (CODE-10 on CI-01).
+  `AdministrationTests.TM_G02_017_*`. Removing a membership ends the grants and
+  assignments made during it, and adding the member again revives none (SEC-07;
+  `Framework.Audit.Tests`
+  `AuthorityAuditTests.TM_G02_017_Removing_a_membership_ends_the_grants_made_during_it`;
+  counting grants from before the membership fails it). Remaining: a cache shared
+  across processes, which the single-node profile does not need; host and
+  container evidence (CODE-10 on CI-01).
 - **TM-G02-028, SEC-05's part.** Delivered: the elevated policy, host
   authority only for declared operations from the deployment's operators or
   stored grants, granted only by an actor who holds the operation; each
@@ -389,8 +413,9 @@ Carried into SEC-05 from other boundaries:
   that reaches them. Tests: `AuthorityTests.TM_G02_028_*`,
   `Framework.Tenancy.Tests` `HostScopeTests.TM_G02_028_*` and
   `Identity.Persistence.EfCore.Tests` `CredentialStoreTests.TM_G02_028_*`.
-  Remaining: the audit store (SEC-07, TM-G02-051); adversarial evidence for
-  AC-004-N03 (SEC-08).
+  Each tenant owner and host-authority change is recorded in its own
+  transaction (SEC-07; `Framework.Audit.Tests` `AuthorityAuditTests.TM_G02_051_*`).
+  Remaining: adversarial evidence for AC-004-N03 (SEC-08).
 - **TM-G02-033, SEC-05's part.** Delivered: authority cached only under
   principal-scoped entries, invalidated on every change; host-scope entries
   keyed by their grant's operation and invalidated with it. Tests:

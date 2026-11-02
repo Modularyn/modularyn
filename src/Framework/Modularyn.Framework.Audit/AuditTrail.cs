@@ -110,7 +110,6 @@ public static class AuditActions
     public const string SoftDeletedRead = "persistence.soft-deleted-read";
     public const string AuditRead = "audit.read";
     public const string AuditHostRead = "audit.host-read";
-    public const string DiagnosticsHostRead = "diagnostics.host-read";
 
     /// <summary>The action an authority change is recorded under.</summary>
     public static string Of(AuthorityChangeKind kind) => kind switch

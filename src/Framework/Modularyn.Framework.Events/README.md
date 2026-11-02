@@ -25,11 +25,15 @@ again with that principal and `RequireCurrent`.
 
 Only `EventStore` captures durable propagated context: append captures from the
 producing unit, and inbox receipt captures afresh from the revalidated receiving
-unit. Payloads and public envelopes contain no propagated context. Receipt never
-copies the outbox's reference. The reference remains attached to its original
-producer through replay. A stored reference that names another tenant than its
-row never acts in either tenant: receipt refuses it, and consumption refuses it
-before any read, so both count it against the failure budget and quarantine it.
+unit. Each reference is bound to its row (`OutboxBinding`, `InboxBinding`) and
+sealed with the declared key ring, and dispatch and consumption open it only under
+its seal and that row's binding. Payloads and public envelopes contain no
+propagated context. Receipt never copies the outbox's reference. The reference
+remains attached to its original producer through replay. A stored reference that
+does not open, such as one copied from another receipt of any tenant, is denied at
+once with `MTN014` and its payload redacted, before any read or effect. Behind the
+seal, a reference that named another tenant than its row would still never act in
+either tenant: receipt refuses it, and consumption refuses it before any read.
 
 An event has a stable identity, kind, positive schema version, consumer, ordering
 key and positive position. Identity and position uniqueness include the tenant.
@@ -47,7 +51,11 @@ predecessor is resolved. No action skips a position or replays a denied one.
 
 Completed inbox receipts are retained for at least 24 hours. A tenant maintenance
 unit may prune them in batches of at most 1,000. Active, denied and poison rows
-are retained. A late redelivery after receipt pruning still cannot repeat a
+are retained; a denied row keeps no payload, and a poison row keeps its payload
+for replay for `QuarantineRetention`, 30 days from its last due time, after which
+`RedactQuarantinedAsync` may remove it in batches of at most 1,000, in a tenant
+maintenance unit that nothing runs on its own. A redacted poison row is never
+replayed. A late redelivery after receipt pruning still cannot repeat a
 projection effect because the watermark survives. Ordering keys must never be
 reused for a different stream with reset positions. Outbox history and watermarks
 remain until the owning module supplies its lifecycle policy.
@@ -83,10 +91,36 @@ it never invokes a handler directly. The composing module declares this permissi
 and the consumer permission in its manifest and authorization registry. There is
 no HTTP endpoint.
 
-`IEventObserver` leaves a seam for audit and diagnostics without choosing their
-policy. SEC-07 owns the record of who replayed an event or cancelled a job and
-when, and the rules that keep secrets and personal data out of event and job
-payloads and quarantined rows. Tests inject interruption before producer commit, before dispatch, after
+Each replay is recorded in audit in the replay's own transaction (TM-G02-037,
+TM-G02-051): who replayed which row and when, the quarantine code and the retry,
+gap-wait and conflict budgets it reset, which the next disposition overwrites,
+and the original producer and producing unit its reference names, so a replay is
+told apart from new work. A store built without an audit trail, or whose record
+cannot be written, replays nothing.
+
+## Payloads and retention
+
+An event payload follows the durable-payload rule
+([audit](../Modularyn.Framework.Audit/README.md#durable-payloads)): 1 to 65,536
+characters of references, never a secret form or a propagated context, and an
+ordering key with no secret form, refused at `Append`. A payload is redacted once
+its row can no longer run: a delivered or denied outbox event and a consumed or
+denied receipt keep none, in the transaction of that disposition; a receipt that
+has run still names the same event, so a late duplicate delivery is still
+recognized. Quarantined rows keep theirs for replay until their retention.
+
+## Diagnostics
+
+`QuarantineAsync(context, principal, evaluator)` lists the unit's tenant's
+quarantined and denied events, outbox and inbox, newest first, under
+`modularyn.diagnostics.read` at the current profile (TM-G02-054): each row's side,
+identity, consumer, kind, schema version, ordering key, position, state, budgets,
+code and due time, and of its payload only whether it is still held and its
+length.
+
+## Tests
+
+`IEventObserver` is a test seam for interruption, not audit. Tests inject interruption before producer commit, before dispatch, after
 receipt before dispatch acknowledgement, after flushed consumer writes before
 commit, and after consumer commit before acknowledgement. The PostgreSQL test
 project also covers duplicates through retention, ordering, quarantine, replay,
