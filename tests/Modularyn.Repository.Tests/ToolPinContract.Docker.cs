@@ -14,8 +14,8 @@ namespace Modularyn.Repository.Tests;
 //   "${NAME[@]}" or its one definition.
 // - eval, a shell with -c, and a pipe into a shell fail outside the listed lines, and so does a continuation into one.
 //
-// A new docker command, such as the build of the sample application that work order CODE-09 adds, joins the list through
-// review. docs/ci.md states the limits.
+// A new docker command joins the list through review, as the sample application's build and run did with work order
+// CODE-09. docs/ci.md states the limits.
 internal static partial class ToolPinContract
 {
     private const string Ci = CiPath;
@@ -39,6 +39,14 @@ internal static partial class ToolPinContract
         (Ci, "[[ \"${runtime}\" =~ ^[0-9]+\\.[0-9]+\\.[0-9]+$ ]] || fail \"Cannot read the runtime version from ${ASPNET_IMAGE}.\""),
         (Ci, "reported=\"$(docker run --rm --pull=never --platform=linux/amd64 --network=none \"${FIXTURE_IMAGE}\")\" || fail \"The fixture image did not run.\""),
         (Ci, "echo \"Fixture image $(docker image inspect --format '{{.Id}}' \"${FIXTURE_IMAGE}\") on ${platform}, user ${user}, runtime ${runtime}, layers of ${ASPNET_IMAGE}\""),
+        (Ci, "docker build --platform=linux/amd64 --pull --no-cache --tag=\"${SAMPLE_IMAGE}\" --file=\"${SAMPLE_DOCKERFILE}\" \"${RUNNER_TEMP}/team-workspace\""),
+        (Ci, "platform=\"$(docker image inspect --format '{{.Os}}/{{.Architecture}}' \"${SAMPLE_IMAGE}\")\""),
+        (Ci, "user=\"$(docker image inspect --format '{{.Config.User}}' \"${SAMPLE_IMAGE}\")\""),
+        (Ci, "pinned_layers=\"$(docker image inspect --format '{{json .RootFS.Layers}}' \"${ASPNET_IMAGE}\")\""),
+        (Ci, "sample_layers=\"$(docker image inspect --format '{{json .RootFS.Layers}}' \"${SAMPLE_IMAGE}\")\""),
+        (Ci, "refused=\"$(docker run --rm --pull=never --platform=linux/amd64 --network=none \"${SAMPLE_IMAGE}\" 2>&1)\" || status=$?"),
+        (Ci, "described=\"$(docker run --rm --pull=never --platform=linux/amd64 --network=none \"${SAMPLE_IMAGE}\" --describe-deployment)\" || fail \"The sample image did not describe its deployment.\""),
+        (Ci, "echo \"Sample image $(docker image inspect --format '{{.Id}}' \"${SAMPLE_IMAGE}\") on ${platform}, user ${user}, refuses to start without configuration\""),
         (Database, "[[ \"${POSTGRES_IMAGE}\" == docker.io/library/postgres:* && \"${POSTGRES_IMAGE}\" =~ ^[^@]+:[A-Za-z0-9._-]+@(sha256:[0-9a-f]{64})$ ]] || fail \"The PostgreSQL service image must be named by tag and index digest.\""),
         (Database, "configured=\"$(docker inspect --format '{{.Config.Image}}' \"${POSTGRES_CONTAINER}\")\" || fail \"Cannot inspect the service.\""),
         (Database, "[ \"${configured}\" = \"${POSTGRES_IMAGE}\" ] || fail \"The service runs ${configured}, not ${POSTGRES_IMAGE}.\""),
@@ -64,7 +72,8 @@ internal static partial class ToolPinContract
     // the job named; and the arrays of the database script that hold docker commands.
     public static readonly (string Job, string Variable)[] DockerVariables =
     [
-        (ContainerJob, "FIXTURE_IMAGE"), (ContainerJob, "FIXTURE_DOCKERFILE"), (ContainerJob, "ASPNET_IMAGE"), (RealProviderJob, "POSTGRES_IMAGE")
+        (ContainerJob, "FIXTURE_IMAGE"), (ContainerJob, "FIXTURE_DOCKERFILE"), (ContainerJob, "ASPNET_IMAGE"), (ContainerJob, "SAMPLE_IMAGE"),
+        (ContainerJob, "SAMPLE_DOCKERFILE"), (RealProviderJob, "POSTGRES_IMAGE")
     ];
 
     public static readonly string[] DockerArrays = ["admin", "tcp"];
@@ -181,9 +190,9 @@ internal static partial class ToolPinContract
             {
                 errors.Add($"{CiPath}: {variable} must be defined exactly once, as a literal, in the env of the {job} job.");
             }
-            else if (variable == "FIXTURE_IMAGE" && !LocalTag.IsMatch(value))
+            else if (variable is "FIXTURE_IMAGE" or "SAMPLE_IMAGE" && !LocalTag.IsMatch(value))
             {
-                errors.Add($"{CiPath}: FIXTURE_IMAGE must be a local tag such as name:tag, with no registry, so it never names a pullable image.");
+                errors.Add($"{CiPath}: {variable} must be a local tag such as name:tag, with no registry, so it never names a pullable image.");
             }
         }
 

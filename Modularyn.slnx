@@ -41,7 +41,12 @@
     <Project Path="src/Modules/Modularyn.Modules.BackgroundJobs.Application/Modularyn.Modules.BackgroundJobs.Application.csproj" />
     <Project Path="src/Modules/Modularyn.Modules.BackgroundJobs.Persistence.EfCore/Modularyn.Modules.BackgroundJobs.Persistence.EfCore.csproj" />
   </Folder>
+  <Folder Name="/src/Tooling/">
+    <Project Path="src/Tooling/Modularyn.Tooling.Samples.TeamWorkspace/Modularyn.Tooling.Samples.TeamWorkspace.csproj" />
+    <Project Path="src/Tooling/Modularyn.Tooling.Samples.TeamWorkspace.Host/Modularyn.Tooling.Samples.TeamWorkspace.Host.csproj" />
+  </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests.csproj" />
     <Project Path="tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj" />
     <Project Path="tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj" />
     <Project Path="tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj" />
