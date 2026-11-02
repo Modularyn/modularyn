@@ -56,21 +56,35 @@ there, creates the accounts and reads host audit. `UnitTests` checks that the
 command refuses every argument form but one account identifier.
 
 `CompositionAcceptanceTests` contains the four CODE-10 AC-001 integration
-methods. Its in-process rows add the corpus's A/B/C fixtures to the real sample
-module host, preserving deployment trust, migration readiness and every other
-activation validator. Effects pass through authenticated Files operations into
-PostgreSQL and the filesystem store. Its container rows require
-`MODULARYN_SAMPLE_BASE_URL`; an absent address skips them. With an address they
-probe the deployed sample over HTTP and still skip because the published host
-has no graph-mutation, fault-injection or lifecycle-inspection surface. They
-never claim that a healthy container passed AC-001.
+methods, each a theory with a `single-host` row and a `single-host-container`
+row, and the published-sample readiness test. `MODULARYN_DEPLOYMENT_MODE`
+selects the deployment: the composition fixture image sets it to
+`single-host-container`, a runner or workstation leaves it unset, and any other
+value fails. Host rows carry the traits `Requires=PostgreSQL` and
+`Deployment=single-host`, so the real-provider script runs them, and skip inside
+the image. Container rows carry only `Deployment=single-host-container`, so the
+unit runs select them and they skip with a stated reason; CI's container-build
+job runs them inside the image. Both rows add the corpus's A/B/C fixtures to
+the real sample module host, preserving deployment trust, migration readiness
+and every other activation validator, and their effects pass through
+authenticated Files operations into PostgreSQL and the filesystem store. The
+readiness test also runs only in the image: it reaches the published sample
+image at `MODULARYN_SAMPLE_BASE_URL` over HTTP as that image's declared TLS
+proxy and requires `/health/ready` to answer `Healthy`. It observes the shipped
+image and is never AC-001 coverage.
+
+This project is also the composition fixture image's content. CI publishes it
+framework-dependent, so its three test packages are marked `Publish="true"` to
+keep the executable's own runner in the publish output, and runs it with the
+executable's own filters in an image that has no checkout. The documents that
+evidence records are built from are therefore embedded in the assembly.
 
 The [evidence instructions](../../docs/evidence/README.md#code-10-record-output)
-describe opt-in output, exact source and tuple checks, retained hashes and
-blocked qualification. `EvidenceWriterTests` checks serialized records against
-the schema without treating its transient metadata inputs as provider evidence.
-The four methods, their writer tests and the new regressions await Builder
-execution; no new runtime result is claimed by this documentation.
+describe opt-in output, each mode's source and tuple checks, retained hashes and
+blocked qualification. `EvidenceWriterTests` writes complete case directories
+for both modes and checks serialized records against the schema, without
+treating its transient metadata inputs as provider evidence. The container rows
+and both jobs' evidence records are verified only when CI runs them.
 
 `ReviewRegressionTests` carries the CODE-09 review checks for a query-string
 grant refused with 400 and absent from captured logs/traces, a previously
@@ -79,6 +93,9 @@ the development seed disabled. The PDF setup uses real Files operations under
 the existing fixture authority with a prior release policy; the serving host's
 policy stays unchanged. `ProvisioningTests` also races two independently built
 hosts over one deployment and checks that only one account gains the grants,
-with one claim and completion. A refusal after acquiring both host scopes
+with one claim and completion. Both hosts activate first, one after the other,
+since activation's readiness check holds the exclusive migration lock and
+refuses a concurrent activation with MDC202; their two runs then start together
+and race for the claim. A refusal after acquiring both host scopes
 retains their two tenancy audit entries. These regressions do not take ownership
 of a security work order or qualify a security prerequisite.

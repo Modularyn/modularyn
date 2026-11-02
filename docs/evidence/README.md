@@ -107,7 +107,7 @@ digests cover their actual retained bytes.
 |---|---|
 | Requirement, module contract or benchmark row and its owner | `subjects`: stable `id`, `kind` and `owner` for each covered subject |
 | Supported profile and exact selection | `profile`, `tuple`: module versions, SDK/runtime/language, database, UI, tenant placement, host, topology and providers |
-| Implementation artifact | `implementationArtifacts`: repository-relative locations and measured SHA-256 hashes |
+| Implementation artifact | `implementationArtifacts`: repository-relative locations, or for retained bytes locations in the evidence bundle, and measured SHA-256 hashes |
 | Acceptance scenario | `caseId`, `family`, the corpus location and SHA-256, `fixtureInputs`, `expectedOutcomes` |
 | Test and result locations | `tests`: project, fully qualified method and layer; `verification.results`: retained locations and SHA-256 hashes |
 | Documentation | `documentation`: repository-relative references |
@@ -151,23 +151,30 @@ that its hash matches retained bytes, or that the gate is accepted.
 ### Running the CODE-10 methods
 
 `CompositionAcceptanceTests` in the sample's test project has the four exact
-integration method names in the plan. Each is a theory with `single-host` and
-`single-host-container` rows and the method trait `Requires=PostgreSQL`. The
-real-provider test filter therefore discovers both rows. These are authored
-tests awaiting the Builder's execution, not passing results.
+integration method names in the plan. Each is a theory with a `single-host` row
+and a `single-host-container` row. `MODULARYN_DEPLOYMENT_MODE` names the
+deployment a process runs in: the composition fixture image sets it to
+`single-host-container`, and a runner or workstation leaves it unset. A host
+row runs only where it is unset and a container row only where it is set; the
+other row skips with a stated reason and writes no record, and any other value
+fails. Host rows carry the traits `Requires=PostgreSQL` and
+`Deployment=single-host`, so the real-provider job runs them. Container rows
+carry only `Deployment=single-host-container`: the unit jobs select them and
+they skip there, and the container-build job runs them inside the image.
 
-The in-process rows read `MODULARYN_TEST_POSTGRESQL`, use the existing database
-probe and shared lock, and build the sample with isolated schemas, its filesystem
-store and generated fixture identities. The sample's unchanged selection is
-migrated first. A second build adds the corpus's A, B and C test modules with a
-matching fixture deployment lock over the built files. The registered module
-host retains the sample's composer, every activation validator, work gate,
-telemetry and lifetime. No unverified-composition option is enabled. Tenant and
-owner authority comes only from the sample's existing authenticated fixtures.
+Both rows run the same composition. They read `MODULARYN_TEST_POSTGRESQL`, use
+the existing database probe and shared lock, and build the sample with isolated
+schemas, its filesystem store and generated fixture identities. The sample's
+unchanged selection is migrated first. A second build adds the corpus's A, B
+and C test modules with a matching fixture deployment lock over the built
+files. The registered module host retains the sample's composer, every
+activation validator, work gate, telemetry and lifetime. No
+unverified-composition option is enabled. Tenant and owner authority comes only
+from the sample's existing authenticated fixtures.
 
-| Case | In-process observations |
+| Case | Observations, in each mode |
 |---|---|
-| AC-001-B01 | All four B versions; readiness and real Files effects at both inclusive edges; the same range diagnostic and no activation for both outside versions. |
+| AC-001-B01 | All four B versions; readiness, the resolved selection and real Files effects at both inclusive edges; the same range diagnostic, differing only in the candidate's version, and no activation for both outside versions. |
 | AC-001-N01 | A valid control, independently missing C, C-to-A cycle and incompatible B; input graphs, exact diagnostic identities and before/after activation inventories with no rejected effects. |
 | AC-001-P01 | Reverse discovery, exact resolved versions, every selected module ready, C/B/A initialization once, HTTP readiness, reverse shutdown and no retained resources. |
 | AC-001-R01 | B's initialization fault after C succeeds, A unavailable, B/C cleanup, the identical selection recovering to HTTP readiness and fresh durable-effect counts without duplicates. |
@@ -179,15 +186,25 @@ and bytes. Exclusive filesystem markers expose resources left by a prior
 activation. Result snapshots retain graph/version/provider declarations, ordered
 lifecycle events, states, cleanup inventories and measured effect counts.
 
-Container rows require `MODULARYN_SAMPLE_BASE_URL`, an HTTP origin for a sample
-container already started by the run, with a trusted TLS certificate when HTTPS
-is used. Missing configuration produces an explicit skip. A supplied deployment
-must answer `/health/ready` successfully; it is then still skipped because the
-published host exposes no graph-selection, initialization-fault or lifecycle
-inspection surface. The required product change is outside CODE-10's permitted
-paths. Tests never start containers, never substitute the in-process host for
-the container, and never count a health probe as AC-001 coverage. This leaves
-the container half of each case unqualified.
+The container rows run in the composition fixture image,
+[tests/Fixtures/composition/Dockerfile](../../tests/Fixtures/composition/Dockerfile),
+not in the published sample image. The four cases compose test modules in
+version variants, invalid graphs and an injected fault. Shipping those modules,
+or a switch that selects them, in the product image would be a security
+regression, so the published image never carries either. The fixture image is
+test-only and never published. It holds the framework-dependent publish of the
+sample's test project, an xunit v3 executable that carries the sample host, its
+modules and the A, B and C fixtures, on the same pinned ASP.NET Core base, by
+the same tag and index digest, that every Dockerfile must use. It runs as a
+numeric non-root user, and root owns its files. CI's container-build job runs
+it on an internal network, in the database container's network namespace, so
+the tests reach PostgreSQL on loopback as their probe requires. The published
+sample image runs on the same network against the same database. The
+published-sample readiness test, `The_published_sample_image_is_ready_over_HTTP`,
+reaches it at `MODULARYN_SAMPLE_BASE_URL` from inside the fixture image and
+requires `/health/ready` to answer `Healthy`. That is a container observation of
+the shipped image, never AC-001 coverage. [CI's container acceptance](../ci.md#container-acceptance)
+describes the job.
 
 ### CODE-10 record output
 
@@ -196,29 +213,51 @@ requesting records supplies the following values:
 
 | Variable | Meaning |
 |---|---|
-| `MODULARYN_EVIDENCE_DIR` | Output directory beneath the repository, normally `artifacts/evidence`; linked paths are refused. |
-| `MODULARYN_SOURCE_COMMIT` | Exact forty-character lowercase commit, matching the clean checkout and the source revision embedded in the built assemblies. |
+| `MODULARYN_EVIDENCE_DIR` | Absolute output directory, the root of the run's retained bundle; CI uses one beneath `RUNNER_TEMP`. Every location a record names is relative to it, and linked paths are refused. |
+| `MODULARYN_SOURCE_COMMIT` | Exact forty-character lowercase commit. On a host it must be the clean checkout's HEAD; in both modes it must be the source revision embedded in every loaded Modularyn assembly. |
+| `MODULARYN_CONTAINER_IMAGE_DIGEST` | Container rows only: the composition fixture image's digest as CI measures it, `sha256:` and 64 lowercase hexadecimal characters. A host run refuses one. |
 | `MODULARYN_EVIDENCE_RUN_ID` | Optional unique lowercase run identifier; a process-wide random identifier is generated when absent. Reusing a case/mode/run destination refuses overwrite. |
 
-The Builder builds the final committed source before requesting records. The
-writer checks source identity again after the method finishes. It measures the
-database version from the probe, package versions from loaded assemblies,
-runtime and operating-system versions from the process, and SDK/language versions
-embedded by the build. Record output requires the planned Linux x64 tuple and
+A host run has a checkout, and the writer checks it before the method and again
+after it: the commit is HEAD, the tree is clean and the built assemblies embed
+the commit. A container run has none. CI checks the clean checkout at the exact
+head before it publishes the test project, and the writer inside the image
+checks that the embedded source revision equals `MODULARYN_SOURCE_COMMIT`. The
+schema, corpus, plan, coverage register and capability skeleton that a record
+is built from are embedded in the test assembly, so the image reads the copies
+its source revision binds; a host run also requires each copy to equal the
+checkout's file. The writer measures the database version from the probe,
+package versions from loaded assemblies, runtime and operating-system versions
+from the process, and SDK/language versions embedded by the build. The tuple's
+topology is the row's own mode, and a container record's tuple carries the
+measured image digest. Record output requires the planned Linux x64 tuple and
 runtime pins; a build on another platform is not relabelled as Linux evidence.
 If setup never reaches a database, its version is unmeasured: the writer refuses
 a record, and the test runner retains the failure.
 
-Each case/mode/run directory contains `result.json`, retained implementation
-bytes under `implementation/`, and a schema-validated `record.json` written last.
-Result and implementation hashes cover the retained bytes. The corpus hash
-normalizes checkout line endings to LF. No log, trace, exception text, response
-body, credential, connection string or machine path is copied into a record.
-Skipped rows produce no evidence record. The unit tests exercise serialized
-records against the repository schema for all four cases and both shapes,
-invalid pins and identities, missing output, skipped outcomes and overwrite
-refusal. Their transient metadata inputs are deleted and supply no provider
-evidence.
+Each `<run>/<case>/<mode>` directory beneath the output contains `result.json`,
+retained implementation bytes under `implementation/`, and a schema-validated
+`record.json` written last. Result and implementation hashes cover the retained
+bytes. The corpus hash normalizes checkout line endings to LF. No log, trace,
+exception text, response body, credential, connection string or machine path is
+copied into a record. Skipped rows produce no evidence record. A container
+record also states that its row ran in the composition fixture image rather
+than the published one. The unit tests write complete case directories for both
+modes with the real composition's tuple and check their hashes, and exercise
+serialized records against the repository schema for all four cases and both
+shapes, the container binding, invalid pins and identities, missing output,
+skipped outcomes and overwrite refusal. Their transient metadata inputs are
+deleted and supply no provider evidence.
+
+In CI the real-provider job writes the host records beneath `RUNNER_TEMP`, and
+the container-build job's rows write theirs to the fixture image's mounted
+output directory, also beneath `RUNNER_TEMP`. After each run, the job checks
+every record with the repository's own evaluator, `EvidenceRecordContract`,
+through `CiEvidenceTests`: one valid record for each AC-001 case, all from one
+run, at their case and mode locations, bound to the run's commit and mode, and
+retaining bytes that match every result and artifact hash. It then prints each
+record's SHA-256. CI uploads no artifact; retaining the records is a later step
+of the milestone.
 
 `result.json` retains the integration method's actual `passed` or `failed`
 outcome after fixture disposal. The case record reports `failed` for a failed
@@ -226,8 +265,8 @@ method and `blocked` for a successful method: AC-031 evidence on the same commit
 and tuple and the separately executed planned unit-method results have not been
 assembled by this writer. The required test mappings remain complete, and these
 limitations remain explicit. No record produced here claims that G-02 passed.
-The Builder must assemble those prerequisites and complete container coverage
-before a case can receive passing qualification evidence.
+The Builder must assemble those prerequisites and retain both modes' records on
+the same commit before a case can receive passing qualification evidence.
 
 ### Remaining checks
 
