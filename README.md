@@ -2,7 +2,7 @@
 
 Modularyn is a modular .NET application platform and content management system (CMS) designed for .NET 10 and C# 14.
 
-The product is in planning. Nothing has been released. The first goal is **G-01: the product and contract baseline**. This repository begins with build settings, repository convention tests, and CI; it does not yet provide an application platform or CMS implementation. See the [roadmap](ROADMAP.md) for the planned sequence.
+Modularyn is in development. Nothing has been released, and no package is published. **G-01: the product and contract baseline** is complete. **G-02: the foundation and secure application slice** is in progress. The repository holds the framework's foundation, the Identity, Background Jobs and Files modules, and a sample multi-tenant application, the team workspace, all tested against PostgreSQL in CI. It is not ready for production use, and the CMS is not built yet. See the [roadmap](ROADMAP.md) for the planned sequence.
 
 ## Editions
 
@@ -27,8 +27,10 @@ Install Git and the .NET SDK specified in [global.json](global.json), then run t
 ```sh
 dotnet restore --locked-mode
 dotnet build -c Release --no-restore
-dotnet test -c Release --no-build
+dotnet test -c Release --no-build --filter "Requires!=PostgreSQL"
 ```
+
+Tests that need real providers carry the trait `Requires=PostgreSQL`. They need PostgreSQL 18 and the pinned Node.js, and run through `bash .github/scripts/postgresql-test-database.sh run bash .github/scripts/real-provider-tests.sh`.
 
 Package versions are centralized in [Directory.Packages.props](Directory.Packages.props), and dependencies are locked alongside each project. The [CI guide](docs/ci.md) describes the required checks, dependency updates, and verification process.
 

@@ -1,6 +1,6 @@
 # Security
 
-This policy covers the code in this repository and its releases. Modularyn is in planning and has no released versions yet. There is no support commitment or promised response time at this stage.
+This policy covers the code in this repository and its releases. Modularyn is in development and has no released versions yet. There is no support commitment or promised response time at this stage.
 
 Report a suspected vulnerability privately through **Report a vulnerability** on this repository's [Security tab](https://github.com/Modularyn/modularyn/security/advisories/new). If private reporting is unavailable, email [modularyn@jasonfurr.com](mailto:modularyn@jasonfurr.com).
 
