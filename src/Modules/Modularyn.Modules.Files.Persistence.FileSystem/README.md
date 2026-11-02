@@ -250,8 +250,9 @@ is committed, so concurrent uploads cannot exceed it. At the quota the upload
 first reclaims the tenant's abandoned uploads under the same lease, and refuses
 with `QuotaExceeded` if the quota still does not admit it.
 
-Recovery is scheduled through `IFileRecoverySchedule` until CODE-05's durable
-jobs take it over: after an upload fails with its intent committed, the service
+Recovery is scheduled through the optional `IFileRecoverySchedule` seam. No host
+implements it yet, and running recovery as a durable job is left to a later
+order. After an upload fails with its intent committed, the service
 hands the schedule the failed upload's context, captured in that unit with the
 injected clock, and the schedule later runs `RecoverAsync` with it through
 `TenantWorkRunner`, which revalidates the tenant and the actor first. Without a
@@ -399,8 +400,8 @@ every control to its evidence and its residual risks in
   upload never holds while streaming; the startup check for exclusive opens.
   Tests: `Application.Tests` `FileCapacityTests` (`TM_G02_045_*`) and
   `G02AC009Tests.AC_009_B01_*`; `FileSystem.Tests` `FileSystemStoreTests` and
-  `StorageBoundaryTests`. Remaining: recovery scheduled by CODE-05's durable
-  jobs; per-tenant resource governance across the host (OPS-018, G-08), since
+  `StorageBoundaryTests`. Remaining: recovery scheduled as a durable job, which
+  no order carries yet; per-tenant resource governance across the host (OPS-018, G-08), since
   these quotas bound one tenant's temporary storage, not its share of the host.
 - **TM-G02-046, done for G-02 by CODE-07.** Hashes computed while writing,
   metadata finalized only on a matching length and hash, and verification before

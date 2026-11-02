@@ -15,13 +15,17 @@ using Xunit;
 
 namespace Modularyn.Framework.Hosting.Tests;
 
-// TM-G02-011: a response's media type is checked at run time against its endpoint's inventory declaration, so an endpoint
-// can never answer HTML, binary or any other content it did not declare. The handlers here deliberately send every kind of
-// type through every way a handler writes, over a real Kestrel server.
+// TM-G02-011: a response's media type is checked at run time against its endpoint's inventory declaration, so no handler can
+// answer HTML, binary or any other content its endpoint did not declare by any supported write path. The handlers here
+// deliberately send every kind of type through every supported way a handler writes, over a real Kestrel server. A handler
+// that casts the request's IHttpResponseFeature to the server's own body feature writes past the check, which module trust
+// covers (RR-G02-019).
 public sealed class ResponseMediaTypeTests
 {
     private const string Undeclared = "8400";
     private const string Problem = "application/problem+json";
+    // How long an aborted response may take to end; the abort itself takes well under a second.
+    private static readonly TimeSpan AbortBound = TimeSpan.FromSeconds(5);
     private static CancellationToken Cancellation => TestContext.Current.CancellationToken;
 
     private static readonly ApiInventory Inventory = new(1, 1, [],
@@ -95,15 +99,30 @@ public sealed class ResponseMediaTypeTests
             Assert.Equal(refusals, events.Count(Undeclared));
 
             // Once a flush has sent an untyped response's headers, bytes that follow cannot be refused with a problem: the
-            // connection is aborted and none of them arrives.
+            // connection is aborted and none of them arrives. Each request reads its headers and then its body within a bound of a
+            // few seconds rather than the client's 100-second timeout, and a read that ends must end in the abort, with no marker
+            // received. On Linux and Windows the abort resets the connection at once, so a read that stalls fails. On macOS the
+            // abort does not always reach the client after the server has refused and aborted: no byte follows the headers and
+            // nothing ends the read. There a stall with an empty body is accepted; a completed body, a marker or any byte after
+            // the headers still fails on every platform.
             foreach (var path in allowed.Keys)
             {
+                using var bound = CancellationTokenSource.CreateLinkedTokenSource(Cancellation);
+                bound.CancelAfter(AbortBound);
+                using var received = new MemoryStream();
                 var aborted = await Record.ExceptionAsync(async () =>
                 {
-                    using var response = await client.GetAsync(path + "?send=flushed-untyped", Cancellation);
-                    Assert.DoesNotContain(marker, await response.Content.ReadAsStringAsync(Cancellation), StringComparison.Ordinal);
+                    using var response = await client.GetAsync(path + "?send=flushed-untyped", HttpCompletionOption.ResponseHeadersRead, bound.Token);
+                    await using var body = await response.Content.ReadAsStreamAsync(bound.Token);
+                    await body.CopyToAsync(received, bound.Token);
                 });
-                Assert.IsType<HttpRequestException>(aborted, exactMatch: false);
+                var stalled = bound.IsCancellationRequested && !Cancellation.IsCancellationRequested;
+                Assert.False(stalled && !OperatingSystem.IsMacOS(),
+                    $"{path}: the aborted response neither ended nor failed within {AbortBound.TotalSeconds} seconds: {aborted?.GetType().Name}");
+                Assert.True(stalled || aborted is HttpRequestException or IOException,
+                    $"{path}: reading the body must end in the abort, but it ended with {aborted?.GetType().Name ?? "the complete body"}");
+                Assert.DoesNotContain(marker, Encoding.UTF8.GetString(received.ToArray()), StringComparison.Ordinal);
+                Assert.Equal(0, received.Length);
             }
             Assert.Equal(refusals + allowed.Count, events.Count(Undeclared));
             await application.StopAsync(Cancellation);

@@ -175,7 +175,9 @@ public static partial class ApiEndpoints
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30), context.RequestServices.GetService<TimeProvider>() ?? TimeProvider.System);
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(originalCancellation, deadline.Token);
         context.RequestAborted = cancellation.Token;
-        // Nothing the handler sends reaches the client until its media type is one the declaration allows (TM-G02-011).
+        // Nothing the handler sends by a supported write path reaches the client until its media type is one the declaration
+        // allows (TM-G02-011). A handler that casts the request's IHttpResponseFeature to the server's own body feature writes
+        // past this one, as trusted in-process module code can (RR-G02-019).
         var originalBody = context.Features.Get<IHttpResponseBodyFeature>()!;
         var body = new DeclaredResponseBody(context, declared.Contract, originalBody);
         context.Features.Set<IHttpResponseBodyFeature>(body);
