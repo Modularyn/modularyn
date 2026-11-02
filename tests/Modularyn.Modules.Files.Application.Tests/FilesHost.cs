@@ -164,7 +164,7 @@ internal sealed class FilesHost : IAsyncDisposable
         Assert.InRange(session.ServerVersionNumber, 180000, 189999);
         Assert.Equal("off", session.Parameters.GetValueOrDefault("is_superuser"));
         var options = new PostgreSqlPersistenceOptions(System.Environment.GetEnvironmentVariable(PostgreSqlTarget.Variable)!);
-        var host = new FilesHost(options, await PostgreSqlTestLock.AcquireAsync(options.ConnectionString, Cancellation));
+        var host = await PostgreSqlTestLock.HoldAsync(options.ConnectionString, held => new FilesHost(options, held), Cancellation);
         try
         {
             var composition = await new ModuleComposer([host.Registry]).ComposeAsync(new(host.Manifests, Environment), Cancellation);

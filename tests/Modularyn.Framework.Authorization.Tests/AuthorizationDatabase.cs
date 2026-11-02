@@ -85,7 +85,7 @@ internal sealed class AuthorizationDatabase : IAsyncDisposable
         Assert.Equal("off", session.Parameters.GetValueOrDefault("is_superuser"));
         var options = new PostgreSqlPersistenceOptions(System.Environment.GetEnvironmentVariable(PostgreSqlTarget.Variable)!);
         phase?.Invoke("test-lock-start");
-        var database = new AuthorizationDatabase(options, await PostgreSqlTestLock.AcquireAsync(options.ConnectionString, Cancellation));
+        var database = await PostgreSqlTestLock.HoldAsync(options.ConnectionString, held => new AuthorizationDatabase(options, held), Cancellation);
         phase?.Invoke("test-lock");
         try
         {

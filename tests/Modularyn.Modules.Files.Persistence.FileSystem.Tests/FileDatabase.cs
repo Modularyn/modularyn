@@ -62,7 +62,7 @@ internal sealed class FileDatabase : IAsyncDisposable
         Assert.InRange(probe.ServerVersionNumber, 180000, 189999);
         Assert.Equal("off", probe.Parameters.GetValueOrDefault("is_superuser"));
         var options = new PostgreSqlPersistenceOptions(Environment.GetEnvironmentVariable(PostgreSqlTarget.Variable)!);
-        var database = new FileDatabase(options, await PostgreSqlTestLock.AcquireAsync(options.ConnectionString, Cancellation));
+        var database = await PostgreSqlTestLock.HoldAsync(options.ConnectionString, held => new FileDatabase(options, held), Cancellation);
         try
         {
             await MigrateAsync([database.DirectoryModule, database.FilesModule],

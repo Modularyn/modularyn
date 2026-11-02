@@ -35,6 +35,27 @@ internal sealed class PostgreSqlTestLock : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Acquires the lock and builds the fixture that holds it. If building the fixture throws, the lock is released before the
+    /// failure propagates, so a fixture that fails before its own cleanup can run never leaves the database locked for the
+    /// tests after it. A fixture's later setup, such as composition, migration and validation, releases it through the
+    /// fixture's own disposal.
+    /// </summary>
+    internal static async Task<T> HoldAsync<T>(string connectionString, Func<PostgreSqlTestLock, T> create, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(create);
+        var held = await AcquireAsync(connectionString, cancellationToken);
+        try
+        {
+            return create(held);
+        }
+        catch
+        {
+            await held.DisposeAsync();
+            throw;
+        }
+    }
+
     // "test-lock <process id> <test method>", within PostgreSQL's 63-byte application name: the method's name only, never a value.
     private static string HolderName()
     {
