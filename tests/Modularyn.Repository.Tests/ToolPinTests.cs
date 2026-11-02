@@ -18,6 +18,7 @@ public sealed class ToolPinTests
     private const string ScriptPath = ToolPinContract.DatabaseScriptPath;
     private const string TestsScriptPath = ToolPinContract.TestsScriptPath;
     private const string FixturePath = ToolPinContract.FixtureDockerfile;
+    private const string EvidenceScript = ToolPinContract.EvidenceScriptPath;
 
     [Fact]
     public void Tool_pins_agree_with_global_json_the_workflows_and_the_register()
@@ -507,6 +508,12 @@ public sealed class ToolPinTests
     [InlineData("second-image-definition", "FIXTURE_IMAGE must be defined exactly once, as a literal")]
     [InlineData("computed-dockerfile-env", "FIXTURE_DOCKERFILE must be defined exactly once, as a literal")]
     [InlineData("unused-allowlist-entry", "is not used; remove it from the allowlist")]
+    [InlineData("host-evidence-missing", "'Choose the host evidence directory' step must, before its 'Test against PostgreSQL' step")]
+    [InlineData("host-evidence-in-checkout", "'Choose the host evidence directory' step must, before its 'Test against PostgreSQL' step")]
+    [InlineData("host-evidence-unchecked", "must check the host evidence records with bash .github/scripts/evidence-records.sh")]
+    [InlineData("host-evidence-other-mode", "must check the host evidence records with bash .github/scripts/evidence-records.sh")]
+    [InlineData("evidence-check-allows-skips", "with -failSkips and fail unless its report shows that it ran once and passed")]
+    [InlineData("evidence-check-unprinted", "must print each evidence record's SHA-256")]
     public void A_single_ci_pin_violation_is_rejected(string mutation, string expectedDiagnostic)
     {
         // Every mutation derives its values from the current files, so a later pin update cannot turn it into a no-op.
@@ -531,6 +538,20 @@ public sealed class ToolPinTests
         string? pinText = null;
         switch (mutation)
         {
+            case "host-evidence-missing":
+                files[CiPath] = ReplaceLine(ci, "      - name: " + ToolPinContract.HostEvidenceStep, "      - name: Choose a directory");
+                break;
+            case "host-evidence-in-checkout":
+                files[CiPath] = ReplaceText(ci, "MODULARYN_EVIDENCE_DIR=${RUNNER_TEMP}/host-evidence", "MODULARYN_EVIDENCE_DIR=${GITHUB_WORKSPACE}/artifacts/evidence");
+                break;
+            case "host-evidence-unchecked":
+                files[CiPath] = ReplaceLine(ci, "      - name: " + ToolPinContract.HostEvidenceCheckStep, "      - name: Check records");
+                break;
+            case "host-evidence-other-mode":
+                files[CiPath] = ReplaceLine(ci, "          MODULARYN_EVIDENCE_MODE: single-host", "          MODULARYN_EVIDENCE_MODE: single-host-container");
+                break;
+            case "evidence-check-allows-skips": files[EvidenceScript] = ReplaceText(files[EvidenceScript], "-failSkips -method", "-method"); break;
+            case "evidence-check-unprinted": files[EvidenceScript] = ReplaceText(files[EvidenceScript], "xargs -0 sha256sum", "xargs -0 ls -l"); break;
             case "missing-node-pin": Assert.True(files.Remove(NodePinPath)); break;
             case "invalid-node-pin": pinText = files[NodePinPath].TrimEnd()[..^1]; break;
             case "node-pin-version-mismatch": Set(pin, "version", Bump(Value(pin, "version"))); break;

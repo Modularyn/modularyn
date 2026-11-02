@@ -4,7 +4,8 @@ using System.Text.RegularExpressions;
 namespace Modularyn.Repository.Tests;
 
 // The pins and job structure that CI-01 added: the Node.js archives, the PostgreSQL service and ASP.NET Core
-// runtime images, the real-provider and container-build jobs, and the rule that no workflow installs browsers.
+// runtime images, the real-provider and container-build jobs, and the rule that no workflow installs browsers. CODE-10
+// added the check of the real-provider job's evidence records.
 internal static partial class ToolPinContract
 {
     public const string NodePinPath = ".github/node.json";
@@ -14,6 +15,11 @@ internal static partial class ToolPinContract
     public static readonly string RealProviderTestRun = $"bash {DatabaseScriptPath} ci bash {TestsScriptPath}";
     public const string FixtureDockerfile = "tests/Fixtures/container/Dockerfile";
     public const string SampleDockerfile = "src/Tooling/Modularyn.Tooling.Samples.TeamWorkspace.Host/Dockerfile";
+    public const string EvidenceScriptPath = ".github/scripts/evidence-records.sh";
+    public const string HostEvidenceStep = "Choose the host evidence directory";
+    public const string HostEvidenceCheckStep = "Check the host evidence records";
+    public static readonly string EvidenceCheckRun = $"bash {EvidenceScriptPath}";
+    public const string EvidenceCheckTest = "Modularyn.Repository.Tests.CiEvidenceTests.The_records_this_CI_run_wrote_validate_against_the_repository_contracts";
     public const string BuildTestJob = "build-test";
     public const string RealProviderJob = "real-provider";
     public const string ContainerJob = "container-build";
@@ -750,6 +756,28 @@ internal static partial class ToolPinContract
             errors.Add($"{DatabaseScriptPath}: must generate the password from /dev/urandom, mask it, and set {PostgreSqlTarget.Variable}.");
         }
 
+        // The host rows write their evidence beneath the runner's temporary directory, bound to the exact head, and a later step
+        // checks those records with the repository's own contracts.
+        var prepare = Run(job, HostEvidenceStep) ?? "";
+        var prepared = steps.IndexOf(HostEvidenceStep);
+        if (prepared < 0 || prepared > testIndex
+            || !prepare.Contains("echo \"MODULARYN_EVIDENCE_DIR=${RUNNER_TEMP}/", StringComparison.Ordinal)
+            || !prepare.Contains("head=\"$(git rev-parse HEAD)\"", StringComparison.Ordinal)
+            || !prepare.Contains("echo \"MODULARYN_SOURCE_COMMIT=${head}\" >> \"${GITHUB_ENV}\"", StringComparison.Ordinal))
+        {
+            errors.Add($"{CiPath}: the {RealProviderJob} job's '{HostEvidenceStep}' step must, before its '{RealProviderTestStep}' step, set "
+                + "MODULARYN_EVIDENCE_DIR beneath RUNNER_TEMP and MODULARYN_SOURCE_COMMIT to the exact head.");
+        }
+
+        if (steps.IndexOf(HostEvidenceCheckStep) <= testIndex || Run(job, HostEvidenceCheckStep) != EvidenceCheckRun
+            || StepEnv(job, HostEvidenceCheckStep).GetValueOrDefault("MODULARYN_EVIDENCE_MODE") != "single-host")
+        {
+            errors.Add($"{CiPath}: the {RealProviderJob} job must check the host evidence records with {EvidenceCheckRun} in a "
+                + $"'{HostEvidenceCheckStep}' step after its '{RealProviderTestStep}' step, with MODULARYN_EVIDENCE_MODE single-host.");
+        }
+
+        errors.AddRange(EvidenceScriptErrors(files.GetValueOrDefault(EvidenceScriptPath, "")));
+
         // Both scripts hold the credentials in their environment, so neither may write to a runner file that a later step reads.
         var tests = files.GetValueOrDefault(TestsScriptPath, "");
         foreach (var (path, text) in new[] { (DatabaseScriptPath, script), (TestsScriptPath, tests) })
@@ -778,6 +806,22 @@ internal static partial class ToolPinContract
                 errors.Add($"{TestsScriptPath}: must run every test project with its own results file and require at least one "
                     + $"PostgreSQL test to have run and all to have passed ({required}).");
             }
+        }
+    }
+
+    // The evidence check runs the one repository test through the test executable's filter, fails a skip, and requires its
+    // report to show that the test ran and passed.
+    private static IEnumerable<string> EvidenceScriptErrors(string script)
+    {
+        if (!script.Contains($"-failSkips -method \"{EvidenceCheckTest}\" -result-ctrf \"${{report}}\"", StringComparison.Ordinal)
+            || !script.Contains("[ \"$(jq -r '.results.summary.tests' \"${report}\")\" = \"1\" ] && [ \"$(jq -r '.results.summary.passed' \"${report}\")\" = \"1\" ]", StringComparison.Ordinal))
+        {
+            yield return $"{EvidenceScriptPath}: must run {EvidenceCheckTest} with -failSkips and fail unless its report shows that it ran once and passed.";
+        }
+
+        if (!script.Contains("xargs -0 sha256sum", StringComparison.Ordinal))
+        {
+            yield return $"{EvidenceScriptPath}: must print each evidence record's SHA-256.";
         }
     }
 

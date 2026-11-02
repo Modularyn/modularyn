@@ -552,6 +552,16 @@ jobs:
         shell: bash
         working-directory: src/Framework/Modularyn.Framework.Sdk.Client/typescript
         run: npm run check
+      # The host rows of the AC-001 cases write their evidence records beneath the runner's temporary directory, bound to the
+      # exact head that the checkout step fetched (docs/ci.md, "Evidence records"). Neither value is a secret.
+      - name: Choose the host evidence directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          head="$(git rev-parse HEAD)"
+          [[ "${head}" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Cannot read the exact head."; exit 1; }
+          echo "MODULARYN_EVIDENCE_DIR=${RUNNER_TEMP}/host-evidence" >> "${GITHUB_ENV}"
+          echo "MODULARYN_SOURCE_COMMIT=${head}" >> "${GITHUB_ENV}"
       # The database script creates the per-run credentials and runs the tests script with MODULARYN_TEST_POSTGRESQL
       # set, so the credentials exist only in this step. The tests script runs every project's PostgreSQL tests with
       # detailed output and fails unless at least one ran and all passed. MODULARYN_CLIENT_TEST_VITEST makes the client
@@ -563,6 +573,12 @@ jobs:
           POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
           MODULARYN_CLIENT_TEST_VITEST: '1'
         run: bash .github/scripts/postgresql-test-database.sh ci bash .github/scripts/real-provider-tests.sh
+      # The repository's own evidence contracts check every record the host rows wrote; the job then prints each record's SHA-256.
+      - name: Check the host evidence records
+        shell: bash
+        env:
+          MODULARYN_EVIDENCE_MODE: single-host
+        run: bash .github/scripts/evidence-records.sh
 
   # The fixture image on the digest-pinned ASP.NET Core runtime base, built for linux/amd64. Every
   # Dockerfile in the repository must use that base. After the fixture, the job publishes the sample
