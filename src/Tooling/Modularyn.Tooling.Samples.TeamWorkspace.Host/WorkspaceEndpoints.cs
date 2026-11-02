@@ -25,8 +25,13 @@ namespace Modularyn.Tooling.Samples.TeamWorkspace.Host;
 public static class WorkspaceEndpoints
 {
     public const string MemberRole = "workspace-member";
+
+    /// <summary>
+    /// An ordinary member's permissions. Releasing an attachment from quarantine is not among them: it is an owner's or an
+    /// administrator's action, granted separately.
+    /// </summary>
     public static readonly string[] MemberPermissions = [WorkspaceDefinition.Read, WorkspaceDefinition.Write, WorkspaceDefinition.Digest,
-        ScheduleWorker.SchedulePermission, FilePermissions.Upload, FilePermissions.Read, FilePermissions.Grant, FilePermissions.Release];
+        ScheduleWorker.SchedulePermission, FilePermissions.Upload, FilePermissions.Read, FilePermissions.Grant];
 
     public static void Map(WebApplication app, bool developmentSeed)
     {

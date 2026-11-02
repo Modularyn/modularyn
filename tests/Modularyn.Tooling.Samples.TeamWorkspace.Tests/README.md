@@ -31,7 +31,7 @@ The scenario covers:
 - Audited role definition/assignment and cross-tenant refusal.
 - Settings authorization/version conflicts, cache invalidation, feature denial and culture fallback.
 - Idempotent note creation, optimistic revision conflict, history and form antiforgery.
-- Quarantined upload, allowed release, refused PDF release and hidden unreleased content.
+- Quarantined upload, a plain member's refused release, the owner's allowed release, refused PDF release and hidden unreleased content.
 - Header-only download grants, integrity/security headers, expiry and log/trace canaries.
 - A stalled download followed by another download through the single read slot.
 - Durable inbox activity and one digest per occurrence in the member's IANA zone.

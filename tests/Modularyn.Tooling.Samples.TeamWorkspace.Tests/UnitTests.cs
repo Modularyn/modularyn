@@ -1,6 +1,7 @@
 using Modularyn.Framework.Api.Contracts;
 using Modularyn.Framework.Jobs;
 using Modularyn.Framework.Tenancy.Abstractions;
+using Modularyn.Modules.Files.Application.Contracts;
 using Modularyn.Tooling.Samples.TeamWorkspace.Host;
 using Xunit;
 
@@ -22,6 +23,11 @@ public sealed class UnitTests
 
     [Fact]
     public void The_note_form_declares_antiforgery() => Check.That(WorkspaceApi.Endpoint("NewNoteForm").Antiforgery, "form-antiforgery");
+
+    [Fact]
+    public void An_ordinary_member_may_grant_downloads_but_not_release_attachments() =>
+        Check.That(!WorkspaceEndpoints.MemberPermissions.Contains(FilePermissions.Release) && WorkspaceEndpoints.MemberPermissions.Contains(FilePermissions.Grant),
+            "member-role-least-privilege");
 
     [Fact]
     public void The_download_declares_exactly_the_released_media_types() =>
