@@ -57,6 +57,20 @@ public sealed class DigestSubscription : ITenantScoped
     public string TimeZone { get; set; } = "";
 }
 
+/// <summary>
+/// The one record of the one-time host-operator provisioning: which account it names, when it began and when its grants
+/// completed. Its fixed key lets only one run claim it. It is written only in a host scope for
+/// <see cref="WorkspaceDefinition.ProvisionHostOperator"/>, each change with its audit record.
+/// </summary>
+public sealed class HostOperatorProvisioningRecord : IHostScoped
+{
+    public const string Key = "first-host-operator";
+    public string Id { get; set; } = "";
+    public string Account { get; set; } = "";
+    public DateTimeOffset StartedAt { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+}
+
 public sealed class MemberDigest : ITenantScoped
 {
     public Guid TenantId { get; set; }
@@ -111,6 +125,11 @@ public sealed class WorkspaceContext(PostgreSqlModule module) : ModuleDbContext(
             entity.HasKey(row => new { row.TenantId, row.JobId });
             entity.HasIndex(row => new { row.TenantId, row.Member, row.CreatedAt });
             entity.HasOne<JobRecord>().WithMany().HasForeignKey(row => new { row.TenantId, row.JobId }).OnDelete(DeleteBehavior.Restrict);
+        });
+        model.Entity<HostOperatorProvisioningRecord>(entity =>
+        {
+            entity.ToTable(WorkspaceDefinition.ProvisioningTable);
+            entity.HasKey(row => row.Id);
         });
     }
 }
@@ -185,5 +204,11 @@ public sealed class WorkspaceInitial : ModuleMigration
             table.ForeignKey("FK_Digests_Job", row => new { row.TenantId, row.JobId }, "Jobs", new[] { "TenantId", "Id" }, principalSchema: Schema);
         });
         migration.CreateIndex("IX_Digests_Member", "MemberDigests", new[] { "TenantId", "Member", "CreatedAt" }, schema: Schema);
+        migration.CreateTable(WorkspaceDefinition.ProvisioningTable, schema: Schema, columns: table => new
+        {
+            Id = table.Column<string>("text"), Account = table.Column<string>("text"),
+            StartedAt = table.Column<DateTimeOffset>("timestamp with time zone"),
+            CompletedAt = table.Column<DateTimeOffset>("timestamp with time zone", nullable: true)
+        }, constraints: table => table.PrimaryKey("PK_HostOperatorProvisioning", row => row.Id));
     }
 }

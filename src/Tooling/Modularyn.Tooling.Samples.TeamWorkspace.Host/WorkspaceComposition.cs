@@ -32,7 +32,8 @@ public sealed class WorkspaceComposition
             AuthorizationModule.Permissions(version).Concat(AuditModule.Permissions(version)).Concat(SettingsModule.Permissions(version))
                 .Concat(FilePermissions.Definitions(version)).Concat(WorkspaceDefinition.Permissions),
             TenantDirectoryModule.HostOperations(version).Concat(IdentityHostOperations.Definitions(version)).Concat(AuthorizationModule.HostOperations(version))
-                .Concat(AuditModule.HostOperations(version)).Concat(SettingsModule.HostOperations(version)).Append(WorkspaceDefinition.DispatchDefinition));
+                .Concat(AuditModule.HostOperations(version)).Concat(SettingsModule.HostOperations(version)).Append(WorkspaceDefinition.DispatchDefinition)
+                .Append(WorkspaceDefinition.ProvisionDefinition));
         Modules = new([Directory, Identity, Authorization, Audit, Settings, Files, Workspace]);
     }
 

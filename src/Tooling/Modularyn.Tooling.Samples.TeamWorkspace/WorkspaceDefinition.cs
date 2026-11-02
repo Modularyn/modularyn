@@ -20,9 +20,19 @@ public static class WorkspaceDefinition
     public const string ActivityConsumer = "workspace.activity";
     public const string NoteChanged = "workspace.note-changed";
     public const string Worker = "workspace-worker";
+
+    /// <summary>
+    /// The service identity the one-time host-operator provisioning command runs as. Only the provisioning process declares
+    /// it, so a bootstrap authority the deployment names for it is inert in a serving host.
+    /// </summary>
+    public const string Provisioner = "workspace-provisioning";
+    public const string ProvisioningTable = "HostOperatorProvisioning";
     public static readonly SemanticVersion Version = SemanticVersion.Parse("1.0.0");
     public static readonly HostOperation Dispatch = new("workspace.dispatch",
         new[] { "OutboxEvents", "InboxEvents", "Jobs", "JobAttempts", "JobSchedules" }.Select(table => new HostReach(Id, table)));
+
+    /// <summary>Records the one-time provisioning of the first host operator; it reaches that record and nothing else.</summary>
+    public static readonly HostOperation ProvisionHostOperator = new("workspace.provision-host-operator", [new HostReach(Id, ProvisioningTable)]);
     public static readonly SettingDefinition Title = new(Id, "title", Version, ValueKind.Text, "Team workspace",
         TimeSpan.FromSeconds(30), new ValueValidation(maxLength: 80), clientVisible: true);
     public static readonly FeatureDefinition Digests = new(Id, "digests", Version, true, TimeSpan.FromSeconds(30), clientVisible: true);
@@ -35,12 +45,13 @@ public static class WorkspaceDefinition
     public static IReadOnlyList<PermissionDefinition> Permissions { get; } = new[] { Read, Write, Digest, ScheduleWorker.SchedulePermission, JobStore.CancelPermission }
         .Select(permission => new PermissionDefinition(Id, permission, Version, PermissionFreshness.Current)).ToArray();
     public static readonly HostOperationDefinition DispatchDefinition = new(Id, Version, Dispatch);
+    public static readonly HostOperationDefinition ProvisionDefinition = new(Id, Version, ProvisionHostOperator);
     public static ModuleManifest Manifest { get; } = new(Id, Version,
         dependencies: new[] { "Modularyn.Framework.Tenancy", "Modularyn.Modules.Identity", "Modularyn.Framework.Authorization",
             "Modularyn.Framework.Audit", "Modularyn.Framework.Settings", "Modularyn.Modules.Files" }
             .Select(id => new ModuleDependency(id, VersionRange.Exact(Version))),
         routes: WorkspaceApi.Inventory.Endpoints.Select(endpoint => new ModuleRoute(endpoint.Method, endpoint.Route)),
-        definitions: Permissions.Select(item => item.Declaration).Append(DispatchDefinition.Declaration)
+        definitions: Permissions.Select(item => item.Declaration).Append(DispatchDefinition.Declaration).Append(ProvisionDefinition.Declaration)
             .Concat([Title.Declaration, Digests.Declaration, Text.Declaration]),
         migrations: [new(WorkspaceInitial.Id, Version)],
         backgroundHandlers: [new(ActivityConsumer, Version), new(DigestKind, Version), new(ReleaseKind, Version)]);

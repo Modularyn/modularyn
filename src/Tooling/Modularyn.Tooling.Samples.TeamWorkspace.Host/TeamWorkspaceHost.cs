@@ -39,6 +39,18 @@ public static class TeamWorkspaceHost
     public const long MaximumAttachmentBytes = 10L * 1024 * 1024;
     public static readonly string[] ReleasedMediaTypes = ["image/png", "image/jpeg", "text/plain"];
 
+    /// <summary>
+    /// The host for <see cref="HostOperatorProvisioning"/>: the serving host's composition, plus the provisioning service
+    /// identity, which no serving host declares. Its required permission ceiling is never exercised: it enters no tenant.
+    /// </summary>
+    public static Task<WebApplication> BuildProvisioningAsync(IConfiguration configuration,
+        Action<WebApplicationBuilder>? configure = null, CancellationToken cancellationToken = default) =>
+        BuildAsync(configuration, builder =>
+        {
+            builder.Services.AddModularynServiceIdentity(WorkspaceDefinition.Provisioner, [WorkspaceDefinition.Read]);
+            configure?.Invoke(builder);
+        }, cancellationToken);
+
     public static async Task<WebApplication> BuildAsync(IConfiguration configuration,
         Action<WebApplicationBuilder>? configure = null, CancellationToken cancellationToken = default)
     {

@@ -122,7 +122,9 @@ Host-scoped tenant creation and membership addition are at
 `/api/v{version}/host/tenants` and `/api/v{version}/host/memberships`. Both require
 the foundation's existing audited host operations. No endpoint or startup path
 creates accounts, grants host authority, names a first operator or assigns a
-tenant owner. The Builder supplies that security provisioning separately.
+tenant owner. The host's one-time `provision-host-operator` command, a command
+and never an endpoint, makes an existing account the first host operator under
+the deployment's bootstrap authority, as the host README describes.
 
 ## Validation status and limits
 
@@ -142,7 +144,7 @@ work because the workflow and Docker command allowlist are outside this scope.
 The development endpoint seeds only project/note data after authorization.
 Tenant/member/role seed data lives in the isolated smoke fixture, where
 credentials and deployment identities are generated at run time. Production
-refuses the development-seed switch. Account/operator/tenant-owner provisioning,
+refuses the development-seed switch. Account and tenant-owner provisioning,
 email delivery, browser evidence, exhaustive G-02 acceptance and generated
 sample client execution remain outside this delivery.
 

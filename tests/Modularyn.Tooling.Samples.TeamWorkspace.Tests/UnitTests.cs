@@ -55,6 +55,16 @@ public sealed class UnitTests
         catch (ArgumentException) { }
     }
 
+    [Theory]
+    [InlineData("provision-host-operator")]
+    [InlineData("provision-host-operator operator@example.test")]
+    [InlineData("provision-host-operator 00000000-0000-0000-0000-000000000000")]
+    [InlineData("provision-host-operator 6f9619ff-8b86-d011-b42d-00c04fc964ff --password=generated")]
+    [InlineData("provision-host-operator --password generated")]
+    public async Task The_provisioning_command_takes_exactly_one_account_identifier_and_nothing_else(string arguments) =>
+        // Refused as a usage error before any configuration is read, so no secret can ride on the command line.
+        Check.That(await Program.Main(arguments.Split(' ')) == 2, "provisioning-usage");
+
     [Fact]
     public void The_fixture_run_directory_is_owner_only_and_outside_the_repository()
     {

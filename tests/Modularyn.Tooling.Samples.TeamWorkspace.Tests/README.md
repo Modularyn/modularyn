@@ -39,3 +39,15 @@ The scenario covers:
 
 The scenario does not establish browser automation, container execution or
 exhaustive G-02 acceptance.
+
+`ProvisioningTests`, also `Requires=PostgreSQL`, run the host's one-time
+`provision-host-operator` command through `HostOperatorProvisioning.RunAsync`,
+building the provisioning host afresh for each run over one set of schemas, as
+successive runs with different deployment configuration. They show the first
+operator receiving exactly the bootstrap entry's operations but provisioning,
+each change audited; refusals for a configured user operator, a missing or
+incomplete bootstrap entry, an unknown or disabled account and every second run;
+a stopped run resuming for its own account only; and a serving host unable to
+act as the provisioning service. A fixture service, declared and configured only
+there, creates the accounts and reads host audit. `UnitTests` checks that the
+command refuses every argument form but one account identifier.

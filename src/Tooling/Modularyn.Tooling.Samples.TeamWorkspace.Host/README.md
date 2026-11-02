@@ -28,11 +28,13 @@ belongs in the repository, a command line, image or diagnostic.
 | `Workspace__DevelopmentSeed` | Optional `true`, accepted only with `DOTNET_ENVIRONMENT=Development` or `Testing` |
 
 Use the foundation's identity/authorization deployment options unchanged. No
-operator is configured by the sample. The Builder's separately reviewed
-provisioning establishes accounts, tenant owners and host authority. The
+operator is configured by the sample; the one-time command in
+[First host operator](#first-host-operator) creates the first. The
 declared service identity `workspace-worker` has a permission ceiling but needs
-separately provisioned `workspace.dispatch` host authority before it can dispatch.
-Missing authority leaves work queued. The service does not become a tenant member.
+`workspace.dispatch` host authority before it can dispatch, from a
+`HostOperators` entry naming it as a service; the sample has no endpoint for
+stored host-authority grants. Missing authority leaves work queued. The service
+does not become a tenant member.
 
 The proxy must terminate HTTPS and forward from its explicitly configured peer
 address. Restrict the private HTTP listener to that proxy. Keep cross-origin
@@ -83,6 +85,58 @@ key ring, pending migration or invalid policy refuses startup. There is no
 unverified-composition switch. Health endpoints are `/health/live` and
 `/health/ready`, reached through the configured HTTPS origin.
 
+## First host operator
+
+A fresh deployment has no host operator. The host command
+`provision-host-operator` makes one existing, enabled account the first, once,
+under the deployment's own authority (SEC-05's decision). It is a command, not
+an endpoint, and it never listens for requests:
+
+```sh
+Modularyn__Authorization__HostOperators__0__Kind=Service \
+Modularyn__Authorization__HostOperators__0__Subject=workspace-provisioning \
+Modularyn__Authorization__HostOperators__0__Operations__0=modularyn.authorization.host-authority \
+Modularyn__Authorization__HostOperators__0__Operations__1=workspace.provision-host-operator \
+Modularyn__Authorization__HostOperators__0__Operations__2=modularyn.tenancy.directory \
+Modularyn__Authorization__HostOperators__0__Operations__3=modularyn.identity.memberships \
+dotnet "$workspace_publish/Modularyn.Tooling.Samples.TeamWorkspace.Host.dll" provision-host-operator "$account_id"
+```
+
+- **Input.** Its one argument is the account's identifier, a UUID. It takes no
+  password or other secret, and refuses any other argument with exit status 2
+  before reading configuration. It reads the host's environment configuration,
+  validates it as startup does and activates the modules, so a missing or
+  altered deployment lock or a pending migration refuses it.
+- **Bootstrap authority.** The `HostOperators` entry above, set for this run
+  only, is the deployment's bootstrap authority. It names the service
+  `workspace-provisioning` with `modularyn.authorization.host-authority`,
+  `workspace.provision-host-operator` and each host operation the first operator
+  is to hold. The command runs as that service, and only the provisioning
+  process declares it, so the entry confers nothing in a serving host. Remove it
+  after the run all the same: a standing operator ends only with a configuration
+  change and a restart, and no stored revocation can remove it.
+- **What it grants.** The account receives every operation of that entry except
+  `workspace.provision-host-operator`, each through authorization's host-authority
+  administration in an audited host scope, which commits the grant with its
+  `authority.host-authority-granted` record. The command records
+  `workspace.host-operator-provisioning` with its claim of the provisioning
+  record, and `workspace.host-operator-provisioned`, naming the operations
+  granted, when it completes; each record commits with its change.
+- **Refusals.** Exit status 3, changing nothing, when a `HostOperators` entry
+  names a user, or an earlier run has claimed the provisioning record; without
+  the bootstrap entry, or with one lacking host authority or provisioning; and
+  for an unknown or disabled account. The record's fixed key lets only one run
+  claim it. A completed provisioning is final; one that stopped after its claim
+  resumes when run again for the same account, and for no other.
+- **Results.** Exit status 0 means provisioned, and 1 a configuration, startup
+  or database failure, after which the command can be run again. Each outcome
+  prints a fixed message that names no account, operation or setting.
+
+The account must already exist. The sample has no command or endpoint that
+creates one, since Identity's administrative writes have no endpoint, nor one
+through which the first operator names tenant owners or grants host authority
+further; its host endpoints are tenant creation and membership addition.
+
 After provisioning and assigning the member role, `/sign-in` accepts the account
 credentials and tenant identifier and opens `/t/{tenant}/notes/new`. Create a
 project through the declared API first, or use the explicitly enabled development
@@ -107,7 +161,8 @@ key and BLOB directories, writable only by UID 1654. Map the internal port 8080
 only to the TLS proxy's private network. Set the container's deployment-lock
 path to `/app/deployment-lock.json`. Apply migrations with the image's
 `--migrate` argument before running its default entry point. No container startup
-path provisions identities or authority. Host filesystem paths and container
+path provisions identities or authority; run `provision-host-operator` as a
+separate container invocation with the bootstrap entry. Host filesystem paths and container
 mount paths are deployment inputs, not committed configuration.
 
 The existing CI job scans the Dockerfile's image pin but builds only its existing
