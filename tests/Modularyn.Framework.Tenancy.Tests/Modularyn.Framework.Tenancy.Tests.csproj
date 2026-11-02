@@ -19,7 +19,25 @@
     <ProjectReference Include="../../src/Framework/Modularyn.Framework.Configuration/Modularyn.Framework.Configuration.csproj" />
     <ProjectReference Include="../../src/Framework/Modularyn.Framework.Modularity/Modularyn.Framework.Modularity.csproj" />
     <ProjectReference Include="../../src/Framework/Modularyn.Framework.Modularity.Abstractions/Modularyn.Framework.Modularity.Abstractions.csproj" />
+    <ProjectReference Include="../../src/Framework/Modularyn.Framework.Api/Modularyn.Framework.Api.csproj" />
+    <ProjectReference Include="../../src/Framework/Modularyn.Framework.Audit/Modularyn.Framework.Audit.csproj" />
+    <ProjectReference Include="../../src/Framework/Modularyn.Framework.Authorization/Modularyn.Framework.Authorization.csproj" />
+    <ProjectReference Include="../../src/Framework/Modularyn.Framework.Events/Modularyn.Framework.Events.csproj" />
+    <ProjectReference Include="../../src/Framework/Modularyn.Framework.Features/Modularyn.Framework.Features.csproj" />
+    <ProjectReference Include="../../src/Framework/Modularyn.Framework.Jobs/Modularyn.Framework.Jobs.csproj" />
+    <ProjectReference Include="../../src/Framework/Modularyn.Framework.Settings/Modularyn.Framework.Settings.csproj" />
+    <ProjectReference Include="../../src/Modules/Modularyn.Modules.BackgroundJobs.Application/Modularyn.Modules.BackgroundJobs.Application.csproj" />
+    <ProjectReference Include="../../src/Modules/Modularyn.Modules.BackgroundJobs.Persistence.EfCore/Modularyn.Modules.BackgroundJobs.Persistence.EfCore.csproj" />
+    <ProjectReference Include="../../src/Modules/Modularyn.Modules.Files.Application/Modularyn.Modules.Files.Application.csproj" />
+    <ProjectReference Include="../../src/Modules/Modularyn.Modules.Files.Persistence.EfCore/Modularyn.Modules.Files.Persistence.EfCore.csproj" />
+    <ProjectReference Include="../../src/Modules/Modularyn.Modules.Files.Persistence.FileSystem/Modularyn.Modules.Files.Persistence.FileSystem.csproj" />
+    <ProjectReference Include="../../src/Modules/Modularyn.Modules.Identity.Application/Modularyn.Modules.Identity.Application.csproj" />
+    <ProjectReference Include="../../src/Modules/Modularyn.Modules.Identity.HttpApi/Modularyn.Modules.Identity.HttpApi.csproj" />
+    <ProjectReference Include="../../src/Modules/Modularyn.Modules.Identity.Persistence.EfCore/Modularyn.Modules.Identity.Persistence.EfCore.csproj" />
     <Compile Include="../Modularyn.Repository.Tests/PostgreSqlProbe.cs" Link="PostgreSqlProbe.cs" />
     <Compile Include="../Modularyn.Framework.Persistence.EfCore.Tests/PostgreSqlTestLock.cs" Link="PostgreSqlTestLock.cs" />
+    <Compile Include="../Modularyn.Framework.Events.Tests/DurableDatabase.cs" Link="DurableDatabase.cs" />
+    <Compile Include="../Modularyn.Framework.Events.Tests/DurableHost.cs" Link="DurableHost.cs" />
+    <Compile Include="../Modularyn.Framework.Events.Tests/DurableModel.cs" Link="DurableModel.cs" />
   </ItemGroup>
 </Project>
