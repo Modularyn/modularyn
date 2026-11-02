@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Assembles and checks the complete G-02 bundle half that this job's run wrote (docs/ci.md, "Evidence records"). The repository test
+# Assembles and checks the complete G-02 bundle half that this job's run wrote (docs/ci.md, "Evidence records"). The evidence
+# assembler, run on the pinned SDK through evidence-bundle.sh, writes the half's records and manifest. The repository test
 # CiEvidenceTests applies the repository's own evidence contracts to every record beneath MODULARYN_EVIDENCE_DIR, for the
 # commit in MODULARYN_SOURCE_COMMIT and the deployment mode in MODULARYN_EVIDENCE_MODE. The test executable's own filter runs
 # that one test, -failSkips fails it if it skips, and its report must show that it ran and passed. The script then prints
-# each record's SHA-256. It expects a Release build of the repository tests.
+# each record's SHA-256 and the manifest. It expects a Release build of the repository tests.
 set -euo pipefail
 
 fail() {
@@ -18,8 +19,7 @@ fail() {
 tests=tests/Modularyn.Repository.Tests/bin/Release/net10.0/Modularyn.Repository.Tests.dll
 [ -f "${tests}" ] || fail "${tests} is not built."
 
-python3 -B tests/Modularyn.Repository.Tests/test_evidence_bundle.py
-python3 -B tests/Modularyn.Repository.Tests/evidence_bundle.py assemble --directory "${MODULARYN_EVIDENCE_DIR}" --commit "${MODULARYN_SOURCE_COMMIT}" --mode "${MODULARYN_EVIDENCE_MODE}" --run "${MODULARYN_EVIDENCE_RUN_ID}"
+bash .github/scripts/evidence-bundle.sh assemble
 [ -f "${MODULARYN_EVIDENCE_DIR}/manifest.json" ] || fail "The complete G-02 manifest is required."
 
 report="${RUNNER_TEMP}/evidence-check-${MODULARYN_EVIDENCE_MODE}.json"

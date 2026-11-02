@@ -208,8 +208,11 @@ describes the job.
 
 ### CODE-10 record output
 
-The single [bundle assembler](../../tests/Modularyn.Repository.Tests/evidence_bundle.py)
-reads the plan, corpus, measured selection and xunit v3 results. The host job
+The single bundle assembler, [EvidenceBundle](../../tests/Modularyn.Repository.Tests/EvidenceBundle.cs)
+in the repository tests, runs on the pinned SDK and reads the plan, corpus,
+measured selection and xunit v3 results. CI runs its `collect`, `select` and
+`assemble` commands through [evidence-bundle.sh](../../.github/scripts/evidence-bundle.sh),
+each as one test method of the repository tests' executable. The host job
 collects VSTest TRX reports, then runs the planned methods absent from that
 provider selection through their own executables and collects CTRF reports.
 The container job collects CTRF reports from those executables inside the

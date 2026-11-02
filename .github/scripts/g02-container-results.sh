@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Additional planned projects run in the existing test-only fixture image, in the database container's namespace.
+# Additional planned projects run in the existing test-only fixture image, in the database container's namespace. The evidence
+# assembler's commands run on the runner, on the pinned SDK, through evidence-bundle.sh.
 set -euo pipefail
 fail() { echo "::error::G-02 container result collection failed."; exit 1; }
 [ "${GITHUB_ACTIONS:-}" = true ] || fail
@@ -9,8 +10,7 @@ fail() { echo "::error::G-02 container result collection failed."; exit 1; }
 output="${RUNNER_TEMP}/composition-output"
 evidence="${output}/evidence"
 group="$(id -g)"
-collector=tests/Modularyn.Repository.Tests/evidence_bundle.py
-arguments=(--directory "${evidence}" --commit "${MODULARYN_SOURCE_COMMIT}" --run "${MODULARYN_EVIDENCE_RUN_ID}" --mode single-host-container)
+export MODULARYN_EVIDENCE_DIR="${evidence}" MODULARYN_EVIDENCE_MODE=single-host-container
 remove_raw() { rm -f "${output}/"*.raw.json "${output}/"*.methods; }
 trap remove_raw EXIT
 if [ "$1" = prepare ]; then
@@ -21,20 +21,21 @@ fi
 status=0
 sample=tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests.csproj
 if [ -f "${output}/composition-results.json" ]; then
-  python3 -B "${collector}" collect "${arguments[@]}" --project "${sample}" --report "${output}/composition-results.json" --label composition || fail
+  MODULARYN_EVIDENCE_PROJECT="${sample}" MODULARYN_EVIDENCE_REPORT="${output}/composition-results.json" MODULARYN_EVIDENCE_LABEL=composition bash .github/scripts/evidence-bundle.sh collect || fail
 fi
 while IFS= read -r project; do
   [ "${project}" != "${sample}" ] || continue
   name="$(basename "${project}" .csproj)"
   methods="${output}/${name}.methods"
-  python3 -B "${collector}" select "${arguments[@]}" --project "${project}" > "${methods}" || fail
+  rm -f "${methods}"
+  MODULARYN_EVIDENCE_PROJECT="${project}" MODULARYN_EVIDENCE_METHODS="${methods}" bash .github/scripts/evidence-bundle.sh select || fail
   selected=()
   while IFS= read -r method; do selected+=(-method "${method}"); done < "${methods}"
   if [ "${#selected[@]}" -gt 0 ]; then
     report="${output}/${name}.raw.json"
     docker run --rm --pull=never --platform=linux/amd64 --network="container:${POSTGRES_CONTAINER}" --read-only --tmpfs=/tmp --cap-drop=ALL --security-opt=no-new-privileges --group-add="${group}" --volume="${output}:/output" --env=MODULARYN_TEST_POSTGRESQL --entrypoint=dotnet "${COMPOSITION_IMAGE}" "/app/projects/${name}/${name}.dll" -noLogo -noColor -preEnumerateTheories -failSkips "${selected[@]}" -result-ctrf "/output/${name}.raw.json" > /dev/null 2>&1 || status=1
     if [ -f "${report}" ]; then
-      python3 -B "${collector}" collect "${arguments[@]}" --project "${project}" --report "${report}" --label "${name}" --methods "${methods}" || fail
+      MODULARYN_EVIDENCE_PROJECT="${project}" MODULARYN_EVIDENCE_REPORT="${report}" MODULARYN_EVIDENCE_LABEL="${name}" MODULARYN_EVIDENCE_METHODS="${methods}" bash .github/scripts/evidence-bundle.sh collect || fail
     else
       status=1
     fi

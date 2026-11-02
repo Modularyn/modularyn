@@ -34,32 +34,95 @@ public sealed class EvidencePipelineTests
     [InlineData("g02-container-results.sh complete")]
     [InlineData("mkdir -m 0770 \"${output}/evidence\"")]
     [InlineData("always()")]
+    [InlineData("evidence-bundle.sh collect")]
+    [InlineData("evidence-bundle.sh select")]
+    [InlineData("-failSkips -method \"Modularyn.Repository.Tests.EvidenceBundleCommandTests.${method}\"")]
+    [InlineData("[ \"$(jq -r '.results.summary.passed' \"${report}\")\" = \"1\" ]")]
+    [InlineData("env -u MODULARYN_TEST_POSTGRESQL")]
+    [InlineData("method=Collect_one_runner_report_into_the_bundle")]
+    [InlineData("method=Select_the_planned_methods_that_no_collected_report_ran")]
+    [InlineData("method=Assemble_the_bundle_half_from_the_collected_reports")]
+    [InlineData("- name: Build the evidence assembler")]
     public void Removing_a_bundle_stage_is_rejected(string text)
     {
         var files = RepositoryFiles.Current.ToDictionary(pair => pair.Key, pair => pair.Value.Replace(text, "removed-stage", StringComparison.Ordinal), StringComparer.Ordinal);
         Assert.NotEmpty(EvidencePipelineContract.Errors(files));
     }
+
+    [Fact]
+    public void The_container_job_builds_the_assembler_before_its_rows_run()
+    {
+        var files = RepositoryFiles.Current.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+        var ci = files[ToolPinContract.CiPath];
+        var build = ci.IndexOf("      - name: " + EvidencePipelineContract.AssemblerBuildStep + "\n", StringComparison.Ordinal);
+        var rows = ci.IndexOf("      - name: " + ToolPinContract.CompositionTestStep + "\n", StringComparison.Ordinal);
+        Assert.True(build > 0 && rows > build);
+        // Move the build after the rows that collect their reports with it.
+        var step = ci[build..ci.IndexOf("      - name: ", build + 1, StringComparison.Ordinal)];
+        var moved = ci.Remove(build, step.Length);
+        files[ToolPinContract.CiPath] = moved.Insert(moved.IndexOf("      - name: " + ToolPinContract.ContainerEvidenceCheckStep + "\n", StringComparison.Ordinal), step);
+        Assert.Contains(EvidencePipelineContract.Errors(files), error => error.Contains("builds the evidence assembler", StringComparison.Ordinal));
+    }
 }
 
+// The bundle pipeline's stages (docs/ci.md, "Evidence records"): both jobs collect every planned result, assemble their half with
+// the C# assembler on the pinned SDK and check it, even after a test failure.
 internal static class EvidencePipelineContract
 {
+    internal const string BundleScriptPath = ".github/scripts/evidence-bundle.sh";
+    internal const string HostResultsScriptPath = ".github/scripts/g02-host-results.sh";
+    internal const string ContainerResultsScriptPath = ".github/scripts/g02-container-results.sh";
+    internal const string AssemblerBuildStep = "Build the evidence assembler";
+
+    // Each assembler command and the EvidenceBundleCommandTests method that performs it.
+    private static readonly (string Command, string Method)[] Commands =
+    [
+        ("collect", nameof(EvidenceBundleCommandTests.Collect_one_runner_report_into_the_bundle)),
+        ("select", nameof(EvidenceBundleCommandTests.Select_the_planned_methods_that_no_collected_report_ran)),
+        ("assemble", nameof(EvidenceBundleCommandTests.Assemble_the_bundle_half_from_the_collected_reports))
+    ];
+
     internal static List<string> Errors(IReadOnlyDictionary<string, string> files)
     {
         var errors = new List<string>();
         var evidence = files.GetValueOrDefault(ToolPinContract.EvidenceScriptPath, "");
-        if (!evidence.Contains("evidence_bundle.py assemble", StringComparison.Ordinal)
+        if (!evidence.Contains("bash " + BundleScriptPath + " assemble\n", StringComparison.Ordinal)
             || !evidence.Contains("[ -f \"${MODULARYN_EVIDENCE_DIR}/manifest.json\" ]", StringComparison.Ordinal)
             || !evidence.Contains("cat \"${MODULARYN_EVIDENCE_DIR}/manifest.json\"", StringComparison.Ordinal))
             errors.Add("Both bundle halves require assembly, a complete manifest and its checked listing.");
         if (!files.GetValueOrDefault(ToolPinContract.TestsScriptPath, "").Contains("g02-host-results.sh complete", StringComparison.Ordinal)
             || !files.GetValueOrDefault(ToolPinContract.CompositionScriptPath, "").Contains("g02-container-results.sh complete", StringComparison.Ordinal))
             errors.Add("Both modes must collect all planned results before qualification.");
+        foreach (var path in new[] { HostResultsScriptPath, ContainerResultsScriptPath })
+        {
+            var script = files.GetValueOrDefault(path, "");
+            if (!script.Contains("bash " + BundleScriptPath + " collect || fail", StringComparison.Ordinal)
+                || !script.Contains("bash " + BundleScriptPath + " select || fail", StringComparison.Ordinal))
+                errors.Add($"{path}: must collect every report and select the remaining planned methods with {BundleScriptPath}, and fail on a refusal.");
+        }
+
+        // The assembler runs only through the repository tests' executable: one command's test method, selected by its own
+        // filter, failed if it skips, and required by its report to have run once and passed. It never receives the credentials.
+        var bundle = files.GetValueOrDefault(BundleScriptPath, "");
+        if (!bundle.Contains("env -u MODULARYN_TEST_POSTGRESQL MODULARYN_EVIDENCE_COMMAND=\"$1\" dotnet \"${tests}\" -noLogo -noColor -failSkips -method \"Modularyn.Repository.Tests.EvidenceBundleCommandTests.${method}\" -result-ctrf \"${report}\"", StringComparison.Ordinal)
+            || !bundle.Contains("[ \"$(jq -r '.results.summary.tests' \"${report}\")\" = \"1\" ] && [ \"$(jq -r '.results.summary.passed' \"${report}\")\" = \"1\" ]", StringComparison.Ordinal)
+            || Commands.Any(command => !bundle.Contains($"  {command.Command}) method={command.Method} ;;\n", StringComparison.Ordinal)))
+            errors.Add($"{BundleScriptPath}: must run each assembler command's own test with -failSkips, without the database credentials, "
+                + "and fail unless its report shows that it ran once and passed.");
         if (!files.GetValueOrDefault(ToolPinContract.CompositionScriptPath, "").Contains("mkdir -m 0770 \"${output}/evidence\"", StringComparison.Ordinal))
             errors.Add("The runner must own the group-writable evidence root before the fixture writes its measurements.");
         var ci = files.GetValueOrDefault(ToolPinContract.CiPath, "").Replace("\r\n", "\n", StringComparison.Ordinal);
         foreach (var step in new[] { ToolPinContract.HostEvidenceCheckStep, ToolPinContract.ContainerEvidenceCheckStep })
             if (!ci.Contains("- name: " + step + "\n        if: ${{ always() }}", StringComparison.Ordinal))
                 errors.Add("Bundle checking must also run after a test failure.");
+        var build = ci.IndexOf("      - name: " + AssemblerBuildStep + "\n", StringComparison.Ordinal);
+        var rows = ci.IndexOf("      - name: " + ToolPinContract.CompositionTestStep + "\n", StringComparison.Ordinal);
+        var job = ci.IndexOf("\n  " + ToolPinContract.ContainerJob + ":\n", StringComparison.Ordinal);
+        if (job < 0 || build < job || rows < build
+            || !ci[build..rows].Contains("dotnet restore --locked-mode \"${project}\"\n          dotnet build \"${project}\" -c Release --no-restore\n", StringComparison.Ordinal)
+            || !ci[build..rows].Contains("project=tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj\n", StringComparison.Ordinal))
+            errors.Add($"{ToolPinContract.CiPath}: the {ToolPinContract.ContainerJob} job builds the evidence assembler from the locked repository tests "
+                + $"in a '{AssemblerBuildStep}' step before its '{ToolPinContract.CompositionTestStep}' step.");
         return errors;
     }
 }

@@ -136,9 +136,10 @@ After the existing steps, in their order, the job:
 1. checks that the checkout is clean and that HEAD is the exact head, restores every planned test project with `dotnet restore --locked-mode`, publishes it with `dotnet publish -c Release --no-restore --self-contained false` into `$RUNNER_TEMP/composition`, and sets `MODULARYN_SOURCE_COMMIT` to that head and `MODULARYN_EVIDENCE_RUN_ID` to the workflow run and attempt;
 2. builds the image from that directory with `docker build --platform=linux/amd64 --pull --no-cache`, under the local tag `COMPOSITION_IMAGE` and with `COMPOSITION_DOCKERFILE`;
 3. fails unless the image is linux/amd64, runs as a numeric non-root user and group, starts with exactly the layers of the pinned base and adds at least one, and sets the deployment mode, and unless, run without a network and with `--pull=never`, it finds no file under `/app` that root does not own or that its user can write;
-4. creates the Docker network `modularyn-acceptance` with `--internal`, so nothing on it reaches outside, pulls `POSTGRES_IMAGE`, the `real-provider` job's image by its index digest, and starts PostgreSQL on that network with `POSTGRES_HOST_AUTH_METHOD=reject`, the run's public id as its bootstrap password, and a `pg_isready` health check that the step waits for;
-5. runs `bash .github/scripts/postgresql-test-database.sh ci bash .github/scripts/composition-tests.sh` with `POSTGRES_PORT` 5432. The database script checks the container's image, platform, index digest and reported server version `POSTGRESQL_VERSION`, creates the per-run role and database, removes the bootstrap password, so no password authenticates anything but that role, and runs [composition-tests.sh](../.github/scripts/composition-tests.sh) with `MODULARYN_TEST_POSTGRESQL` naming the container's loopback port;
-6. checks the container records as [Evidence records](#evidence-records) describes, after building the repository tests.
+4. in `Build the evidence assembler`, restores the repository tests with `dotnet restore --locked-mode` and builds them with `dotnet build -c Release --no-restore`, so that the evidence assembler, [EvidenceBundle](../tests/Modularyn.Repository.Tests/EvidenceBundle.cs), runs on the runner as the container rows write their reports;
+5. creates the Docker network `modularyn-acceptance` with `--internal`, so nothing on it reaches outside, pulls `POSTGRES_IMAGE`, the `real-provider` job's image by its index digest, and starts PostgreSQL on that network with `POSTGRES_HOST_AUTH_METHOD=reject`, the run's public id as its bootstrap password, and a `pg_isready` health check that the step waits for;
+6. runs `bash .github/scripts/postgresql-test-database.sh ci bash .github/scripts/composition-tests.sh` with `POSTGRES_PORT` 5432. The database script checks the container's image, platform, index digest and reported server version `POSTGRESQL_VERSION`, creates the per-run role and database, removes the bootstrap password, so no password authenticates anything but that role, and runs [composition-tests.sh](../.github/scripts/composition-tests.sh) with `MODULARYN_TEST_POSTGRESQL` naming the container's loopback port;
+7. checks the container records as [Evidence records](#evidence-records) describes.
 
 [composition-tests.sh](../.github/scripts/composition-tests.sh) holds the credentials and writes no runner file. It:
 
@@ -165,10 +166,27 @@ the fixture writes, so it can assemble records after the fixture exits.
 [The evidence instructions](evidence/README.md#code-10-record-output)
 describe the input and output files and the complete outcome rules.
 
+The evidence assembler is [EvidenceBundle](../tests/Modularyn.Repository.Tests/EvidenceBundle.cs)
+in the repository tests, so it runs on the pinned SDK with the locked packages
+those tests already use. CI runs no Python, nor any tool that is not pinned and
+registered: a repository test rejects a workflow step or CI script that runs
+`python`, `python3`, a versioned or absolute python or the `py` launcher, uses
+Python as a step's shell, or is a Python script. Like the npm rules, it reads
+tokens: it is a drift guard, and review is the control for a command assembled
+another way. [evidence-bundle.sh](../.github/scripts/evidence-bundle.sh) runs each of the
+assembler's three commands, `collect`, `select` and `assemble`, as one
+`EvidenceBundleCommandTests` method, through the test executable's own `-method`
+filter with `-failSkips`. Each method acts only when `MODULARYN_EVIDENCE_COMMAND`
+names its command, and the script fails unless the method's CTRF report shows
+that it ran once and passed. The assembler needs no database, so the script runs
+it without `MODULARYN_TEST_POSTGRESQL`, and a refusal fails the method with a
+fixed code, never an input value, path or exception text. Its outcome,
+sanitization and binding rules are unit tests in the repository tests, which
+`build-test` runs on all three platforms.
+
 `Check the host evidence records` and `Check the container evidence records`
 run with `always()`. [evidence-records.sh](../.github/scripts/evidence-records.sh)
-runs the offline assembler tests using the runner's Python 3 standard library,
-assembles the half, requires its manifest,
+assembles the half with `evidence-bundle.sh assemble`, requires its manifest,
 then invokes the repository's existing `CiEvidenceTests` entry point with
 `-failSkips`. Its CTRF report must show exactly one passing check. The complete
 bundle contract checks every manifest member and retained hash, one record for

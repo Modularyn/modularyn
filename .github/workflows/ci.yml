@@ -941,6 +941,16 @@ jobs:
           writable="$(docker run --rm --pull=never --platform=linux/amd64 --network=none --entrypoint=find "${COMPOSITION_IMAGE}" /app \( ! -user 0 -o -writable \) -print)" || fail "The composition fixture image did not run."
           [ -z "${writable}" ] || fail "Root must own every file of the composition fixture image, and its user may write none: ${writable}"
           echo "Composition fixture image $(docker image inspect --format '{{.Id}}' "${COMPOSITION_IMAGE}") on ${platform}, user ${user}, on the layers of ${ASPNET_IMAGE}"
+      # The evidence assembler runs on the runner from the repository tests' Release build, with the pinned SDK and its locked
+      # packages (docs/ci.md, "Evidence records"): the container rows' script collects each report with it as the fixture
+      # image writes it, and the evidence check assembles and checks the container half with it.
+      - name: Build the evidence assembler
+        shell: bash
+        run: |
+          set -euo pipefail
+          project=tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj
+          dotnet restore --locked-mode "${project}"
+          dotnet build "${project}" -c Release --no-restore
       # PostgreSQL for the container rows, on an internal Docker network that reaches nothing outside it, configured as the
       # real-provider job's service is: host connections are rejected until the database script creates the test role, and
       # that script removes the bootstrap superuser password, the run's public id, which never authenticates anything.
@@ -977,7 +987,4 @@ jobs:
           MODULARYN_EVIDENCE_MODE: single-host-container
         run: |
           set -euo pipefail
-          project=tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj
-          dotnet restore --locked-mode "${project}"
-          dotnet build "${project}" -c Release --no-restore
           MODULARYN_EVIDENCE_DIR="${RUNNER_TEMP}/composition-output/evidence" bash .github/scripts/evidence-records.sh

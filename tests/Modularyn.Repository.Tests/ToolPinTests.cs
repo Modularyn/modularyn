@@ -433,6 +433,19 @@ public sealed class ToolPinTests
     [InlineData("npm-install-elsewhere", "npm may only install packages with npm ci --ignore-scripts")]
     [InlineData("npm-install-in-script", "npm may only install packages with npm ci --ignore-scripts")]
     [InlineData("npm-exec-in-block", "npm may only install packages with npm ci --ignore-scripts")]
+    [InlineData("python-in-script", ToolPinContract.PythonRule)]
+    [InlineData("python3-in-step", ToolPinContract.PythonRule)]
+    [InlineData("absolute-python-in-block", ToolPinContract.PythonRule)]
+    [InlineData("versioned-python-after-assignment", ToolPinContract.PythonRule)]
+    [InlineData("env-python", ToolPinContract.PythonRule)]
+    [InlineData("python-in-substitution", ToolPinContract.PythonRule)]
+    [InlineData("py-launcher", ToolPinContract.PythonRule)]
+    [InlineData("python-shell", ToolPinContract.PythonRule)]
+    [InlineData("python-script-file", ToolPinContract.PythonRule)]
+    [InlineData("python-shebang", ToolPinContract.PythonRule)]
+    [InlineData("assembler-python-again", ToolPinContract.PythonRule)]
+    [InlineData("evidence-script-to-github-env", "never to GITHUB_ENV, GITHUB_OUTPUT, GITHUB_STATE, GITHUB_PATH")]
+    [InlineData("bundle-script-to-github-output", "never to GITHUB_ENV, GITHUB_OUTPUT, GITHUB_STATE, GITHUB_PATH")]
     [InlineData("vitest-switch-missing", "must set MODULARYN_CLIENT_TEST_VITEST to '1'")]
     [InlineData("vitest-switch-off", "must set MODULARYN_CLIENT_TEST_VITEST to '1'")]
     [InlineData("vitest-switch-on-job", "must set MODULARYN_CLIENT_TEST_VITEST to '1'")]
@@ -841,6 +854,47 @@ public sealed class ToolPinTests
                 files[CiPath] = ReplaceInJob(ci, ToolPinContract.BuildTestJob, "      - name: Restore locked dependencies",
                     "      - name: Generate\n        shell: bash\n        run: |\n          set -euo pipefail\n          cd tools && npm exec --yes generator\n"
                     + "      - name: Restore locked dependencies");
+                break;
+            case "python-in-script": files[".github/scripts/tools.sh"] = "#!/usr/bin/env bash\nset -euo pipefail\npython -B tools/collect.py\n"; break;
+            case "python3-in-step":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.BuildTestJob, "      - name: Restore locked dependencies",
+                    "      - name: Collect\n        run: python3 -c \"print(1)\"\n      - name: Restore locked dependencies");
+                break;
+            case "absolute-python-in-block":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.BuildTestJob, "      - name: Restore locked dependencies",
+                    "      - name: Collect\n        shell: bash\n        run: |\n          set -euo pipefail\n          /usr/bin/python3 -I tools/collect.py\n"
+                    + "      - name: Restore locked dependencies");
+                break;
+            case "versioned-python-after-assignment":
+                files[".github/scripts/tools.sh"] = "#!/usr/bin/env bash\nset -euo pipefail\nPYTHONDONTWRITEBYTECODE=1 python3.12 tools/collect.py\n";
+                break;
+            case "env-python":
+                files[".github/scripts/tools.sh"] = "#!/usr/bin/env bash\nset -euo pipefail\nenv -u TOKEN PYTHONSAFEPATH=1 python3 -I tools/collect.py\n";
+                break;
+            case "python-in-substitution":
+                files[".github/scripts/tools.sh"] = "#!/usr/bin/env bash\nset -euo pipefail\nmethods=\"$(\"python3\" tools/select.py)\"\n";
+                break;
+            case "py-launcher":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.BuildTestJob, "      - name: Restore locked dependencies",
+                    "      - name: Collect\n        shell: pwsh\n        run: py -3 tools/collect.py\n      - name: Restore locked dependencies");
+                break;
+            case "python-shell":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.BuildTestJob, "      - name: Restore locked dependencies",
+                    "      - name: Collect\n        shell: python\n        run: print(1)\n      - name: Restore locked dependencies");
+                break;
+            case "python-script-file": files[".github/scripts/collect.py"] = "print('collected')\n"; break;
+            case "python-shebang": files[".github/scripts/collect"] = "#!/usr/bin/env python3\nprint('collected')\n"; break;
+            case "assembler-python-again":
+                files[EvidencePipelineContract.HostResultsScriptPath] = ReplaceText(files[EvidencePipelineContract.HostResultsScriptPath],
+                    "bash .github/scripts/evidence-bundle.sh select", "python3 -B tests/Modularyn.Repository.Tests/evidence_bundle.py select");
+                break;
+            case "evidence-script-to-github-env":
+                files[EvidencePipelineContract.HostResultsScriptPath] = ReplaceText(files[EvidencePipelineContract.HostResultsScriptPath],
+                    "status=0\n", "status=0\necho \"methods=${MODULARYN_EVIDENCE_DIR}\" >> \"${GITHUB_ENV}\"\n");
+                break;
+            case "bundle-script-to-github-output":
+                files[EvidencePipelineContract.BundleScriptPath] = ReplaceText(files[EvidencePipelineContract.BundleScriptPath],
+                    "status=0\n", "status=0\necho \"report=${report}\" >> \"${GITHUB_OUTPUT}\"\n");
                 break;
             case "vitest-switch-missing":
                 files[CiPath] = ReplaceLine(ci, $"          {ToolPinContract.VitestSwitch}: '1'", $"          UNRELATED_SWITCH: '1'");

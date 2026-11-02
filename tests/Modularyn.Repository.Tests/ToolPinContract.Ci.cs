@@ -82,6 +82,15 @@ internal static partial class ToolPinContract
     private static readonly Regex NpmCommand = new(
         @"(?:^|[;&|(`]\s*|\brun:[ \t]+|\b(?:then|do|else)\s+)npm(?:\.cmd)?\s+(?<arguments>[^;&|)`#]*)", RegexOptions.CultureInvariant);
     private static readonly Regex NpmClean = new(@"^npm ci(?:\s|$)", RegexOptions.CultureInvariant);
+    public const string PythonRule = "no CI step runs python or python3: every tool CI runs is pinned, registered and drift-guarded, and no Python runtime is.";
+    // python, python3, a versioned, quoted or absolute python, or the py launcher, in a command position: at the start of a line,
+    // after a separator, an opening substitution or a run or shell key, after a shell keyword or launcher, or after env with its
+    // options and variable assignments, each optionally followed by variable assignments.
+    private static readonly Regex PythonCommand = new(
+        @"(?:^|[;&|(`{]\s*|\brun:[ \t]+|\bshell:[ \t]+|\b(?:then|do|else|exec|command|time|nohup|sudo|xargs)\s+(?:-\S+\s+)*"
+        + @"|\benv(?:\s+(?:-u\s*\S+|--unset=\S+|-C\s*\S+|-\S+|[A-Za-z_][A-Za-z0-9_]*=\S*))*\s+)"
+        + @"(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*[""']?(?:\S*/)?(?:python[0-9.]*|py)(?:\.exe)?[""']?(?=$|[\s;&|)`])", RegexOptions.CultureInvariant);
+    private static readonly Regex PythonShebang = new(@"\bpython|\bpy(?:\s|$)", RegexOptions.CultureInvariant);
     private static readonly Regex EnvEntry = new(@"^          (?<name>[A-Za-z_][A-Za-z0-9_]*):\s*(?<value>.*?)\s*$", RegexOptions.CultureInvariant);
     private static readonly Regex NumericUser = new("^[1-9][0-9]*(?::[1-9][0-9]*)?$", RegexOptions.CultureInvariant);
     // The hardening that every docker run of the composition fixture image or the sample image in the container rows' script
@@ -741,6 +750,37 @@ internal static partial class ToolPinContract
 
         errors.AddRange(DockerCommandErrors(files));
         errors.AddRange(NpmCommandErrors(files));
+        errors.AddRange(PythonCommandErrors(files));
+    }
+
+    // Every tool a CI step runs is pinned, registered and drift-guarded, and no Python runtime is: the evidence assembler runs on
+    // the pinned SDK (docs/ci.md, "Evidence records"). So no workflow step or CI script runs python, python3, a versioned or
+    // absolute python, or the py launcher, whether directly, after variable assignments, through env or another launcher, or
+    // as a step's shell; and no CI script is a Python file or names Python in its shebang. Like the docker and npm rules, this
+    // reads tokens: it is a drift guard, and review is the control for a command assembled another way.
+    public static IEnumerable<string> PythonCommandErrors(IReadOnlyDictionary<string, string> files)
+    {
+        foreach (var (path, text) in files.Where(pair => InDockerScope(pair.Key)).OrderBy(pair => pair.Key, StringComparer.Ordinal))
+        {
+            if (path.EndsWith(".py", StringComparison.Ordinal))
+            {
+                yield return $"{path}: {PythonRule}";
+            }
+
+            var lines = text.Replace("\r\n", "\n").Split('\n');
+            for (var index = 0; index < lines.Length; index++)
+            {
+                var line = lines[index].Trim();
+                if (index == 0 && line.StartsWith("#!", StringComparison.Ordinal) && PythonShebang.IsMatch(line))
+                {
+                    yield return $"{path}:1: {PythonRule}";
+                }
+                else if (!line.StartsWith('#') && PythonCommand.IsMatch(line))
+                {
+                    yield return $"{path}:{index + 1}: {PythonRule}";
+                }
+            }
+        }
     }
 
     // npm runs a package's install scripts unless told not to, and npm install may rewrite the lock, so the workflows and CI
@@ -958,10 +998,13 @@ internal static partial class ToolPinContract
 
         errors.AddRange(EvidenceScriptErrors(files.GetValueOrDefault(EvidenceScriptPath, "")));
 
-        // Both scripts hold the credentials in their environment, so neither may write to a runner file that a later step reads.
+        // These scripts, and the evidence scripts the tests scripts call, hold the credentials in their environment, so none may
+        // write to a runner file that a later step reads.
         var tests = files.GetValueOrDefault(TestsScriptPath, "");
         foreach (var (path, text) in new[] { (DatabaseScriptPath, script), (TestsScriptPath, tests),
-                     (CompositionScriptPath, files.GetValueOrDefault(CompositionScriptPath, "")) })
+                     (CompositionScriptPath, files.GetValueOrDefault(CompositionScriptPath, "")) }
+                     .Concat(new[] { EvidencePipelineContract.HostResultsScriptPath, EvidencePipelineContract.ContainerResultsScriptPath,
+                         EvidencePipelineContract.BundleScriptPath }.Select(path => (path, files.GetValueOrDefault(path, "")))))
         {
             if (RunnerFiles.Any(file => text.Contains(file, StringComparison.Ordinal)))
             {

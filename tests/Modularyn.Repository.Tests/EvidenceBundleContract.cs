@@ -94,11 +94,7 @@ internal static class EvidenceBundleContract
                     tuple["providers"] = new JsonArray(tuple["providers"]!.AsArray()
                         .Where(provider => (string?)provider!["name"] == "EF Core PostgreSQL").Select(provider => provider!.DeepClone()).ToArray());
                 Check(JsonNode.DeepEquals(tuple, record["tuple"]), "record tuple differs from measured selection");
-                var tupleBytes = Encoding.UTF8.GetBytes(tuple.ToJsonString(new JsonSerializerOptions
-                {
-                    WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-                }) + "\n");
-                Check((string?)entry!["tupleSha256"] == Hash(tupleBytes), "record tuple hash differs");
+                Check((string?)entry!["tupleSha256"] == Hash(EvidenceBundle.Encoded(tuple)), "record tuple hash differs");
                 foreach (var artifact in record["implementationArtifacts"]!.AsArray().Concat(record["verification"]!["results"]!.AsArray()))
                     _ = Retained(directory, artifact!);
                 Check(measurement["implementationArtifacts"]!.AsArray().All(artifact => record["implementationArtifacts"]!.AsArray()
