@@ -51,9 +51,9 @@ internal static partial class ArchitectureContract
                 if (edge.Kind == "PackageReference" && (edge.Version is null || !Regex.IsMatch(edge.Version, policy.Text("paidCommunityVersionPattern"),
                     RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)))) Reject("DEP005");
             }
-            // A composition root composes module implementations, so no project, a test included, may depend on it and
-            // reach them through it.
-            if (policy.CompositionRoot(target)) Reject("DEP014");
+            // A composition root composes module implementations, so no project may depend on it and reach them through it,
+            // except its own sample's test project, which runs the real host.
+            if (policy.CompositionRoot(target) && !policy.SampleTests(source, target)) Reject("DEP014");
             if (source.IsTest) continue;
             if (target.IsTest)
             {

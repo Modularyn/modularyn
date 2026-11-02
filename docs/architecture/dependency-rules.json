@@ -6,6 +6,7 @@
   "eventContractRole": "application-contracts",
   "compositionRootPrefix": "Modularyn.Tooling.Samples.",
   "compositionRootSuffix": ".Host",
+  "compositionRootTestSuffix": ".Tests",
   "compositionRootReferences": ["application-contracts", "application-services", "persistence-adapter", "http-endpoints"],
   "editionReferences": {
     "community": {
@@ -78,6 +79,6 @@
     "DEP011": "Dependency cycles are forbidden.",
     "DEP012": "Product projects must not reference test projects.",
     "DEP013": "The dependency companion, guide and names contract must agree.",
-    "DEP014": "No project may reference a composition root."
+    "DEP014": "No project but its sample's own tests may reference a composition root."
   }
 }

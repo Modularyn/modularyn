@@ -183,6 +183,7 @@ public sealed class ArchitectureDiscoveryTests
     [InlineData("prefix")]
     [InlineData("suffix")]
     [InlineData("role")]
+    [InlineData("tests")]
     public void The_composition_root_stays_the_recorded_decision_even_when_companion_and_guide_agree(string mutation)
     {
         // Widening the role needs a new decision, not a companion edit with a regenerated guide.
@@ -200,6 +201,10 @@ public sealed class ArchitectureDiscoveryTests
             case "suffix":
                 rules["compositionRootSuffix"] = ".Hosting";
                 (row, widened) = ("| `compositionRootSuffix` | `.Host` |", "| `compositionRootSuffix` | `.Hosting` |");
+                break;
+            case "tests":
+                rules["compositionRootTestSuffix"] = ".Host.Tests";
+                (row, widened) = ("| `compositionRootTestSuffix` | `.Tests` |", "| `compositionRootTestSuffix` | `.Host.Tests` |");
                 break;
             case "role":
                 rules["compositionRootReferences"]!.AsArray().Add("domain");

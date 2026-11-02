@@ -733,10 +733,11 @@ recorded in [the API conventions](Modularyn.Framework.Api/README.md#threat-model
   `Identity.Persistence.EfCore.Tests`
   `MigrationTests.TM_G02_004_The_migration_creates_exactly_the_mapped_columns_in_the_module_schema`.
   A sample's host, the one composition root that the dependency rules allow, may
-  reference modules' persistence adapters to configure them, but no project may
-  reference it, so no module reaches another's persistence through it, and DEP009
-  holds for every other project (SEC-09; `Repository.Tests` `CompositionRootTests`;
-  removing DEP014, or narrowing or widening the role, fails them).
+  reference modules' persistence adapters to configure them, but only that
+  sample's own test project may reference it, so no module reaches another's
+  persistence through it, and DEP009 holds for every other project (SEC-09;
+  `Repository.Tests` `CompositionRootTests`; removing DEP014 or its one
+  exception, or narrowing or widening either, fails them).
 - **TM-G02-005, deferred.** No extension-property mechanism exists, and no G-02
   work order covers FND-005.
 - **TM-G02-006, partly.** Delivered: declared-proxy forwarded headers, host

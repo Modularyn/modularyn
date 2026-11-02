@@ -71,13 +71,23 @@ application contracts, and the framework through Tooling's family row. It still
 cannot reference a module's domain, client or UI adapter, and every other rule
 applies to it: family, edition, test references and cycles.
 
-No project may reference a composition root, whether by project or package
-reference and whether it is a product or a test (DEP014), so module
-implementations reach no other project through it. DEP009 stays in force for
-every other project, other Tooling projects included: a project under
-`Modularyn.Tooling.Samples.` that does not end in `.Host`, and a `.Host` project
-outside that prefix, reach a module only at `.Application.Contracts`. A
-composition-root role for applications built on Modularyn is a later decision.
+Only the same sample's test project may reference a composition root: the test
+project whose identity is the root's with `.Tests` in place of `.Host`, such as
+`tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests` for
+`Modularyn.Tooling.Samples.TeamWorkspace.Host`, so the sample's end-to-end tests
+run the real host. No other project may reference one, whether by project or
+package reference and whether it is a product or a test: not another sample's
+tests, not a test project named for the host package itself, and not a product
+(DEP014). Module implementations therefore reach no other product through a
+host. Like every test project, the sample's tests accompany the product of their
+own name, such as `Modularyn.Tooling.Samples.TeamWorkspace` (DEP001), which is
+not a composition root.
+
+DEP009 stays in force for every other project, other Tooling projects included:
+a project under `Modularyn.Tooling.Samples.` that does not end in `.Host`, and a
+`.Host` project outside that prefix, reach a module only at
+`.Application.Contracts`. A composition-root role for applications built on
+Modularyn is a later decision.
 
 <!-- dependency-policy:start -->
 
@@ -154,6 +164,7 @@ An empty target set means no reference is allowed in that category.
 |---|---|
 | `compositionRootPrefix` | `Modularyn.Tooling.Samples.` |
 | `compositionRootSuffix` | `.Host` |
+| `compositionRootTestSuffix` | `.Tests` |
 | `compositionRootReferences` | `application-contracts`, `application-services`, `persistence-adapter`, `http-endpoints` |
 
 #### Classification and boundary values
@@ -192,7 +203,7 @@ An empty target set means no reference is allowed in that category.
 | `DEP011` | Dependency cycles are forbidden. |
 | `DEP012` | Product projects must not reference test projects. |
 | `DEP013` | The dependency companion, guide and names contract must agree. |
-| `DEP014` | No project may reference a composition root. |
+| `DEP014` | No project but its sample's own tests may reference a composition root. |
 
 <!-- dependency-policy:end -->
 

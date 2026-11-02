@@ -4,13 +4,13 @@ namespace Modularyn.Repository.Tests;
 
 /// <summary>
 /// The composition-root role: a sample's host under <c>Modularyn.Tooling.Samples.</c>, ending in <c>.Host</c>, composes module
-/// implementations; nothing references it; every other project keeps DEP009.
+/// implementations; only the same sample's test project references it; every other project keeps DEP009.
 /// </summary>
 public sealed class CompositionRootTests
 {
     private const string Host = "Modularyn.Tooling.Samples.TeamWorkspace.Host";
     private const string Dep009 = "DEP009: Another module is accessible only through allowed application or event contracts. ";
-    private const string Dep014 = "DEP014: No project may reference a composition root. ";
+    private const string Dep014 = "DEP014: No project but its sample's own tests may reference a composition root. ";
     private static readonly string[] Implementations =
         ["Modularyn.Modules.Identity.Application", "Modularyn.Modules.Identity.HttpApi", "Modularyn.Modules.Identity.Persistence.EfCore"];
 
@@ -73,6 +73,56 @@ public sealed class CompositionRootTests
             else graph.ProjectReference(from, Host);
             Assert.Contains(graph.Validate(), error => error.StartsWith(Dep014 + from + " -> " + Host, StringComparison.Ordinal));
         }
+    }
+
+    [Theory]
+    [InlineData("TeamWorkspace", false)]
+    [InlineData("TeamWorkspace", true)]
+    [InlineData("TeamWorkspace.Admin", false)]
+    public void A_sample_s_own_test_project_may_reference_its_host(string sample, bool package)
+    {
+        var graph = new ArchitectureFixture();
+        var host = "Modularyn.Tooling.Samples." + sample + ".Host";
+        graph.Add(host);
+        var tests = graph.AddTest("Modularyn.Tooling.Samples." + sample);
+        Assert.Equal("Modularyn.Tooling.Samples." + sample + ".Tests", tests);
+        Assert.Empty(graph.Validate());
+        if (package) graph.PackageReference(tests, host);
+        else graph.ProjectReference(tests, host);
+        Assert.Empty(graph.Validate());
+    }
+
+    [Theory]
+    [InlineData("Modularyn.Tooling.Samples.Gallery", Host)]
+    [InlineData("Modularyn.Tooling.Samples.TeamWorkspace.Admin", Host)]
+    [InlineData("Modularyn.Tooling.Samples.TeamWorkspace", "Modularyn.Tooling.Samples.TeamWorkspace.Admin.Host")]
+    [InlineData("Modularyn.Tooling.Samples.TeamWorkspace.Host", Host)]
+    [InlineData("Modularyn.Tooling.Generator.Core", Host)]
+    [InlineData("Modularyn.Modules.Files.Application", Host)]
+    [InlineData("Modularyn.Repository", Host)]
+    public void No_other_test_project_may_reference_a_composition_root(string tested, string host)
+    {
+        // Another sample's tests, a nested sample's in either direction, tests named for the host package itself, and any other
+        // test project, the repository's included.
+        var graph = new ArchitectureFixture();
+        graph.Add(host);
+        var tests = tested == "Modularyn.Repository" ? "Modularyn.Repository.Tests" : graph.AddTest(tested);
+        Assert.Empty(graph.Validate());
+        graph.ProjectReference(tests, host);
+        Assert.Contains(graph.Validate(), error => error.StartsWith(Dep014 + tests + " -> " + host, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_product_named_like_the_sample_s_tests_gets_no_exception()
+    {
+        // The exception is a test project's: a product with that identity is an ordinary Tooling project.
+        const string product = "Modularyn.Tooling.Samples.TeamWorkspace.Tests";
+        var graph = new ArchitectureFixture();
+        graph.Add(Host);
+        Assert.StartsWith("src/Tooling/", graph.Add(product), StringComparison.Ordinal);
+        Assert.Empty(graph.Validate());
+        graph.ProjectReference(product, Host);
+        Assert.Contains(graph.Validate(), error => error.StartsWith(Dep014 + product + " -> " + Host, StringComparison.Ordinal));
     }
 
     [Theory]

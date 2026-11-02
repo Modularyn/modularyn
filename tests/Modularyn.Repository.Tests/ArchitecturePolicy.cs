@@ -94,7 +94,7 @@ internal sealed class ArchitecturePolicy
     /// <summary>
     /// A sample's host: a project under the composition-root prefix, which the shape check holds to Tooling's Samples subtree,
     /// naming its sample in at least one segment, whose last segment is the suffix's. A test's identity ends in <c>.Tests</c>,
-    /// so it is never one. Only a composition root composes module implementations, and nothing references it.
+    /// so it is never one. Only a composition root composes module implementations, and only its sample's tests reference it.
     /// </summary>
     internal bool CompositionRoot(ArchitectureNode node)
     {
@@ -104,11 +104,19 @@ internal sealed class ArchitecturePolicy
             && node.Id.StartsWith(prefix, StringComparison.Ordinal) && node.Id.EndsWith(suffix, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The one project that may reference a composition root: a test project of the same sample, whose identity is the root's
+    /// with the test suffix in place of the root suffix, as <c>Modularyn.Tooling.Samples.TeamWorkspace.Tests</c> is for
+    /// <c>Modularyn.Tooling.Samples.TeamWorkspace.Host</c>.
+    /// </summary>
+    internal bool SampleTests(ArchitectureNode source, ArchitectureNode root) => source.IsTest && CompositionRoot(root)
+        && source.Id == root.Id[..^Text("compositionRootSuffix").Length] + Text("compositionRootTestSuffix");
+
     private void CheckShape()
     {
         Require(rules.GetProperty("formatVersion").GetInt32() == 1, "dependency format version");
         var fields = new[] { "formatVersion", "namesContract", "moduleFamilies", "nonModulePrefixes", "eventContractRole",
-            "compositionRootPrefix", "compositionRootSuffix", "compositionRootReferences", "editionReferences",
+            "compositionRootPrefix", "compositionRootSuffix", "compositionRootTestSuffix", "compositionRootReferences", "editionReferences",
             "familyReferences", "sameModuleReferences", "otherModuleReferences", "supportFamilyReferences", "domainFrameworkSuffixes",
             "contractsFrameworkSuffixes", "domainForbiddenRoles", "domainForbiddenFamilies", "domainForbiddenSegments",
             "domainForbiddenPlatforms", "domainForbiddenProperties", "domainForbiddenSdks", "paidCommunityVersionPattern", "cycleScopes", "diagnostics" };
@@ -120,11 +128,13 @@ internal sealed class ArchitecturePolicy
             .GetProperty("home").GetString()![..^1];
         Require(List("nonModulePrefixes").SequenceEqual(new[] { studio }), "dependency product subtree exception");
         Require(Text("eventContractRole") == "application-contracts", "event contract role");
-        // The composition-root role is exactly the recorded decision: sample hosts under Tooling's Samples subtree reference
-        // application services, HTTP endpoints and persistence adapters, besides contracts. Widening it is a new decision.
+        // The composition-root role is exactly the recorded decisions: sample hosts under Tooling's Samples subtree reference
+        // application services, HTTP endpoints and persistence adapters, besides contracts, and only the same sample's test
+        // project references a host. Widening either is a new decision.
         var tooling = names.GetProperty("families").EnumerateArray().Single(value => value.GetProperty("name").GetString() == "Tooling")
             .GetProperty("prefix").GetString()![..^1];
         Require(Text("compositionRootPrefix") == tooling + "Samples." && Text("compositionRootSuffix") == ".Host"
+            && Text("compositionRootTestSuffix") == ".Tests"
             && List("compositionRootReferences").SequenceEqual(["application-contracts", "application-services", "persistence-adapter", "http-endpoints"]),
             "composition root role");
         Require(List("cycleScopes").SequenceEqual(new[] { "package", "module" }), "dependency cycle scopes");
@@ -204,7 +214,7 @@ internal sealed class ArchitecturePolicy
         }
         output.AppendLine("#### Composition roots").AppendLine();
         output.AppendLine("| Setting | Value |").AppendLine("|---|---|");
-        foreach (var key in new[] { "compositionRootPrefix", "compositionRootSuffix", "compositionRootReferences" })
+        foreach (var key in new[] { "compositionRootPrefix", "compositionRootSuffix", "compositionRootTestSuffix", "compositionRootReferences" })
         {
             var value = rules.GetProperty(key);
             output.AppendLine("| `" + key + "` | " + Display(value.ValueKind == JsonValueKind.Array ? Values(value) : [value.GetString()!]) + " |");
