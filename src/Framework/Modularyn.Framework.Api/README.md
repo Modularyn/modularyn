@@ -32,7 +32,10 @@ mutation idempotent; inventory validation refuses either otherwise. Supported re
 `UseModularynApi` supplies a server-issued correlation even to an early refusal:
 `AddModularynApi` stops the server from adopting an inbound `traceparent` or
 baggage, and a request continues a peer's trace only when its direct peer is a
-declared proxy (`RequestCorrelation`, TM-G02-053). API problems use
+declared proxy (`RequestCorrelation`, TM-G02-053). `UseModularynApi` decides that
+once per request, from the connection's own address before the ingress rewrites
+it, and later steps keep the decision, so the response header, the endpoint's
+trace and a problem body's `correlationId` always agree. API problems use
 `application/problem+json`, a stable code, status and correlation; SEC-05's
 refusal codes retain their meanings and appear only where SEC-05 decided. A
 refusal that left no body, such as the ingress's, a missing route or a method the

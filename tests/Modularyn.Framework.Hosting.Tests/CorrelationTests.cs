@@ -86,7 +86,42 @@ public sealed class CorrelationTests
         await application.StopAsync(Cancellation);
     }
 
-    private static WebApplication Build(LifecycleFixture fixture, string? proxy)
+    [Theory]
+    [InlineData("127.0.0.1", "203.0.113.9", true)]
+    [InlineData("203.0.113.9", "203.0.113.9", false)]
+    public async Task TM_G02_053_The_correlation_is_decided_once_from_the_connection_before_the_ingress_rewrites_the_peer(string proxy, string rewritten,
+        bool adopted)
+    {
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = _ => true,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded
+        };
+        ActivitySource.AddActivityListener(listener);
+        using var fixture = new LifecycleFixture();
+        // The ingress's forwarded headers replace the peer address between UseModularynApi and UseModularynRequests. Behind a
+        // declared proxy the proxy's trace is kept end to end; a direct client whose address is rewritten to a declared
+        // proxy's later in the pipeline is never adopted, because the decision was already made from its own connection.
+        await using var application = Build(fixture, proxy, rewritten);
+        await application.StartAsync(Cancellation);
+        using var client = Client(application);
+        foreach (var path in new[] { "/trace", "/refused/403" })
+        {
+            var trace = ActivityTraceId.CreateRandom();
+            using var request = new HttpRequestMessage(HttpMethod.Get, path);
+            request.Headers.Add("traceparent", $"00-{trace.ToHexString()}-{ActivitySpanId.CreateRandom().ToHexString()}-01");
+            using var response = await client.SendAsync(request, Cancellation);
+            var correlation = Assert.Single(response.Headers.GetValues(FrameworkApi.CorrelationHeader));
+            var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync(Cancellation)).RootElement;
+            // What the endpoint ran under, or the refusal's problem, carries the same correlation as the header.
+            Assert.Equal(correlation, path == "/trace" ? body.GetProperty("trace").GetString() : body.GetProperty("correlationId").GetString());
+            Assert.Equal(adopted, correlation == trace.ToHexString());
+            Assert.Matches("^[0-9a-f]{32}$", correlation);
+        }
+        await application.StopAsync(Cancellation);
+    }
+
+    private static WebApplication Build(LifecycleFixture fixture, string? proxy, string? rewritten = null)
     {
         var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { EnvironmentName = "Production" });
         builder.Logging.ClearProviders();
@@ -95,6 +130,13 @@ public sealed class CorrelationTests
         if (proxy is not null) builder.Services.Configure<IngressOptions>(options => options.Proxies.Add(proxy));
         var application = builder.Build();
         application.UseModularynApi();
+        // A stand-in for the ingress's forwarded-headers step, which replaces the peer address after UseModularynApi.
+        if (rewritten is not null)
+            application.Use((context, next) =>
+            {
+                context.Connection.RemoteIpAddress = IPAddress.Parse(rewritten);
+                return next(context);
+            });
         application.UseRouting();
         application.UseModularynRequests();
         application.MapGet("/trace", () => Results.Json(new { trace = Activity.Current?.TraceId.ToHexString(), baggage = Activity.Current?.Baggage.Count() ?? 0 }))

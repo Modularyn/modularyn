@@ -237,12 +237,20 @@ and carry no authority.
 A request's correlation is server-issued (TM-G02-053). `AddModularynApi`, which
 `AddModularynModules` includes, replaces the server's trace-context propagator, so
 ASP.NET Core extracts no inbound `traceparent` or baggage and starts every
-request's trace itself. `UseModularynApi` and `UseModularynRequests` continue a
-peer's trace only when the request's direct peer is a declared proxy
-(`Modularyn:Ingress:Proxies`), before forwarded headers rewrite its address, and
-otherwise leave any context the peer supplied. A client therefore never chooses
-the trace that its request's logs, audit records and `Modularyn-Correlation`
-response header carry, nor joins another request's.
+request's trace itself. A request continues a peer's trace only when its direct
+peer is a declared proxy (`Modularyn:Ingress:Proxies`), and otherwise leaves any
+context the peer supplied. The decision is made once per request, where
+`RequestCorrelation.Begin` first runs: `UseModularynApi`, placed before the ingress,
+judges the connection's own address before forwarded headers rewrite it, and never
+a header. `UseModularynRequests` and every later step keep that decision, so a
+declared proxy's trace runs through the whole pipeline, a client whose address the
+ingress rewrites is never adopted, and the `Modularyn-Correlation` header and every
+problem body carry the same identifier. A host without `UseModularynApi` decides at
+`UseModularynRequests`, after the ingress, and so adopts no proxy's trace. ASP.NET
+Core's own hosting activity, which starts before any middleware, always keeps a
+server-issued trace. A client therefore never chooses the trace that its
+request's logs, audit records and response header carry, nor joins another
+request's.
 
 Lifecycle logs and trace events contain the module id, module version, stage
 and outcome. They never receive configuration, request bodies or exceptions.

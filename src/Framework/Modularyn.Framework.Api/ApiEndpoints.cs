@@ -193,7 +193,9 @@ public static class ApiEndpoints
         context.Response.StatusCode = status;
         context.Response.Headers.CacheControl = "no-store";
         var operation = Guid.TryParse(context.Request.Headers[FrameworkApi.OperationHeader], out var id) ? (Guid?)id : null;
-        var correlation = context.Response.Headers[FrameworkApi.CorrelationHeader].ToString();
+        // The header and the body always carry the request's one correlation.
+        var correlation = RequestCorrelation.Current(context);
+        context.Response.Headers[FrameworkApi.CorrelationHeader] = correlation;
         return context.Response.WriteAsJsonAsync(new ApiProblem("urn:modularyn:problem:" + code, "The request could not be completed.", status,
             code, correlation, operation, errors), options: null, contentType: "application/problem+json", cancellationToken: context.RequestAborted);
     }
