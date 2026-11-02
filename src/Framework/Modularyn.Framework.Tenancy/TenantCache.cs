@@ -107,7 +107,9 @@ public sealed class TenantCache : IDisposable
             cache.Remove(key);
         }
         var candidate = new Flight();
-        candidate.Value = new(() => ProduceAsync(key, candidate, entry, factory), LazyThreadSafetyMode.ExecutionAndPublication);
+        // The flight's fault is observed once, where the flight is created, so a flight whose waiters all left before it faulted
+        // is not reported as unobserved; each waiter still receives the fault it awaits.
+        candidate.Value = new(() => ObserveFault(ProduceAsync(key, candidate, entry, factory)), LazyThreadSafetyMode.ExecutionAndPublication);
         var flight = flights.GetOrAdd(key, candidate);
         var result = await flight.Value!.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
         if (!context.IsActive) throw new InvalidOperationException("The cache context ended while the value was read.");
@@ -176,10 +178,15 @@ public sealed class TenantCache : IDisposable
         {
             flights.TryRemove(new KeyValuePair<string, Flight>(key, flight));
             // A factory left running past its deadline is abandoned; its later failure is observed here, and nothing stores its value.
-            if (produced is { IsCompletedSuccessfully: false })
-                _ = produced.ContinueWith(static task => _ = task.Exception, CancellationToken.None,
-                    TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            if (produced is { IsCompletedSuccessfully: false }) _ = ObserveFault(produced);
         }
+    }
+
+    private static TTask ObserveFault<TTask>(TTask task) where TTask : Task
+    {
+        _ = task.ContinueWith(static faulted => _ = faulted.Exception, CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        return task;
     }
 
     private bool Overran(CancellationToken deadline, long startedAt) =>

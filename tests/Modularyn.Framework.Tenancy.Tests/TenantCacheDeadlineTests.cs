@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.DependencyInjection;
 using Modularyn.Framework.Persistence.EfCore;
 using Modularyn.Framework.Tenancy.Abstractions;
@@ -176,6 +178,44 @@ public sealed class TenantCacheDeadlineTests : IAsyncDisposable
         gate.SetResult();
         foreach (var waiter in others) Assert.Equal("shared", await Released(waiter));
         Assert.False(given.IsCancellationRequested);
+    }
+
+    [Fact]
+    public async Task TM_G02_034_A_flight_whose_waiters_all_left_reports_no_unobserved_fault()
+    {
+        var a = await EnterAsync();
+        var reported = new ConcurrentQueue<Exception>();
+        void Report(object? sender, UnobservedTaskExceptionEventArgs args)
+        {
+            foreach (var exception in args.Exception.Flatten().InnerExceptions) reported.Enqueue(exception);
+        }
+        TaskScheduler.UnobservedTaskException += Report;
+        try
+        {
+            await LeaveBeforeTheDeadlineAsync(a);
+            // The flight faulted at the deadline with no waiter left; collecting it reports any fault nothing observed.
+            for (var pass = 0; pass < 2; pass++)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+            }
+            Assert.DoesNotContain(reported, exception => exception is TenantCacheDeadlineException);
+        }
+        finally
+        {
+            TaskScheduler.UnobservedTaskException -= Report;
+        }
+    }
+
+    // Kept out of line, so that nothing of the flight stays reachable from the test once it returns.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private async Task LeaveBeforeTheDeadlineAsync(TenantContext context)
+    {
+        using var impatient = CancellationTokenSource.CreateLinkedTokenSource(Cancellation);
+        var waiter = Cache.GetOrCreateAsync(context, Entry("left"), _ => new TaskCompletionSource<string>().Task, impatient.Token);
+        impatient.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Released(waiter));
+        clock.Advance(Deadline);
     }
 
     [Fact]
