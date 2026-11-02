@@ -29,9 +29,10 @@ public sealed class UnitTests
     public void The_note_form_declares_antiforgery() => Check.That(WorkspaceApi.Endpoint("NewNoteForm").Antiforgery, "form-antiforgery");
 
     [Fact]
-    public void An_ordinary_member_may_grant_downloads_but_not_release_attachments() =>
-        Check.That(!WorkspaceEndpoints.MemberPermissions.Contains(FilePermissions.Release) && WorkspaceEndpoints.MemberPermissions.Contains(FilePermissions.Grant),
-            "member-role-least-privilege");
+    public void An_ordinary_member_may_release_and_grant_downloads_of_attachments() =>
+        // A release only asks the deployment's allowlist policy to judge a file, and Files lets a member ask only for its own.
+        Check.That(WorkspaceEndpoints.MemberPermissions.Contains(FilePermissions.Release) && WorkspaceEndpoints.MemberPermissions.Contains(FilePermissions.Grant),
+            "member-role-files");
 
     [Fact]
     public void The_sign_in_form_submits_no_credentials_without_its_script()

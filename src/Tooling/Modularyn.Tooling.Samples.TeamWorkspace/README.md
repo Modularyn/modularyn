@@ -61,12 +61,11 @@ cannot release another version or replace bytes. That transaction is separate
 from the job acknowledgement. The requested release is audited with its queue
 entry. No cross-module atomicity is claimed.
 
-Releasing is an owner's or an administrator's action: the fixed member role
-holds `files.grant` but not `files.release`, and a plain member's release request
-is refused. Files authorizes a release only for the file's creator or a holder of
-a current grant on it, so an owner releases the attachments it uploaded; the
-sample has no endpoint that grants release on another member's file, and a
-member's own upload stays quarantined.
+The fixed member role holds `files.release` as well as `files.grant`. A release
+only asks the deployment's allowlist policy to judge a file, and the policy
+decides; Files authorizes it only for the file's creator or a holder of a
+current grant on it, so a member asks for its own uploads and an owner for its
+own.
 
 `AllowlistFileReleasePolicy` is explicitly registered for exactly PNG, JPEG and
 plain text, with a maximum of **10 MiB**. It checks detected type and length and
@@ -120,7 +119,7 @@ Foundation bootstrap is at `/api/v{version}/t/{tenant}/configuration`.
 | `/digests` | GET, POST | Read own digests or subscribe with `timeZone` and `localTime` (`HH:mm`) |
 | `/attachments/{note}` | POST | Raw upload with `Content-Length`, `X-File-Name`, `X-Content-SHA256` and declared media type |
 | `/attachments`, `/files/{file}/versions` | GET | Files-authorized lists |
-| `/releases` | POST | Enqueue policy evaluation of a file/version pair; owners and administrators only |
+| `/releases` | POST | Enqueue policy evaluation of a file/version pair |
 | `/grants`, `/download` | POST, GET respectively | Issue a grant and redeem it from its header |
 | `/title`, `/digest-feature` | PUT | Audited tenant overrides with expected version |
 | `/member-role`, `/members/{member}/role` | POST | Define the fixed member role or assign it within the actor's ceiling |

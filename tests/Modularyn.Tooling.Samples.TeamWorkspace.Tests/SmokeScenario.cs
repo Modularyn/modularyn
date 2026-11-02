@@ -68,45 +68,45 @@ public static class SmokeScenario
         Check.That(revisions is { Length: 2 } && revisions.All(item => item.CreatedAt.UtcTicks % 10 == 0), "revision-history-and-time");
 
         var content = Encoding.UTF8.GetBytes("An attachment in quarantine.\n");
-        // A plain member uploads into quarantine but may not release: release is an owner or administrator action.
-        var memberUpload = await UploadAsync(client, prefix, note.Id, content, "member.txt", token);
-        var memberReference = new AttachmentReference(memberUpload.FileId, memberUpload.VersionId);
-        using (var pending = await SendAsync(client, HttpMethod.Post, prefix + "/grants", memberReference, token))
-            Check.That(pending.StatusCode == HttpStatusCode.NotFound, "quarantine-unreadable");
-        using (var memberRelease = await SendAsync(client, HttpMethod.Post, prefix + "/releases", memberReference, token))
-            Check.That(memberRelease.StatusCode == HttpStatusCode.Forbidden, "member-release-refused");
-        // The owner releases its own attachment. Files authorizes a release for the file's creator or a holder of a grant on it.
-        var upload = await UploadAsync(ownerClient, prefix, note.Id, content, "notes.txt", token);
+        // A member's release only asks the allowlist policy to judge the member's own file: plain text is released.
+        var upload = await UploadAsync(client, prefix, note.Id, content, "notes.txt", token);
         Check.That(upload.Quarantine == FileQuarantineState.Pending, "upload-quarantined");
         var reference = new AttachmentReference(upload.FileId, upload.VersionId);
-        await JsonAsync<IdentityView>(ownerClient, HttpMethod.Post, prefix + "/releases", reference, token);
+        using (var pending = await SendAsync(client, HttpMethod.Post, prefix + "/grants", reference, token))
+            Check.That(pending.StatusCode == HttpStatusCode.NotFound, "quarantine-unreadable");
+        await JsonAsync<IdentityView>(client, HttpMethod.Post, prefix + "/releases", reference, token);
         await host.Services.GetRequiredService<WorkspaceDispatcher>().RunAsync(token);
-        var versions = await ownerClient.GetFromJsonAsync<FileVersionInfo[]>(prefix + "/files/" + upload.FileId.ToString("D") + "/versions", token);
+        var versions = await client.GetFromJsonAsync<FileVersionInfo[]>(prefix + "/files/" + upload.FileId.ToString("D") + "/versions", token);
         Check.That(versions is [{ Quarantine: FileQuarantineState.Released }], "allowlist-release");
-        var memberVersions = await client.GetFromJsonAsync<FileVersionInfo[]>(prefix + "/files/" + memberUpload.FileId.ToString("D") + "/versions", token);
-        Check.That(memberVersions is [{ Quarantine: FileQuarantineState.Pending }], "member-upload-stays-pending");
-        var grant = await JsonAsync<GrantResponse>(ownerClient, HttpMethod.Post, prefix + "/grants", reference, token);
-        using (var missing = await ownerClient.GetAsync(prefix + "/download", token)) Check.That(missing.StatusCode == HttpStatusCode.BadRequest, "header-required");
-        using (var download = await DownloadAsync(ownerClient, prefix, grant.Token, token))
+        var grant = await JsonAsync<GrantResponse>(client, HttpMethod.Post, prefix + "/grants", reference, token);
+        using (var missing = await client.GetAsync(prefix + "/download", token)) Check.That(missing.StatusCode == HttpStatusCode.BadRequest, "header-required");
+        using (var download = await DownloadAsync(client, prefix, grant.Token, token))
         {
             Success(download, "download");
             Check.That((await download.Content.ReadAsByteArrayAsync(token)).SequenceEqual(content), "download-integrity");
             Check.That(download.Content.Headers.ContentDisposition?.DispositionType == "attachment"
                 && download.Headers.GetValues("X-Content-Type-Options").Single() == "nosniff", "download-headers");
         }
-        await DeadlineAsync(host, owner, tenant, grant.Token, token);
-        using (var next = await DownloadAsync(ownerClient, prefix, grant.Token, token)) Success(next, "download-slot-released");
+        await DeadlineAsync(host, member, tenant, grant.Token, token);
+        using (var next = await DownloadAsync(client, prefix, grant.Token, token)) Success(next, "download-slot-released");
 
         // PDF passes the upload detector but is outside this deployment's release allowlist. The allowlist policy leaves a
         // version it does not release pending in quarantine, never rejected, which would be final.
-        var pdf = await UploadAsync(ownerClient, prefix, note.Id, Encoding.ASCII.GetBytes("%PDF-1.7\n%%EOF\n"), "document.pdf", token);
+        var pdf = await UploadAsync(client, prefix, note.Id, Encoding.ASCII.GetBytes("%PDF-1.7\n%%EOF\n"), "document.pdf", token);
         var rejected = new AttachmentReference(pdf.FileId, pdf.VersionId);
-        await JsonAsync<IdentityView>(ownerClient, HttpMethod.Post, prefix + "/releases", rejected, token);
+        await JsonAsync<IdentityView>(client, HttpMethod.Post, prefix + "/releases", rejected, token);
         await host.Services.GetRequiredService<WorkspaceDispatcher>().RunAsync(token);
-        var refusedVersions = await ownerClient.GetFromJsonAsync<FileVersionInfo[]>(prefix + "/files/" + pdf.FileId.ToString("D") + "/versions", token);
+        var refusedVersions = await client.GetFromJsonAsync<FileVersionInfo[]>(prefix + "/files/" + pdf.FileId.ToString("D") + "/versions", token);
         Check.That(refusedVersions is [{ Quarantine: FileQuarantineState.Pending }], "allowlist-refusal");
-        using (var refused = await SendAsync(ownerClient, HttpMethod.Post, prefix + "/grants", rejected, token))
+        using (var refused = await SendAsync(client, HttpMethod.Post, prefix + "/grants", rejected, token))
             Check.That(refused.StatusCode == HttpStatusCode.NotFound, "rejected-content-unreadable");
+
+        // An owner releases its own attachment the same way; Files authorizes a release for the file's creator.
+        var ownerUpload = await UploadAsync(ownerClient, prefix, note.Id, content, "owner.txt", token);
+        await JsonAsync<IdentityView>(ownerClient, HttpMethod.Post, prefix + "/releases", new AttachmentReference(ownerUpload.FileId, ownerUpload.VersionId), token);
+        await host.Services.GetRequiredService<WorkspaceDispatcher>().RunAsync(token);
+        var ownerVersions = await ownerClient.GetFromJsonAsync<FileVersionInfo[]>(prefix + "/files/" + ownerUpload.FileId.ToString("D") + "/versions", token);
+        Check.That(ownerVersions is [{ Quarantine: FileQuarantineState.Released }], "owner-releases-own-file");
 
         await host.Services.GetRequiredService<WorkspaceDispatcher>().RunAsync(token);
         var activity = await client.GetFromJsonAsync<ActivityItem[]>(prefix + "/activity", token);
@@ -122,7 +122,7 @@ public static class SmokeScenario
         var repeated = await client.GetFromJsonAsync<MemberDigest[]>(prefix + "/digests", token);
         Check.That(repeated!.Length == digests!.Length, "digest-once-per-occurrence");
         host.Clock.Advance(TimeSpan.FromMinutes(3));
-        using (var expired = await DownloadAsync(ownerClient, prefix, grant.Token, token))
+        using (var expired = await DownloadAsync(client, prefix, grant.Token, token))
             Check.That(expired.StatusCode == HttpStatusCode.NotFound, "expired-grant");
         using (var contract = await client.GetAsync(prefix + "/contract", token)) Success(contract, "active-openapi-inventory");
         await HostAdministrationAsync(host, ownerClient, client, owner, member, token);
