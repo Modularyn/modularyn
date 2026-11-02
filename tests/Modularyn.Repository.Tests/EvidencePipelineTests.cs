@@ -15,14 +15,17 @@ public sealed class EvidencePipelineTests
             || entry.Line.Contains("--env=MODULARYN_EVIDENCE_RUN_ID", StringComparison.Ordinal)
             || entry.Line.Contains("g02-", StringComparison.Ordinal)
             || entry.Line.Contains("The sample image ownership check did not run.", StringComparison.Ordinal)).ToArray();
-        Assert.Equal(6, entries.Length);
+        Assert.Equal(7, entries.Length);
         foreach (var entry in entries)
         {
             var files = RepositoryFiles.Current.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
-            // A run that gains a capability, or a stop that becomes a forced removal, is no longer the listed line.
+            // A run that gains a capability, a stop that becomes a forced removal, or a database view run as root rather than
+            // as the postgres OS user, is no longer the listed line.
             var changed = entry.Line.Contains("--cap-drop=ALL", StringComparison.Ordinal)
                 ? entry.Line.Replace("--cap-drop=ALL", "--cap-add=ALL", StringComparison.Ordinal)
-                : entry.Line.Replace("docker kill ", "docker rm --force ", StringComparison.Ordinal);
+                : entry.Line.Contains("docker exec ", StringComparison.Ordinal)
+                    ? entry.Line.Replace("--user postgres", "--user root", StringComparison.Ordinal)
+                    : entry.Line.Replace("docker kill ", "docker rm --force ", StringComparison.Ordinal);
             Assert.NotEqual(entry.Line, changed);
             files[entry.Path] = files[entry.Path].Replace(entry.Line, changed, StringComparison.Ordinal);
             Assert.Contains(ToolPinContract.DockerCommandErrors(files), error => error.Contains("not on the allowlist", StringComparison.Ordinal));
@@ -69,10 +72,32 @@ public sealed class EvidencePipelineTests
     [InlineData("echo \"G-02 container run ${name}: $(( ${#selected[@]} / 2 )) planned methods, within ${bound} seconds.\"")]
     [InlineData("| select($names | index($name)) | \"\\(.status) \\($name)\"' \"${report}\"")]
     [InlineData("bound=300")]
+    [InlineData("watch_run \"g02-${name}\" &")]
+    [InlineData("pkill -P \"${watcher}\" 2> /dev/null || true")]
+    [InlineData("  database_view\n}")]
+    [InlineData("--variable=database=\"${database}\" < .github/scripts/g02-database-view.sql")]
+    [InlineData("sleep \"$((bound - 15))\" < /dev/null > /dev/null 2>&1")]
+    [InlineData("WHERE datname = :'database'")]
+    [InlineData(", 60) AS query")]
+    [InlineData("'\\m[0-9]+(\\.[0-9]+)?\\M', 'x', 'g')")]
+    [InlineData("WHERE (locktype = 'advisory' OR NOT granted)")]
     public void Removing_a_bundle_stage_is_rejected(string text)
     {
         var files = RepositoryFiles.Current.ToDictionary(pair => pair.Key, pair => pair.Value.Replace(text, "removed-stage", StringComparison.Ordinal), StringComparer.Ordinal);
         Assert.NotEmpty(EvidencePipelineContract.Errors(files));
+    }
+
+    [Theory]
+    [InlineData("SELECT pid, application_name,", "SELECT pid, usename, application_name,")]
+    [InlineData("SELECT pid, application_name,", "SELECT pid, client_addr, application_name,")]
+    [InlineData(", 60) AS query", ", 600) AS query")]
+    [InlineData("\\pset footer off", "\\pset footer off\n\\! env")]
+    public void The_database_view_cannot_print_more_than_its_safe_fields(string text, string replacement)
+    {
+        var files = RepositoryFiles.Current.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+        Assert.Contains(text, files[EvidencePipelineContract.DatabaseViewPath], StringComparison.Ordinal);
+        files[EvidencePipelineContract.DatabaseViewPath] = files[EvidencePipelineContract.DatabaseViewPath].Replace(text, replacement, StringComparison.Ordinal);
+        Assert.Contains(EvidencePipelineContract.Errors(files), error => error.Contains("a watcher must print only", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -228,8 +253,68 @@ internal static class EvidencePipelineContract
         if (!name.Success) return false;
         if (path == ToolPinContract.CompositionScriptPath)
             return name.Groups["name"].Value == "g02-composition" && lines.Skip(index + 1).Take(CompositionStopped.Length).SequenceEqual(CompositionStopped);
-        return script.Contains(Stopped.Replace("\r\n", "\n", StringComparison.Ordinal) + "\n", StringComparison.Ordinal) && index + 1 < lines.Count
-            && lines[index + 1] == "bounded " + name.Groups["name"].Value + " \"${run}\"";
+        // A watched run stops its watcher between the run and its bound check; any other run checks its bound on the next line.
+        var next = lines.Skip(index + 1).SkipWhile(line => line.StartsWith('#') || WatcherStop.Contains(line, StringComparer.Ordinal)).FirstOrDefault();
+        return script.Contains(Stopped.Replace("\r\n", "\n", StringComparison.Ordinal) + "\n", StringComparison.Ordinal)
+            && next == "bounded " + name.Groups["name"].Value + " \"${run}\"";
+    }
+
+    // Fifteen seconds before each project run's bound, while it still runs, a watcher prints the test database's backends and
+    // advisory or waiting locks through the database container's own psql as its postgres OS user: only the fields of
+    // g02-database-view.sql, which cuts each query to 60 characters with every literal replaced, and never a password or a
+    // connection string. A run that ends in time stops its watcher before it prints.
+    internal const string DatabaseViewPath = ".github/scripts/g02-database-view.sql";
+    private const string DatabaseView = """
+        database_view() {
+          local database="${MODULARYN_TEST_POSTGRESQL#*Database=}"
+          database="${database%%;*}"
+          [[ "${database}" =~ ^[a-z0-9_]+$ ]] || return 0
+          docker exec -i --user postgres "${POSTGRES_CONTAINER}" psql --no-psqlrc --quiet --no-align --field-separator=' ' --set=ON_ERROR_STOP=1 --dbname=postgres --variable=database="${database}" < .github/scripts/g02-database-view.sql || true
+        }
+        """;
+    private const string WatchRun = """
+        watch_run() {
+          # The sleep holds none of the step's output, so a watcher stopped before it ends leaves nothing that keeps the step open.
+          sleep "$((bound - 15))" < /dev/null > /dev/null 2>&1
+          echo "The G-02 container run $1 is still running after $((bound - 15)) seconds. The test database's backends and locks:"
+          database_view
+        }
+        """;
+    private static readonly string[] WatcherStart = ["watch_run \"g02-${name}\" &", "watcher=$!"];
+    private static readonly string[] WatcherStop =
+        ["pkill -P \"${watcher}\" 2> /dev/null || true", "kill \"${watcher}\" 2> /dev/null || true", "wait \"${watcher}\" 2> /dev/null || true"];
+    private static readonly string[] DatabaseViewSql =
+    [
+        "\\pset footer off",
+        "SELECT pid, application_name, state, wait_event_type, wait_event,",
+        "round(extract(epoch FROM now() - xact_start))::int AS xact_age_s,",
+        "round(extract(epoch FROM now() - query_start))::int AS query_age_s,",
+        "left(regexp_replace(regexp_replace(regexp_replace(regexp_replace(query, '\\$[A-Za-z_]*\\$.*$', 'x'),",
+        "'''([^'']|'''')*''', 'x', 'g'), '''.*$', 'x'), '\\m[0-9]+(\\.[0-9]+)?\\M', 'x', 'g'), 60) AS query",
+        "FROM pg_stat_activity",
+        "WHERE datname = :'database'",
+        "ORDER BY pid;",
+        "SELECT locktype, objid, mode, granted, pid",
+        "FROM pg_locks",
+        "WHERE (locktype = 'advisory' OR NOT granted)",
+        "AND (database IS NULL OR database = (SELECT oid FROM pg_database WHERE datname = :'database'))",
+        "ORDER BY pid, locktype, objid;"
+    ];
+
+    private static IEnumerable<string> DatabaseViewErrors(IReadOnlyDictionary<string, string> files)
+    {
+        var results = files.GetValueOrDefault(ContainerResultsScriptPath, "").Replace("\r\n", "\n", StringComparison.Ordinal);
+        var lines = results.Split('\n').Select(line => line.Trim()).ToList();
+        var run = lines.FindIndex(line => line.StartsWith(BoundedRun + "docker run ", StringComparison.Ordinal) && line.Contains("--name=\"g02-${name}\"", StringComparison.Ordinal));
+        var sql = files.GetValueOrDefault(DatabaseViewPath, "").Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n').Select(line => line.Trim())
+            .Where(line => line.Length > 0 && !line.StartsWith("--", StringComparison.Ordinal));
+        if (!results.Contains(DatabaseView.Replace("\r\n", "\n", StringComparison.Ordinal) + "\n", StringComparison.Ordinal)
+            || !results.Contains(WatchRun.Replace("\r\n", "\n", StringComparison.Ordinal) + "\n", StringComparison.Ordinal)
+            || run < 2 || !lines.Skip(run - 2).Take(2).SequenceEqual(WatcherStart)
+            || !lines.Skip(run + 1).Where(line => !line.StartsWith('#')).Take(WatcherStop.Length).SequenceEqual(WatcherStop)
+            || !sql.SequenceEqual(DatabaseViewSql))
+            yield return $"{ContainerResultsScriptPath}: before each project run's bound, a watcher must print only {DatabaseViewPath}'s fields of the "
+                + "test database's backends and locks, through the database container's psql as the postgres OS user, and stop once the run ends.";
     }
 
     // Each assembler command and the EvidenceBundleCommandTests method that performs it.
@@ -285,6 +370,7 @@ internal static class EvidencePipelineContract
         }
 
         errors.AddRange(BoundedRunErrors(files));
+        errors.AddRange(DatabaseViewErrors(files));
 
         var build = ci.IndexOf("      - name: " + AssemblerBuildStep + "\n", StringComparison.Ordinal);
         var rows = ci.IndexOf("      - name: " + ToolPinContract.CompositionTestStep + "\n", StringComparison.Ordinal);

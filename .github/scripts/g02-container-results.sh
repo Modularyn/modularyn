@@ -30,6 +30,23 @@ bounded() {
     exit 1
   fi
 }
+# The test database's backends and their advisory or waiting locks (g02-database-view.sql), from the database container's own
+# psql as its postgres OS user. Only the view's fields print; the database's name comes from the test connection's settings and
+# is never printed itself, nor is anything else of them.
+database_view() {
+  local database="${MODULARYN_TEST_POSTGRESQL#*Database=}"
+  database="${database%%;*}"
+  [[ "${database}" =~ ^[a-z0-9_]+$ ]] || return 0
+  docker exec -i --user postgres "${POSTGRES_CONTAINER}" psql --no-psqlrc --quiet --no-align --field-separator=' ' --set=ON_ERROR_STOP=1 --dbname=postgres --variable=database="${database}" < .github/scripts/g02-database-view.sql || true
+}
+# Fifteen seconds before a run's bound, while it is still in progress, prints the database's view, so the run's own sessions and
+# locks are seen before the bound stops it.
+watch_run() {
+  # The sleep holds none of the step's output, so a watcher stopped before it ends leaves nothing that keeps the step open.
+  sleep "$((bound - 15))" < /dev/null > /dev/null 2>&1
+  echo "The G-02 container run $1 is still running after $((bound - 15)) seconds. The test database's backends and locks:"
+  database_view
+}
 if [ "$1" = prepare ]; then
   run=0
   timeout --kill-after=30s "${bound}" docker run --rm --pull=never --platform=linux/amd64 --name=g02-measurement --network="container:${POSTGRES_CONTAINER}" --read-only --tmpfs=/tmp --cap-drop=ALL --security-opt=no-new-privileges --group-add="${group}" --volume="${output}:/output" --env=MODULARYN_TEST_POSTGRESQL --env=MODULARYN_SOURCE_COMMIT --env=MODULARYN_EVIDENCE_RUN_ID --env=MODULARYN_CONTAINER_IMAGE_DIGEST --env=MODULARYN_EVIDENCE_DIR=/output/evidence --env=MODULARYN_EVIDENCE_MEASURE=1 --env=MODULARYN_EVIDENCE_BINARIES=/app "${COMPOSITION_IMAGE}" -noLogo -noColor -failSkips -longRunning 60 -method Modularyn.Tooling.Samples.TeamWorkspace.Tests.EvidenceMeasurementTests.Measure_the_evidence_run_before_collecting_results 2>&1 | long_running || run=$?
@@ -55,7 +72,13 @@ while IFS= read -r project; do
   if [ "${#selected[@]}" -gt 0 ]; then
     report="${output}/${name}.raw.json"
     run=0
+    watch_run "g02-${name}" &
+    watcher=$!
     timeout --kill-after=30s "${bound}" docker run --rm --pull=never --platform=linux/amd64 --name="g02-${name}" --network="container:${POSTGRES_CONTAINER}" --read-only --tmpfs=/tmp --cap-drop=ALL --security-opt=no-new-privileges --group-add="${group}" --volume="${output}:/output" --env=MODULARYN_TEST_POSTGRESQL --entrypoint=dotnet "${COMPOSITION_IMAGE}" "/app/projects/${name}/${name}.dll" -noLogo -noColor -preEnumerateTheories -failSkips -longRunning 60 -showLiveOutput "${selected[@]}" -result-ctrf "/output/${name}.raw.json" 2>&1 | long_running || run=$?
+    # A run that ends in time stops its watcher's sleep, which under set -e ends the watcher before it prints, and the watcher.
+    pkill -P "${watcher}" 2> /dev/null || true
+    kill "${watcher}" 2> /dev/null || true
+    wait "${watcher}" 2> /dev/null || true
     bounded "g02-${name}" "${run}"
     [ "${run}" -eq 0 ] || status=1
     if [ -f "${report}" ]; then
