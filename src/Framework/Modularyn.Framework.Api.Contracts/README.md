@@ -39,9 +39,10 @@ An upload declares `upload` in place of a request model or schema, on a POST or
 PUT, with the explicit `mediaTypes` it accepts: either exactly
 `multipart/form-data`, a form upload, or binary types under the download rules
 that are not multipart or form-encoded either. A page's form uploads only as
-`multipart/form-data`. Every form post, a page's POST or a form upload, declares
-`antiforgery: true`, and no other entry may. HTML appears only for a declared
-page.
+`multipart/form-data`. An upload is never client-visible: generated clients send
+JSON only, so they cannot call one until they model an upload's body. Every form
+post, a page's POST or a form upload, declares `antiforgery: true`, and no other
+entry may. HTML appears only for a declared page.
 
 The OpenAPI document lists a page's form as `application/x-www-form-urlencoded`,
 and a download's and an upload's media types without a schema, as OpenAPI 3.1
@@ -49,8 +50,8 @@ describes binary content. It marks operations with `x-modularyn-page`,
 `x-modularyn-antiforgery`, `x-modularyn-download` and `x-modularyn-upload`
 (`form` or `binary`) only where an entry declares a page, a form post, a
 download or an upload, so every other operation's description is unchanged.
-None of them generates a client method, since generated clients send and read
-JSON only. The inventory states what an endpoint sends and accepts; the endpoint
+None of them generates a client method, since validation refuses a client-visible
+page, download or upload and generated clients send and read JSON only. The inventory states what an endpoint sends and accepts; the endpoint
 itself sends its headers, such as the Files module's delivery headers for a
 download.
 

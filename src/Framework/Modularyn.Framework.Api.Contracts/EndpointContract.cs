@@ -134,13 +134,15 @@ public sealed record ApiInventory(int OldestVersion, int CurrentVersion, IReadOn
     // A request body is declared as well: JSON by default, a page's form form-encoded, and an upload's own media types, either
     // exactly multipart/form-data for a form upload or explicit binary types. A form post, which is a page's POST or a form
     // upload, declares antiforgery, and nothing else may. An upload's body is the upload: a POST or PUT with no JSON request,
-    // and a page's form uploads only as multipart/form-data.
+    // and a page's form uploads only as multipart/form-data. Generated clients send JSON only and would call an upload with
+    // no body, so an upload is never client-visible.
     private static bool RequestDeclared(ApiEndpoint endpoint)
     {
         var form = endpoint.Upload is { MediaTypes: [ApiMediaTypes.Multipart] };
         if (endpoint.Antiforgery != (endpoint.Page && endpoint.Method == "POST" || form)) return false;
         if (endpoint.Upload is not { } upload) return true;
-        return endpoint.Method is "POST" or "PUT" && endpoint.Request is null && endpoint.RequestSchema is null && (form || !endpoint.Page)
+        return !endpoint.ClientVisible && endpoint.Method is "POST" or "PUT" && endpoint.Request is null && endpoint.RequestSchema is null
+            && (form || !endpoint.Page)
             && Distinct(upload.MediaTypes) && (form || upload.MediaTypes.All(type => Concrete(type)
                 && !type.StartsWith("multipart/", StringComparison.Ordinal) && type != ApiMediaTypes.Form));
     }

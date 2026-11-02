@@ -158,6 +158,15 @@ public sealed class ContractDefinitionTests
         Invalid(Upload("image/png") with { Antiforgery = true });
         Invalid(Page("POST") with { Upload = new(["image/png"]) });
         Invalid(Page("POST") with { Upload = new([ApiMediaTypes.Multipart]), Antiforgery = false });
+        // Generated clients send JSON only, so an upload is never client-visible, binary or form alike, though the same client
+        // endpoint without the upload is.
+        var client = Upload("image/png") with
+        {
+            Route = "/api/v{version}/t/{tenant}/attachments", ClientVisible = true, Versioned = true, Idempotent = true, Response = "ItemView"
+        };
+        Valid(client with { Upload = null });
+        Invalid(client);
+        Invalid(client with { Upload = new([ApiMediaTypes.Multipart]), Antiforgery = true });
     }
 
     [Fact]
