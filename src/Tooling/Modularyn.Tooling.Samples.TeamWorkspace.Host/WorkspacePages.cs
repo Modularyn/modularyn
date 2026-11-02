@@ -9,12 +9,14 @@ namespace Modularyn.Tooling.Samples.TeamWorkspace.Host;
 
 public static class WorkspacePages
 {
+    // The inputs have no names and the form no action or method: only the script posts the credentials, as JSON to Identity.
+    // A browser that blocks the script submits nothing but a request for this page again.
     public static IResult SignIn(HttpContext context) => Html(context, "Sign in", """
         <h1>Team workspace</h1>
-        <form id="sign-in" action="/identity/sign-in" method="post">
-          <p><label>User name <input name="userName" autocomplete="username" required maxlength="256"></label></p>
-          <p><label>Password <input name="password" type="password" autocomplete="current-password" required maxlength="256"></label></p>
-          <p><label>Tenant identifier <input name="tenant" required maxlength="36"></label></p>
+        <form id="sign-in">
+          <p><label>User name <input id="sign-in-user" autocomplete="username" required maxlength="256"></label></p>
+          <p><label>Password <input id="sign-in-password" type="password" autocomplete="current-password" required maxlength="256"></label></p>
+          <p><label>Tenant identifier <input id="sign-in-tenant" required maxlength="36"></label></p>
           <button type="submit">Sign in</button>
         </form>
         <p id="status" role="status"></p>

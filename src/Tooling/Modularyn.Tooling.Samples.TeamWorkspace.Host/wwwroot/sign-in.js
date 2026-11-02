@@ -1,10 +1,13 @@
 "use strict";
 
 const form = document.getElementById("sign-in");
+const userName = document.getElementById("sign-in-user");
+const password = document.getElementById("sign-in-password");
+const tenantInput = document.getElementById("sign-in-tenant");
 const status = document.getElementById("status");
 form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const tenant = form.elements.namedItem("tenant").value;
+    const tenant = tenantInput.value;
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(tenant)) {
         status.textContent = "Enter the tenant identifier supplied by your administrator.";
         return;
@@ -22,17 +25,16 @@ form.addEventListener("submit", async (event) => {
             credentials: "same-origin",
             cache: "no-store",
             headers: { "Content-Type": "application/json", "RequestVerificationToken": requestToken },
-            body: JSON.stringify({ userName: form.elements.namedItem("userName").value,
-                password: form.elements.namedItem("password").value, returnUrl })
+            body: JSON.stringify({ userName: userName.value, password: password.value, returnUrl })
         });
-        form.elements.namedItem("password").value = "";
+        password.value = "";
         if (!response.ok) {
             status.textContent = "Sign-in failed. Check your credentials or try again later.";
             return;
         }
         window.location.assign(returnUrl);
     } catch {
-        form.elements.namedItem("password").value = "";
+        password.value = "";
         status.textContent = "Sign-in is unavailable. Try again later.";
     } finally {
         button.disabled = false;

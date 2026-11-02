@@ -1,3 +1,6 @@
+using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Modularyn.Framework.Api.Contracts;
 using Modularyn.Framework.Jobs;
 using Modularyn.Framework.Tenancy.Abstractions;
@@ -28,6 +31,23 @@ public sealed class UnitTests
     public void An_ordinary_member_may_grant_downloads_but_not_release_attachments() =>
         Check.That(!WorkspaceEndpoints.MemberPermissions.Contains(FilePermissions.Release) && WorkspaceEndpoints.MemberPermissions.Contains(FilePermissions.Grant),
             "member-role-least-privilege");
+
+    [Fact]
+    public void The_sign_in_form_submits_no_credentials_without_its_script()
+    {
+        var context = new DefaultHttpContext();
+        var html = ((ContentHttpResult)WorkspacePages.SignIn(context)).ResponseContent!;
+        // Unnamed inputs are never part of a form submission, and the form names no target and no method.
+        var inputs = Regex.Matches(html, "<input[^>]*>").Select(match => match.Value).ToArray();
+        Check.That(inputs.Length == 3 && inputs.All(input => !input.Contains("name=", StringComparison.Ordinal)), "unnamed-credential-inputs");
+        Check.That(Regex.Match(html, "<form[^>]*>").Value == "<form id=\"sign-in\">", "form-without-action-or-method");
+        Check.That(!html.Contains("<script>", StringComparison.Ordinal)
+            && context.Response.Headers.ContentSecurityPolicy.ToString().Contains("script-src 'self';", StringComparison.Ordinal), "same-origin-script-only");
+        // The script reads each input by the identifier the page gives it.
+        var script = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "wwwroot", "sign-in.js"));
+        Check.That(inputs.All(input => Regex.Match(input, "id=\"([^\"]+)\"") is { Success: true } id
+            && script.Contains($"document.getElementById(\"{id.Groups[1].Value}\")", StringComparison.Ordinal)), "script-reads-inputs-by-id");
+    }
 
     [Fact]
     public void The_download_declares_exactly_the_released_media_types() =>

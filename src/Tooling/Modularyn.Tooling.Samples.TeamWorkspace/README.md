@@ -88,7 +88,9 @@ detected media type and security/disposition headers are sent unchanged.
 
 The sign-in page loads only `/assets/sign-in.js`. That file fetches
 `/identity/antiforgery`, sends its token in `RequestVerificationToken` and posts
-JSON to Identity's existing sign-in endpoint. The note form is a declared HTML
+JSON to Identity's existing sign-in endpoint. The page's inputs carry no names
+and its form no action or method, so a browser that blocks the script submits
+no credentials. The note form is a declared HTML
 POST with a hidden antiforgery token; the ingress performs validation. Pages
 encode user text and restrict scripts, connections and forms to the same origin.
 
