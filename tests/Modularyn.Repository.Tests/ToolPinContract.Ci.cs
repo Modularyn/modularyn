@@ -5,7 +5,8 @@ namespace Modularyn.Repository.Tests;
 
 // The pins and job structure that CI-01 added: the Node.js archives, the PostgreSQL service and ASP.NET Core
 // runtime images, the real-provider and container-build jobs, and the rule that no workflow installs browsers. CODE-10
-// added the check of the real-provider job's evidence records.
+// added the AC-001 container rows in the container-build job, the composition fixture image they run in, and the checks
+// of both jobs' evidence records.
 internal static partial class ToolPinContract
 {
     public const string NodePinPath = ".github/node.json";
@@ -15,11 +16,20 @@ internal static partial class ToolPinContract
     public static readonly string RealProviderTestRun = $"bash {DatabaseScriptPath} ci bash {TestsScriptPath}";
     public const string FixtureDockerfile = "tests/Fixtures/container/Dockerfile";
     public const string SampleDockerfile = "src/Tooling/Modularyn.Tooling.Samples.TeamWorkspace.Host/Dockerfile";
+    public const string CompositionDockerfile = "tests/Fixtures/composition/Dockerfile";
+    public const string CompositionScriptPath = ".github/scripts/composition-tests.sh";
     public const string EvidenceScriptPath = ".github/scripts/evidence-records.sh";
+    public const string DatabaseStartStep = "Start PostgreSQL on an internal network";
+    public const string CompositionCheckStep = "Check the composition fixture image";
+    public const string CompositionTestStep = "Run the AC-001 container rows against PostgreSQL";
+    public static readonly string CompositionTestRun = $"bash {DatabaseScriptPath} ci bash {CompositionScriptPath}";
     public const string HostEvidenceStep = "Choose the host evidence directory";
     public const string HostEvidenceCheckStep = "Check the host evidence records";
+    public const string ContainerEvidenceCheckStep = "Check the container evidence records";
     public static readonly string EvidenceCheckRun = $"bash {EvidenceScriptPath}";
     public const string EvidenceCheckTest = "Modularyn.Repository.Tests.CiEvidenceTests.The_records_this_CI_run_wrote_validate_against_the_repository_contracts";
+    public const string ReadinessTest = "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.The_published_sample_image_is_ready_over_HTTP";
+    public const string AcceptanceNetwork = "modularyn-acceptance";
     public const string BuildTestJob = "build-test";
     public const string RealProviderJob = "real-provider";
     public const string ContainerJob = "container-build";
@@ -67,6 +77,10 @@ internal static partial class ToolPinContract
         @"(?:^|[;&|(`]\s*|\brun:[ \t]+|\b(?:then|do|else)\s+)npm(?:\.cmd)?\s+(?<arguments>[^;&|)`#]*)", RegexOptions.CultureInvariant);
     private static readonly Regex NpmClean = new(@"^npm ci(?:\s|$)", RegexOptions.CultureInvariant);
     private static readonly Regex EnvEntry = new(@"^          (?<name>[A-Za-z_][A-Za-z0-9_]*):\s*(?<value>.*?)\s*$", RegexOptions.CultureInvariant);
+    private static readonly Regex NumericUser = new("^[1-9][0-9]*(?::[1-9][0-9]*)?$", RegexOptions.CultureInvariant);
+    // The hardening that every docker run of the composition fixture image or the sample image in the container rows' script
+    // must carry, as the container-build job runs them (docs/ci.md, "Container acceptance").
+    private static readonly string[] Hardening = ["--pull=never", "--read-only", "--tmpfs=/tmp", "--cap-drop=ALL", "--security-opt=no-new-privileges"];
 
     // Dockerfiles as the container-build job finds them: by file name, in any letter case.
     public static bool IsDockerfile(string path)
@@ -460,6 +474,15 @@ internal static partial class ToolPinContract
             errors.Add($"{SampleDockerfile}: the sample application's Dockerfile, which the container-build job builds, is missing.");
         }
 
+        if (!files.TryGetValue(CompositionDockerfile, out var composition))
+        {
+            errors.Add($"{CompositionDockerfile}: the composition fixture image's Dockerfile, which the container-build job builds, is missing.");
+        }
+        else
+        {
+            errors.AddRange(CompositionDockerfileErrors(composition));
+        }
+
         if (aspnet is not null)
         {
             foreach (var (path, text) in dockerfiles)
@@ -482,7 +505,8 @@ internal static partial class ToolPinContract
             errors.Add($"{CiPath}: the {id} job is missing.");
         }
 
-        // Tests that need PostgreSQL run in the real-provider job and nowhere else.
+        // dotnet test runs the tests that need PostgreSQL in the real-provider job and nowhere else. The container-build job runs
+        // only the AC-001 container rows, in the composition fixture image and through its own filters, which ValidateContainerRows checks.
         foreach (var (id, job) in jobs)
         {
             var tests = job.Split('\n').Where(line => line.Contains("dotnet test", StringComparison.Ordinal)).ToList();
@@ -545,6 +569,13 @@ internal static partial class ToolPinContract
             {
                 errors.Add($"{CiPath}: the {ContainerJob} job must build {SampleDockerfile}.");
             }
+
+            if (Values(container, "COMPOSITION_DOCKERFILE") is not [CompositionDockerfile])
+            {
+                errors.Add($"{CiPath}: the {ContainerJob} job must build {CompositionDockerfile}.");
+            }
+
+            ValidateContainerRows(container, register, files, errors);
 
             if (jobs.TryGetValue(BuildTestJob, out var sdkJob))
             {
@@ -780,7 +811,8 @@ internal static partial class ToolPinContract
 
         // Both scripts hold the credentials in their environment, so neither may write to a runner file that a later step reads.
         var tests = files.GetValueOrDefault(TestsScriptPath, "");
-        foreach (var (path, text) in new[] { (DatabaseScriptPath, script), (TestsScriptPath, tests) })
+        foreach (var (path, text) in new[] { (DatabaseScriptPath, script), (TestsScriptPath, tests),
+                     (CompositionScriptPath, files.GetValueOrDefault(CompositionScriptPath, "")) })
         {
             if (RunnerFiles.Any(file => text.Contains(file, StringComparison.Ordinal)))
             {
@@ -809,6 +841,118 @@ internal static partial class ToolPinContract
         }
     }
 
+    // The composition fixture image holds test modules and stays test-only: it runs as a numeric non-root user, root owns the
+    // files it copies, it runs no build step of its own, and it names the deployment its tests run in.
+    public static List<string> CompositionDockerfileErrors(string text)
+    {
+        var errors = new List<string>();
+        var instructions = LogicalLines(text).Select(line => line.Trim()).Where(line => line.Length > 0).ToList();
+        var users = instructions.Where(line => Regex.IsMatch(line, @"^user\s", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase))
+            .Select(line => line[4..].Trim()).ToList();
+        if (users.Count == 0 || !NumericUser.IsMatch(users[^1]))
+        {
+            errors.Add($"{CompositionDockerfile}: the composition fixture image must run as a numeric non-root user and group, such as USER 1654:1654.");
+        }
+
+        if (instructions.Any(line => Regex.IsMatch(line, @"^(?:onbuild\s+)?(?:copy|add)\s.*--(?:chown|chmod)", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)))
+        {
+            errors.Add($"{CompositionDockerfile}: root must own the files the composition fixture image copies, so COPY and ADD take no --chown or --chmod.");
+        }
+
+        if (instructions.Any(line => Regex.IsMatch(line, @"^(?:onbuild\s+)?run\s", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)))
+        {
+            errors.Add($"{CompositionDockerfile}: the composition fixture image runs no build step; it holds only the published test project.");
+        }
+
+        if (!instructions.Contains("ENV MODULARYN_DEPLOYMENT_MODE=single-host-container", StringComparer.Ordinal))
+        {
+            errors.Add($"{CompositionDockerfile}: the composition fixture image must set ENV MODULARYN_DEPLOYMENT_MODE=single-host-container.");
+        }
+
+        return errors;
+    }
+
+    // The AC-001 container rows: their database pins, the step that creates the credentials and runs the rows, the script that
+    // runs them, and the check of their evidence records.
+    private static void ValidateContainerRows(string job, List<RegisterEntry> register, IReadOnlyDictionary<string, string> files, List<string> errors)
+    {
+        var postgres = ImageReference(register, PostgresImageId, errors);
+        if (postgres is not null && (Values(job, "POSTGRES_IMAGE") is not [var image] || image != postgres))
+        {
+            errors.Add($"{CiPath}: the {ContainerJob} job's POSTGRES_IMAGE must be the register's {PostgresImageId} reference {postgres}.");
+        }
+
+        var server = register.Where(entry => entry.Id == "binary:postgresql" && entry.Status == "in-use").ToList();
+        if (Values(job, "POSTGRESQL_VERSION") is not [var version] || server is not [var entry] || entry.Version != version)
+        {
+            errors.Add($"{CiPath}: the {ContainerJob} job's POSTGRESQL_VERSION must equal the version of the register's in-use binary:postgresql entry.");
+        }
+
+        var lines = job.Split('\n').Select(line => line.Trim()).ToList();
+        if (!lines.Any(line => line.StartsWith($"docker network create --internal {AcceptanceNetwork} ", StringComparison.Ordinal))
+            || !lines.Any(line => line.Contains($"--network={AcceptanceNetwork} ", StringComparison.Ordinal) && line.Contains("\"${POSTGRES_IMAGE}\"", StringComparison.Ordinal)))
+        {
+            errors.Add($"{CiPath}: the {ContainerJob} job must create {AcceptanceNetwork} with docker network create --internal and start PostgreSQL on it.");
+        }
+
+        var steps = StepNames(job);
+        var run = steps.IndexOf(CompositionTestStep);
+        var start = steps.IndexOf(DatabaseStartStep);
+        var check = steps.IndexOf(CompositionCheckStep);
+        if (Run(job, CompositionTestStep) != CompositionTestRun || start < 0 || start > run || check < 0 || check > run)
+        {
+            errors.Add($"{CiPath}: the {ContainerJob} job's '{CompositionTestStep}' step must come after its '{DatabaseStartStep}' and "
+                + $"'{CompositionCheckStep}' steps and run {CompositionTestRun}.");
+        }
+
+        if (job.Split('\n').Count(line => line.Contains(DatabaseScriptPath, StringComparison.Ordinal)) != 1)
+        {
+            errors.Add($"{CiPath}: only the {ContainerJob} job's '{CompositionTestStep}' step may run {DatabaseScriptPath}, so the credentials exist in no other step.");
+        }
+
+        if (steps.IndexOf(ContainerEvidenceCheckStep) <= run || !(Run(job, ContainerEvidenceCheckStep) ?? "").Split('\n')
+                .Any(line => line.Trim().EndsWith(" " + EvidenceCheckRun, StringComparison.Ordinal))
+            || StepEnv(job, ContainerEvidenceCheckStep).GetValueOrDefault("MODULARYN_EVIDENCE_MODE") != "single-host-container")
+        {
+            errors.Add($"{CiPath}: the {ContainerJob} job must check the container evidence records with {EvidenceCheckRun} in a "
+                + $"'{ContainerEvidenceCheckStep}' step after its '{CompositionTestStep}' step, with MODULARYN_EVIDENCE_MODE single-host-container.");
+        }
+
+        var script = files.GetValueOrDefault(CompositionScriptPath, "");
+        var scriptLines = LogicalLines(script).Select(line => line.Trim()).ToList();
+        // Exactly the planned CODE-10 methods and the readiness test, through the test executable's own filters.
+        var planned = PlannedMethods(files, "CODE-10").Append(ReadinessTest).ToList();
+        var fixtureRun = scriptLines.Where(line => line.StartsWith("docker run ", StringComparison.Ordinal)
+            && line.Contains("\"${COMPOSITION_IMAGE}\"", StringComparison.Ordinal) && line.Contains("-result-ctrf ", StringComparison.Ordinal)).ToList();
+        if (planned.Count < 2 || fixtureRun is not [var rows]
+            || Regex.Matches(rows, "-method \"(?<name>[^\"]+)\"").Select(match => match.Groups["name"].Value).Order(StringComparer.Ordinal)
+                .SequenceEqual(planned.Order(StringComparer.Ordinal), StringComparer.Ordinal) is false
+            || !rows.Contains("-preEnumerateTheories -trait \"Deployment=single-host-container\"", StringComparison.Ordinal))
+        {
+            errors.Add($"{CompositionScriptPath}: must run the composition fixture image once with a report, selecting through its own filters "
+                + "exactly the container rows of every CODE-10 method in the evidence plan and the published sample image's readiness test.");
+        }
+
+        foreach (var line in scriptLines.Where(line => line.Contains("docker run ", StringComparison.Ordinal)
+                     && (line.Contains("\"${COMPOSITION_IMAGE}\"", StringComparison.Ordinal) || line.Contains("\"${SAMPLE_IMAGE}\"", StringComparison.Ordinal))))
+        {
+            var words = line.Split(' ');
+            if (!Hardening.All(words.Contains)
+                || !(words.Contains("--network=\"${network}\"") || words.Contains("--network=\"container:${POSTGRES_CONTAINER}\"")))
+            {
+                errors.Add($"{CompositionScriptPath}: every docker run of the sample or composition fixture image must use {string.Join(", ", Hardening)} "
+                    + $"and run on the internal network or in the database container's network namespace: {line}");
+            }
+        }
+
+        if (!scriptLines.Contains($"network={AcceptanceNetwork}", StringComparer.Ordinal)
+            || !script.Contains("[ \"$(jq -r '.results.summary.tests' \"${report}\")\" = \"5\" ] && [ \"${passed}\" = \"${expected}\" ]", StringComparison.Ordinal)
+            || !script.Contains("select(.status == \"passed\")", StringComparison.Ordinal))
+        {
+            errors.Add($"{CompositionScriptPath}: must use the {AcceptanceNetwork} network and fail unless its report shows the five expected tests, all passed.");
+        }
+    }
+
     // The evidence check runs the one repository test through the test executable's filter, fails a skip, and requires its
     // report to show that the test ran and passed.
     private static IEnumerable<string> EvidenceScriptErrors(string script)
@@ -822,6 +966,21 @@ internal static partial class ToolPinContract
         if (!script.Contains("xargs -0 sha256sum", StringComparison.Ordinal))
         {
             yield return $"{EvidenceScriptPath}: must print each evidence record's SHA-256.";
+        }
+    }
+
+    // The fully qualified names of the plan's planned tests that a work order writes.
+    private static IEnumerable<string> PlannedMethods(IReadOnlyDictionary<string, string> files, string workOrder)
+    {
+        try
+        {
+            using var plan = JsonDocument.Parse(files.GetValueOrDefault(G02EvidencePlanContract.PlanPath, ""));
+            return plan.RootElement.GetProperty("cases").EnumerateArray().SelectMany(row => row.GetProperty("plannedTests").EnumerateArray())
+                .Where(test => Text(test, "workOrder") == workOrder).Select(test => Text(test, "name") ?? "").ToList();
+        }
+        catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException)
+        {
+            return [];
         }
     }
 

@@ -582,11 +582,13 @@ jobs:
 
   # The fixture image on the digest-pinned ASP.NET Core runtime base, built for linux/amd64. Every
   # Dockerfile in the repository must use that base. After the fixture, the job publishes the sample
-  # application's host with the pinned SDK and builds and runs its image on the same base.
+  # application's host with the pinned SDK and builds and runs its image on the same base. Last, it
+  # runs the AC-001 container rows in the test-only composition fixture image, against PostgreSQL
+  # and the published sample image on an internal network, and checks their evidence records.
   container-build:
     name: container-build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     env:
       ASPNET_IMAGE: mcr.microsoft.com/dotnet/aspnet:10.0.14-noble@sha256:de0ee358cdd672f7017a003bed21e9ac9ed48a27c922a59b18175b6e82fa7fee
       FIXTURE_DOCKERFILE: tests/Fixtures/container/Dockerfile
@@ -595,6 +597,14 @@ jobs:
       # The sample application's host image, built from the host's published output; a local tag too.
       SAMPLE_DOCKERFILE: src/Tooling/Modularyn.Tooling.Samples.TeamWorkspace.Host/Dockerfile
       SAMPLE_IMAGE: modularyn-team-workspace:ci
+      # The composition fixture image: the sample's published test executable on the same base, test-only and never
+      # published; a local tag too.
+      COMPOSITION_DOCKERFILE: tests/Fixtures/composition/Dockerfile
+      COMPOSITION_IMAGE: modularyn-composition:ci
+      # The AC-001 container rows' database: the real-provider job's server release and image, which the database step
+      # requires the running container to report and to run.
+      POSTGRESQL_VERSION: '18.6'
+      POSTGRES_IMAGE: docker.io/library/postgres:18.6-trixie@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6
     steps:
       - name: Check out the exact head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -831,3 +841,89 @@ jobs:
           described="$(docker run --rm --pull=never --platform=linux/amd64 --network=none "${SAMPLE_IMAGE}" --describe-deployment)" || fail "The sample image did not describe its deployment."
           [ "${described}" = "$(cat "${RUNNER_TEMP}/team-workspace/deployment-lock.json")" ] || fail "The sample image's files are not those its deployment lock describes."
           echo "Sample image $(docker image inspect --format '{{.Id}}' "${SAMPLE_IMAGE}") on ${platform}, user ${user}, refuses to start without configuration"
+      # The AC-001 container rows (docs/ci.md, "Container acceptance"). The sample's test project, an xunit v3 executable with
+      # the sample host, its modules and the test modules A, B and C, is published framework-dependent with the pinned SDK from
+      # its locked packages, and only from a clean checkout of the exact head: the image built from it has no checkout, so
+      # the evidence writer inside binds to the source revision that these assemblies embed.
+      - name: Publish the sample's test project
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          head="$(git rev-parse HEAD)"
+          [[ "${head}" =~ ^[0-9a-f]{40}$ ]] || fail "Cannot read the exact head."
+          git diff --quiet HEAD -- || fail "The checkout has changes; the composition fixture image is built only from a clean checkout."
+          [ -z "$(git ls-files --others --exclude-standard)" ] || fail "The checkout has untracked files; the composition fixture image is built only from a clean checkout."
+          project=tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests.csproj
+          publish_dir="${RUNNER_TEMP}/composition"
+          rm -rf "${publish_dir}"
+          dotnet restore --locked-mode "${project}"
+          dotnet publish "${project}" -c Release --no-restore --self-contained false -o "${publish_dir}"
+          echo "MODULARYN_SOURCE_COMMIT=${head}" >> "${GITHUB_ENV}"
+      - name: Build the composition fixture image for linux/amd64
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          git ls-files --error-unmatch -- "${COMPOSITION_DOCKERFILE}" > /dev/null || fail "${COMPOSITION_DOCKERFILE} is not tracked."
+          docker build --platform=linux/amd64 --pull --no-cache --tag="${COMPOSITION_IMAGE}" --file="${COMPOSITION_DOCKERFILE}" "${RUNNER_TEMP}/composition"
+      # As the other two images are checked: its platform, its numeric non-root user, and the pinned base's layers first, with
+      # its own after them. Root owns every file and the tests' user can write none, and the image names its deployment mode.
+      - name: Check the composition fixture image
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "${COMPOSITION_IMAGE}")"
+          [ "${platform}" = "linux/amd64" ] || fail "The composition fixture image is ${platform}, not linux/amd64."
+          user="$(docker image inspect --format '{{.Config.User}}' "${COMPOSITION_IMAGE}")"
+          [[ "${user}" =~ ^[1-9][0-9]*(:[1-9][0-9]*)?$ ]] || fail "The composition fixture image must run as a numeric non-root user and group, not '${user}'."
+          aspnet_layers="$(docker image inspect --format '{{json .RootFS.Layers}}' "${ASPNET_IMAGE}")"
+          composition_layers="$(docker image inspect --format '{{json .RootFS.Layers}}' "${COMPOSITION_IMAGE}")"
+          jq -en --argjson base "${aspnet_layers}" --argjson image "${composition_layers}" '($image | length) > ($base | length) and $image[:($base | length)] == $base' > /dev/null \
+            || fail "The composition fixture image is not built on the pinned base's layers."
+          configured="$(docker image inspect --format '{{json .Config.Env}}' "${COMPOSITION_IMAGE}")"
+          jq -en --argjson configured "${configured}" '$configured | any(.[]; . == "MODULARYN_DEPLOYMENT_MODE=single-host-container")' > /dev/null \
+            || fail "The composition fixture image must set MODULARYN_DEPLOYMENT_MODE=single-host-container."
+          writable="$(docker run --rm --pull=never --platform=linux/amd64 --network=none --entrypoint=find "${COMPOSITION_IMAGE}" /app \( ! -user 0 -o -writable \) -print)" || fail "The composition fixture image did not run."
+          [ -z "${writable}" ] || fail "Root must own every file of the composition fixture image, and its user may write none: ${writable}"
+          echo "Composition fixture image $(docker image inspect --format '{{.Id}}' "${COMPOSITION_IMAGE}") on ${platform}, user ${user}, on the layers of ${ASPNET_IMAGE}"
+      # PostgreSQL for the container rows, on an internal Docker network that reaches nothing outside it, configured as the
+      # real-provider job's service is: host connections are rejected until the database script creates the test role, and
+      # that script removes the bootstrap superuser password, the run's public id, which never authenticates anything.
+      - name: Start PostgreSQL on an internal network
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          docker network create --internal modularyn-acceptance > /dev/null || fail "Cannot create the internal network."
+          docker pull --platform=linux/amd64 "${POSTGRES_IMAGE}" > /dev/null || fail "Pull of ${POSTGRES_IMAGE} failed."
+          database="$(docker run --detach --pull=never --platform=linux/amd64 --name=modularyn-postgres --network=modularyn-acceptance --env=POSTGRES_PASSWORD="${GITHUB_RUN_ID}" --env=POSTGRES_HOST_AUTH_METHOD=reject --health-cmd="pg_isready --host=127.0.0.1 --port=5432 --username=postgres --dbname=postgres" --health-interval=2s --health-timeout=5s --health-retries=30 "${POSTGRES_IMAGE}")" || fail "PostgreSQL did not start."
+          health=""
+          for attempt in $(seq 1 60); do
+            health="$(docker inspect --format '{{.State.Health.Status}}' "${database}")"
+            [ "${health}" != "healthy" ] || break
+            sleep 2
+          done
+          [ "${health}" = "healthy" ] || fail "PostgreSQL is ${health} after ${attempt} checks."
+          echo "POSTGRES_CONTAINER=${database}" >> "${GITHUB_ENV}"
+      # The database script checks the container's image and server version and creates the per-run test role, as in the
+      # real-provider job, then runs the container rows' script with MODULARYN_TEST_POSTGRESQL naming the container's loopback
+      # port. The credentials exist only in this step and in the secret file that the script removes when it ends.
+      - name: Run the AC-001 container rows against PostgreSQL
+        shell: bash
+        env:
+          POSTGRES_PORT: '5432'
+        run: bash .github/scripts/postgresql-test-database.sh ci bash .github/scripts/composition-tests.sh
+      # The repository's own evidence contracts check every record the container rows wrote; the job then prints each record's
+      # SHA-256.
+      - name: Check the container evidence records
+        shell: bash
+        env:
+          MODULARYN_EVIDENCE_MODE: single-host-container
+        run: |
+          set -euo pipefail
+          project=tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj
+          dotnet restore --locked-mode "${project}"
+          dotnet build "${project}" -c Release --no-restore
+          MODULARYN_EVIDENCE_DIR="${RUNNER_TEMP}/composition-output/evidence" bash .github/scripts/evidence-records.sh

@@ -18,6 +18,8 @@ public sealed class ToolPinTests
     private const string ScriptPath = ToolPinContract.DatabaseScriptPath;
     private const string TestsScriptPath = ToolPinContract.TestsScriptPath;
     private const string FixturePath = ToolPinContract.FixtureDockerfile;
+    private const string CompositionPath = ToolPinContract.CompositionDockerfile;
+    private const string CompositionScript = ToolPinContract.CompositionScriptPath;
     private const string EvidenceScript = ToolPinContract.EvidenceScriptPath;
 
     [Fact]
@@ -508,10 +510,34 @@ public sealed class ToolPinTests
     [InlineData("second-image-definition", "FIXTURE_IMAGE must be defined exactly once, as a literal")]
     [InlineData("computed-dockerfile-env", "FIXTURE_DOCKERFILE must be defined exactly once, as a literal")]
     [InlineData("unused-allowlist-entry", "is not used; remove it from the allowlist")]
+    [InlineData("missing-composition-dockerfile", "the composition fixture image's Dockerfile, which the container-build job builds, is missing")]
+    [InlineData("composition-other-base", "or an earlier stage")]
+    [InlineData("composition-root-user", "the composition fixture image must run as a numeric non-root user and group")]
+    [InlineData("composition-named-user", "the composition fixture image must run as a numeric non-root user and group")]
+    [InlineData("composition-chown", "root must own the files the composition fixture image copies")]
+    [InlineData("composition-run-step", "the composition fixture image runs no build step")]
+    [InlineData("composition-without-mode", "must set ENV MODULARYN_DEPLOYMENT_MODE=single-host-container")]
+    [InlineData("container-other-composition", "the container-build job must build tests/Fixtures/composition/Dockerfile")]
+    [InlineData("composition-image-registry", "COMPOSITION_IMAGE must be a local tag")]
+    [InlineData("composition-image-assigned", "the guarded name COMPOSITION_IMAGE appears outside its definition and the allowlisted lines")]
+    [InlineData("container-postgres-image-mismatch", "the container-build job's POSTGRES_IMAGE must be the register's")]
+    [InlineData("container-postgresql-version-mismatch", "the container-build job's POSTGRESQL_VERSION must equal")]
+    [InlineData("network-not-internal", "must create modularyn-acceptance with docker network create --internal")]
+    [InlineData("composition-step-other-command", "step must come after its 'Start PostgreSQL on an internal network' and")]
+    [InlineData("composition-without-database-step", "step must come after its 'Start PostgreSQL on an internal network' and")]
+    [InlineData("database-in-another-container-step", "only the container-build job's 'Run the AC-001 container rows against PostgreSQL' step may run")]
+    [InlineData("composition-to-github-env", "never to GITHUB_ENV, GITHUB_OUTPUT, GITHUB_STATE, GITHUB_PATH")]
+    [InlineData("composition-missing-method", "exactly the container rows of every CODE-10 method in the evidence plan")]
+    [InlineData("composition-all-rows", "exactly the container rows of every CODE-10 method in the evidence plan")]
+    [InlineData("composition-unhardened", "every docker run of the sample or composition fixture image must use")]
+    [InlineData("composition-host-network", "every docker run of the sample or composition fixture image must use")]
+    [InlineData("sample-writable-root", "every docker run of the sample or composition fixture image must use")]
+    [InlineData("composition-report-unchecked", "fail unless its report shows the five expected tests, all passed")]
     [InlineData("host-evidence-missing", "'Choose the host evidence directory' step must, before its 'Test against PostgreSQL' step")]
     [InlineData("host-evidence-in-checkout", "'Choose the host evidence directory' step must, before its 'Test against PostgreSQL' step")]
     [InlineData("host-evidence-unchecked", "must check the host evidence records with bash .github/scripts/evidence-records.sh")]
     [InlineData("host-evidence-other-mode", "must check the host evidence records with bash .github/scripts/evidence-records.sh")]
+    [InlineData("container-evidence-unchecked", "must check the container evidence records with bash .github/scripts/evidence-records.sh")]
     [InlineData("evidence-check-allows-skips", "with -failSkips and fail unless its report shows that it ran once and passed")]
     [InlineData("evidence-check-unprinted", "must print each evidence record's SHA-256")]
     public void A_single_ci_pin_violation_is_rejected(string mutation, string expectedDiagnostic)
@@ -535,9 +561,73 @@ public sealed class ToolPinTests
         var aspnetReference = Reference(aspnet);
         var ci = files[CiPath];
         var fixture = files[FixturePath];
+        var composition = files[CompositionPath];
+        var script = files[CompositionScript];
         string? pinText = null;
         switch (mutation)
         {
+            case "missing-composition-dockerfile": Assert.True(files.Remove(CompositionPath)); break;
+            case "composition-other-base":
+                files[CompositionPath] = ReplaceText(composition, "/dotnet/aspnet:", "/dotnet/runtime:");
+                break;
+            case "composition-root-user": files[CompositionPath] = ReplaceText(composition, "USER 1654:1654", "USER 0"); break;
+            case "composition-named-user": files[CompositionPath] = ReplaceText(composition, "USER 1654:1654", "USER app"); break;
+            case "composition-chown": files[CompositionPath] = ReplaceText(composition, "COPY . ./", "COPY --chown=1654:1654 . ./"); break;
+            case "composition-run-step": files[CompositionPath] = composition + "RUN chmod -R a+w /app\n"; break;
+            case "composition-without-mode":
+                files[CompositionPath] = ReplaceText(composition, "ENV MODULARYN_DEPLOYMENT_MODE=single-host-container\n", "");
+                break;
+            case "container-other-composition":
+                files[CiPath] = ReplaceLine(ci, "      COMPOSITION_DOCKERFILE: " + CompositionPath, "      COMPOSITION_DOCKERFILE: tests/Fixtures/other/Dockerfile");
+                break;
+            case "composition-image-registry":
+                files[CiPath] = ReplaceLine(ci, "      COMPOSITION_IMAGE: modularyn-composition:ci", "      COMPOSITION_IMAGE: docker.io/library/alpine:3.22");
+                break;
+            case "composition-image-assigned":
+                files[CompositionScript] = ReplaceText(script, "network=modularyn-acceptance\n", "network=modularyn-acceptance\nCOMPOSITION_IMAGE=\"docker.io/library/alpine:3.22\"\n");
+                break;
+            case "container-postgres-image-mismatch":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "      POSTGRES_IMAGE: " + postgresReference, "      POSTGRES_IMAGE: " + Flip(postgresReference));
+                break;
+            case "container-postgresql-version-mismatch":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "      POSTGRESQL_VERSION: '" + Value(postgres, "version") + "'",
+                    "      POSTGRESQL_VERSION: '" + Bump(Value(postgres, "version")) + "'");
+                break;
+            case "network-not-internal":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "docker network create --internal modularyn-acceptance", "docker network create modularyn-acceptance");
+                break;
+            case "composition-step-other-command":
+                files[CiPath] = ReplaceLine(ci, "        run: " + ToolPinContract.CompositionTestRun, "        run: bash " + CompositionScript);
+                break;
+            case "composition-without-database-step":
+                files[CiPath] = ReplaceLine(ci, "      - name: " + ToolPinContract.DatabaseStartStep, "      - name: Start PostgreSQL");
+                break;
+            case "database-in-another-container-step":
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.ContainerJob, "      - name: " + ToolPinContract.DatabaseStartStep,
+                    $"      - name: Prepare\n        run: bash {ScriptPath} ci true\n      - name: " + ToolPinContract.DatabaseStartStep);
+                break;
+            case "composition-to-github-env":
+                files[CompositionScript] = ReplaceText(script, "mkdir -m 0770 \"${output}\"\n", "mkdir -m 0770 \"${output}\"\necho \"output=${output}\" >> \"${GITHUB_ENV}\"\n");
+                break;
+            case "composition-missing-method":
+                files[CompositionScript] = ReplaceText(script,
+                    " -method \"Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_R01_FailedInitializationCleansUpAndRecovers_Integration\"", "");
+                break;
+            case "composition-all-rows": files[CompositionScript] = ReplaceText(script, " -trait \"Deployment=single-host-container\"", ""); break;
+            case "composition-unhardened":
+                files[CompositionScript] = ReplaceText(script, "--read-only --tmpfs=/tmp --cap-drop=ALL --security-opt=no-new-privileges --group-add=\"${group}\" --volume=\"${output}:/output\"",
+                    "--tmpfs=/tmp --cap-drop=ALL --security-opt=no-new-privileges --group-add=\"${group}\" --volume=\"${output}:/output\"");
+                break;
+            case "composition-host-network":
+                files[CompositionScript] = ReplaceText(script, "--network=\"container:${POSTGRES_CONTAINER}\" --read-only --tmpfs=/tmp --cap-drop=ALL --security-opt=no-new-privileges --env=MODULARYN_SAMPLE_BASE_URL",
+                    "--network=host --read-only --tmpfs=/tmp --cap-drop=ALL --security-opt=no-new-privileges --env=MODULARYN_SAMPLE_BASE_URL");
+                break;
+            case "sample-writable-root":
+                files[CompositionScript] = ReplaceText(script, "--name=\"${sample}\" --network=\"${network}\" --read-only ", "--name=\"${sample}\" --network=\"${network}\" ");
+                break;
+            case "composition-report-unchecked":
+                files[CompositionScript] = ReplaceText(script, "[ \"$(jq -r '.results.summary.tests' \"${report}\")\" = \"5\" ] && [ \"${passed}\" = \"${expected}\" ]", "true");
+                break;
             case "host-evidence-missing":
                 files[CiPath] = ReplaceLine(ci, "      - name: " + ToolPinContract.HostEvidenceStep, "      - name: Choose a directory");
                 break;
@@ -549,6 +639,9 @@ public sealed class ToolPinTests
                 break;
             case "host-evidence-other-mode":
                 files[CiPath] = ReplaceLine(ci, "          MODULARYN_EVIDENCE_MODE: single-host", "          MODULARYN_EVIDENCE_MODE: single-host-container");
+                break;
+            case "container-evidence-unchecked":
+                files[CiPath] = ReplaceLine(ci, "          MODULARYN_EVIDENCE_MODE: single-host-container", "          MODULARYN_EVIDENCE_MODE: single-host");
                 break;
             case "evidence-check-allows-skips": files[EvidenceScript] = ReplaceText(files[EvidenceScript], "-failSkips -method", "-method"); break;
             case "evidence-check-unprinted": files[EvidenceScript] = ReplaceText(files[EvidenceScript], "xargs -0 sha256sum", "xargs -0 ls -l"); break;
@@ -589,7 +682,7 @@ public sealed class ToolPinTests
                 files[CiPath] = ReplaceLine(ci, "        image: " + postgresReference, "        image: " + Flip(postgresReference));
                 break;
             case "postgres-image-env-mismatch":
-                files[CiPath] = ReplaceLine(ci, "      POSTGRES_IMAGE: " + postgresReference, "      POSTGRES_IMAGE: " + Flip(postgresReference));
+                files[CiPath] = ReplaceInJob(ci, ToolPinContract.RealProviderJob, "      POSTGRES_IMAGE: " + postgresReference, "      POSTGRES_IMAGE: " + Flip(postgresReference));
                 break;
             case "postgres-register-candidate": Set(postgres, "status", "candidate"); break;
             case "inline-container":
@@ -925,7 +1018,7 @@ public sealed class ToolPinTests
                 files[CiPath] = ReplaceText(ci, "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n", "docker pull --platform=linux/amd64 \"${ASPNET_IMAGE}\" > /dev/null || fail \"Pull of ${ASPNET_IMAGE} failed.\"\n          echo \"ASPNET_IMAGE=docker.io/library/alpine:3\" >> \"${GITHUB_ENV}\"\n");
                 break;
             case "second-image-definition":
-                files[CiPath] = ReplaceLine(ci, "      POSTGRESQL_VERSION: '18.6'", "      POSTGRESQL_VERSION: '18.6'\n      FIXTURE_IMAGE: other:ci");
+                files[CiPath] = ReplaceLine(ci, "      POSTGRESQL_VERSION: '18.6'", "      POSTGRESQL_VERSION: '18.6'\n      FIXTURE_IMAGE: other:ci", firstOnly: true);
                 break;
             case "computed-dockerfile-env":
                 files[CiPath] = ReplaceLine(ci, "      FIXTURE_DOCKERFILE: " + FixturePath, "      FIXTURE_DOCKERFILE: ${{ vars.DOCKERFILE }}");
