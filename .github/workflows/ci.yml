@@ -394,6 +394,8 @@ jobs:
     env:
       # The server release that the pinned image packages; the database step requires the service to report it.
       POSTGRESQL_VERSION: '18.6'
+      # The Chrome for Testing build whose archive .github/browsers.json pins; change the two and the register together.
+      CHROME_HEADLESS_SHELL_VERSION: '156.0.8078.4'
       # The service image below, which the database step checks against the running service.
       POSTGRES_IMAGE: docker.io/library/postgres:18.6-trixie@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6
     services:
@@ -552,6 +554,46 @@ jobs:
         shell: bash
         working-directory: src/Framework/Modularyn.Framework.Sdk.Client/typescript
         run: npm run check
+      # AC-003-N02's browser: the Chrome for Testing archive that .github/browsers.json pins by SHA-256, never a build
+      # that Playwright downloads itself. The archive is checked before the test step receives its path; the test checks it again before it
+      # extracts and launches it, and skips, which fails the tests script, when no verified archive is present.
+      - name: Download and verify the pinned browser archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          pin_file=".github/browsers.json"
+          case "${RUNNER_OS}/${RUNNER_ARCH}" in
+            Linux/X64) platform="linux64" ;;
+            *) fail "No pinned browser archive for runner ${RUNNER_OS} ${RUNNER_ARCH}." ;;
+          esac
+          command -v jq > /dev/null || fail "jq is required to read ${pin_file}."
+          [[ "${CHROME_HEADLESS_SHELL_VERSION:-}" =~ ^[0-9]+(\.[0-9]+){3}$ ]] || fail "CHROME_HEADLESS_SHELL_VERSION must be an exact version."
+          version="$(jq -er '.version' "${pin_file}")" || fail "${pin_file} does not name a browser version."
+          [ "${version}" = "${CHROME_HEADLESS_SHELL_VERSION}" ] \
+            || fail "${pin_file} pins ${version}, but CHROME_HEADLESS_SHELL_VERSION is ${CHROME_HEADLESS_SHELL_VERSION}."
+          url="$(jq -er --arg platform "${platform}" '.archives[$platform].url' "${pin_file}")" \
+            || fail "${pin_file} has no archive URL for ${platform}."
+          sha256="$(jq -er --arg platform "${platform}" '.archives[$platform].sha256' "${pin_file}")" \
+            || fail "${pin_file} has no SHA-256 for ${platform}."
+          archive_name="chrome-headless-shell-${platform}.zip"
+          [ "${url}" = "https://cdn.playwright.dev/builds/cft/${version}/${platform}/${archive_name}" ] \
+            || fail "${pin_file} gives ${url} for ${platform}, which is not the Chrome for Testing archive of ${version}."
+          [[ "${sha256}" =~ ^[0-9a-f]{64}$ ]] || fail "${pin_file} has a malformed SHA-256 for ${platform}."
+          echo "Runner ${RUNNER_OS} ${RUNNER_ARCH} selects ${platform}, archive ${url}"
+          download_dir="${RUNNER_TEMP}/browser-download"
+          rm -rf "${download_dir}"
+          mkdir -p "${download_dir}"
+          archive="${download_dir}/${archive_name}"
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 \
+            --retry 3 "${url}" --output "${archive}" || fail "Download of ${url} failed."
+          actual="$(sha256sum "${archive}" | cut -d ' ' -f 1)" || fail "Cannot compute the SHA-256 of ${archive}."
+          if ! [ "${actual}" = "${sha256}" ]; then
+            rm -f "${archive}"
+            fail "SHA-256 mismatch for ${url}, expected ${sha256} but got ${actual}. The archive was removed and is not used."
+          fi
+          echo "SHA-256 verified, ${actual}"
+          echo "MODULARYN_TEST_BROWSER_ARCHIVE=${archive}" >> "${GITHUB_ENV}"
       # The host rows of the AC-001 cases write their evidence records beneath the runner's temporary directory, bound to the
       # exact head that the checkout step fetched (docs/ci.md, "Evidence records"). Neither value is a secret.
       - name: Choose the host evidence directory

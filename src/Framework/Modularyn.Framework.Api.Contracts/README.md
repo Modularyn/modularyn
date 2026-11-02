@@ -53,9 +53,10 @@ download or an upload, so every other operation's description is unchanged.
 None of them generates a client method, since validation refuses a client-visible
 page, download or upload and generated clients send and read JSON only. The inventory states what an endpoint sends and accepts; the endpoint
 itself sends its headers, such as the Files module's delivery headers for a
-download. Response media types are not yet checked at runtime against what a
-handler sends, which SEC-08 carries; the ingress disables content sniffing on
-every response meanwhile.
+download. The endpoint wrapper checks each response's type against this
+declaration at run time and refuses any other with `MAP008`, as
+[the endpoint conventions](../Modularyn.Framework.Api/README.md) describe; the
+ingress also disables content sniffing on every response.
 
 `ApiGenerator.OpenApi`, `DotNet` and `TypeScript` produce deterministic text using
 only the shared framework and System.Text.Json. The checked OpenAPI document and

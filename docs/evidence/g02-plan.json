@@ -392,21 +392,21 @@
           "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N01_ResourceDenialsHideRowsAndProtectServerFields_Isolation",
           "layer": "isolation",
           "workOrder": "SEC-08",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
           "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N01_ResourceDenialsHideRowsAndProtectServerFields_Contract",
           "layer": "api-contract",
           "workOrder": "SEC-08",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
           "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N01_ResourceDenialsHideRowsAndProtectServerFields_Integration",
           "layer": "real-provider-integration",
           "workOrder": "SEC-08",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -444,21 +444,21 @@
           "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N02_CrossSiteEndedSessionAndOverCeilingCallsAreRefused_Contract",
           "layer": "api-contract",
           "workOrder": "SEC-08",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
           "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N02_CrossSiteEndedSessionAndOverCeilingCallsAreRefused_Browser",
           "layer": "ui",
           "workOrder": "SEC-08",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
           "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N02_CrossSiteEndedSessionAndOverCeilingCallsAreRefused_Integration",
           "layer": "real-provider-integration",
           "workOrder": "SEC-08",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -496,14 +496,14 @@
           "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N03_SettingsAndFeaturesCannotSupplyAuthority_Unit",
           "layer": "unit",
           "workOrder": "SEC-08",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
           "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N03_SettingsAndFeaturesCannotSupplyAuthority_Contract",
           "layer": "api-contract",
           "workOrder": "SEC-08",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -789,14 +789,14 @@
           "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_B02_CacheAndUniqueKeysKeepEveryScopeDimension_Isolation",
           "layer": "isolation",
           "workOrder": "SEC-08",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
           "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_B02_CacheAndUniqueKeysKeepEveryScopeDimension_Integration",
           "layer": "real-provider-integration",
           "workOrder": "SEC-08",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -833,14 +833,14 @@
           "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N01_ForgedTenantAndOriginCandidatesAreRefused_Isolation",
           "layer": "isolation",
           "workOrder": "SEC-08",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
           "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N01_ForgedTenantAndOriginCandidatesAreRefused_Contract",
           "layer": "api-contract",
           "workOrder": "SEC-08",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -882,21 +882,21 @@
           "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N02_ForeignIdentifiersCannotReachDataImportsOrFiles_Isolation",
           "layer": "isolation",
           "workOrder": "SEC-08",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
           "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N02_ForeignIdentifiersCannotReachDataImportsOrFiles_Integration",
           "layer": "real-provider-integration",
           "workOrder": "SEC-08",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
           "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N02_ForeignIdentifiersCannotReachDataImportsOrFiles_Contract",
           "layer": "api-contract",
           "workOrder": "SEC-08",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -935,14 +935,14 @@
           "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N03_HostAndWorkerAuthorityCannotComeFromPayloads_Isolation",
           "layer": "isolation",
           "workOrder": "SEC-08",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
           "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N03_HostAndWorkerAuthorityCannotComeFromPayloads_Integration",
           "layer": "real-provider-integration",
           "workOrder": "SEC-08",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -1086,21 +1086,21 @@
           "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_R02_RestorePreservesTenantOwnershipAndRefusals_Isolation",
           "layer": "isolation",
           "workOrder": "SEC-08",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
           "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_R02_RestorePreservesTenantOwnershipAndRefusals_Recovery",
           "layer": "operational-recovery",
           "workOrder": "SEC-08",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
           "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_R02_RestorePreservesTenantOwnershipAndRefusals_Integration",
           "layer": "real-provider-integration",
           "workOrder": "SEC-08",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [

@@ -333,7 +333,8 @@ doubles, and the audit package's own tests exercise the real store. `FileSystem.
 `Modularyn.Modules.Files.Persistence.FileSystem.Tests`, whose PostgreSQL tests
 use a permissive evaluator double, because they exercise storage, not
 authorization. Tests without the trait run on every CI platform. SEC-08 maps
-every control to its evidence.
+every control to its evidence and its residual risks in
+[the control map](../../../docs/security/control-map/README.md).
 
 - **TM-G02-042, partly.** Delivered: new versions held pending and unreadable on
   the read path until the deployment's release policy releases them; rejected
@@ -355,15 +356,18 @@ every control to its evidence.
   them. Remaining: a scanner or
   moderation adapter, which the deployment supplies and no G-02 work order
   builds, so a deployment that uses the allowlist policy accepts its
-  no-scanning residual; the sample's registration of it with a narrow allowlist
-  (CODE-09); adversarial evidence (SEC-08).
+  no-scanning residual (`RR-G02-025`); the sample's registration of it with a
+  narrow allowlist (CODE-09).
 - **TM-G02-043, partly.** Delivered by CODE-07: storage locations from
   server-issued identities only, links and reparse points refused on every path
   component. SEC-06 adds names normalized, bounded and refused when unsafe, and
   canonical containers and owner references, refused before any intent. Tests:
   `Application.Tests` `FileRulesTests` (`TM_G02_043_*`); `FileSystem.Tests`
   `StorageBoundaryTests` and, on every platform, `FileSystemStoreTests`.
-  Remaining: adversarial evidence (SEC-08).
+  Adversarial evidence: another tenant's file, by its identifier, through the
+  storage location its identity derives, finds nothing, before and after a restore
+  (SEC-08; `Framework.Tenancy.Tests` `G02AC004Tests.AC_004_N02_*` and
+  `AC_004_R02_*`).
 - **TM-G02-044, partly.** Delivered: every action decided by SEC-05's evaluator
   after the file resolves in the effective tenant, a refused file answered as
   missing; visibility composed into file lists; download grants bound to tenant,
@@ -375,8 +379,12 @@ every control to its evidence.
   `Application.Tests` `FileAuthorizationTests`, `DownloadGrantTests` and
   `FileRulesTests` (`TM_G02_044_*`). Remaining: the endpoints that send the
   delivery headers and the declared endpoint inventory (CODE-06, CODE-09); the
-  bounded-bearer profile for public files, which no G-02 work order covers;
-  adversarial evidence for AC-003-N01 and AC-004 (SEC-08). Each grant's issue and
+  bounded-bearer profile for public files, which no G-02 work order covers
+  (`RR-G02-027`). Adversarial evidence: another tenant's file by identifier, with
+  its grant and through its storage location, refused as missing, the grant's
+  tenant, version and purpose checked, through the stores and a declared download
+  endpoint, and after a restore (SEC-08; `Framework.Tenancy.Tests`
+  `G02AC004Tests.AC_004_N02_*` and `AC_004_R02_*`). Each grant's issue and
   revocation is recorded in audit with the change, naming the grant, file,
   version, purpose and expiry, never its token or verifier, and a grant whose
   record cannot be written is neither issued nor revoked (SEC-07;

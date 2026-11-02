@@ -77,7 +77,8 @@ public sealed class DeploymentTrustHostingTests : IDisposable
         application.UseRouting();
         application.UseModularynRequests();
         application.MapModularynHealthChecks();
-        application.MapGet("/work", () => "done").AllowAnonymous().WithApiContract(new ApiEndpoint("TestWork", "GET", "/work", "Anonymous", null, false, null, null, Versioned: false));
+        application.MapGet("/work", () => "done").AllowAnonymous().WithApiContract(new ApiEndpoint("TestWork", "GET", "/work", "Anonymous", null, false, null, null, Versioned: false,
+            ResponseMediaType: ApiMediaTypes.PlainText));
         var host = application.Services.GetRequiredService<ModuleHost>();
         var health = application.Services.GetRequiredService<HealthCheckService>();
         AssertStatusOnly(await Check(health, ModuleHealthChecks.ReadinessTag), HealthStatus.Unhealthy);

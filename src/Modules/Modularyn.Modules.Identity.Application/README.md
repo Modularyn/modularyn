@@ -413,7 +413,8 @@ waits on. Test classes are in the test project of the package named, with
 in `Identity.HttpApi.Tests`, and AC-003-B02's isolation test, also run the HTTP
 adapter on Kestrel over loopback HTTPS. The others are unit tests, over
 in-memory stores where they need stores. SEC-08 maps every control to its
-evidence.
+evidence and its residual risks in
+[the control map](../../../docs/security/control-map/README.md).
 
 - **TM-G02-015, partly.** Delivered: per-source blocks that refusals count
   toward; per-account delays without lockout; each source's own longer delay on
@@ -434,8 +435,9 @@ evidence.
   `ClientSourceTests`, all `TM_G02_015_*`. Remaining: an operator alert for a
   sustained attack, which no G-02 work order covers, since several sources acting
   together can keep an account delayed; the one-time-code and
-  recovery journeys and their endpoints (G-03); AC-002's API-contract evidence
-  (SEC-08). Throttle rows accumulate until a retention job removes them
+  recovery journeys and their endpoints (G-03); AC-002's API-contract evidence,
+  which the G-02 evidence plan does not schedule (`RR-G02-013`, `RR-G02-015` and
+  `RR-G02-038`). Throttle rows accumulate until a retention job removes them
   (CODE-05).
 - **TM-G02-016, done for G-02.** Delivered: a new session and token at every
   sign-in, ending the one presented; only the token's hash stored; the
@@ -445,9 +447,11 @@ evidence.
   database round trip. Tests: `Identity.Domain.Tests` `SessionRulesTests`,
   `Identity.Application.Tests` `FreshnessTests`, `Identity.Persistence.EfCore.Tests`
   `SessionAndLedgerTests` and `Identity.HttpApi.Tests` `SessionCookieTests`, all
-  `TM_G02_016_*`.
-  Remaining: adversarial evidence (SEC-08). Ended sessions accumulate until a
-  retention job removes them (CODE-05).
+  `TM_G02_016_*`. Adversarial evidence: an ended session's cookie refused, and a
+  cross-site request that carries no session cookie, through the API and a
+  verified browser (SEC-08; `Framework.Authorization.Tests`
+  `G02AC003Tests.AC_003_N02_*`). Ended sessions accumulate until a retention job
+  removes them (CODE-05).
 - **TM-G02-017, partly.** Delivered: sessions, account state and delegations
   read from the store on every request, so a revocation, password change,
   disabled account or security-state change ends a session at the next request;
@@ -461,7 +465,9 @@ evidence.
   `FreshnessTests` and `AdministrationTests` and `Identity.HttpApi.Tests`
   `RevocationTests`, all `TM_G02_017_*`, `G02AC003Tests.AC_003_B02_*`, and
   `Framework.Authorization.Tests` `G02AC003Tests.AC_003_B01_*`, `AC_003_R01_*`
-  and `AC_003_R02_*`. Remaining: adversarial evidence for AC-003 (SEC-08).
+  and `AC_003_R02_*`. Adversarial evidence (SEC-08; `Framework.Authorization.Tests`
+  `G02AC003Tests.AC_003_N02_*`). Within the declared bound a revoked grant can
+  still act (`RR-G02-018`).
 - **TM-G02-018, partly.** Delivered: actor, effective subject and identity kind
   on every principal; delegation between users only, explicit, scoped, limited
   to a tenant when the grant names one, expiring and revocable, exercised only

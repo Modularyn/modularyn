@@ -16,7 +16,7 @@ namespace Modularyn.Framework.Tenancy.Tests;
 // dependency stays unmet. Events and jobs use a test work table and dispatcher that follow the propagation contract;
 // CODE-05 supplies the durable outbox and job store.
 [Collection(TenancyPostgreSqlCollection.Name)]
-public sealed class G02AC004Tests
+public sealed partial class G02AC004Tests
 {
     private static CancellationToken Cancellation => TestContext.Current.CancellationToken;
 

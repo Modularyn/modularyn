@@ -1043,6 +1043,92 @@ public sealed class ToolPinTests
         Assert.Contains(ToolPinContract.Validate(files), error => error.Contains(expectedDiagnostic, StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("missing-browser-pin", "the browser archive pin file is missing")]
+    [InlineData("invalid-browser-pin", "must contain valid JSON")]
+    [InlineData("browser-pin-version-mismatch", "must equal the real-provider job's CHROME_HEADLESS_SHELL_VERSION")]
+    [InlineData("browser-workflow-version-mismatch", "must equal the real-provider job's CHROME_HEADLESS_SHELL_VERSION")]
+    [InlineData("browser-register-candidate", "needs exactly one in-use binary:chrome-headless-shell entry")]
+    [InlineData("browser-register-version-mismatch", "must equal the register's in-use binary:chrome-headless-shell version")]
+    [InlineData("playwright-register-candidate", "needs exactly one in-use nuget:microsoft.playwright entry")]
+    [InlineData("browser-playwright-mismatch", "must equal the register's in-use nuget:microsoft.playwright version")]
+    [InlineData("browser-other-build", "browser must be chrome-headless-shell")]
+    [InlineData("browser-other-source", "source must be Chrome for Testing's index")]
+    [InlineData("browser-uncited-source", "must cite the source")]
+    [InlineData("missing-browser-target", "archives must name exactly")]
+    [InlineData("browser-other-host", "url must be the Chrome for Testing archive")]
+    [InlineData("browser-uppercase-hash", "sha256 must be 64 lowercase hexadecimal characters")]
+    [InlineData("browser-register-digest-mismatch", "must equal the register's binary:chrome-headless-shell")]
+    [InlineData("browser-step-unchecked", "check the archive's SHA-256 and only then name it")]
+    [InlineData("browser-exported-before-check", "check the archive's SHA-256 and only then name it")]
+    [InlineData("browser-step-renamed", "check the archive's SHA-256 and only then name it")]
+    public void A_single_browser_pin_violation_is_rejected(string mutation, string expectedDiagnostic)
+    {
+        // The pinned browser archives, the register entries that record them and the job step that checks them before any test
+        // receives one; every mutation derives its values from the current files.
+        var original = RepositoryFiles.Current;
+        var files = original.ToDictionary();
+        Assert.Empty(ToolPinContract.Validate(files));
+        var pin = JsonNode.Parse(files[ToolPinContract.BrowserPinPath])!;
+        var archives = pin["archives"]!.AsObject();
+        var (firstTarget, first) = archives.First();
+        var register = JsonNode.Parse(files[RegisterPath])!;
+        var entries = register["entries"]!.AsArray();
+        JsonNode Entry(string id) => entries.Single(entry => (string?)entry!["id"] == id)!;
+        var browser = Entry(DependencyRegister.BrowserId);
+        var playwright = Entry(ToolPinContract.PlaywrightId);
+        var ci = files[CiPath];
+        const string check = "          if ! [ \"${actual}\" = \"${sha256}\" ]; then\n            rm -f \"${archive}\"\n"
+            + "            fail \"SHA-256 mismatch for ${url}, expected ${sha256} but got ${actual}. The archive was removed and is not used.\"\n          fi\n";
+        const string export = "          echo \"MODULARYN_TEST_BROWSER_ARCHIVE=${archive}\" >> \"${GITHUB_ENV}\"\n";
+        string? pinText = null;
+        switch (mutation)
+        {
+            case "missing-browser-pin": Assert.True(files.Remove(ToolPinContract.BrowserPinPath)); break;
+            case "invalid-browser-pin": pinText = files[ToolPinContract.BrowserPinPath].TrimEnd()[..^1]; break;
+            case "browser-pin-version-mismatch": Set(pin, "version", Bump(Value(pin, "version"))); break;
+            case "browser-workflow-version-mismatch":
+                files[CiPath] = RewriteLine(ci, "CHROME_HEADLESS_SHELL_VERSION", line => line.Replace(Value(pin, "version"), Bump(Value(pin, "version"))));
+                break;
+            case "browser-register-candidate": Set(browser, "status", "candidate"); break;
+            case "browser-register-version-mismatch": Set(browser, "version", Bump(Value(browser, "version"))); break;
+            case "playwright-register-candidate": Set(playwright, "status", "candidate"); break;
+            case "browser-playwright-mismatch": Set(pin, "playwright", Bump(Value(pin, "playwright"))); break;
+            case "browser-other-build": Set(pin, "browser", "chromium"); break;
+            case "browser-other-source": Set(pin, "source", Value(pin, "source").Replace("known-good-versions-with-downloads", "last-known-good-versions")); break;
+            case "browser-uncited-source":
+                var sources = browser["maintenance"]!["sources"]!.AsArray();
+                Assert.True(sources.Remove(sources.First(source => (string?)source == Value(pin, "source"))));
+                break;
+            case "missing-browser-target": Assert.True(archives.Remove(firstTarget)); break;
+            case "browser-other-host": Set(first!, "url", Value(first!, "url").Replace("cdn.playwright.dev", "mirror.example")); break;
+            case "browser-uppercase-hash": Set(first!, "sha256", Value(first!, "sha256").ToUpperInvariant()); break;
+            case "browser-register-digest-mismatch":
+                var recorded = browser["digests"]!.AsArray().First(digest => (string?)digest!["target"] == firstTarget)!;
+                var digest = Value(recorded, "digest");
+                Set(recorded, "digest", digest[..^1] + (digest[^1] == '0' ? '1' : '0'));
+                break;
+            // The download is handed to the test without its check, before its check, or not by the named step at all.
+            case "browser-step-unchecked": files[CiPath] = ReplaceText(ci, check, ""); break;
+            case "browser-exported-before-check": files[CiPath] = ReplaceText(ReplaceText(ci, export, ""), check, export + check); break;
+            case "browser-step-renamed":
+                files[CiPath] = ReplaceText(ci, "      - name: " + ToolPinContract.BrowserStep, "      - name: Download the browser archive");
+                break;
+            default: throw new ArgumentOutOfRangeException(nameof(mutation), mutation, "Unknown mutation case.");
+        }
+
+        if (files.ContainsKey(ToolPinContract.BrowserPinPath))
+        {
+            files[ToolPinContract.BrowserPinPath] = pinText ?? pin.ToJsonString();
+        }
+
+        files[RegisterPath] = register.ToJsonString();
+        var changed = files.Count != original.Count || files.Any(pair => !original.TryGetValue(pair.Key, out var text)
+            || Canonical(pair.Key, text) != Canonical(pair.Key, pair.Value));
+        Assert.True(changed, $"Mutation {mutation} must change the repository files.");
+        Assert.Contains(ToolPinContract.Validate(files), error => error.Contains(expectedDiagnostic, StringComparison.Ordinal));
+    }
+
     [Fact]
     public void Docker_lines_and_guarded_names_are_exactly_the_allowlisted_lines()
     {

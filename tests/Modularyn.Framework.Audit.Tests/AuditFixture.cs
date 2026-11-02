@@ -26,6 +26,8 @@ internal static class AuditFixture
         Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32)),
         "Bearer " + Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(24)),
         "Password=" + Convert.ToHexString(RandomNumberGenerator.GetBytes(12)),
-        "mfg1_" + Guid.NewGuid().ToString("N") + Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32))
+        "mfg1_" + Guid.NewGuid().ToString("N") + Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32)),
+        // A secret reference names where a secret is kept, so records and payloads refuse it as Settings masks it (SEC-08).
+        "secret:" + "key-" + Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(6))
     ];
 }

@@ -166,7 +166,7 @@ internal sealed class ArchitecturePolicy
         Require(List("domainForbiddenRoles").All(value => roles.Contains(value, StringComparer.Ordinal))
             && List("domainForbiddenFamilies").All(value => families.Contains(value, StringComparer.Ordinal)), "known domain boundaries");
         var diagnostics = rules.GetProperty("diagnostics").EnumerateObject().ToArray();
-        Require(diagnostics.Select(property => property.Name).SequenceEqual(Enumerable.Range(1, 14).Select(number => $"DEP{number:000}"))
+        Require(diagnostics.Select(property => property.Name).SequenceEqual(Enumerable.Range(1, 15).Select(number => $"DEP{number:000}"))
             && diagnostics.All(property => !string.IsNullOrWhiteSpace(property.Value.GetString())), "complete dependency diagnostics");
         _ = new Regex(Text("paidCommunityVersionPattern"), RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
     }

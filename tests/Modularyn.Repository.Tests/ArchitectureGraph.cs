@@ -54,6 +54,9 @@ internal static partial class ArchitectureContract
             // A composition root composes module implementations, so no project may depend on it and reach them through it,
             // except its own sample's test project, which runs the real host.
             if (policy.CompositionRoot(target) && !policy.SampleTests(source, target)) Reject("DEP014");
+            // A test project reaches nothing through another test project, so no test project reaches a sample's host
+            // through that sample's own tests.
+            if (source.IsTest && target.IsTest) Reject("DEP015");
             if (source.IsTest) continue;
             if (target.IsTest)
             {

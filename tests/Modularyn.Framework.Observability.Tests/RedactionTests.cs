@@ -26,7 +26,9 @@ public sealed class RedactionTests
         "mfg1_" + Guid.NewGuid().ToString("N") + Base64Url(32),
         "CfDJ8" + Base64Url(48),
         "ey" + "J" + Base64Url(12) + ".ey" + "J" + Base64Url(18) + "." + Base64Url(24),
-        "-----BEGIN " + "PRIVATE KEY-----\n" + Convert.ToBase64String(RandomNumberGenerator.GetBytes(48)) + "\n-----END " + "PRIVATE KEY-----"
+        "-----BEGIN " + "PRIVATE KEY-----\n" + Convert.ToBase64String(RandomNumberGenerator.GetBytes(48)) + "\n-----END " + "PRIVATE KEY-----",
+        // A secret reference names where a secret is kept; Settings masks it, and so does the scrubber (SEC-08).
+        "secret:" + "db-" + Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(6))
     ];
 
     [Fact]
@@ -45,7 +47,9 @@ public sealed class RedactionTests
         foreach (var ordinary in new[]
         {
             Guid.NewGuid().ToString("D"), Guid.NewGuid().ToString("N"), Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant(),
-            "MAZ005", "events.replayed", "Bearer", "The password was rejected.", "secret:database-connection", "item-quoted 'value'",
+            "MAZ005", "events.replayed", "Bearer", "The password was rejected.", "item-quoted 'value'",
+            // Words about secrets, and the configuration contract's own text for a discarded or expected reference, name none.
+            "The secret was rotated.", "secret: rotated", "secret:<discarded>", "a reference of the form 'secret:<name>'",
             "Operation http.request ended with succeeded, correlation 4bf92f3577b34da6a3ce929d0e0e4736 and span 00f067aa0ba902b7."
         })
         {

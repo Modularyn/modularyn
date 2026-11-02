@@ -672,6 +672,45 @@
       }
     },
     {
+      "id": "nuget:microsoft.playwright",
+      "name": "Microsoft.Playwright",
+      "ecosystem": "nuget",
+      "version": "1.64.1",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Browser automation for .NET end-to-end tests: G-02's one browser case, AC-003-N02, then the Razor site and the Admin. The package bundles the Playwright driver and a Node.js runtime for each platform; its build copies the running platform's driver into the test output. Modularyn.Framework.Authorization.Tests references it, and the test launches only the hash-verified binary:chrome-headless-shell build, never one that Playwright installs.",
+      "reason": "DEV-023 requires UI workflow tests, and G-02 runs one browser case. The security exception selects 1.64.1: 1.63.0 and 1.64.0 bundle Node.js 24.21.0, which the October 2026 Node.js security release affects, and 1.64.1 bundles 24.22.1, which fixes it. SEC-08 adopted it on 2026-11-02 with its version unchanged. Its dependencies are Microsoft.Bcl.AsyncInterfaces 6.0.0, already in use, and System.ComponentModel.Annotations 5.0.0, added with it; System.Text.Json comes from the shared framework.",
+      "maintenance": {
+        "reviewedAt": "2026-11-02",
+        "published": "2026-10-22",
+        "latestEligible": "1.64.1",
+        "ageException": "Published 2026-10-22, 11 days before its adoption on 2026-11-02 and 4 days before PLAN-10's review. The security exception applies to the runtime it ships: 1.63.0, the newest version at least 14 days old when PLAN-10 reviewed it, bundles Node.js 24.21.0, which the vulnerabilities fixed in Node.js 24.22.1 affect, as they affect all of line 24. Version.props at v1.64.1 sets DriverNodeVersion 24.22.1, and the package's linux-x64 node binary names the v24.22.1 release.",
+        "maintainer": "Microsoft (microsoft/playwright-dotnet)",
+        "activity": "microsoft/playwright-dotnet was pushed 2026-10-23. NuGet releases: 1.61.0 (2026-06-23), 1.62.0 (2026-08-11), 1.63.0 (2026-09-23), 1.64.0 (2026-10-21) and 1.64.1 (2026-10-22), still the newest on 2026-11-02. 1.64.1 names Chromium and Chrome Headless Shell 156.0.8078.4 at revision 1248, Firefox 157.0 and WebKit 27.2.",
+        "advisories": "The GitHub Advisory Database lists no advisory for Microsoft.Playwright or for playwright-core 1.64.1, the driver it bundles, and nuget.org reports no vulnerability for 1.64.1, rechecked on 2026-11-02. GHSA-7mvr-c777-76hp affects the npm playwright package before 1.55.1.",
+        "sources": [
+          "https://api.nuget.org/v3/registration5-gz-semver2/microsoft.playwright/index.json",
+          "https://api.nuget.org/v3-flatcontainer/microsoft.playwright/1.64.1/microsoft.playwright.nuspec",
+          "https://github.com/microsoft/playwright-dotnet",
+          "https://github.com/microsoft/playwright-dotnet/releases/tag/v1.64.1",
+          "https://github.com/microsoft/playwright-dotnet/blob/v1.64.1/src/Common/Version.props",
+          "https://github.com/microsoft/playwright-dotnet/pull/3391",
+          "https://api.github.com/advisories?ecosystem=npm&affects=playwright-core",
+          "https://api.github.com/advisories?ecosystem=nuget&affects=Microsoft.Playwright",
+          "https://github.com/nodejs/nodejs.org/blob/main/apps/site/pages/en/blog/vulnerability/october-2026-security-releases.md",
+          "https://api.nuget.org/v3/catalog0/data/2026.10.22.19.34.40/microsoft.playwright.1.64.1.json"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. Test-only and never redistributed. The bundled Node.js and the browser builds carry their own licenses; the one browser build the tests run is registered as binary:chrome-headless-shell."
+      }
+    },
+    {
       "id": "nuget:microsoft.testing.extensions.telemetry",
       "name": "Microsoft.Testing.Extensions.Telemetry",
       "ecosystem": "nuget",
@@ -974,6 +1013,39 @@
         "community": "cleared",
         "paid": "cleared",
         "note": "PostgreSQL License, a permissive license. A redistributed copy lists it in THIRD-PARTY-NOTICES with its copyright notice and license paragraphs."
+      }
+    },
+    {
+      "id": "nuget:system.componentmodel.annotations",
+      "name": "System.ComponentModel.Annotations",
+      "ecosystem": "nuget",
+      "version": "5.0.0",
+      "unpinned": null,
+      "digests": null,
+      "license": "MIT",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Data-annotation attributes that Microsoft.Playwright requires; transitive in Modularyn.Framework.Authorization.Tests' lock, which does not reference it directly.",
+      "reason": "Microsoft.Playwright 1.64.1 requires 5.0.0 or later for its netstandard2.0 build, and package pruning keeps it because the shared framework's pruning data does not list it. 5.0.0 is the package's last release: its types ship in the shared framework from .NET 5 on. SEC-08 added it with Microsoft.Playwright on 2026-11-02.",
+      "maintenance": {
+        "reviewedAt": "2026-11-02",
+        "published": "2020-11-09",
+        "latestEligible": "5.0.0",
+        "ageException": null,
+        "maintainer": "Microsoft (dotnet/runtime)",
+        "activity": "Built from dotnet/runtime commit cf258a14b70ad9069470a108f13765e0e5988f51 and published 2020-11-09 with .NET 5. No later version exists, since .NET 5 and later ship these types; dotnet/runtime itself is in active development.",
+        "advisories": "The GitHub Advisory Database lists no advisory for System.ComponentModel.Annotations, and nuget.org's catalog lists no vulnerability or deprecation for 5.0.0, checked on 2026-11-02.",
+        "sources": [
+          "https://api.nuget.org/v3/registration5-gz-semver2/system.componentmodel.annotations/index.json",
+          "https://api.nuget.org/v3/catalog0/data/2026.04.10.00.15.59/system.componentmodel.annotations.5.0.0.json",
+          "https://github.com/dotnet/runtime",
+          "https://api.github.com/advisories?ecosystem=nuget&affects=System.ComponentModel.Annotations"
+        ]
+      },
+      "clearance": {
+        "community": "cleared",
+        "paid": "cleared",
+        "note": "MIT. Test-only and not redistributed, so it needs no THIRD-PARTY-NOTICES entry."
       }
     },
     {
@@ -3978,6 +4050,51 @@
       }
     },
     {
+      "id": "binary:chrome-headless-shell",
+      "name": "chrome-headless-shell",
+      "ecosystem": "binary",
+      "version": "156.0.8078.4",
+      "unpinned": null,
+      "digests": [
+        {
+          "target": "linux64",
+          "url": "https://cdn.playwright.dev/builds/cft/156.0.8078.4/linux64/chrome-headless-shell-linux64.zip",
+          "digest": "sha256:c3e50596aef52c58f8fda3c6b3411c33d34c88b177b3ed1c2243359fd3b8ba20"
+        },
+        {
+          "target": "mac-arm64",
+          "url": "https://cdn.playwright.dev/builds/cft/156.0.8078.4/mac-arm64/chrome-headless-shell-mac-arm64.zip",
+          "digest": "sha256:94e4337b70cbc5638f0935fbc46b9f242bc7416f657e3fbe924baf348404b53d"
+        }
+      ],
+      "license": "BSD-3-Clause AND LicenseRef-chromium-third-party",
+      "status": "in-use",
+      "area": "test",
+      "purpose": "Chrome Headless Shell 156.0.8078.4, the Chrome for Testing build that Microsoft.Playwright 1.64.1 runs headless as its chromium-headless-shell revision 1248, for AC-003-N02's browser test. The digests pin the linux64 archive that the real-provider job uses and the mac-arm64 archive for local runs on Apple silicon; .github/browsers.json holds the same values.",
+      "reason": "Playwright downloads browsers without a hash check (exception 6), so no workflow runs playwright install. The real-provider job downloads the linux64 archive, checks its SHA-256 before anything uses it and hands the archive to the test, which checks it again against .github/browsers.json and extracts and launches it only then. The digests were taken on 2026-11-02 from Playwright's CDN and Google's Chrome for Testing storage, which served each archive byte for byte alike.",
+      "maintenance": {
+        "reviewedAt": "2026-11-02",
+        "published": "2026-09-29",
+        "latestEligible": "156.0.8078.4",
+        "ageException": null,
+        "maintainer": "Google (Chrome for Testing, GoogleChromeLabs/chrome-for-testing), mirrored by Microsoft's Playwright CDN",
+        "activity": "Google's known-good-versions index lists 156.0.8078.4 at Chromium revision 1706539 with headless shell archives for linux64, linux-arm64, mac-x64, mac-arm64, win32 and win64; the archives' entries are dated 2026-09-29. The version is the one Playwright 1.64.1's browsers.json names; it changes only with Playwright.",
+        "advisories": "Not assessed against Chrome's security release notes, which track Chrome Stable rather than this Chrome for Testing build. The test runs it headless, against its own pages on loopback through host mapping, with certificate errors ignored for its own self-signed certificate and no other site loaded.",
+        "sources": [
+          "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json",
+          "https://storage.googleapis.com/chrome-for-testing-public/156.0.8078.4/linux64/chrome-headless-shell-linux64.zip",
+          "https://storage.googleapis.com/chrome-for-testing-public/156.0.8078.4/mac-arm64/chrome-headless-shell-mac-arm64.zip",
+          "https://github.com/microsoft/playwright-dotnet/releases/tag/v1.64.1",
+          "https://github.com/GoogleChromeLabs/chrome-for-testing"
+        ]
+      },
+      "clearance": {
+        "community": "flagged",
+        "paid": "flagged",
+        "note": "Test-only and never redistributed. The archive's LICENSE.headless_shell gives the Chromium Project's BSD-3-Clause license followed by the licenses of the third-party components the build contains, which were not reviewed one by one. Running it in tests imposes no obligation; redistributing it would need that review."
+      }
+    },
+    {
       "id": "binary:gitleaks",
       "name": "gitleaks",
       "ecosystem": "binary",
@@ -4283,44 +4400,6 @@
         "community": "cleared",
         "paid": "cleared",
         "note": "MIT. A design-time asset that is not redistributed with applications, so it needs no THIRD-PARTY-NOTICES entry."
-      }
-    },
-    {
-      "id": "nuget:microsoft.playwright",
-      "name": "Microsoft.Playwright",
-      "ecosystem": "nuget",
-      "version": "1.64.1",
-      "unpinned": null,
-      "digests": null,
-      "license": "MIT",
-      "status": "candidate",
-      "area": "test",
-      "purpose": "Browser automation for .NET end-to-end tests: G-02's one browser case, then the Razor site and the Admin. The package bundles the Playwright driver and a Node.js runtime for each platform.",
-      "reason": "DEV-023 requires UI workflow tests, and G-02 runs one browser case. The security exception selects 1.64.1: 1.63.0 and 1.64.0 bundle Node.js 24.21.0, which the October 2026 Node.js security release affects, and 1.64.1 bundles 24.22.1, which fixes it. Its dependencies Microsoft.Bcl.AsyncInterfaces 6.0.0 and System.ComponentModel.Annotations 5.0.0 are MIT; System.Text.Json comes from the shared framework.",
-      "maintenance": {
-        "reviewedAt": "2026-10-26",
-        "published": "2026-10-22",
-        "latestEligible": "1.64.1",
-        "ageException": "Published 2026-10-22, 4 days before review. The security exception applies to the runtime it ships: 1.63.0, the newest version at least 14 days old, bundles Node.js 24.21.0, which the vulnerabilities fixed in Node.js 24.22.1 affect, as they affect all of line 24. Version.props at v1.64.1 sets DriverNodeVersion 24.22.1, and the package's linux-x64 node binary names the v24.22.1 release.",
-        "maintainer": "Microsoft (microsoft/playwright-dotnet)",
-        "activity": "microsoft/playwright-dotnet was pushed 2026-10-23. NuGet releases: 1.61.0 (2026-06-23), 1.62.0 (2026-08-11), 1.63.0 (2026-09-23), 1.64.0 (2026-10-21) and 1.64.1 (2026-10-22). 1.64.1 installs Chromium 156.0.8078.4, Firefox 157.0 and WebKit 27.2.",
-        "advisories": "The GitHub Advisory Database lists no advisory for Microsoft.Playwright or for playwright-core 1.64.1, the driver it bundles, and nuget.org reports no vulnerability for 1.64.1. GHSA-7mvr-c777-76hp affects the npm playwright package before 1.55.1.",
-        "sources": [
-          "https://api.nuget.org/v3/registration5-gz-semver2/microsoft.playwright/index.json",
-          "https://api.nuget.org/v3-flatcontainer/microsoft.playwright/1.64.1/microsoft.playwright.nuspec",
-          "https://github.com/microsoft/playwright-dotnet",
-          "https://github.com/microsoft/playwright-dotnet/releases/tag/v1.64.1",
-          "https://github.com/microsoft/playwright-dotnet/blob/v1.64.1/src/Common/Version.props",
-          "https://github.com/microsoft/playwright-dotnet/pull/3391",
-          "https://api.github.com/advisories?ecosystem=npm&affects=playwright-core",
-          "https://api.github.com/advisories?ecosystem=nuget&affects=Microsoft.Playwright",
-          "https://github.com/nodejs/nodejs.org/blob/main/apps/site/pages/en/blog/vulnerability/october-2026-security-releases.md"
-        ]
-      },
-      "clearance": {
-        "community": "cleared",
-        "paid": "cleared",
-        "note": "MIT. Test-only. The bundled Node.js and the browser builds it installs carry their own licenses and are never redistributed."
       }
     },
     {

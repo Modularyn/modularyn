@@ -265,7 +265,13 @@ event, from any category and before any provider sees it, has each secret form
 that `SecretForms` recognizes replaced by `[redacted]` in its message, structured
 values, scopes and exception: an authorization header's credential, a connection
 string's password, the session cookie and a bare session token, a file grant
-token, a data-protection payload, a JSON web token and a PEM private key. It is a
+token, a data-protection payload, a JSON web token, a PEM private key and a secret
+reference, `secret:<name>`. A reference is not the secret, but it names where one
+is kept, and Settings shows a secret setting only as `[secret]`, so telemetry
+masks it the same way and audit records and durable payloads refuse it (SEC-08).
+Configuration still binds and serializes the reference itself. The secret store's
+own refusal still names the secret it could not read, as `Secret '<name>'`, so an
+operator can mount it. It is a
 deny list behind the rule that the framework's events carry allowlisted fields
 only, and it does not recognize a value outside those forms.
 
@@ -451,8 +457,9 @@ code can change or remove it. A browser therefore renders a response only as its
 `Content-Type` says, never as HTML it guessed from the body. Responses produced
 before the pipeline runs, Kestrel's own and the host's host filtering's empty 400
 for an unconfigured host, do not carry it. Response media types are declared in
-the [API inventory](Modularyn.Framework.Api.Contracts/README.md), and not yet
-checked at runtime against what a handler sends; SEC-08 carries that check.
+the [API inventory](Modularyn.Framework.Api.Contracts/README.md), and the
+endpoint wrapper refuses, at run time, any response whose type its declaration
+does not allow ([endpoint conventions](Modularyn.Framework.Api/README.md)).
 
 The options are validated before startup: public and cross-origin origins are
 exact HTTPS origins with ASCII hosts and no wildcard, path, query or user
@@ -616,9 +623,12 @@ CODE-05 (events and jobs) and CODE-07 (Files) carry tenant context this way:
    any other column: a writer with direct database access can still change what a
    legitimately sealed reference runs with on its own row, as it can change any
    row, and can rerun the row by resetting its state. That residual is the same
-   direct-access residual the audit store states for its records, and its
-   adversarial cases are SEC-08's. CODE-05's stores and CODE-07's Files capture
-   this way, and SEC-08 tests forged and replayed references.
+   direct-access residual the audit store states for its records. CODE-05's
+   stores and CODE-07's Files capture this way. SEC-08 tests forged, copied and
+   replayed references, and this residual: a requeued, rewritten or re-kinded row
+   runs again only in its producer's revalidated tenant and within its current
+   authority (`G02AC004Tests.AC_004_N03_*`; `RR-G02-030` in
+   [the control map](../../docs/security/control-map/README.md)).
 2. **Dispatch from host scope.** A dispatcher lists due work across tenants in an
    audited host scope through `AcrossTenantsAsync`. It cannot change those rows, except
    to record a disposition on one named tenant's row with `UpdateForTenantAsync`.
@@ -680,7 +690,8 @@ tenancy tests with the trait `Requires=PostgreSQL` run against PostgreSQL,
 through CI's real-provider job, and the others are unit tests; identity,
 membership, host authority and audit come from test doubles of their seams, and
 the audit tests exercise the real store. SEC-08 maps every control to its
-evidence.
+evidence and its residual risks in
+[the control map](../../docs/security/control-map/README.md).
 The other controls of TB-G02-12, audit and diagnostics (TM-G02-051, TM-G02-052
 and TM-G02-054), are recorded in
 [audit](Modularyn.Framework.Audit/README.md#threat-model-controls).
@@ -759,7 +770,10 @@ recorded in [the API conventions](Modularyn.Framework.Api/README.md#threat-model
   TM-G02-025), and the identity module's sign-in returns only a local path or a
   configured origin as its redirect (SEC-03; `Identity.HttpApi.Tests`
   `SignInEndpointTests.TM_G02_006_*`), and identity answers tenancy's membership
-  seam (SEC-03). Remaining: adversarial isolation evidence (SEC-08).
+  seam (SEC-03). Adversarial evidence: forged route, header, claim, body and
+  forwarded candidates, unconfigured hosts, links and return addresses, in
+  `Tenancy.Tests` `G02AC004Tests.AC_004_N01_*` (SEC-08). A return address may name
+  any configured origin, another tenant's included (`RR-G02-043`).
 - **TM-G02-007, partly.** Delivered: antiforgery on every state-changing request
   that carries cookies, and the antiforgery cookie. Tests: `AntiforgeryTests`
   (`AC_003_N02_*`, `TM_G02_007_*`). The session cookie is the identity module's
@@ -775,13 +789,16 @@ recorded in [the API conventions](Modularyn.Framework.Api/README.md#threat-model
   response whose type a handler gets wrong is never rendered as HTML (SEC-09;
   `Ingress.Tests` `ContentTypeOptionsTests.TM_G02_011_*`; removing the header, or
   setting it before the handler instead of as the response starts, fails it).
-  Remaining: no state change on safe methods, which the ingress cannot observe,
-  through endpoint conventions (CODE-06) and contract tests (SEC-08); a runtime
-  check that each response's type is the one its endpoint declares, since
-  response media types are declared but not yet checked at runtime (SEC-08); the
-  sample's pages and their browser evidence (CODE-09, SEC-08).
-- **TM-G02-008, deferred.** Operation-specific input contracts and server-derived
-  fields (CODE-06; SEC-08 for AC-003-N01).
+  Each response is checked at run time against its endpoint's declared media
+  type, and an undeclared one is refused (SEC-08; `Hosting.Tests`
+  `ResponseMediaTypeTests.TM_G02_011_*`). Safe methods that change nothing, and
+  cross-site refusals through a verified browser, are evidenced on the fixture
+  endpoints (SEC-08; `Authorization.Tests` `G02AC003Tests.AC_003_N02_*`).
+  Remaining: the same on the sample's pages (CODE-09; `RR-G02-038`).
+- **TM-G02-008, partly.** Operation-specific input contracts and server-derived
+  fields are evidenced on the fixture endpoints (SEC-08; `Authorization.Tests`
+  `G02AC003Tests.AC_003_N01_*`). Remaining: the shipped modules' endpoints
+  (CODE-06; `RR-G02-038`).
 - **TM-G02-009, partly.** Delivered: body size, header size and count, request
   line, header timeout, form limits and JSON depth. Tests: `RequestLimitTests`
   (`TM_G02_009_*`) and `HttpsTests`. Remaining: whole-request time limits and
@@ -798,12 +815,16 @@ recorded in [the API conventions](Modularyn.Framework.Api/README.md#threat-model
   or `MAP007` for a missing route, a version mismatch or unavailability (SEC-07).
   Tests: `Hosting.Tests` `CorrelationTests.TM_G02_010_A_bare_refusal_is_answered_with_a_neutral_code`
   and `Sdk.Client.Tests` `G02AC008Tests`. Removal check: restoring the old
-  mapping fails the first. Remaining: a host without `UseModularynApi` still
-  answers ingress refusals with bare status codes; adversarial evidence (SEC-08).
+  mapping fails the first. Adversarial evidence: every cross-tenant refusal in
+  AC-004 answers as for an identifier that does not exist (SEC-08;
+  `G02AC004Tests.AC_004_N02_*`). Remaining: a host without `UseModularynApi`, and
+  the host-filtering 400 and Kestrel's own refusals, which come before the
+  pipeline, answer with bare status codes (`RR-G02-006`).
 - **TM-G02-059, partly.** Delivered: credentialed access only for exactly listed
   origins. Tests: `CrossOriginTests` (`AC_003_N02_*`, `TM_G02_059_*`).
-  Remaining: browser evidence on the sample's Razor surface (SEC-08 on CODE-09)
-  and client evidence (CODE-06).
+  Browser evidence on the fixture endpoints, through Chrome Headless Shell from a
+  SHA-256-pinned archive (SEC-08; `G02AC003Tests.AC_003_N02_*_Browser`).
+  Remaining: the sample's HTML pages (CODE-09) and client evidence (CODE-06).
 - **TM-G02-060, partly.** Delivered: plain HTTP redirected before processing and
   HSTS on HTTPS responses for configured hosts, judged only from a declared
   proxy; authentication only after those checks; refusal of authentication or
@@ -851,7 +872,8 @@ recorded in [the API conventions](Modularyn.Framework.Api/README.md#threat-model
   administration needs a host scope for identity's memberships operation that
   reaches the membership table (SEC-05; `Authorization.Tests`
   `G02AC003Tests.AC_003_P01_*` and `Identity.Application.Tests`
-  `AdministrationTests.TM_G02_019_*`). Remaining: adversarial evidence for AC-004-N01 (SEC-08); the
+  `AdministrationTests.TM_G02_019_*`). Adversarial evidence, with real identity,
+  membership and audit: `G02AC004Tests.AC_004_N01_*` (SEC-08). Remaining: the
   website profile's equivalent host forms (AC-004-B03). An unavailable seam on a
   member endpoint answers 404, by design, and is logged as a warning.
 - **TM-G02-026, partly.** Delivered: a scoped `TenantExecution` for each request
@@ -885,10 +907,13 @@ recorded in [the API conventions](Modularyn.Framework.Api/README.md#threat-model
   from an unverified reference, fails them. Behind the seal, the workers' own
   tenant checks still bound a validly sealed reference that names another tenant
   than its row (`EventRecoveryTests` and `JobRecoveryTests`, `A_validly_sealed_*`;
-  removing any of the four checks fails its test). Remaining: adversarial evidence
-  for AC-004-N03, including replay of a reference on its own row and a direct
-  database writer changing the payload or kind a sealed reference runs with,
-  which the seal does not cover (SEC-08).
+  removing any of the four checks fails its test). Adversarial evidence: forged,
+  foreign-ring, rewritten and copied references, payloads naming another tenant,
+  and service identities acting for users (SEC-08; `G02AC004Tests.AC_004_N03_*`).
+  Remaining: the seal does not cover a row's payload, kind or state, so a direct
+  database writer can rerun a row or change what it runs with, within its
+  producer's tenant and current authority (`RR-G02-030`, for the operator's
+  decision).
 - **TM-G02-028, partly.** Delivered: host scope only under host authority for a
   named operation and after its audit record is written; never derived from, or
   combined with, a tenant the request names; tenant data reached only through the
@@ -909,8 +934,10 @@ recorded in [the API conventions](Modularyn.Framework.Api/README.md#threat-model
   before the scope exists, at whole microseconds, and each directory change, with
   the tenant it affects, in the change's own transaction (SEC-07; `Audit.Tests`
   `AuditStoreTests.TM_G02_051_Audit_and_host_grant_times_are_whole_microseconds_from_the_host_clock`
-  and `AdministrationAuditTests.TM_G02_051_*`). Remaining: adversarial evidence
-  for AC-004-N03 (SEC-08).
+  and `AdministrationAuditTests.TM_G02_051_*`). Adversarial evidence: a tenant
+  administrator's host operation, with markers and tenant candidates, refused, and
+  host-1's audited (SEC-08; `G02AC004Tests.AC_004_N03_*`). Remaining: which tenants
+  an operation affected is recorded only by its module (`RR-G02-020`).
 - **TM-G02-029, tenant part (SEC-04), partly.** Delivered: every root entity
   declares its scope; the tenant and scope filters on CODE-03's seam for every
   tenant-scoped entity, on the EF and direct-SQL paths; the query guard, which
@@ -927,8 +954,11 @@ recorded in [the API conventions](Modularyn.Framework.Api/README.md#threat-model
   own context, before its query exists, and refused when it cannot be (SEC-07;
   `Audit.Tests` `BypassAuditTests.TM_G02_029_*` and `Tenancy.Tests`
   `HostScopeTests.TM_G02_029_Each_filter_bypass_is_recorded_through_its_context_s_audit_or_refused`;
-  removing the record fails them). Remaining: bounded paging and sorting on
-  declared fields (CODE-06); adversarial evidence for AC-004-N02 (SEC-08).
+  removing the record fails them). Adversarial evidence: foreign identifiers in
+  reads, writes, references, filters, counts, exports, the direct-SQL report, a
+  bulk update and an import, with the executed SQL inspected, and after a restore
+  (SEC-08; `G02AC004Tests.AC_004_N02_*` and `AC_004_R02_*`). Remaining: bounded
+  paging and sorting on declared fields (CODE-06; `RR-G02-005`).
   In-process code that opens the connection itself can bypass every filter; only
   the repository check, over this repository's sources, covers that.
 - **TM-G02-033, partly.** Delivered: `TenantCache` keys built only from an
@@ -939,8 +969,10 @@ recorded in [the API conventions](Modularyn.Framework.Api/README.md#threat-model
   `AC_004_B01_*`. Host-scope entries keyed by their grant's operation and
   invalidated with it, and authority entries invalidated on every grant change
   and expiring at the declared freshness bound (SEC-05); settings and features
-  invalidated on change (CODE-04). Remaining: bootstrap configuration
-  (TM-G02-014, CODE-04); adversarial evidence for AC-004-B02 (SEC-08).
+  invalidated on change (CODE-04). Adversarial evidence: entries differing only
+  in tenant, principal, module or schema version, bootstrap configuration per
+  principal, and caches rebuilt after a restore (SEC-08; `G02AC004Tests.AC_004_B02_*`
+  and `AC_004_R02_*`).
 - **TM-G02-034, partly.** Delivered: one shared build for concurrent misses,
   independent of a waiter's cancellation, no cached failures, and the declared
   outage behavior of an in-process store that coordinates nothing across
@@ -1000,8 +1032,11 @@ G-02 evidence plan assigns to SEC-04, exercise those cases at the framework laye
 Their real-provider methods use the tenant directory, units of work and an items
 fixture on PostgreSQL, a real Kestrel server behind the ingress, and a test work
 table and dispatcher in place of CODE-05's outbox and job store; the unit method
-uses an in-memory directory. AC-003, their security dependency, stays unmet:
-identity, membership, host authority and audit are test doubles.
+uses an in-memory directory, and identity, membership, host authority and audit
+are test doubles in them. The AC-004 cases SEC-08 owns, B02, N01 to N03 and R02,
+use none: they compose the real directory, identity, authorization, audit,
+settings, features, Files and the filesystem provider, and N03 the durable
+outbox, inbox and job store.
 
 Apart from the tests with the trait `Requires=PostgreSQL`, these are unit and
 local host tests. Reference-profile qualification requires the separately

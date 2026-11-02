@@ -11,6 +11,7 @@ public sealed class CompositionRootTests
     private const string Host = "Modularyn.Tooling.Samples.TeamWorkspace.Host";
     private const string Dep009 = "DEP009: Another module is accessible only through allowed application or event contracts. ";
     private const string Dep014 = "DEP014: No project but its sample's own tests may reference a composition root. ";
+    private const string Dep015 = "DEP015: A test project must not reference another test project. ";
     private static readonly string[] Implementations =
         ["Modularyn.Modules.Identity.Application", "Modularyn.Modules.Identity.HttpApi", "Modularyn.Modules.Identity.Persistence.EfCore"];
 
@@ -110,6 +111,43 @@ public sealed class CompositionRootTests
         Assert.Empty(graph.Validate());
         graph.ProjectReference(tests, host);
         Assert.Contains(graph.Validate(), error => error.StartsWith(Dep014 + tests + " -> " + host, StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("Modularyn.Tooling.Samples.Beta", "Modularyn.Tooling.Samples.Alpha")]
+    [InlineData("Modularyn.Tooling.Samples.Alpha.Host", "Modularyn.Tooling.Samples.Alpha")]
+    [InlineData("Modularyn.Framework.Tenancy", "Modularyn.Tooling.Samples.Alpha")]
+    [InlineData("Modularyn.Repository", "Modularyn.Tooling.Samples.Alpha")]
+    public void No_test_project_reaches_a_sample_s_host_through_that_sample_s_tests(string tested, string sample)
+    {
+        // The SEC-09 review's case: the sample's own tests reference its host, as they may, and another test project
+        // references those tests. DEP014 sees only the direct edge, so DEP015 refuses the test-to-test reference itself.
+        var graph = new ArchitectureFixture();
+        var host = sample + ".Host";
+        graph.Add(host);
+        var own = graph.AddTest(sample);
+        graph.ProjectReference(own, host);
+        var source = tested == "Modularyn.Repository" ? "Modularyn.Repository.Tests" : graph.AddTest(tested);
+        Assert.Empty(graph.Validate());
+        graph.ProjectReference(source, own);
+        var errors = graph.Validate();
+        Assert.Contains(errors, error => error.StartsWith(Dep015 + source + " -> " + own, StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("Modularyn.Framework.Tenancy", "Modularyn.Framework.Authorization")]
+    [InlineData("Modularyn.Modules.Files.Application", "Modularyn.Framework.Tenancy")]
+    [InlineData("Modularyn.Tooling.Samples.TeamWorkspace", "Modularyn.Framework.Tenancy")]
+    public void No_test_project_may_reference_another_test_project(string tested, string other)
+    {
+        var graph = new ArchitectureFixture();
+        var source = graph.AddTest(tested);
+        var target = graph.AddTest(other);
+        // A test project may still reference products, including another test project's tested product.
+        graph.ProjectReference(source, other);
+        Assert.Empty(graph.Validate());
+        graph.ProjectReference(source, target);
+        Assert.Contains(graph.Validate(), error => error.StartsWith(Dep015 + source + " -> " + target, StringComparison.Ordinal));
     }
 
     [Fact]

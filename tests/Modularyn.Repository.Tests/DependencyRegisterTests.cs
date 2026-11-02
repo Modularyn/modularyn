@@ -212,6 +212,11 @@ public sealed class DependencyRegisterTests
     [InlineData("image-without-tag-index", "needs an index digest fetched by tag")]
     [InlineData("node-missing-platform", "binary:node digests must name exactly")]
     [InlineData("node-other-url", "binary:node digests must name exactly")]
+    [InlineData("browser-missing-platform", "binary:chrome-headless-shell digests must name exactly")]
+    [InlineData("browser-other-url", "binary:chrome-headless-shell digests must name exactly")]
+    [InlineData("browser-other-version-url", "binary:chrome-headless-shell digests must name exactly")]
+    [InlineData("binary-five-part-version", "version must be exact for its ecosystem")]
+    [InlineData("binary-label-version", "version must be exact for its ecosystem")]
     [InlineData("misaligned-runtime-package", "must match the runtime version")]
     [InlineData("misaligned-runtime-image", "must match the runtime version")]
     [InlineData("runtime-pin-mismatch", "must match the runtime version")]
@@ -234,6 +239,8 @@ public sealed class DependencyRegisterTests
         var sha = Value(action, "version");
         var node = First(entries, entry => Value(entry, "id") == "binary:node");
         var nodeDigests = node["digests"]!.AsArray();
+        var browser = First(entries, entry => Value(entry, "id") == DependencyRegister.BrowserId);
+        var browserDigests = browser["digests"]!.AsArray();
         var firstDigest = nodeDigests[0]!;
         var image = First(entries, entry => Value(entry, "ecosystem") == "container-image");
         var imageDigests = image["digests"]!.AsArray();
@@ -518,6 +525,14 @@ public sealed class DependencyRegisterTests
             case "image-without-tag-index": Set(index, "url", Value(platform, "url").Replace(Value(platform, "digest"), Value(index, "digest"))); break;
             case "node-missing-platform": nodeDigests.RemoveAt(nodeDigests.Count - 1); break;
             case "node-other-url": Set(firstDigest, "url", Value(firstDigest, "url").Replace("nodejs.org", "mirror.example")); break;
+            case "browser-missing-platform": browserDigests.RemoveAt(browserDigests.Count - 1); break;
+            case "browser-other-url":
+                Set(browserDigests[0]!, "url", Value(browserDigests[0]!, "url").Replace("cdn.playwright.dev", "mirror.example")); break;
+            case "browser-other-version-url":
+                Set(browserDigests[0]!, "url", Value(browserDigests[0]!, "url").Replace("/" + Value(browser, "version") + "/", "/" + Bump(Value(browser, "version")) + "/")); break;
+            // Four numeric parts are exact, as Chrome's are; a fifth or a label is not.
+            case "binary-five-part-version": Set(browser, "version", Value(browser, "version") + ".1"); break;
+            case "binary-label-version": Set(browser, "version", Value(browser, "version") + "-beta"); break;
             case "misaligned-runtime-package":
             case "misaligned-runtime-image":
                 var aligned = First(entries, entry => DependencyRegister.IsRuntimeAligned(Value(entry, "ecosystem"), Value(entry, "name"))
@@ -764,6 +779,15 @@ internal static class DependencyRegister
 
     // The platforms of the Node.js archives that the binary:node entry pins, named as nodejs.org names them.
     public static readonly string[] NodeTargets = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64", "win-x64", "win-arm64"];
+
+    // The browser build that AC-003-N02 runs, and the Chrome for Testing platforms of its pinned archives: linux64 for the
+    // real-provider job and mac-arm64 for local runs on Apple silicon, named as Chrome for Testing names them.
+    public const string BrowserId = "binary:chrome-headless-shell";
+    public static readonly string[] BrowserTargets = ["linux64", "mac-arm64"];
+
+    // Playwright's CDN, which the driver downloads Chrome for Testing builds from; the register pins those exact archives.
+    public static string BrowserArchiveUrl(string version, string target) =>
+        $"https://cdn.playwright.dev/builds/cft/{version}/{target}/chrome-headless-shell-{target}.zip";
     private static readonly string[] ImageTargets = ["index", "linux/amd64"];
 
     private const int MinimumAgeDays = 14;
@@ -790,7 +814,8 @@ internal static class DependencyRegister
         ["nuget"] = new($"^{Number}\\.{Number}\\.{Number}(?:\\.{Number})?$", RegexOptions.CultureInvariant),
         ["npm"] = new($"^{Number}\\.{Number}\\.{Number}$", RegexOptions.CultureInvariant),
         ["github-action"] = new("^[0-9a-f]{40}$", RegexOptions.CultureInvariant),
-        ["binary"] = new($"^{Number}\\.{Number}(?:\\.{Number})?$", RegexOptions.CultureInvariant),
+        // A binary's exact version has two to four numeric parts; Chrome's builds, such as 156.0.8078.4, have four.
+        ["binary"] = new($"^{Number}\\.{Number}(?:\\.{Number}){{0,2}}$", RegexOptions.CultureInvariant),
         ["container-image"] = new($"^{Number}\\.{Number}(?:\\.{Number})?$", RegexOptions.CultureInvariant)
     };
 
@@ -1117,6 +1142,11 @@ internal static class DependencyRegister
             ValidateNodeDigests(location, version, digests, errors);
         }
 
+        if (id == BrowserId)
+        {
+            ValidateBrowserDigests(location, version, digests, errors);
+        }
+
         var unpinned = entry.TryGetProperty("unpinned", out var note) && note.ValueKind != JsonValueKind.Null;
         if (unpinned)
         {
@@ -1265,6 +1295,16 @@ internal static class DependencyRegister
         {
             errors.Add($"{location}: binary:node digests must name exactly {string.Join(", ", NodeTargets)}, each with its "
                 + $"official https://nodejs.org/dist/v{version}/ archive URL.");
+        }
+    }
+
+    private static void ValidateBrowserDigests(string location, string version, List<Digest>? digests, List<string> errors)
+    {
+        if (digests is null || digests.Count != BrowserTargets.Length
+            || digests.Any(digest => !BrowserTargets.Contains(digest.Target, StringComparer.Ordinal) || digest.Url != BrowserArchiveUrl(version, digest.Target)))
+        {
+            errors.Add($"{location}: {BrowserId} digests must name exactly {string.Join(", ", BrowserTargets)}, each with its "
+                + $"Chrome for Testing archive URL {BrowserArchiveUrl(version, "<platform>")}.");
         }
     }
 

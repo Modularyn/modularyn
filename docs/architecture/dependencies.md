@@ -83,11 +83,12 @@ host. Like every test project, the sample's tests accompany the product of their
 own name, such as `Modularyn.Tooling.Samples.TeamWorkspace` (DEP001), which is
 not a composition root.
 
-DEP014 checks direct references only. References between test projects are not
-checked, as they were not before composition roots, so a test project that
-references a sample's own test project reaches that sample's host transitively.
-No product can, since DEP012 keeps every product from a test project. SEC-08
-carries that case.
+DEP014 checks direct references, and no test project may reference another
+test project (DEP015), so no test project reaches a sample's host through that
+sample's own tests, and no product can, since DEP012 keeps every product from a
+test project. A test project that needs another's helper source links the file
+with a `Compile` item, as the repository's test projects do, which adds no
+reference. SEC-08 added DEP015 for the case the SEC-09 review found.
 
 DEP009 stays in force for every other project, other Tooling projects included:
 a project under `Modularyn.Tooling.Samples.` that does not end in `.Host`, and a
@@ -210,6 +211,7 @@ An empty target set means no reference is allowed in that category.
 | `DEP012` | Product projects must not reference test projects. |
 | `DEP013` | The dependency companion, guide and names contract must agree. |
 | `DEP014` | No project but its sample's own tests may reference a composition root. |
+| `DEP015` | A test project must not reference another test project. |
 
 <!-- dependency-policy:end -->
 

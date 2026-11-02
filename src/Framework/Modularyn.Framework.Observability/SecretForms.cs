@@ -11,7 +11,9 @@ namespace Modularyn.Framework.Observability;
 /// <remarks>
 /// The forms are an authorization header's credential, a connection string's password, the session cookie and a bare
 /// session token (43 base64url characters mixing letters and digits), a file grant token, a data-protection payload such
-/// as an antiforgery token, a JSON web token and a PEM private key. Over-matching only redacts or refuses more; a value
+/// as an antiforgery token, a JSON web token, a PEM private key and a secret reference (<c>secret:&lt;name&gt;</c>). A
+/// reference is not the secret, but it names where one is kept, and Settings masks it wherever it displays one, so it is
+/// redacted from telemetry and refused in records and payloads alike. Over-matching only redacts or refuses more; a value
 /// in none of these forms is not recognized, so text from outside the framework must still be kept out of telemetry.
 /// </remarks>
 public static partial class SecretForms
@@ -38,6 +40,7 @@ public static partial class SecretForms
         + @"|CfDJ8[A-Za-z0-9_-]{20,}"
         + @"|eyJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*"
         + @"|-----BEGIN [A-Z ]{0,40}PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]{0,40}PRIVATE KEY-----|\z)"
+        + @"|\bsecret:[A-Za-z0-9][A-Za-z0-9._-]{0,127}"
         + @"|(?<![A-Za-z0-9_-])(?=[A-Za-z0-9_-]{0,42}[0-9])(?=[A-Za-z0-9_-]{0,42}[A-Za-z])[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])",
         RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
     private static partial Regex Pattern();

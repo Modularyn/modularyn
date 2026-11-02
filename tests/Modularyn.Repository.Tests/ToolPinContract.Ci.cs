@@ -10,6 +10,11 @@ namespace Modularyn.Repository.Tests;
 internal static partial class ToolPinContract
 {
     public const string NodePinPath = ".github/node.json";
+    public const string BrowserPinPath = ".github/browsers.json";
+    public const string BrowserStep = "Download and verify the pinned browser archive";
+    public const string BrowserArchiveVariable = "MODULARYN_TEST_BROWSER_ARCHIVE";
+    public const string BrowserSource = "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json";
+    public const string PlaywrightId = "nuget:microsoft.playwright";
     public const string DatabaseScriptPath = ".github/scripts/postgresql-test-database.sh";
     public const string TestsScriptPath = ".github/scripts/real-provider-tests.sh";
     public const string RealProviderTestStep = "Test against PostgreSQL";
@@ -52,6 +57,7 @@ internal static partial class ToolPinContract
     public static readonly string[] SharedSdkSteps = SharedLinuxSteps[..2];
 
     private static readonly string[] NodePinFields = ["version", "source", "archives"];
+    private static readonly string[] BrowserPinFields = ["browser", "version", "playwright", "source", "archives"];
     private static readonly string[] NodeArchiveFields = ["url", "sha256"];
     private static readonly Regex PinnedImage = new(
         @"^(?<name>[a-z0-9-]+(?:\.[a-z0-9-]+)+/[a-z0-9]+(?:[._-][a-z0-9]+)*(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)*):(?<tag>[A-Za-z0-9_][A-Za-z0-9_.-]*)@sha256:[0-9a-f]{64}$",
@@ -427,6 +433,149 @@ internal static partial class ToolPinContract
         catch (JsonException)
         {
             errors.Add($"{NodePinPath}: the pin file must contain valid JSON.");
+        }
+    }
+
+    // The browser that AC-003-N02 runs: the pinned Chrome for Testing archives, the register entry that records the same digests
+    // and the Playwright release that names them, and the real-provider job's step that downloads the linux64 archive and checks
+    // its SHA-256 before the test step receives it. The test checks the archive again before it extracts anything.
+    private static void ValidateBrowser(IReadOnlyDictionary<string, string> files, List<RegisterEntry> register, List<string> errors)
+    {
+        var registered = register.Where(entry => entry.Id == DependencyRegister.BrowserId && entry.Status == "in-use").ToList();
+        var driver = register.Where(entry => entry.Id == PlaywrightId && entry.Status == "in-use").ToList();
+        if (registered.Count != 1)
+        {
+            errors.Add($"{DependencyRegister.RegisterPath}: needs exactly one in-use {DependencyRegister.BrowserId} entry for {BrowserPinPath}.");
+        }
+
+        if (driver.Count != 1)
+        {
+            errors.Add($"{DependencyRegister.RegisterPath}: needs exactly one in-use {PlaywrightId} entry, the release that names the pinned browser.");
+        }
+
+        var central = Regex.Match(files.GetValueOrDefault("Directory.Packages.props", ""),
+            """<PackageVersion\s+Include="Microsoft\.Playwright"\s+Version="(?<version>[^"]*)"\s*/>""", RegexOptions.CultureInvariant);
+        if (!files.TryGetValue(BrowserPinPath, out var text))
+        {
+            errors.Add($"{BrowserPinPath}: the browser archive pin file is missing.");
+        }
+        else
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(text);
+                var root = document.RootElement;
+                if (root.ValueKind != JsonValueKind.Object)
+                {
+                    errors.Add($"{BrowserPinPath}: the pin file must be a JSON object.");
+                    return;
+                }
+
+                Fields(root, BrowserPinFields, BrowserPinPath, errors);
+                if (Text(root, "browser") != "chrome-headless-shell")
+                {
+                    errors.Add($"{BrowserPinPath}: browser must be chrome-headless-shell, the build Playwright runs headless.");
+                }
+
+                var version = Text(root, "version");
+                var jobVersion = Jobs(files.GetValueOrDefault(CiPath, "")).TryGetValue(RealProviderJob, out var realProvider)
+                    ? Values(realProvider, "CHROME_HEADLESS_SHELL_VERSION") : [];
+                if (version is null || jobVersion is not [var pinned] || pinned != version)
+                {
+                    errors.Add($"{BrowserPinPath}: version {version ?? "(missing)"} must equal the {RealProviderJob} job's CHROME_HEADLESS_SHELL_VERSION.");
+                }
+
+                if (registered.Count == 1 && version != registered[0].Version)
+                {
+                    errors.Add($"{BrowserPinPath}: version {version ?? "(missing)"} must equal the register's in-use {DependencyRegister.BrowserId} version {registered[0].Version}.");
+                }
+
+                var playwright = Text(root, "playwright");
+                if (driver.Count == 1 && playwright != driver[0].Version || !central.Success || central.Groups["version"].Value != playwright)
+                {
+                    errors.Add($"{BrowserPinPath}: playwright {playwright ?? "(missing)"} must equal the register's in-use {PlaywrightId} version and "
+                        + "Directory.Packages.props's Microsoft.Playwright version.");
+                }
+
+                var source = Text(root, "source");
+                if (source != BrowserSource)
+                {
+                    errors.Add($"{BrowserPinPath}: source must be Chrome for Testing's index {BrowserSource}.");
+                }
+                else if (registered.Count == 1 && !registered[0].Sources.Contains(source))
+                {
+                    errors.Add($"{BrowserPinPath}: the register's {DependencyRegister.BrowserId} entry must cite the source {source}.");
+                }
+
+                if (!root.TryGetProperty("archives", out var archives) || archives.ValueKind != JsonValueKind.Object)
+                {
+                    errors.Add($"{BrowserPinPath}: archives must be an object keyed by Chrome for Testing platform.");
+                }
+                else
+                {
+                    var targets = archives.EnumerateObject().Select(archive => archive.Name).ToList();
+                    if (targets.Count != DependencyRegister.BrowserTargets.Length
+                        || !targets.ToHashSet(StringComparer.Ordinal).SetEquals(DependencyRegister.BrowserTargets))
+                    {
+                        errors.Add($"{BrowserPinPath}: archives must name exactly {string.Join(", ", DependencyRegister.BrowserTargets)}.");
+                    }
+
+                    foreach (var archive in archives.EnumerateObject())
+                    {
+                        var location = $"{BrowserPinPath}: {archive.Name}";
+                        if (archive.Value.ValueKind != JsonValueKind.Object)
+                        {
+                            errors.Add($"{location} must be an object with url and sha256.");
+                            continue;
+                        }
+
+                        Fields(archive.Value, NodeArchiveFields, location, errors);
+                        var url = Text(archive.Value, "url");
+                        var expected = DependencyRegister.BrowserArchiveUrl(version ?? "<version>", archive.Name);
+                        if (url != expected)
+                        {
+                            errors.Add($"{location} url must be the Chrome for Testing archive {expected}.");
+                        }
+
+                        var sha256 = Text(archive.Value, "sha256");
+                        if (sha256 is null || !Sha256.IsMatch(sha256))
+                        {
+                            errors.Add($"{location} sha256 must be 64 lowercase hexadecimal characters.");
+                            continue;
+                        }
+
+                        // The register records the same digest, so a change to either the pin file or the register alone fails.
+                        if (registered.Count == 1 && !registered[0].Digests.Contains((archive.Name, url ?? "", "sha256:" + sha256)))
+                        {
+                            errors.Add($"{location} must equal the register's {DependencyRegister.BrowserId} {archive.Name} url and digest.");
+                        }
+                    }
+                }
+            }
+            catch (JsonException)
+            {
+                errors.Add($"{BrowserPinPath}: the pin file must contain valid JSON.");
+            }
+        }
+
+        // The real-provider job downloads the archive, checks its SHA-256 and only then names it to the test step; the check comes
+        // before the export, and the step before the tests.
+        var jobs = Jobs(files.GetValueOrDefault(CiPath, ""));
+        if (!jobs.TryGetValue(RealProviderJob, out var job))
+        {
+            return;
+        }
+
+        var steps = StepNames(job);
+        var run = Run(job, BrowserStep) ?? "";
+        var check = run.IndexOf("[ \"${actual}\" = \"${sha256}\" ]", StringComparison.Ordinal);
+        var export = run.IndexOf($"echo \"{BrowserArchiveVariable}=${{archive}}\" >> \"${{GITHUB_ENV}}\"", StringComparison.Ordinal);
+        if (steps.IndexOf(BrowserStep) < 0 || steps.IndexOf(BrowserStep) > steps.IndexOf(RealProviderTestStep)
+            || !run.Contains(BrowserPinPath, StringComparison.Ordinal) || !run.Contains("sha256sum \"${archive}\"", StringComparison.Ordinal)
+            || check < 0 || export < 0 || check > export || run.Split('\n').Count(line => line.Contains(BrowserArchiveVariable, StringComparison.Ordinal)) != 1)
+        {
+            errors.Add($"{CiPath}: the {RealProviderJob} job's '{BrowserStep}' step must come before '{RealProviderTestStep}', read {BrowserPinPath}, "
+                + $"check the archive's SHA-256 and only then name it once in {BrowserArchiveVariable}.");
         }
     }
 

@@ -1,0 +1,2794 @@
+{
+  "format": "modularyn.control-map",
+  "formatVersion": 1,
+  "model": "g02-foundation",
+  "controls": "docs/security/threat-models/controls.json",
+  "orders": [
+    "SEC-02",
+    "SEC-03",
+    "SEC-04",
+    "SEC-05",
+    "SEC-06",
+    "SEC-07",
+    "SEC-08",
+    "SEC-09"
+  ],
+  "entries": [
+    {
+      "control": "TM-G02-001",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Modularity.Tests/Modularyn.Framework.Modularity.Tests.csproj",
+          "name": "Modularyn.Framework.Modularity.Tests.CompositionTests.AC_001_N01_Names_the_complete_cycle_and_a_corrective_action"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Modularity.Tests/Modularyn.Framework.Modularity.Tests.csproj",
+          "name": "Modularyn.Framework.Modularity.Tests.CompositionTests.AC_001_B01_Only_the_inclusive_edges_satisfy_the_same_constraint"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.AcceptanceTests.AC_001_N01_Independently_mutated_control_graphs_are_refused_without_constructing_modules"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Modularity.Tests/Modularyn.Framework.Modularity.Tests.csproj",
+          "name": "Modularyn.Framework.Modularity.Tests.DeploymentTrustTests.TM_G02_001_Altered_missing_and_linked_package_files_are_refused"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Modularity.Tests/Modularyn.Framework.Modularity.Tests.csproj",
+          "name": "Modularyn.Framework.Modularity.Tests.DeploymentTrustTests.TM_G02_001_A_missing_unreadable_or_invalid_lock_refuses_every_selected_module"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.DeploymentTrustHostingTests.TM_G02_001_A_host_without_deployment_trust_refuses_activation_before_construction"
+        }
+      ],
+      "residuals": [
+        "RR-G02-001",
+        "RR-G02-002"
+      ]
+    },
+    {
+      "control": "TM-G02-002",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.MigrationCoordinationTests.Activation_is_refused_before_construction_for_pending_and_failed_migrations_then_recovers"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.OwnershipTests.Host_refuses_declared_migrations_when_the_completion_gate_was_not_registered"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Configuration.Tests/Modularyn.Framework.Configuration.Tests.csproj",
+          "name": "Modularyn.Framework.Configuration.Tests.DeploymentOptionsTests.TM_G02_048_Invalid_deployment_options_refuse_startup_before_any_module_is_constructed"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.DecisionTests.TM_G02_002_Permissions_and_host_operations_must_match_the_composed_manifests"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.ApiHostingTests.TM_G02_011_An_undeclared_endpoint_never_answers_because_startup_is_refused_before_the_server_listens"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Ingress.Tests/Modularyn.Framework.Ingress.Tests.csproj",
+          "name": "Modularyn.Framework.Ingress.Tests.IngressOptionsTests.TM_G02_006_Widened_ingress_options_or_a_missing_key_ring_refuse_startup_before_module_activation"
+        }
+      ],
+      "residuals": [
+        "RR-G02-002"
+      ]
+    },
+    {
+      "control": "TM-G02-003",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.AcceptanceTests.AC_001_R01_Recovery_cleans_every_initialized_component_and_preserves_single_durable_effects"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.HealthAndRequestTests.Health_checks_are_bound_to_manifests_and_readiness_follows_start_failure_and_stop"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.HostingIntegrationTests.Standard_host_does_not_report_started_after_a_composition_refusal"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.DeploymentTrustHostingTests.TM_G02_001_Readiness_follows_a_verified_activation_and_a_refused_composition_stays_unready_with_status_only_health"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.GracefulShutdownTests.AC_001_P01_Shutdown_refuses_new_work_and_drains_before_stopping_modules"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.GracefulShutdownTests.Drain_deadline_cancels_outstanding_work_reports_it_and_requires_cleanup_before_restart"
+        }
+      ],
+      "residuals": [
+        "RR-G02-003"
+      ]
+    },
+    {
+      "control": "TM-G02-004",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.OwnershipTests.Foreign_migrations_sql_and_reserved_tables_are_rejected_before_execution"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.OwnershipTests.A_second_context_cannot_map_the_first_modules_table"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.OwnershipTests.Registry_rejects_shared_schemas_contexts_and_module_identities"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.MigrationCoordinationTests.A_different_registry_cannot_reassign_persisted_table_and_history_ownership"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.Persistence.EfCore.Tests/Modularyn.Modules.Identity.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Persistence.EfCore.Tests.MigrationTests.TM_G02_004_The_migration_creates_exactly_the_mapped_columns_in_the_module_schema"
+        },
+        {
+          "project": "tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj",
+          "name": "Modularyn.Repository.Tests.ArchitectureRejectionTests.Forbidden_references_report_their_specific_reason"
+        },
+        {
+          "project": "tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj",
+          "name": "Modularyn.Repository.Tests.CompositionRootTests.No_test_project_may_reference_another_test_project"
+        }
+      ],
+      "residuals": [
+        "RR-G02-019",
+        "RR-G02-036"
+      ]
+    },
+    {
+      "control": "TM-G02-005",
+      "tests": [],
+      "residuals": [
+        "RR-G02-004"
+      ]
+    },
+    {
+      "control": "TM-G02-006",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Ingress.Tests/Modularyn.Framework.Ingress.Tests.csproj",
+          "name": "Modularyn.Framework.Ingress.Tests.ProxyAndHostTests.AC_004_N01_Forwarded_values_from_a_source_that_is_not_the_declared_proxy_are_ignored"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Ingress.Tests/Modularyn.Framework.Ingress.Tests.csproj",
+          "name": "Modularyn.Framework.Ingress.Tests.ProxyAndHostTests.AC_004_N01_The_declared_proxy_s_scheme_host_and_client_are_honored_only_within_configured_hosts"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Ingress.Tests/Modularyn.Framework.Ingress.Tests.csproj",
+          "name": "Modularyn.Framework.Ingress.Tests.ProxyAndHostTests.AC_004_N01_Unconfigured_and_missing_hosts_are_refused_before_any_handler"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Ingress.Tests/Modularyn.Framework.Ingress.Tests.csproj",
+          "name": "Modularyn.Framework.Ingress.Tests.ProxyAndHostTests.AC_004_N01_Return_addresses_outside_the_configured_origins_are_refused"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Ingress.Tests/Modularyn.Framework.Ingress.Tests.csproj",
+          "name": "Modularyn.Framework.Ingress.Tests.IngressOptionsTests.TM_G02_006_Widened_ingress_options_or_a_missing_key_ring_refuse_startup_before_module_activation"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.HttpApi.Tests/Modularyn.Modules.Identity.HttpApi.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.HttpApi.Tests.SignInEndpointTests.TM_G02_006_Sign_in_returns_only_a_local_path_or_a_configured_origin_as_its_redirect"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N01_ForgedTenantAndOriginCandidatesAreRefused_Isolation"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N01_ForgedTenantAndOriginCandidatesAreRefused_Contract"
+        }
+      ],
+      "residuals": [
+        "RR-G02-006",
+        "RR-G02-043"
+      ]
+    },
+    {
+      "control": "TM-G02-007",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Ingress.Tests/Modularyn.Framework.Ingress.Tests.csproj",
+          "name": "Modularyn.Framework.Ingress.Tests.AntiforgeryTests.AC_003_N02_State_changes_without_a_valid_antiforgery_token_are_refused"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Ingress.Tests/Modularyn.Framework.Ingress.Tests.csproj",
+          "name": "Modularyn.Framework.Ingress.Tests.AntiforgeryTests.TM_G02_007_Only_an_explicit_exemption_without_cookies_skips_antiforgery"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.HttpApi.Tests/Modularyn.Modules.Identity.HttpApi.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.HttpApi.Tests.SessionCookieTests.TM_G02_007_A_state_change_with_a_session_needs_an_antiforgery_token_issued_to_that_session"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
+          "name": "Modularyn.Framework.Sdk.Client.Tests.ContractDefinitionTests.TM_G02_007_A_form_post_never_maps_without_its_antiforgery_validation"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N02_CrossSiteEndedSessionAndOverCeilingCallsAreRefused_Contract"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N02_CrossSiteEndedSessionAndOverCeilingCallsAreRefused_Browser"
+        }
+      ],
+      "residuals": [
+        "RR-G02-037",
+        "RR-G02-038"
+      ]
+    },
+    {
+      "control": "TM-G02-008",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N01_ResourceDenialsHideRowsAndProtectServerFields_Contract"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N01_ResourceDenialsHideRowsAndProtectServerFields_Isolation"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N01_ResourceDenialsHideRowsAndProtectServerFields_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
+          "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC_008_N01_EveryClientRetainsDistinctTypedFailures_Contract"
+        }
+      ],
+      "residuals": [
+        "RR-G02-038"
+      ]
+    },
+    {
+      "control": "TM-G02-009",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Ingress.Tests/Modularyn.Framework.Ingress.Tests.csproj",
+          "name": "Modularyn.Framework.Ingress.Tests.RequestLimitTests.TM_G02_009_Bodies_beyond_the_declared_limit_are_refused_before_the_handler_or_at_the_limit_while_it_reads"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Ingress.Tests/Modularyn.Framework.Ingress.Tests.csproj",
+          "name": "Modularyn.Framework.Ingress.Tests.RequestLimitTests.TM_G02_009_Oversized_request_lines_headers_and_header_counts_are_refused_by_the_server"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Ingress.Tests/Modularyn.Framework.Ingress.Tests.csproj",
+          "name": "Modularyn.Framework.Ingress.Tests.RequestLimitTests.TM_G02_009_Json_and_form_bodies_beyond_their_declared_structure_are_refused"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.G02AC009Tests.AC_009_B01_UploadSizeAndCancellationLeaveNoPartialVersion_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.QueryGuardTests.TM_G02_029_Raw_SQL_that_the_adapter_did_not_build_is_refused_before_it_runs"
+        }
+      ],
+      "residuals": [
+        "RR-G02-005",
+        "RR-G02-011"
+      ]
+    },
+    {
+      "control": "TM-G02-010",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.CorrelationTests.TM_G02_010_A_bare_refusal_is_answered_with_a_neutral_code"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N01_ResourceDenialsHideRowsAndProtectServerFields_Contract"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
+          "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC_008_N01_EveryClientRetainsDistinctTypedFailures_Contract"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.CanaryTests.TM_G02_053_No_canary_reaches_a_log_trace_lifecycle_diagnostic_probe_problem_or_report"
+        }
+      ],
+      "residuals": [
+        "RR-G02-006"
+      ]
+    },
+    {
+      "control": "TM-G02-011",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.ApiHostingTests.TM_G02_011_An_undeclared_endpoint_never_answers_because_startup_is_refused_before_the_server_listens"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
+          "name": "Modularyn.Framework.Sdk.Client.Tests.ContractDefinitionTests.TM_G02_011_The_inventory_refuses_missing_or_mismatched_authorization_declarations"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
+          "name": "Modularyn.Framework.Sdk.Client.Tests.ContractDefinitionTests.TM_G02_011_A_declared_endpoint_refuses_even_without_the_inventory_startup_service"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
+          "name": "Modularyn.Framework.Sdk.Client.Tests.ContractDefinitionTests.TM_G02_011_A_client_visible_endpoint_is_versioned"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_P01_EveryEntryPointAppliesTheSameGrant_Contract"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N03_SettingsAndFeaturesCannotSupplyAuthority_Unit"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.ResponseMediaTypeTests.TM_G02_011_A_response_leaves_only_with_a_media_type_its_declaration_allows"
+        }
+      ],
+      "residuals": [
+        "RR-G02-001"
+      ]
+    },
+    {
+      "control": "TM-G02-012",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj",
+          "name": "Modularyn.Repository.Tests.ApiGenerationTests.A_supported_version_cannot_silently_change_a_binding_or_a_field"
+        },
+        {
+          "project": "tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj",
+          "name": "Modularyn.Repository.Tests.ApiGenerationTests.The_OpenAPI_document_and_both_static_clients_match_the_inventory_generator"
+        },
+        {
+          "project": "tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj",
+          "name": "Modularyn.Repository.Tests.ApiGenerationTests.Generated_contracts_use_line_feeds_on_every_platform"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
+          "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC_008_B01_VersionAndCancellationEdgesPreserveAuthoritativeOutcome_Contract"
+        }
+      ],
+      "residuals": [
+        "RR-G02-039"
+      ]
+    },
+    {
+      "control": "TM-G02-013",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Security.Abstractions.Tests/Modularyn.Framework.Security.Abstractions.Tests.csproj",
+          "name": "Modularyn.Framework.Security.Abstractions.Tests.ClientCredentialTests.TM_G02_013_A_provider_supplies_credentials_only_to_its_configured_origins"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Security.Abstractions.Tests/Modularyn.Framework.Security.Abstractions.Tests.csproj",
+          "name": "Modularyn.Framework.Security.Abstractions.Tests.ClientCredentialTests.TM_G02_013_Configured_origins_are_exact_https_origins"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Security.Abstractions.Tests/Modularyn.Framework.Security.Abstractions.Tests.csproj",
+          "name": "Modularyn.Framework.Security.Abstractions.Tests.ClientCredentialTests.TM_G02_013_Credentials_and_secret_text_are_redacted_from_formatting_and_serialization"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
+          "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC_008_P01_AdvertisedClientsAgreeWithTheEndpointContract_Contract"
+        }
+      ],
+      "residuals": [
+        "RR-G02-017"
+      ]
+    },
+    {
+      "control": "TM-G02-014",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
+          "name": "Modularyn.Framework.Sdk.Client.Tests.ContractDefinitionTests.TM_G02_014_Only_explicit_nonsecret_definitions_can_be_client_visible"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
+          "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC_008_P01_AdvertisedClientsAgreeWithTheEndpointContract_Contract"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_P01_IngressWorkersAndCachesKeepValidatedTenantContext_Isolation"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_B02_CacheAndUniqueKeysKeepEveryScopeDimension_Isolation"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_B02_CacheAndUniqueKeysKeepEveryScopeDimension_Integration"
+        }
+      ],
+      "residuals": [
+        "RR-G02-042"
+      ]
+    },
+    {
+      "control": "TM-G02-015",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Modules.Identity.Application.Tests/Modularyn.Modules.Identity.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Application.Tests.SignInTests.TM_G02_015_A_source_is_blocked_at_its_threshold_while_another_source_signs_in"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.Application.Tests/Modularyn.Modules.Identity.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Application.Tests.SignInTests.TM_G02_015_An_attacker_renewing_the_delay_from_one_source_cannot_keep_the_owner_out"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.Application.Tests/Modularyn.Modules.Identity.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Application.Tests.SignInTests.TM_G02_015_Unknown_disabled_and_wrong_fail_identically"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.Application.Tests/Modularyn.Modules.Identity.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Application.Tests.SignInTests.TM_G02_015_Password_changes_share_the_sign_in_counters"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.Persistence.EfCore.Tests/Modularyn.Modules.Identity.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Persistence.EfCore.Tests.SessionAndLedgerTests.TM_G02_015_Concurrent_attempts_never_verify_more_than_the_limits_allow"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.HttpApi.Tests/Modularyn.Modules.Identity.HttpApi.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.HttpApi.Tests.SignInEndpointTests.TM_G02_015_Unknown_disabled_and_wrong_passwords_receive_identical_responses"
+        }
+      ],
+      "residuals": [
+        "RR-G02-013",
+        "RR-G02-015"
+      ]
+    },
+    {
+      "control": "TM-G02-016",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Modules.Identity.HttpApi.Tests/Modularyn.Modules.Identity.HttpApi.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.HttpApi.Tests.SessionCookieTests.TM_G02_016_Sign_in_issues_a_new_host_only_secure_http_only_strict_session_cookie"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.HttpApi.Tests/Modularyn.Modules.Identity.HttpApi.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.HttpApi.Tests.SessionCookieTests.TM_G02_016_A_value_set_before_sign_in_never_becomes_authenticated"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.HttpApi.Tests/Modularyn.Modules.Identity.HttpApi.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.HttpApi.Tests.SessionCookieTests.TM_G02_016_Idle_and_absolute_expiry_end_sessions_at_their_edges"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.Application.Tests/Modularyn.Modules.Identity.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Application.Tests.FreshnessTests.TM_G02_016_Every_sign_in_issues_a_new_session_and_the_store_keeps_only_a_hash"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.Persistence.EfCore.Tests/Modularyn.Modules.Identity.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Persistence.EfCore.Tests.SessionAndLedgerTests.TM_G02_016_PostgreSql_keeps_only_the_hash_of_each_session_token"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N02_CrossSiteEndedSessionAndOverCeilingCallsAreRefused_Contract"
+        }
+      ],
+      "residuals": [
+        "RR-G02-038"
+      ]
+    },
+    {
+      "control": "TM-G02-017",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_B01_RevocationMeetsFreshnessAndStopsSensitiveExports_Isolation"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_B01_RevocationMeetsFreshnessAndStopsSensitiveExports_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_R01_RevokedWorkStopsAtTheNextAuthorityCheck_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.HttpApi.Tests/Modularyn.Modules.Identity.HttpApi.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.HttpApi.Tests.RevocationTests.TM_G02_017_Sign_out_revocation_and_security_changes_end_sessions_at_the_next_request"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.HttpApi.Tests/Modularyn.Modules.Identity.HttpApi.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.HttpApi.Tests.RevocationTests.TM_G02_017_A_recheck_inside_a_running_request_sees_a_later_revocation"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Audit.Tests/Modularyn.Framework.Audit.Tests.csproj",
+          "name": "Modularyn.Framework.Audit.Tests.AuthorityAuditTests.TM_G02_017_Removing_a_membership_ends_the_grants_made_during_it"
+        }
+      ],
+      "residuals": [
+        "RR-G02-003",
+        "RR-G02-018"
+      ]
+    },
+    {
+      "control": "TM-G02-018",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Security.Abstractions.Tests/Modularyn.Framework.Security.Abstractions.Tests.csproj",
+          "name": "Modularyn.Framework.Security.Abstractions.Tests.ExecutionPrincipalTests.TM_G02_018_Actor_subject_and_identity_kind_distinguish_users_delegates_and_services"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Security.Abstractions.Tests/Modularyn.Framework.Security.Abstractions.Tests.csproj",
+          "name": "Modularyn.Framework.Security.Abstractions.Tests.ExecutionPrincipalTests.TM_G02_018_A_delegation_ceiling_covers_only_its_scope_tenant_and_window"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.Domain.Tests/Modularyn.Modules.Identity.Domain.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Domain.Tests.DelegationGrantTests.TM_G02_018_A_grant_is_active_only_inside_its_window_and_until_revoked"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.Application.Tests/Modularyn.Modules.Identity.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Application.Tests.ServiceIdentityScopeTests.TM_G02_018_A_unit_s_principal_cannot_be_replaced_and_an_undeclared_identity_is_refused"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.Application.Tests/Modularyn.Modules.Identity.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Application.Tests.G02AC003Tests.AC_003_B02_DelegationHonorsScopeExpiryAndActorIdentity_Unit"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.Application.Tests/Modularyn.Modules.Identity.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Application.Tests.G02AC003Tests.AC_003_B02_DelegationHonorsScopeExpiryAndActorIdentity_Isolation"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N03_HostAndWorkerAuthorityCannotComeFromPayloads_Isolation"
+        }
+      ],
+      "residuals": [
+        "RR-G02-016"
+      ]
+    },
+    {
+      "control": "TM-G02-019",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_P01_EveryEntryPointAppliesTheSameGrant_Unit"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_P01_EveryEntryPointAppliesTheSameGrant_Contract"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_P01_EveryEntryPointAppliesTheSameGrant_Isolation"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.DecisionTests.TM_G02_019_Every_decision_denies_by_default_and_refuses_when_its_data_is_unavailable"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.DecisionTests.TM_G02_019_An_endpoint_that_requires_a_permission_never_runs_without_an_evaluator"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.DurableAuthorizationTests.Revoked_producer_permission_denies_events_and_jobs_after_restart"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N03_HostAndWorkerAuthorityCannotComeFromPayloads_Isolation"
+        }
+      ],
+      "residuals": [
+        "RR-G02-021",
+        "RR-G02-038"
+      ]
+    },
+    {
+      "control": "TM-G02-020",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.DecisionTests.TM_G02_020_A_resource_is_authorized_after_resolution_in_the_effective_tenant"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.AuthorityTests.TM_G02_020_Resource_grants_are_read_at_every_decision_and_revoked_at_once"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N01_ResourceDenialsHideRowsAndProtectServerFields_Isolation"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N01_ResourceDenialsHideRowsAndProtectServerFields_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.FileAuthorizationTests.TM_G02_044_A_file_resolves_in_the_effective_tenant_before_its_owner_or_a_current_grant_is_checked"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N02_ForeignIdentifiersCannotReachDataImportsOrFiles_Isolation"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N02_ForeignIdentifiersCannotReachDataImportsOrFiles_Contract"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N02_ForeignIdentifiersCannotReachDataImportsOrFiles_Integration"
+        }
+      ],
+      "residuals": []
+    },
+    {
+      "control": "TM-G02-021",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.AuthorityTests.TM_G02_021_Lists_counts_and_exports_contain_only_the_resources_the_caller_may_read"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N01_ResourceDenialsHideRowsAndProtectServerFields_Isolation"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N01_ResourceDenialsHideRowsAndProtectServerFields_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_B01_RevocationMeetsFreshnessAndStopsSensitiveExports_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.FileAuthorizationTests.TM_G02_044_File_lists_show_only_what_the_subject_may_read_filtered_in_the_query"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N02_ForeignIdentifiersCannotReachDataImportsOrFiles_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N02_ForeignIdentifiersCannotReachDataImportsOrFiles_Isolation"
+        }
+      ],
+      "residuals": [
+        "RR-G02-005"
+      ]
+    },
+    {
+      "control": "TM-G02-022",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.AuthorityTests.TM_G02_022_No_grant_reaches_beyond_the_grantor_s_ceiling_or_what_it_holds"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.AuthorityTests.TM_G02_022_A_grant_and_a_concurrent_ceiling_reduction_serialize_on_the_tenant_s_authority"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N02_CrossSiteEndedSessionAndOverCeilingCallsAreRefused_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N02_CrossSiteEndedSessionAndOverCeilingCallsAreRefused_Contract"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Audit.Tests/Modularyn.Framework.Audit.Tests.csproj",
+          "name": "Modularyn.Framework.Audit.Tests.AuthorityAuditTests.TM_G02_051_An_authority_change_whose_record_cannot_be_written_is_refused_and_changes_nothing"
+        }
+      ],
+      "residuals": []
+    },
+    {
+      "control": "TM-G02-023",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.DecisionTests.TM_G02_023_A_declared_permission_holds_where_no_authorization_middleware_intercepts_the_request"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_P01_EveryEntryPointAppliesTheSameGrant_Contract"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.DecisionTests.TM_G02_019_An_endpoint_that_requires_a_permission_never_runs_without_an_evaluator"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.DecisionTests.TM_G02_019_An_endpoint_that_requires_an_authenticated_principal_never_runs_without_one"
+        }
+      ],
+      "residuals": [
+        "RR-G02-021",
+        "RR-G02-038"
+      ]
+    },
+    {
+      "control": "TM-G02-024",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.AuthorityTests.TM_G02_024_Features_and_excluded_modules_confer_no_authority"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.AuthorityTests.TM_G02_024_Settings_and_feature_management_need_their_permission_for_the_caller"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Settings.Tests/Modularyn.Framework.Settings.Tests.csproj",
+          "name": "Modularyn.Framework.Settings.Tests.ManagementTests.TM_G02_024_Tenant_and_user_overrides_change_only_with_their_management_permission"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N03_SettingsAndFeaturesCannotSupplyAuthority_Unit"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N03_SettingsAndFeaturesCannotSupplyAuthority_Contract"
+        }
+      ],
+      "residuals": [
+        "RR-G02-023"
+      ]
+    },
+    {
+      "control": "TM-G02-025",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.TenantResolutionTests.TM_G02_025_Each_candidate_source_establishes_a_current_member_s_tenant"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.TenantResolutionTests.TM_G02_025_Unknown_suspended_and_foreign_tenants_are_refused_before_any_context_exists"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.TenantResolutionTests.TM_G02_025_Ambiguous_conflicting_or_missing_candidates_are_refused"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.TenancyHttpTests.TM_G02_025_Requests_run_in_the_validated_tenant_or_are_refused_alike_before_any_handler"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_P01_IngressWorkersAndCachesKeepValidatedTenantContext_Isolation"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.HttpApi.Tests/Modularyn.Modules.Identity.HttpApi.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.HttpApi.Tests.TenancyIntegrationTests.TM_G02_025_A_session_resolves_a_tenant_only_for_a_current_member"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N01_ForgedTenantAndOriginCandidatesAreRefused_Isolation"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N01_ForgedTenantAndOriginCandidatesAreRefused_Contract"
+        }
+      ],
+      "residuals": [
+        "RR-G02-019",
+        "RR-G02-022"
+      ]
+    },
+    {
+      "control": "TM-G02-026",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_B01_WorkerReuseAndContinuationsKeepContextSeparate_Unit"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_B01_WorkerReuseAndContinuationsKeepContextSeparate_Isolation"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.ExecutionContextTests.TM_G02_026_A_context_is_established_once_and_ends_with_its_scope"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.ExecutionContextTests.TM_G02_026_Exceptions_and_cancellation_end_the_unit_s_context"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.TenancyHttpTests.TM_G02_026_Each_request_gets_its_own_context_which_ends_with_the_request_on_every_path"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.Application.Tests/Modularyn.Modules.Identity.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Application.Tests.ServiceIdentityScopeTests.TM_G02_018_Concurrent_units_see_only_their_own_principal_which_ends_with_the_unit"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N03_HostAndWorkerAuthorityCannotComeFromPayloads_Integration"
+        }
+      ],
+      "residuals": [
+        "RR-G02-003"
+      ]
+    },
+    {
+      "control": "TM-G02-027",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.PropagationTests.TM_G02_027_The_receiver_revalidates_tenant_and_actor_before_acting"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.PropagationTests.TM_G02_027_A_stored_reference_runs_only_under_its_own_seal_and_binding"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.PropagationDatabaseTests.TM_G02_027_Work_runs_only_in_the_propagated_tenant_whatever_its_payload_names"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_R01_RecoveredWorkRevalidatesTenantAndActor_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.EventRecoveryTests.A_receipt_whose_stored_reference_was_copied_from_another_row_is_denied_without_an_effect"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.DurableAuthorizationTests.Revocation_after_receipt_is_rechecked_before_the_event_effect_commits"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N03_HostAndWorkerAuthorityCannotComeFromPayloads_Isolation"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N03_HostAndWorkerAuthorityCannotComeFromPayloads_Integration"
+        }
+      ],
+      "residuals": [
+        "RR-G02-030",
+        "RR-G02-034"
+      ]
+    },
+    {
+      "control": "TM-G02-028",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.HostScopeTests.TM_G02_028_Host_scope_needs_host_authority_and_an_audit_record_written_first"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.HostScopeTests.TM_G02_028_A_request_that_names_a_tenant_never_gets_host_scope"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.HostScopeDatabaseTests.TM_G02_028_Host_endpoints_refuse_tenant_administrators_and_tenant_markers_and_audit_the_grant"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.AuthorityTests.TM_G02_028_Host_authority_comes_only_from_the_elevated_policy_and_reaches_only_declared_entities"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.HostWriteTests.TM_G02_028_A_unit_without_a_context_reads_host_scoped_data_and_changes_none_of_it"
+        },
+        {
+          "project": "tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj",
+          "name": "Modularyn.Repository.Tests.PersistenceBoundaryTests.TM_G02_028_Owner_bound_units_elsewhere_or_for_another_module_are_found"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N03_HostAndWorkerAuthorityCannotComeFromPayloads_Isolation"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N03_HostAndWorkerAuthorityCannotComeFromPayloads_Integration"
+        }
+      ],
+      "residuals": [
+        "RR-G02-019",
+        "RR-G02-020",
+        "RR-G02-022"
+      ]
+    },
+    {
+      "control": "TM-G02-029",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.TenantFilterTests.TM_G02_029_Every_supported_read_path_composes_the_tenant_predicate"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.TenantFilterTests.TM_G02_029_References_and_unique_keys_are_scoped_to_one_tenant"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.QueryGuardTests.TM_G02_029_Raw_SQL_that_the_adapter_did_not_build_is_refused_before_it_runs"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC_005_P01_CommittedWorkAndSoftDeleteFiltersAgreeOnPostgreSql_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Audit.Tests/Modularyn.Framework.Audit.Tests.csproj",
+          "name": "Modularyn.Framework.Audit.Tests.BypassAuditTests.TM_G02_029_Every_cross_tenant_read_is_recorded_before_its_query_exists"
+        },
+        {
+          "project": "tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj",
+          "name": "Modularyn.Repository.Tests.PersistenceBoundaryTests.TM_G02_029_Only_the_persistence_adapter_uses_filter_bypasses_and_raw_SQL"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N02_ForeignIdentifiersCannotReachDataImportsOrFiles_Isolation"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N02_ForeignIdentifiersCannotReachDataImportsOrFiles_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_B02_CacheAndUniqueKeysKeepEveryScopeDimension_Isolation"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_R02_RestorePreservesTenantOwnershipAndRefusals_Isolation"
+        }
+      ],
+      "residuals": [
+        "RR-G02-005",
+        "RR-G02-019",
+        "RR-G02-033"
+      ]
+    },
+    {
+      "control": "TM-G02-030",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC_005_N01_StaleWritesConflictAndFailedTransactionsRollBack_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.DirectSqlAndTransactionTests.Direct_updates_require_versions_apply_filters_and_roll_back_other_work_on_conflict"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.DirectSqlAndTransactionTests.A_disconnected_update_without_an_original_version_is_refused"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.TenantModelTests.TM_G02_030_Bulk_writes_cannot_delete_soft_deleted_rows_or_skip_a_version_token"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
+          "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC_008_N01_EveryClientRetainsDistinctTypedFailures_Contract"
+        }
+      ],
+      "residuals": [
+        "RR-G02-019",
+        "RR-G02-038"
+      ]
+    },
+    {
+      "control": "TM-G02-031",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC_005_B01_TransactionModesKeepTheirDeclaredCommitBoundaries_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.DirectSqlAndTransactionTests.Cancellation_before_commit_rolls_back_flushed_work_and_reports_one_rollback"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.DirectSqlAndTransactionTests.A_callback_failure_keeps_the_committed_outcome_and_invokes_each_callback_once"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.OwnershipTests.An_external_ambient_transaction_is_refused_before_opening_a_database_connection"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.EventRecoveryTests.PostgreSQL_session_loss_before_commit_removes_flushed_business_and_intent_rows"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.EventRecoveryTests.Stores_refuse_suppressed_units_and_another_modules_transaction"
+        }
+      ],
+      "residuals": []
+    },
+    {
+      "control": "TM-G02-032",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC_005_R01_InterruptedMigrationResumesWithoutDuplicateSeeds_Migration"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.G02AC005Tests.AC_005_R01_InterruptedMigrationResumesWithoutDuplicateSeeds_Recovery"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.MigrationCoordinationTests.Another_coordinator_and_activation_are_refused_while_the_database_lock_is_held"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.MigrationCoordinationTests.A_history_ahead_of_the_selected_release_is_refused_before_any_migration_effect"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Persistence.EfCore.Tests/Modularyn.Framework.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Framework.Persistence.EfCore.Tests.MigrationFailureTests.Failure_after_DDL_rolls_back_the_partial_migration_and_a_fresh_coordinator_retries_once"
+        },
+        {
+          "project": "tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests.csproj",
+          "name": "Modularyn.Tooling.Samples.TeamWorkspace.Tests.UnitTests.A_production_host_refuses_the_development_seed"
+        }
+      ],
+      "residuals": [
+        "RR-G02-003"
+      ]
+    },
+    {
+      "control": "TM-G02-033",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.TenantCacheTests.TM_G02_033_Keys_differ_whenever_one_dimension_differs"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.TenantCacheTests.TM_G02_033_An_entry_built_in_one_context_is_never_served_to_another"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.TenantCacheTests.TM_G02_033_Staleness_is_declared_bounded_and_enforced"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.TenantCacheTests.TM_G02_033_Invalidation_reaches_exactly_the_tenant_or_principal_it_names"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.DecisionTests.TM_G02_033_Bounded_authority_is_cached_per_principal_and_subject_and_invalidated_on_change"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Settings.Tests/Modularyn.Framework.Settings.Tests.csproj",
+          "name": "Modularyn.Framework.Settings.Tests.G02AC003Tests.AC_003_P02_PrecedenceAndInvalidationKeepTenantValuesSeparate_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_B02_CacheAndUniqueKeysKeepEveryScopeDimension_Isolation"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_B02_CacheAndUniqueKeysKeepEveryScopeDimension_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_R02_RestorePreservesTenantOwnershipAndRefusals_Recovery"
+        }
+      ],
+      "residuals": [
+        "RR-G02-018",
+        "RR-G02-020"
+      ]
+    },
+    {
+      "control": "TM-G02-034",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.TenantCacheTests.TM_G02_034_Concurrent_misses_share_one_factory_call_and_failures_are_not_cached"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Settings.Tests/Modularyn.Framework.Settings.Tests.csproj",
+          "name": "Modularyn.Framework.Settings.Tests.ManagementTests.TM_G02_034_A_fill_that_overruns_its_staleness_bound_is_reported_unavailable"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Settings.Tests/Modularyn.Framework.Settings.Tests.csproj",
+          "name": "Modularyn.Framework.Settings.Tests.G02AC003Tests.A_database_outage_does_not_cache_a_default_and_recovery_reads_the_store"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_R02_CacheOutageAndRestartKeepCurrentAuthorization_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Settings.Tests/Modularyn.Framework.Settings.Tests.csproj",
+          "name": "Modularyn.Framework.Settings.Tests.CacheLifetimeTests.Fill_time_counts_toward_staleness_and_expired_results_are_never_cached"
+        }
+      ],
+      "residuals": [
+        "RR-G02-011"
+      ]
+    },
+    {
+      "control": "TM-G02-035",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_P01_CommittedIntentProducesOneProjectionEffect_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_R01_AllFiveCrashWindowsReconcileCommittedIntent_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_R01_AllFiveCrashWindowsReconcileCommittedIntent_Recovery"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.EventRecoveryTests.PostgreSQL_session_loss_before_commit_removes_flushed_business_and_intent_rows"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.EventRecoveryTests.Stores_refuse_suppressed_units_and_another_modules_transaction"
+        }
+      ],
+      "residuals": []
+    },
+    {
+      "control": "TM-G02-036",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_B01_DuplicateAndReorderedEventsKeepProjectionVersion_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_B01_DuplicateAndReorderedEventsKeepProjectionVersion_Contract"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.EventRecoveryTests.Concurrent_delivery_and_consumers_commit_one_effect"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.EventRecoveryTests.A_contiguous_gap_yields_the_scan_to_its_missing_predecessor_and_other_keys"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
+          "name": "Modularyn.Framework.Sdk.Client.Tests.OperationIsolationTests.Receipts_never_cross_a_tenant_or_a_subject_and_changed_input_cannot_reuse_them"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
+          "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC_008_R01_InterruptedResponseReconcilesWithoutDuplicateCreation_Integration"
+        }
+      ],
+      "residuals": [
+        "RR-G02-031",
+        "RR-G02-041"
+      ]
+    },
+    {
+      "control": "TM-G02-037",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.EventRecoveryTests.A_contiguous_gap_backs_off_then_quarantines_for_replay_once_the_predecessor_arrives"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.EventRecoveryTests.Handler_failure_rolls_back_flushed_effects_before_quarantine"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_N01_UnsupportedEventsRemainVisibleWithoutMutation_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
+          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC_007_N01_RetryExhaustionAndCancellationHaveDistinctOutcomes_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.DurableAuthorizationTests.Operator_replay_requires_current_permission_and_preserves_the_original_producer"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Audit.Tests/Modularyn.Framework.Audit.Tests.csproj",
+          "name": "Modularyn.Framework.Audit.Tests.OperatorAuditTests.TM_G02_037_Each_replay_cancellation_and_schedule_stop_is_recorded_with_its_change"
+        }
+      ],
+      "residuals": [
+        "RR-G02-032"
+      ]
+    },
+    {
+      "control": "TM-G02-038",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
+          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC_007_R01_LeaseLossAndRestartLeaveOneCommittedEffect_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
+          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC_007_R01_LeaseLossAndRestartLeaveOneCommittedEffect_Recovery"
+        },
+        {
+          "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
+          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.JobRecoveryTests.Competing_workers_do_not_claim_an_unexpired_attempt"
+        },
+        {
+          "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
+          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.ProviderLifecycleTests.Lease_renewal_extends_the_same_attempt_without_invalidating_its_commit"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.StorageBoundaryTests.Tenant_lease_excludes_competing_writers_and_recovery_without_blocking_another_tenant"
+        }
+      ],
+      "residuals": []
+    },
+    {
+      "control": "TM-G02-039",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Audit.Tests/Modularyn.Framework.Audit.Tests.csproj",
+          "name": "Modularyn.Framework.Audit.Tests.PayloadRuleTests.TM_G02_039_The_payload_rule_refuses_secret_forms_propagated_context_and_unbounded_payloads"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Audit.Tests/Modularyn.Framework.Audit.Tests.csproj",
+          "name": "Modularyn.Framework.Audit.Tests.DurablePayloadTests.TM_G02_039_The_stores_refuse_payloads_outside_the_rule"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Audit.Tests/Modularyn.Framework.Audit.Tests.csproj",
+          "name": "Modularyn.Framework.Audit.Tests.DurablePayloadTests.TM_G02_039_A_payload_is_redacted_once_its_row_can_no_longer_run"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.DurableAuthorizationTests.Revoked_producer_permission_denies_events_and_jobs_after_restart"
+        }
+      ],
+      "residuals": [
+        "RR-G02-030",
+        "RR-G02-031",
+        "RR-G02-045"
+      ]
+    },
+    {
+      "control": "TM-G02-040",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
+          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.ScheduleTests.Civil_time_skips_the_gap_and_chooses_the_first_fold_occurrence"
+        },
+        {
+          "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
+          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.ScheduleTests.Time_is_normalized_before_storage_and_policy_durations_preserve_microseconds"
+        },
+        {
+          "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
+          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.ScheduleTests.Only_an_IANA_identifier_declares_a_schedule_zone"
+        },
+        {
+          "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
+          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC_007_B01_ScheduleEdgesAndMisfiresFollowDeclaredPolicy_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
+          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC_007_B01_ScheduleEdgesAndMisfiresFollowDeclaredPolicy_Recovery"
+        },
+        {
+          "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
+          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.JobRecoveryTests.Every_misfire_policy_persists_each_date_once_under_competing_materialization"
+        }
+      ],
+      "residuals": []
+    },
+    {
+      "control": "TM-G02-041",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.PropagationTests.TM_G02_041_The_propagated_form_holds_only_references_and_round_trips_exactly"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.DurableAuthorizationTests.Job_steps_pass_the_running_principal_and_revoke_before_commit"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.DurableAuthorizationTests.Service_route_needs_a_current_server_identity_and_store_context_cannot_come_from_payload"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
+          "name": "Modularyn.Framework.Events.Tests.DurableAuthorityRecoveryTests.Service_originated_work_uses_its_current_scope_after_restart"
+        },
+        {
+          "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
+          "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.JobRecoveryTests.A_validly_sealed_job_reference_naming_another_tenant_than_its_row_is_bounded_and_never_runs"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.Application.Tests/Modularyn.Modules.Identity.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Application.Tests.G02AC003Tests.AC_003_B02_DelegationHonorsScopeExpiryAndActorIdentity_Unit"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N03_HostAndWorkerAuthorityCannotComeFromPayloads_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N03_HostAndWorkerAuthorityCannotComeFromPayloads_Isolation"
+        }
+      ],
+      "residuals": [
+        "RR-G02-030"
+      ]
+    },
+    {
+      "control": "TM-G02-042",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.FileQuarantineTests.TM_G02_042_New_versions_stay_unreadable_until_the_release_policy_releases_them_and_rejected_ones_stay_unreadable"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.FileQuarantineTests.TM_G02_042_The_type_is_detected_from_the_bytes_against_the_allowed_list_never_from_the_name"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.FileRulesTests.TM_G02_042_The_type_follows_the_bytes_alone"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.AllowlistReleasePolicyTests.TM_G02_042_The_allowlist_policy_never_releases_active_or_executable_content_even_when_a_host_lists_it"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.AllowlistReleaseTests.TM_G02_042_Nothing_is_released_without_a_registered_policy"
+        },
+        {
+          "project": "tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests.csproj",
+          "name": "Modularyn.Tooling.Samples.TeamWorkspace.Tests.SmokeTests.The_team_workspace_runs_end_to_end_against_PostgreSQL"
+        }
+      ],
+      "residuals": [
+        "RR-G02-025"
+      ]
+    },
+    {
+      "control": "TM-G02-043",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.FileRulesTests.TM_G02_043_Unsafe_names_are_refused"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.StorageBoundaryTests.Client_names_are_metadata_and_every_operation_stays_in_the_validated_tenant"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.StorageBoundaryTests.Linked_roots_tenant_directories_and_content_are_refused_including_dangling_links"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.StorageBoundaryTests.Linked_staging_and_lease_files_are_refused_without_touching_their_targets"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.FileSystemStoreTests.Linked_roots_tenant_directories_content_staging_slots_and_leases_are_refused_without_touching_their_targets"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N02_ForeignIdentifiersCannotReachDataImportsOrFiles_Isolation"
+        }
+      ],
+      "residuals": [
+        "RR-G02-024",
+        "RR-G02-028"
+      ]
+    },
+    {
+      "control": "TM-G02-044",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.FileAuthorizationTests.TM_G02_044_Every_file_action_asks_the_evaluator_and_refuses_without_the_permission_whether_or_not_the_file_exists"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.DownloadGrantTests.TM_G02_044_A_download_grant_is_bound_to_its_tenant_version_purpose_and_expiry_and_stored_only_as_a_verifier"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.DownloadGrantTests.TM_G02_044_Revocation_deletion_and_single_use_end_a_grant_and_nothing_revives_it"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.DownloadGrantTests.TM_G02_044_A_grant_is_served_only_with_its_holder_s_current_authorization_and_never_without_a_session"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.DownloadGrantTests.TM_G02_044_Previews_are_inline_only_for_approved_types_and_every_delivery_disables_sniffing"
+        },
+        {
+          "project": "tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests/Modularyn.Tooling.Samples.TeamWorkspace.Tests.csproj",
+          "name": "Modularyn.Tooling.Samples.TeamWorkspace.Tests.SmokeTests.The_team_workspace_runs_end_to_end_against_PostgreSQL"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N02_ForeignIdentifiersCannotReachDataImportsOrFiles_Isolation"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N02_ForeignIdentifiersCannotReachDataImportsOrFiles_Contract"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_R02_RestorePreservesTenantOwnershipAndRefusals_Integration"
+        }
+      ],
+      "residuals": [
+        "RR-G02-026",
+        "RR-G02-027",
+        "RR-G02-028"
+      ]
+    },
+    {
+      "control": "TM-G02-045",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.FileCapacityTests.TM_G02_045_Pending_uploads_are_reserved_atomically_per_tenant_and_abandoned_ones_are_reclaimed_at_the_quota"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.FileCapacityTests.TM_G02_045_An_upload_that_streams_past_its_deadline_is_abandoned_and_reclaimed"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.FileCapacityTests.TM_G02_045_A_failed_upload_is_handed_to_the_recovery_schedule_and_recovered_under_its_own_context"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.G02AC009Tests.AC_009_B01_UploadSizeAndCancellationLeaveNoPartialVersion_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.G02AC009Tests.AC_009_B01_UploadSizeAndCancellationLeaveNoPartialVersion_Contract"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.StorageBoundaryTests.Short_long_oversized_and_cancelled_streams_never_publish_a_partial_version"
+        }
+      ],
+      "residuals": [
+        "RR-G02-011",
+        "RR-G02-028"
+      ]
+    },
+    {
+      "control": "TM-G02-046",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.G02AC009Tests.AC_009_N01_DigestMismatchPreservesThePriorVersion_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.G02AC009Tests.AC_009_N01_DigestMismatchPreservesThePriorVersion_Contract"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.G02AC009Tests.AC_009_R01_InterruptedWritesAndRestorePreserveVersionIntegrity_Recovery"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.StorageBoundaryTests.Corruption_refuses_restore_and_a_verified_snapshot_does_not_change_with_the_original"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.FileCapacityTests.TM_G02_046_Restore_verifies_the_retained_bytes_in_place_while_every_read_slot_is_held"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests/Modularyn.Modules.Files.Persistence.FileSystem.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Persistence.FileSystem.Tests.FileSystemStoreTests.Verification_hashes_the_stored_bytes_where_they_are_without_a_copy"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_R02_RestorePreservesTenantOwnershipAndRefusals_Recovery"
+        }
+      ],
+      "residuals": [
+        "RR-G02-003",
+        "RR-G02-024"
+      ]
+    },
+    {
+      "control": "TM-G02-047",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Configuration.Tests/Modularyn.Framework.Configuration.Tests.csproj",
+          "name": "Modularyn.Framework.Configuration.Tests.SecretStoreTests.TM_G02_047_Secrets_resolve_only_through_references_to_the_mounted_store_and_stay_redacted"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Configuration.Tests/Modularyn.Framework.Configuration.Tests.csproj",
+          "name": "Modularyn.Framework.Configuration.Tests.SecretStoreTests.TM_G02_047_Unavailable_or_escaping_secrets_are_refused_by_reference_name_only"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Configuration.Tests/Modularyn.Framework.Configuration.Tests.csproj",
+          "name": "Modularyn.Framework.Configuration.Tests.SecretStoreTests.TM_G02_047_Secret_values_stay_out_of_logs_and_lifecycle_diagnostics"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Configuration.Tests/Modularyn.Framework.Configuration.Tests.csproj",
+          "name": "Modularyn.Framework.Configuration.Tests.DeploymentOptionsTests.TM_G02_047_Secret_references_have_one_exact_form_and_never_echo_a_refused_value"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Settings.Tests/Modularyn.Framework.Settings.Tests.csproj",
+          "name": "Modularyn.Framework.Settings.Tests.SecretReferenceTests.References_are_persisted_and_cached_while_secret_contents_never_enter_storage_logs_or_diagnostics"
+        },
+        {
+          "project": "tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj",
+          "name": "Modularyn.Repository.Tests.ToolPinTests.Secret_scan_pins_the_gitleaks_digest_at_the_registered_version"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Configuration.Tests/Modularyn.Framework.Configuration.Tests.csproj",
+          "name": "Modularyn.Framework.Configuration.Tests.SecretStoreTests.TM_G02_047_A_secret_reference_is_masked_in_telemetry_as_settings_mask_it_while_configuration_still_binds_it"
+        }
+      ],
+      "residuals": [
+        "RR-G02-007"
+      ]
+    },
+    {
+      "control": "TM-G02-048",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Configuration.Tests/Modularyn.Framework.Configuration.Tests.csproj",
+          "name": "Modularyn.Framework.Configuration.Tests.DeploymentOptionsTests.TM_G02_048_Invalid_deployment_options_refuse_startup_before_any_module_is_constructed"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Configuration.Tests/Modularyn.Framework.Configuration.Tests.csproj",
+          "name": "Modularyn.Framework.Configuration.Tests.DeploymentOptionsTests.TM_G02_048_Deployment_options_bind_once_at_startup_and_ignore_later_reloads"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Ingress.Tests/Modularyn.Framework.Ingress.Tests.csproj",
+          "name": "Modularyn.Framework.Ingress.Tests.IngressOptionsTests.TM_G02_048_Invalid_ingress_options_refuse_startup_before_the_server_listens"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.Application.Tests/Modularyn.Modules.Identity.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Application.Tests.OptionsTests.TM_G02_048_Identity_limits_outside_their_ranges_refuse_startup"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.DecisionTests.TM_G02_048_Authorization_options_are_validated_before_startup"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Settings.Tests/Modularyn.Framework.Settings.Tests.csproj",
+          "name": "Modularyn.Framework.Settings.Tests.G02AC003Tests.Invalid_values_stale_versions_and_rollbacks_preserve_the_committed_override_and_cache"
+        }
+      ],
+      "residuals": [
+        "RR-G02-003",
+        "RR-G02-008"
+      ]
+    },
+    {
+      "control": "TM-G02-049",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N03_SettingsAndFeaturesCannotSupplyAuthority_Unit"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N03_SettingsAndFeaturesCannotSupplyAuthority_Contract"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Settings.Tests/Modularyn.Framework.Settings.Tests.csproj",
+          "name": "Modularyn.Framework.Settings.Tests.G02AC003Tests.AC_003_P02_PrecedenceAndInvalidationKeepTenantValuesSeparate_Unit"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Settings.Tests/Modularyn.Framework.Settings.Tests.csproj",
+          "name": "Modularyn.Framework.Settings.Tests.G02AC003Tests.AC_003_P02_PrecedenceAndInvalidationKeepTenantValuesSeparate_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Configuration.Tests/Modularyn.Framework.Configuration.Tests.csproj",
+          "name": "Modularyn.Framework.Configuration.Tests.DeploymentOptionsTests.TM_G02_048_Deployment_options_bind_once_at_startup_and_ignore_later_reloads"
+        }
+      ],
+      "residuals": [
+        "RR-G02-040"
+      ]
+    },
+    {
+      "control": "TM-G02-050",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Configuration.Tests/Modularyn.Framework.Configuration.Tests.csproj",
+          "name": "Modularyn.Framework.Configuration.Tests.KeyRingTests.TM_G02_050_The_declared_key_ring_must_exist_with_owner_only_access_and_a_declared_lifetime"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Configuration.Tests/Modularyn.Framework.Configuration.Tests.csproj",
+          "name": "Modularyn.Framework.Configuration.Tests.KeyRingTests.AC_031_R04_Protected_payloads_survive_host_replacement_only_within_the_declared_key_ring_and_application"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Configuration.Tests/Modularyn.Framework.Configuration.Tests.csproj",
+          "name": "Modularyn.Framework.Configuration.Tests.KeyRingTests.TM_G02_050_Keys_follow_the_declared_lifetime_rotation_keeps_older_payloads_and_revocation_ends_them"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Configuration.Tests/Modularyn.Framework.Configuration.Tests.csproj",
+          "name": "Modularyn.Framework.Configuration.Tests.KeyRingTests.AC_031_R04_A_deployment_without_a_declared_key_ring_stays_unready_and_generates_no_keys"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Configuration.Tests/Modularyn.Framework.Configuration.Tests.csproj",
+          "name": "Modularyn.Framework.Configuration.Tests.KeyRingTests.TM_G02_050_A_later_post_configuration_of_the_key_ring_refuses_startup_before_module_activation"
+        }
+      ],
+      "residuals": [
+        "RR-G02-003",
+        "RR-G02-009",
+        "RR-G02-034"
+      ]
+    },
+    {
+      "control": "TM-G02-051",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Audit.Tests/Modularyn.Framework.Audit.Tests.csproj",
+          "name": "Modularyn.Framework.Audit.Tests.AuditStoreTests.TM_G02_051_A_change_and_its_audit_record_commit_together_or_not_at_all"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Audit.Tests/Modularyn.Framework.Audit.Tests.csproj",
+          "name": "Modularyn.Framework.Audit.Tests.AuthorityAuditTests.TM_G02_051_Each_authority_change_commits_with_exactly_one_record"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Audit.Tests/Modularyn.Framework.Audit.Tests.csproj",
+          "name": "Modularyn.Framework.Audit.Tests.AuthorityAuditTests.TM_G02_051_An_authority_change_whose_record_cannot_be_written_is_refused_and_changes_nothing"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Audit.Tests/Modularyn.Framework.Audit.Tests.csproj",
+          "name": "Modularyn.Framework.Audit.Tests.AdministrationAuditTests.TM_G02_051_A_directory_or_identity_change_whose_record_cannot_be_written_changes_nothing"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Settings.Tests/Modularyn.Framework.Settings.Tests.csproj",
+          "name": "Modularyn.Framework.Settings.Tests.ManagementTests.TM_G02_051_Each_override_change_commits_with_its_record_or_not_at_all"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Files.Application.Tests/Modularyn.Modules.Files.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Files.Application.Tests.DownloadGrantTests.TM_G02_051_Each_grant_issue_and_revocation_commits_with_its_record_or_not_at_all"
+        }
+      ],
+      "residuals": [
+        "RR-G02-003",
+        "RR-G02-029",
+        "RR-G02-033"
+      ]
+    },
+    {
+      "control": "TM-G02-052",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Audit.Tests/Modularyn.Framework.Audit.Tests.csproj",
+          "name": "Modularyn.Framework.Audit.Tests.AuditStoreTests.TM_G02_052_Audit_records_are_append_only_on_every_write_path"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Audit.Tests/Modularyn.Framework.Audit.Tests.csproj",
+          "name": "Modularyn.Framework.Audit.Tests.AuditReadTests.TM_G02_052_Audit_reads_need_their_own_permission_and_are_themselves_audited"
+        }
+      ],
+      "residuals": [
+        "RR-G02-024",
+        "RR-G02-029",
+        "RR-G02-032"
+      ]
+    },
+    {
+      "control": "TM-G02-053",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Observability.Tests/Modularyn.Framework.Observability.Tests.csproj",
+          "name": "Modularyn.Framework.Observability.Tests.RedactionTests.TM_G02_053_No_logger_provider_receives_a_secret_form_in_a_message_value_scope_or_exception"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Observability.Tests/Modularyn.Framework.Observability.Tests.csproj",
+          "name": "Modularyn.Framework.Observability.Tests.RedactionTests.TM_G02_053_Each_recognized_secret_form_is_scrubbed_and_ordinary_text_is_kept"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.CanaryTests.TM_G02_053_No_canary_reaches_a_log_trace_lifecycle_diagnostic_probe_problem_or_report"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.CorrelationTests.TM_G02_053_A_peer_supplied_trace_is_adopted_only_from_a_declared_proxy"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.ObservabilityTests.W3c_context_correlates_console_logs_trace_events_metrics_and_module_callbacks"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Audit.Tests/Modularyn.Framework.Audit.Tests.csproj",
+          "name": "Modularyn.Framework.Audit.Tests.AuditStoreTests.TM_G02_053_An_audit_record_never_holds_a_secret_form"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Configuration.Tests/Modularyn.Framework.Configuration.Tests.csproj",
+          "name": "Modularyn.Framework.Configuration.Tests.SecretStoreTests.TM_G02_047_A_secret_reference_is_masked_in_telemetry_as_settings_mask_it_while_configuration_still_binds_it"
+        }
+      ],
+      "residuals": [
+        "RR-G02-003",
+        "RR-G02-031",
+        "RR-G02-035",
+        "RR-G02-045"
+      ]
+    },
+    {
+      "control": "TM-G02-054",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.ApiHostingTests.TM_G02_011_Health_probes_answer_GET_and_HEAD_with_the_status_only_and_refuse_other_methods"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.HealthAndRequestTests.Http_health_discloses_only_status_and_requests_run_under_a_server_issued_W3c_trace_without_logging_content"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.HealthAndRequestTests.Health_checks_are_bound_to_manifests_and_readiness_follows_start_failure_and_stop"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.HostDiagnosticsTests.TM_G02_054_Host_diagnostics_need_their_own_host_scope_and_show_statuses_and_codes_only"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Audit.Tests/Modularyn.Framework.Audit.Tests.csproj",
+          "name": "Modularyn.Framework.Audit.Tests.DurablePayloadTests.TM_G02_054_Durable_diagnostics_need_the_diagnostics_permission_alone"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Hosting.Tests/Modularyn.Framework.Hosting.Tests.csproj",
+          "name": "Modularyn.Framework.Hosting.Tests.DeploymentTrustHostingTests.TM_G02_001_Readiness_follows_a_verified_activation_and_a_refused_composition_stays_unready_with_status_only_health"
+        }
+      ],
+      "residuals": [
+        "RR-G02-003",
+        "RR-G02-032"
+      ]
+    },
+    {
+      "control": "TM-G02-055",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Modules.Identity.Persistence.EfCore.Tests/Modularyn.Modules.Identity.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Persistence.EfCore.Tests.PasswordVerifierTests.TM_G02_055_Verifiers_are_salted_adaptive_hashes_with_their_parameters_recorded"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.Persistence.EfCore.Tests/Modularyn.Modules.Identity.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Persistence.EfCore.Tests.PasswordVerifierTests.TM_G02_055_A_sign_in_upgrades_a_verifier_below_policy_and_a_wrong_password_changes_nothing"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.HttpApi.Tests/Modularyn.Modules.Identity.HttpApi.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.HttpApi.Tests.LeakTests.TM_G02_055_No_credential_reaches_a_log_a_response_or_an_exception"
+        }
+      ],
+      "residuals": [
+        "RR-G02-012"
+      ]
+    },
+    {
+      "control": "TM-G02-056",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Modules.Identity.Application.Tests/Modularyn.Modules.Identity.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Application.Tests.CredentialFormServiceTests.TM_G02_056_Seeds_are_encrypted_under_versioned_keys_and_survive_rotation"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.Application.Tests/Modularyn.Modules.Identity.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Application.Tests.CredentialFormServiceTests.TM_G02_056_Without_a_usable_key_seeds_are_neither_stored_nor_verified"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.Domain.Tests/Modularyn.Modules.Identity.Domain.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Domain.Tests.CredentialFormTests.TM_G02_056_Seed_associated_data_binds_the_account_and_key_version"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.Persistence.EfCore.Tests/Modularyn.Modules.Identity.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Persistence.EfCore.Tests.CredentialStoreTests.TM_G02_056_PostgreSql_holds_only_ciphertext_seeds_tagged_with_key_versions"
+        }
+      ],
+      "residuals": [
+        "RR-G02-014",
+        "RR-G02-015"
+      ]
+    },
+    {
+      "control": "TM-G02-057",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Modules.Identity.Application.Tests/Modularyn.Modules.Identity.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Application.Tests.CredentialFormServiceTests.TM_G02_057_Recovery_codes_are_stored_as_verifiers_and_consumed_once"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.Domain.Tests/Modularyn.Modules.Identity.Domain.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Domain.Tests.CredentialFormTests.TM_G02_057_Recovery_codes_carry_eighty_bits_and_match_only_their_salted_verifier"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.Persistence.EfCore.Tests/Modularyn.Modules.Identity.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Persistence.EfCore.Tests.CredentialStoreTests.TM_G02_057_PostgreSql_accepts_a_recovery_code_once_and_invalidates_a_replaced_set"
+        }
+      ],
+      "residuals": [
+        "RR-G02-015"
+      ]
+    },
+    {
+      "control": "TM-G02-058",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Modules.Identity.Application.Tests/Modularyn.Modules.Identity.Application.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Application.Tests.CredentialFormServiceTests.TM_G02_058_Passkey_records_verify_only_while_their_integrity_tag_matches"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.Domain.Tests/Modularyn.Modules.Identity.Domain.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Domain.Tests.CredentialFormTests.TM_G02_058_The_canonical_form_binds_account_credential_relying_party_key_and_algorithm"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.Persistence.EfCore.Tests/Modularyn.Modules.Identity.Persistence.EfCore.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.Persistence.EfCore.Tests.CredentialStoreTests.TM_G02_058_Passkey_records_altered_in_PostgreSql_fail_integrity_verification"
+        }
+      ],
+      "residuals": [
+        "RR-G02-014",
+        "RR-G02-015"
+      ]
+    },
+    {
+      "control": "TM-G02-059",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Ingress.Tests/Modularyn.Framework.Ingress.Tests.csproj",
+          "name": "Modularyn.Framework.Ingress.Tests.CrossOriginTests.TM_G02_059_Without_configured_callers_no_response_grants_cross_origin_access"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Ingress.Tests/Modularyn.Framework.Ingress.Tests.csproj",
+          "name": "Modularyn.Framework.Ingress.Tests.CrossOriginTests.AC_003_N02_Only_the_listed_origin_receives_credentialed_access_and_other_preflights_are_refused"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N02_CrossSiteEndedSessionAndOverCeilingCallsAreRefused_Contract"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N02_CrossSiteEndedSessionAndOverCeilingCallsAreRefused_Browser"
+        }
+      ],
+      "residuals": [
+        "RR-G02-038"
+      ]
+    },
+    {
+      "control": "TM-G02-060",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Ingress.Tests/Modularyn.Framework.Ingress.Tests.csproj",
+          "name": "Modularyn.Framework.Ingress.Tests.HttpsTests.AC_031_P01_Plain_HTTP_is_redirected_before_any_processing_and_serves_no_content_or_cookies"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Ingress.Tests/Modularyn.Framework.Ingress.Tests.csproj",
+          "name": "Modularyn.Framework.Ingress.Tests.HttpsTests.AC_031_P01_Every_HTTPS_response_for_a_configured_host_carries_the_declared_HSTS_lifetime"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Ingress.Tests/Modularyn.Framework.Ingress.Tests.csproj",
+          "name": "Modularyn.Framework.Ingress.Tests.HttpsTests.AC_031_P01_A_forwarded_HTTPS_scheme_counts_only_from_the_declared_proxy"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Ingress.Tests/Modularyn.Framework.Ingress.Tests.csproj",
+          "name": "Modularyn.Framework.Ingress.Tests.AuthenticationOrderTests.TM_G02_060_Authentication_never_runs_for_a_plain_http_or_unconfigured_host_request"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Ingress.Tests/Modularyn.Framework.Ingress.Tests.csproj",
+          "name": "Modularyn.Framework.Ingress.Tests.AuthenticationOrderTests.TM_G02_060_Authentication_or_authorization_added_before_the_ingress_is_refused"
+        },
+        {
+          "project": "tests/Modularyn.Modules.Identity.HttpApi.Tests/Modularyn.Modules.Identity.HttpApi.Tests.csproj",
+          "name": "Modularyn.Modules.Identity.HttpApi.Tests.SessionCookieTests.TM_G02_016_Sessions_are_never_authenticated_over_plain_http_or_for_an_unconfigured_host"
+        }
+      ],
+      "residuals": [
+        "RR-G02-003",
+        "RR-G02-006",
+        "RR-G02-010"
+      ]
+    }
+  ],
+  "residuals": [
+    {
+      "id": "RR-G02-001",
+      "title": "Trusted deployers and load-time module code",
+      "statement": "Someone who can change packages or deployment configuration can defeat in-process controls (TH-G02-001, TH-G02-069). The deployment lock detects drift from the reviewed release, but module assemblies load before it is verified, so code that runs at load time is not stopped, and the lock binds manifests and listed files only, not the host's own assemblies.",
+      "controls": [
+        "TM-G02-001",
+        "TM-G02-011"
+      ],
+      "orders": [
+        "SEC-02"
+      ],
+      "owner": "OPS-009 and DEV-018 at G-08",
+      "tests": [],
+      "sources": [
+        "docs/security/threat-models/g02-foundation.md",
+        "src/Framework/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-002",
+      "title": "Composition switches and module disabling",
+      "statement": "Composition switches are not recorded in or checked against the lock (FND-001), and disabling a module with a report of its dependents, running work and retained data (FND-003) is not built. Under the restart model a selection that drops a required module is refused at composition.",
+      "controls": [
+        "TM-G02-001",
+        "TM-G02-002"
+      ],
+      "orders": [
+        "SEC-02"
+      ],
+      "owner": "No G-02 work order; DEV-005 tooling at G-06",
+      "tests": [],
+      "sources": [
+        "src/Framework/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-003",
+      "title": "Host, container and recovery evidence",
+      "statement": "The evidence for these controls runs in test hosts over real PostgreSQL and the filesystem provider. Evidence on the sample host and its container, including lifecycle, migration, key-ring and audit recovery, is CODE-10's and is not part of this map.",
+      "controls": [
+        "TM-G02-003",
+        "TM-G02-017",
+        "TM-G02-026",
+        "TM-G02-032",
+        "TM-G02-046",
+        "TM-G02-048",
+        "TM-G02-050",
+        "TM-G02-051",
+        "TM-G02-053",
+        "TM-G02-054",
+        "TM-G02-060"
+      ],
+      "orders": [
+        "SEC-02",
+        "SEC-03",
+        "SEC-04",
+        "SEC-06",
+        "SEC-07"
+      ],
+      "owner": "CODE-10 on CI-01",
+      "tests": [],
+      "sources": [
+        "src/Framework/README.md",
+        "docs/ci.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-004",
+      "title": "Extension properties are not built",
+      "statement": "No extension-property mechanism exists, so there is nothing for TM-G02-005 to govern and no test evidences it. A module that adds extension properties must arrive with their sensitivity and permission declarations and the tests of this control.",
+      "controls": [
+        "TM-G02-005"
+      ],
+      "orders": [
+        "SEC-02"
+      ],
+      "owner": "No G-02 work order (FND-005)",
+      "tests": [],
+      "sources": [
+        "src/Framework/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-005",
+      "title": "Request-time limits and declared-field paging",
+      "statement": "Request size, structure and header limits are enforced and tested, but whole-request time limits, JSON field lengths, and bounded paging, sorting and filtering on declared fields are partly built and not evidenced. The fixture endpoints bound their own pages.",
+      "controls": [
+        "TM-G02-009",
+        "TM-G02-021",
+        "TM-G02-029"
+      ],
+      "orders": [
+        "SEC-02",
+        "SEC-04",
+        "SEC-05"
+      ],
+      "owner": "CODE-06 with CODE-03",
+      "tests": [],
+      "sources": [
+        "src/Framework/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-006",
+      "title": "Refusals before the application pipeline",
+      "statement": "The host-filtering 400 for an unconfigured host and Kestrel's own refusals, such as 431, come before the application pipeline: they carry no problem body, no HSTS and no nosniff header, and a host without UseModularynApi answers ingress refusals with bare status codes. AC-004-N01 observes the bare 400, which reveals nothing.",
+      "controls": [
+        "TM-G02-006",
+        "TM-G02-010",
+        "TM-G02-060"
+      ],
+      "orders": [
+        "SEC-02",
+        "SEC-09",
+        "SEC-08"
+      ],
+      "owner": "No owner named",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N01_ForgedTenantAndOriginCandidatesAreRefused_Contract"
+        }
+      ],
+      "sources": [
+        "src/Framework/Modularyn.Framework.Ingress/IngressExtensions.cs"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-007",
+      "title": "Secrets in module code and release artifacts",
+      "statement": "Secret types keep secrets out of what the framework formats and logs, but cannot stop module code from logging a revealed value or placing one in an exception. That a secret setting accepts only replacement is not evidenced, release artifacts are not scanned for secrets, and a secret store's own startup refusal names the secret it could not read.",
+      "controls": [
+        "TM-G02-047"
+      ],
+      "orders": [
+        "SEC-02",
+        "SEC-07"
+      ],
+      "owner": "CODE-04; OPS-004 at G-08",
+      "tests": [],
+      "sources": [
+        "src/Framework/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-008",
+      "title": "Provider compatibility and settings reload",
+      "statement": "Typed configuration is validated before readiness, but provider compatibility, such as the PostgreSQL server version, is checked only by the test harness, and validation before an application or tenant settings reload takes effect is not built; deployment options take effect only at restart.",
+      "controls": [
+        "TM-G02-048"
+      ],
+      "orders": [
+        "SEC-02"
+      ],
+      "owner": "CODE-03 and CODE-04",
+      "tests": [],
+      "sources": [
+        "src/Framework/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-009",
+      "title": "Key ring at rest and key-management policy",
+      "statement": "The data-protection key ring is stored unencrypted in an owner-only directory, whose access control is its only protection. Application code can still register another key manager, add escrow sinks or turn off rotation after the declaration, the declaration keeps one store per options scope without removing them, and the separate backup of the ring is an untested operational procedure.",
+      "controls": [
+        "TM-G02-050"
+      ],
+      "orders": [
+        "SEC-02"
+      ],
+      "owner": "No G-02 work order; backup procedure at G-08",
+      "tests": [],
+      "sources": [
+        "src/Framework/Modularyn.Framework.Configuration/KeyRing.cs",
+        "01M5WQ3T48W3J06C52G7VTP72Q"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-010",
+      "title": "HSTS choices are not recorded with the release",
+      "statement": "HTTPS redirection and HSTS are emitted and tested, but the deployment's subdomain and preload choices are not recorded with the release.",
+      "controls": [
+        "TM-G02-060"
+      ],
+      "orders": [
+        "SEC-02"
+      ],
+      "owner": "No G-02 work order",
+      "tests": [],
+      "sources": [
+        "src/Framework/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-011",
+      "title": "Shared capacity and within-tenant availability",
+      "statement": "G-02 has no per-tenant quotas: request bounds and quota reservation limit single requests and one tenant's temporary storage, not its share of the host (TH-G02-070). Within a tenant, one member can hold every read slot or pending upload place; TenantCache has no size bound, and cache outage behaviour (AC-030) is outside G-02.",
+      "controls": [
+        "TM-G02-009",
+        "TM-G02-034",
+        "TM-G02-045"
+      ],
+      "orders": [
+        "SEC-02",
+        "SEC-04",
+        "SEC-06"
+      ],
+      "owner": "OPS-018 resource governance at G-08",
+      "tests": [],
+      "sources": [
+        "docs/security/threat-models/g02-foundation.md",
+        "src/Modules/Modularyn.Modules.Files.Persistence.FileSystem/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-012",
+      "title": "Weak passwords",
+      "statement": "Adaptive hashing raises the cost of guessing a stolen verifier but cannot protect a password that is easy to guess (TH-G02-072).",
+      "controls": [
+        "TM-G02-055"
+      ],
+      "orders": [
+        "SEC-03"
+      ],
+      "owner": "Accepted at G-02 qualification",
+      "tests": [],
+      "sources": [
+        "docs/security/threat-models/g02-foundation.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-013",
+      "title": "Throttling and sign-in availability",
+      "statement": "Delays and source blocking keep an attacker from locking an account indefinitely, but several sources acting together keep a targeted user's sign-in slowed for as long as they fail (TH-G02-076), and no operator alert exists. A reverse proxy that is not declared collapses its clients into one source, timing uniformity was measured on loopback only, and throttle rows accumulate until retention removes them.",
+      "controls": [
+        "TM-G02-015"
+      ],
+      "orders": [
+        "SEC-03"
+      ],
+      "owner": "No G-02 work order for an operator alert",
+      "tests": [],
+      "sources": [
+        "src/Modules/Modularyn.Modules.Identity.Application/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-014",
+      "title": "Key separation for seeds and passkeys",
+      "statement": "Encrypted one-time-password seeds and integrity-tagged passkey records stay protected only while their keys are held apart from the database; a compromise that reaches both exposes them (TH-G02-073, TH-G02-075).",
+      "controls": [
+        "TM-G02-056",
+        "TM-G02-058"
+      ],
+      "orders": [
+        "SEC-03"
+      ],
+      "owner": "Accepted at G-02 qualification; restore evidence with CODE-10 and OPS-004",
+      "tests": [],
+      "sources": [
+        "docs/security/threat-models/g02-foundation.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-015",
+      "title": "Credential journeys are G-03's",
+      "statement": "G-02 delivers the stored forms of one-time-password seeds, recovery codes and passkey records with their tests. Enrolment, verification, recovery and passkey registration and sign-in, and the limits on those codes at an entry point, are G-03's journeys.",
+      "controls": [
+        "TM-G02-015",
+        "TM-G02-056",
+        "TM-G02-057",
+        "TM-G02-058"
+      ],
+      "orders": [
+        "SEC-03"
+      ],
+      "owner": "G-03",
+      "tests": [],
+      "sources": [
+        "src/Modules/Modularyn.Modules.Identity.Application/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-016",
+      "title": "Administrator-issued delegation and impersonation",
+      "statement": "Delegation that the subject grants is built and tested; delegation or impersonation issued by an administrator is specified by no G-02 work order and is not built. Its existing evidence is ExecutionPrincipal's separation of actor and effective subject, with identity kind, which every decision and audit record uses; G-03 must build the journey on it.",
+      "controls": [
+        "TM-G02-018"
+      ],
+      "orders": [
+        "SEC-05",
+        "SEC-03"
+      ],
+      "owner": "G-03",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Security.Abstractions.Tests/Modularyn.Framework.Security.Abstractions.Tests.csproj",
+          "name": "Modularyn.Framework.Security.Abstractions.Tests.ExecutionPrincipalTests.TM_G02_018_Actor_subject_and_identity_kind_distinguish_users_delegates_and_services"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Security.Abstractions.Tests/Modularyn.Framework.Security.Abstractions.Tests.csproj",
+          "name": "Modularyn.Framework.Security.Abstractions.Tests.ExecutionPrincipalTests.TM_G02_018_A_delegation_ceiling_covers_only_its_scope_tenant_and_window"
+        }
+      ],
+      "sources": [
+        "01M61ZDHV2CR5985C0PQ1AJG8C",
+        "src/Framework/Modularyn.Framework.Security.Abstractions/ExecutionPrincipal.cs"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-017",
+      "title": "Client credential providers",
+      "statement": "The origin-bound credential provider is built and tested; generated and dynamic clients that ask it for every request and refuse redirects off its origin are not driven end to end, and no upload can be client-visible until clients model an upload's body.",
+      "controls": [
+        "TM-G02-013"
+      ],
+      "orders": [
+        "SEC-03",
+        "SEC-09"
+      ],
+      "owner": "CODE-06; G-03 for token issuance",
+      "tests": [],
+      "sources": [
+        "src/Framework/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-018",
+      "title": "Freshness window",
+      "statement": "Within the declared freshness bound a revoked grant or session can still act (TH-G02-020, TH-G02-040): under the bounded profile another process sees a change only within the bound. Security-sensitive permissions are decided at the current profile.",
+      "controls": [
+        "TM-G02-017",
+        "TM-G02-033"
+      ],
+      "orders": [
+        "SEC-05"
+      ],
+      "owner": "Accepted at G-02 qualification",
+      "tests": [],
+      "sources": [
+        "docs/security/threat-models/g02-foundation.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-019",
+      "title": "Module code is trusted in process",
+      "statement": "Module code runs in process with the host's authority. Code that opens the connection itself can run any SQL past every filter, reflection can build the adapter's markers and internal constructors, and owner-bound rules rest on a source check. Server code that builds a session-scheme claims principal can establish a member context for any member; since SEC-08 it gives a service identity no authority there. The query guard depends on EF Core 10.0.14's query shapes.",
+      "controls": [
+        "TM-G02-004",
+        "TM-G02-025",
+        "TM-G02-028",
+        "TM-G02-029",
+        "TM-G02-030"
+      ],
+      "orders": [
+        "SEC-03",
+        "SEC-04",
+        "SEC-05",
+        "SEC-08"
+      ],
+      "owner": "None: the module trust model; every EF Core upgrade reruns the query-guard tests",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N03_HostAndWorkerAuthorityCannotComeFromPayloads_Isolation"
+        }
+      ],
+      "sources": [
+        "src/Framework/Modularyn.Framework.Persistence.EfCore/README.md",
+        "src/Framework/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-020",
+      "title": "What a host operation reached",
+      "statement": "The framework audits each host scope's grant, with its actor, operation and reason, and each cross-tenant read with its entity and grant, before the access. Which tenants an operation affected is recorded only if the operation's module records it, as the AC-004-N03 fixture does. Including tenant navigations from a host scope is untested, and a tenant's invalidation does not reach host-scope entries that aggregate it, which their staleness bound limits.",
+      "controls": [
+        "TM-G02-028",
+        "TM-G02-033"
+      ],
+      "orders": [
+        "SEC-04",
+        "SEC-08"
+      ],
+      "owner": "No owner named",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N03_HostAndWorkerAuthorityCannotComeFromPayloads_Isolation"
+        }
+      ],
+      "sources": [
+        "src/Framework/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-021",
+      "title": "The principal inside authorized work",
+      "statement": "AuthorizedWorkRunner decides for the principal its caller passes, but the work runs in a new scope whose principal accessor holds nothing, so module code that resolves the accessor there sees no principal and is refused, and a step must pass the principal it was given. The Authorization README does not yet say so.",
+      "controls": [
+        "TM-G02-019",
+        "TM-G02-023"
+      ],
+      "orders": [
+        "SEC-05"
+      ],
+      "owner": "No owner named",
+      "tests": [],
+      "sources": [
+        "src/Framework/Modularyn.Framework.Authorization/AuthorizedWork.cs"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-022",
+      "title": "Member invitations are G-03's",
+      "statement": "Tenant administrators cannot add members until G-03's invitation flow; memberships change only through identity's audited host operations, and G-03 must lead from a tenant-level decision to that write without implicit host scope.",
+      "controls": [
+        "TM-G02-025",
+        "TM-G02-028"
+      ],
+      "orders": [
+        "SEC-05"
+      ],
+      "owner": "G-03",
+      "tests": [],
+      "sources": [
+        "src/Framework/Modularyn.Framework.Authorization/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-023",
+      "title": "Entitlements and plans are G-03's",
+      "statement": "Permissions, settings, features and composition are kept separate and tested; entitlements and plans do not exist until G-03, where they attach at the feature gate.",
+      "controls": [
+        "TM-G02-024"
+      ],
+      "orders": [
+        "SEC-05"
+      ],
+      "owner": "G-03",
+      "tests": [],
+      "sources": [
+        "src/Framework/Modularyn.Framework.Authorization/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-024",
+      "title": "Data at rest",
+      "statement": "Content encryption under FND-031 is not enabled, so file content, records and audit rows are stored unencrypted, and the slice relies on host and database access controls: a host or database compromise exposes Confidential and Restricted data.",
+      "controls": [
+        "TM-G02-043",
+        "TM-G02-046",
+        "TM-G02-052"
+      ],
+      "orders": [
+        "SEC-06"
+      ],
+      "owner": "A later work order (FND-031), as the operator decided",
+      "tests": [],
+      "sources": [
+        "01M6C934WFAQXCTWT9D0HS40KD",
+        "docs/security/threat-models/g02-foundation.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-025",
+      "title": "Scanner limits",
+      "statement": "Files has no content scanner: release runs the deployment's policy, and the opt-in allowlist policy makes no file safe, since a released document can still carry an exploit or script. Detection recognizes known patterns, so novel content can pass (TH-G02-049).",
+      "controls": [
+        "TM-G02-042"
+      ],
+      "orders": [
+        "SEC-06",
+        "SEC-09"
+      ],
+      "owner": "Accepted at G-02 qualification; each deployment's release policy",
+      "tests": [],
+      "sources": [
+        "src/Modules/Modularyn.Modules.Files.Persistence.FileSystem/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-026",
+      "title": "Already delivered data",
+      "statement": "Revocation stops new access through the gateway but cannot recall files or responses already delivered.",
+      "controls": [
+        "TM-G02-044"
+      ],
+      "orders": [
+        "SEC-06"
+      ],
+      "owner": "Accepted at G-02 qualification",
+      "tests": [],
+      "sources": [
+        "docs/security/threat-models/g02-foundation.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-027",
+      "title": "No anonymous file delivery",
+      "statement": "Every download needs a signed-in session, as the operator decided for G-02; the bounded-bearer profile for public files is gate W's.",
+      "controls": [
+        "TM-G02-044"
+      ],
+      "orders": [
+        "SEC-06"
+      ],
+      "owner": "Gate W",
+      "tests": [],
+      "sources": [
+        "src/Modules/Modularyn.Modules.Files.Persistence.FileSystem/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-028",
+      "title": "Files edge cases",
+      "statement": "Under invariant globalization a file name is checked as given, without normalization; active grants per tenant are not capped; one spare-bits token case is not exercised by its test; and scheduled recovery waits on the job runtime.",
+      "controls": [
+        "TM-G02-043",
+        "TM-G02-044",
+        "TM-G02-045"
+      ],
+      "orders": [
+        "SEC-06"
+      ],
+      "owner": "No owner named; CODE-05 for scheduled recovery",
+      "tests": [],
+      "sources": [
+        "src/Modules/Modularyn.Modules.Files.Persistence.FileSystem/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-029",
+      "title": "Audit integrity",
+      "statement": "Append-only is enforced by the persistence adapter, not by the database, so a database administrator or the schema owner can alter or delete audit rows, and no tamper evidence is claimed (TH-G02-060).",
+      "controls": [
+        "TM-G02-051",
+        "TM-G02-052"
+      ],
+      "orders": [
+        "SEC-07"
+      ],
+      "owner": "Accepted at G-02 qualification",
+      "tests": [],
+      "sources": [
+        "src/Framework/Modularyn.Framework.Audit/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-030",
+      "title": "A sealed reference does not bind its row's payload, kind or state",
+      "statement": "The seal binds a stored reference to its row's identity and its store's purpose. A writer with direct database access can therefore requeue a row, or change its payload or kind, and it runs again under the same reference. AC-004-N03 shows each such run stays in the producer's revalidated tenant and within its current authority, and stops once that authority is revoked.",
+      "controls": [
+        "TM-G02-027",
+        "TM-G02-039",
+        "TM-G02-041"
+      ],
+      "orders": [
+        "SEC-07",
+        "SEC-08"
+      ],
+      "owner": "The operator's decision (see the control map README)",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N03_HostAndWorkerAuthorityCannotComeFromPayloads_Integration"
+        }
+      ],
+      "sources": [
+        "01M6CW0KAW23WTVS1KVRNHBDVV"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-031",
+      "title": "Scrubber and payload rule limits",
+      "statement": "The scrubber and the payload rule recognize secret forms, now including a secret reference, behind the allowlisted-fields rule; a password or a secret's value that a module logs or places in a payload has no recognizable form and is not caught. Nothing yet runs quarantined-payload redaction or receipt pruning on its own.",
+      "controls": [
+        "TM-G02-036",
+        "TM-G02-039",
+        "TM-G02-053"
+      ],
+      "orders": [
+        "SEC-07"
+      ],
+      "owner": "No owner named; a maintenance runner later",
+      "tests": [],
+      "sources": [
+        "src/Framework/Modularyn.Framework.Audit/README.md",
+        "src/Framework/Modularyn.Framework.Observability/SecretForms.cs"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-032",
+      "title": "No operator endpoints for audit, diagnostics and lag",
+      "statement": "Audit and diagnostics reads are authorized and tested as services, but no HTTP endpoint exposes them, and durable work's lag is not exposed to operators.",
+      "controls": [
+        "TM-G02-037",
+        "TM-G02-052",
+        "TM-G02-054"
+      ],
+      "orders": [
+        "SEC-07"
+      ],
+      "owner": "A later API order under CODE-06's inventory",
+      "tests": [],
+      "sources": [
+        "src/Framework/Modularyn.Framework.Audit/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-033",
+      "title": "Access records precede the access",
+      "statement": "Records of access, such as a host-scope grant, a filter bypass or an audit read, are written in their own transaction before the access, so a record can exist for an access that then failed; a soft-deleted read in a named deployment scope is not recorded.",
+      "controls": [
+        "TM-G02-029",
+        "TM-G02-051"
+      ],
+      "orders": [
+        "SEC-07"
+      ],
+      "owner": "Accepted design",
+      "tests": [],
+      "sources": [
+        "src/Framework/Modularyn.Framework.Audit/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-034",
+      "title": "Durable work needs the declared key ring",
+      "statement": "A host must declare SEC-02's key ring for any durable work, or no reference is stored and work defers; references of format 1 are no longer read, which is safe only because nothing has been released.",
+      "controls": [
+        "TM-G02-027",
+        "TM-G02-050"
+      ],
+      "orders": [
+        "SEC-07"
+      ],
+      "owner": "Deployment requirement",
+      "tests": [],
+      "sources": [
+        "src/Framework/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-035",
+      "title": "Correlation without the API conventions",
+      "statement": "A host without UseModularynApi decides correlation after the ingress and so adopts no declared proxy's trace context.",
+      "controls": [
+        "TM-G02-053"
+      ],
+      "orders": [
+        "SEC-07"
+      ],
+      "owner": "Documented limitation",
+      "tests": [],
+      "sources": [
+        "src/Framework/Modularyn.Framework.Api/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-036",
+      "title": "Composition roots outside the samples",
+      "statement": "DEP014 gives sample hosts a composition-root role, and DEP015 refuses references between test projects; a composition-root role for applications built on Modularyn outside the samples is left to a later order.",
+      "controls": [
+        "TM-G02-004"
+      ],
+      "orders": [
+        "SEC-09"
+      ],
+      "owner": "A later work order, as the operator decided",
+      "tests": [],
+      "sources": [
+        "docs/architecture/dependencies.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-037",
+      "title": "Sign-in posts JSON",
+      "statement": "Identity's sign-in endpoint accepts JSON only, so a sample's sign-in page posts with a small same-origin script that fetches its antiforgery token, not with a plain HTML form.",
+      "controls": [
+        "TM-G02-007"
+      ],
+      "orders": [
+        "SEC-09"
+      ],
+      "owner": "No owner named",
+      "tests": [],
+      "sources": [
+        "src/Modules/Modularyn.Modules.Identity.Application/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-038",
+      "title": "Evidence on fixture endpoints rather than every shipped surface",
+      "statement": "Safe methods that change nothing, strict input contracts, conflict responses and browser cross-site behaviour are evidenced on the fixture modules' declared endpoints, through a verified browser, not on every shipped endpoint or the sample's pages; no G-02 interface renders permission-dependent controls, and the AC-002 and AC-012 acceptance families have no tests here.",
+      "controls": [
+        "TM-G02-007",
+        "TM-G02-008",
+        "TM-G02-016",
+        "TM-G02-019",
+        "TM-G02-023",
+        "TM-G02-030",
+        "TM-G02-059"
+      ],
+      "orders": [
+        "SEC-02",
+        "SEC-03",
+        "SEC-05"
+      ],
+      "owner": "CODE-06 and CODE-09; the AC-002 and AC-012 families outside the G-02 plan",
+      "tests": [],
+      "sources": [
+        "docs/evidence/g02-plan.json"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-039",
+      "title": "Contract evolution against the previous release",
+      "statement": "Breaking changes are detected against the committed baseline; no comparison with the previous release's contract, consumer migration gate or detection of meaning-only changes exists.",
+      "controls": [
+        "TM-G02-012"
+      ],
+      "orders": [],
+      "owner": "CODE-06",
+      "tests": [],
+      "sources": [
+        "src/Framework/Modularyn.Framework.Api.Contracts/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-040",
+      "title": "No tenant-configurable declaration for settings",
+      "statement": "Deployment options are separate from settings and cannot be overridden by a tenant, which AC-003-N03 shows; but a setting has no declaration that it is tenant-configurable, so a tenant holding the management permission can override any declared setting.",
+      "controls": [
+        "TM-G02-049"
+      ],
+      "orders": [
+        "SEC-02"
+      ],
+      "owner": "CODE-04",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_N03_SettingsAndFeaturesCannotSupplyAuthority_Contract"
+        }
+      ],
+      "sources": [
+        "src/Framework/Modularyn.Framework.Settings/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-041",
+      "title": "Idempotent external effects from events",
+      "statement": "Consumers deduplicate and order delivery, and API mutations take idempotency keys; no G-02 event handler performs an external effect, so idempotency keys for such effects are unevidenced.",
+      "controls": [
+        "TM-G02-036"
+      ],
+      "orders": [],
+      "owner": "The first module with an external effect",
+      "tests": [],
+      "sources": [
+        "src/Framework/README.md"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-042",
+      "title": "Client-visible values have no audience",
+      "statement": "A value is client-visible to every member of its tenant or to none. A value visible only to an administrator is a user-scope override, as AC-004-B02 prepares it, or a value served through an authorized endpoint.",
+      "controls": [
+        "TM-G02-014"
+      ],
+      "orders": [
+        "SEC-08"
+      ],
+      "owner": "No owner named",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_B02_CacheAndUniqueKeysKeepEveryScopeDimension_Integration"
+        }
+      ],
+      "sources": [
+        "src/Framework/Modularyn.Framework.Api/BootstrapReader.cs"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-043",
+      "title": "Return addresses may name any configured origin",
+      "statement": "Sign-in accepts a local path or any configured public origin as its return address, another tenant's domain included; the request that follows is resolved and refused there like any other, and no Host or forwarded value is ever used.",
+      "controls": [
+        "TM-G02-006"
+      ],
+      "orders": [
+        "SEC-08"
+      ],
+      "owner": "Accepted design",
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.G02AC004Tests.AC_004_N01_ForgedTenantAndOriginCandidatesAreRefused_Isolation"
+        }
+      ],
+      "sources": [
+        "src/Framework/Modularyn.Framework.Ingress/PublicOrigins.cs"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-044",
+      "title": "Test browser and package provenance",
+      "statement": "The pinned Chrome Headless Shell archives' SHA-256 values rest on Playwright's CDN and Google serving identical bytes, since neither publishes a hash, and their third-party licenses were not reviewed one by one. On the review machine, dotnet nuget verify failed the timestamp chains of Microsoft.Playwright's countersignature and of System.ComponentModel.Annotations 5.0.0 (NU3028, NU3037); the register relies on the catalog's SHA-512, which matches.",
+      "controls": [],
+      "orders": [
+        "SEC-08"
+      ],
+      "owner": "No owner named; supports AC-003-N02",
+      "tests": [],
+      "sources": [
+        "docs/dependencies/README.md",
+        ".github/browsers.json"
+      ],
+      "acceptance": "pending"
+    },
+    {
+      "id": "RR-G02-045",
+      "title": "Personal data has no recognized form",
+      "statement": "Personal data outside the recognized secret forms is not recognized by redaction or by the payload rule; only producers' choice of references keeps it out, and a per-kind privacy classification needs a manifest or contract change.",
+      "controls": [
+        "TM-G02-039",
+        "TM-G02-053"
+      ],
+      "orders": [
+        "SEC-07"
+      ],
+      "owner": "A later manifest or contract change",
+      "tests": [],
+      "sources": [
+        "src/Framework/Modularyn.Framework.Audit/README.md"
+      ],
+      "acceptance": "pending"
+    }
+  ]
+}

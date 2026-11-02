@@ -164,7 +164,9 @@ its test fails, is recorded with the test.
   permission or the read's own record fails the second. Remaining: refusal in the
   database itself, which needs a migration operation outside the adapter's closed
   vocabulary (CODE-03's ownership contract) or a separate database role
-  (operational, G-08); adversarial evidence for AC-012 (SEC-08).
+  (operational, G-08); AC-012's acceptance tests, which the G-02 evidence plan
+  does not schedule (`RR-G02-029` and `RR-G02-038` in
+  [the control map](../../../docs/security/control-map/README.md)).
 - **TM-G02-053, implemented for audit, payloads and diagnostics.** No record holds a
   secret form, and the payload rule and diagnostics views keep payloads out of
   history and dead letters. Tests:

@@ -175,7 +175,10 @@ refuses with the transient `MAZ008` and logs event 8300. An interactive user's
 authority is its effective subject's, which is the delegation's subject under a
 delegation. A service identity acts for the producer of propagated work, the user
 that the revalidated context names, within its own scope, or as itself in a
-context it is the actor of, with exactly its scope.
+context it is the actor of, with exactly its scope. A context that names a user
+for any other reason, such as a request resolved from claims that server code
+built, gives a service identity no subject, and it is refused with `MAZ009`
+(SEC-08, `G02AC004Tests.AC_004_N03_HostAndWorkerAuthorityCannotComeFromPayloads_Isolation`).
 
 The stored propagated reference therefore decides whose authority a worker
 exercises. Only server code may produce one, with
@@ -186,7 +189,10 @@ opens it only under that seal and binding (`AuthorizedWorkRunner.RunAsync(princi
 propagated, binding, permission, work)`), so a reference not captured by its
 store, altered or copied to another row is denied before any decision (SEC-07).
 A reference can still run more than once on its own row, each run decided afresh
-at the current profile; the adversarial cases are SEC-08's.
+at the current profile; SEC-08's adversarial cases show such a run stays in its
+producer's tenant and current authority (`Framework.Tenancy.Tests`
+`G02AC004Tests.AC_004_N03_*`; `RR-G02-030` in
+[the control map](../../../docs/security/control-map/README.md)).
 
 `VisibleAsync` answers which resources of one type the subject may see for a
 permission, for lists, counts, previews and exports: those it owns and those it
@@ -329,7 +335,8 @@ authorization, settings and an items fixture module, and those named
 The others are unit tests. Only the request's authentication, in the tests that
 do not sign in through identity, and SEC-07's audit are test doubles here;
 `Framework.Audit.Tests` exercises the real audit store with the real
-authorization. SEC-08 maps every control to its evidence.
+authorization. SEC-08 maps every control to its evidence and its residual risks
+in [the control map](../../../docs/security/control-map/README.md).
 
 - **TM-G02-019, partly.** Delivered: module-declared stable permission
   identifiers; deny by default; one evaluator behind every entry point, HTTP,
@@ -341,8 +348,12 @@ authorization. SEC-08 maps every control to its evidence.
   `AdministrationTests.TM_G02_019_*`. Remaining: the declared endpoint inventory,
   which requires a declaration on every endpoint and refuses anonymous access by
   omission (CODE-06, with TM-G02-011); the durable job, event and file handlers
-  running through `AuthorizedWorkRunner` (CODE-05, CODE-07); adversarial
-  evidence (SEC-08).
+  running through `AuthorizedWorkRunner` (CODE-05, CODE-07). Adversarial
+  evidence: settings, features and composition supplying no authority, and a
+  worker's service identity adding none to its producer's (SEC-08;
+  `G02AC003Tests.AC_003_N03_*` and `Framework.Tenancy.Tests`
+  `G02AC004Tests.AC_004_N03_*`). A step inside `AuthorizedWorkRunner` must pass the
+  principal it was given (`RR-G02-021`).
 - **TM-G02-020, partly.** Delivered: the resource resolved by its module within
   the effective tenant, then authorized for its tenant, its owner or a current
   grant, read from the store at every decision, and refused as missing. Tests:
@@ -350,16 +361,19 @@ authorization. SEC-08 maps every control to its evidence.
   `G02AC003Tests.AC_003_P01_*_Isolation`. Files adopts it for every file action
   and download grant, its creator as the owner and a refused file answered as
   missing (SEC-06; `Modules.Files.Application.Tests` `FileAuthorizationTests`
-  and `DownloadGrantTests`). Remaining: adversarial evidence for AC-003-N01 and
-  AC-004 (SEC-08).
+  and `DownloadGrantTests`). Adversarial evidence: another member's and another
+  tenant's resources refused as missing, through the API and the stores (SEC-08;
+  `G02AC003Tests.AC_003_N01_*` and `Framework.Tenancy.Tests`
+  `G02AC004Tests.AC_004_N02_*`).
 - **TM-G02-021, partly.** Delivered: `ResourceVisibility` composed into list,
   count and export queries as parameters, so hidden rows affect neither content
   nor totals, and nothing visible when the decision refuses. Tests:
   `AuthorityTests.TM_G02_021_*` and `G02AC003Tests.AC_003_B01_*`. File lists
   compose it into their query (SEC-06; `Modules.Files.Application.Tests`
   `FileAuthorizationTests.TM_G02_044_*`). Remaining: bounded paging, sorting and
-  filtering on declared fields (CODE-06); adversarial evidence for AC-003-N01
-  (SEC-08).
+  filtering on declared fields (CODE-06; `RR-G02-005`). Adversarial evidence:
+  hidden rows absent from content, counts and exports, with the executed SQL
+  (SEC-08; `G02AC003Tests.AC_003_N01_*`).
 - **TM-G02-022, partly.** Delivered: assignment ceilings, so no grant, role or
   share reaches beyond what the grantor holds within its ceiling; every change
   checked against the grantor's authority read under the tenant's lock in the
@@ -368,7 +382,8 @@ authorization. SEC-08 maps every control to its evidence.
   Tests: `AuthorityTests.TM_G02_022_*`. Each change is recorded in its own
   transaction, and a change whose record cannot be written changes nothing
   (SEC-07; `Framework.Audit.Tests` `AuthorityAuditTests.TM_G02_051_*`).
-  Remaining: adversarial evidence for AC-003-N02 (SEC-08).
+  Adversarial evidence: a grant beyond the grantor's ceiling refused, by the API
+  and through a verified browser (SEC-08; `G02AC003Tests.AC_003_N02_*`).
 - **TM-G02-023, partly.** Delivered: explicit entry points that wrap the
   endpoint, the worker and the use case, in the order stated under Entry points;
   the startup report of endpoints that rely on interception alone or declare
@@ -386,7 +401,8 @@ authorization. SEC-08 maps every control to its evidence.
   `AuthorityTests.TM_G02_024_*` and `Framework.Settings.Tests`
   `ManagementTests.TM_G02_024_*`. Remaining: entitlements and plans, which
   attach at the feature gate (G-03); an excluded module's endpoints absent from
-  the declared inventory (CODE-06); AC-003-N03's evidence (SEC-08).
+  the declared inventory (CODE-06). Adversarial evidence (SEC-08;
+  `G02AC003Tests.AC_003_N03_*`).
 
 Carried into SEC-05 from other boundaries:
 
@@ -415,13 +431,15 @@ Carried into SEC-05 from other boundaries:
   `Identity.Persistence.EfCore.Tests` `CredentialStoreTests.TM_G02_028_*`.
   Each tenant owner and host-authority change is recorded in its own
   transaction (SEC-07; `Framework.Audit.Tests` `AuthorityAuditTests.TM_G02_051_*`).
-  Remaining: adversarial evidence for AC-004-N03 (SEC-08).
+  Adversarial evidence: a tenant owner refused host scope, plainly and with
+  markers, and host-1's operation granted and audited (SEC-08;
+  `Framework.Tenancy.Tests` `G02AC004Tests.AC_004_N03_*`).
 - **TM-G02-033, SEC-05's part.** Delivered: authority cached only under
   principal-scoped entries, invalidated on every change; host-scope entries
   keyed by their grant's operation and invalidated with it. Tests:
   `DecisionTests.TM_G02_033_*` and `Framework.Tenancy.Tests`
-  `TenantCacheTests.TM_G02_033_*`. Remaining: adversarial evidence for AC-004-B02
-  (SEC-08).
+  `TenantCacheTests.TM_G02_033_*`. Adversarial evidence (SEC-08;
+  `Framework.Tenancy.Tests` `G02AC004Tests.AC_004_B02_*`).
 - **TM-G02-002 and TM-G02-048.** Permission and host-operation definitions must
   match the composed manifests before activation, and the options validate
   before startup. Tests: `DecisionTests` (`TM_G02_002_*`, `TM_G02_048_*`).
@@ -438,9 +456,15 @@ in batches that stops at its next check after its permission is revoked, and
 the job queued for the remainder refused when it revalidates its producer, in
 another tenant's interleaved work and after a restart; AC-003-R02, decisions
 that follow the current grants during a cache outage, after it and after a
-restart. The advertised .NET and TypeScript clients are CODE-06's. A test clock
+restart. SEC-08 added the eight AC-003 negative methods: N01, a resource another
+member owns refused as missing and server fields protected; N02, cross-site,
+ended-session and over-ceiling calls refused, through the API and through Chrome
+Headless Shell from the archive `.github/browsers.json` pins by SHA-256; N03,
+settings, features and composition supplying no authority. The advertised .NET
+and TypeScript clients are CODE-06's. A test clock
 moves time explicitly, so the boundaries are decided at the instants the tests
 name.
 
-These tests do not establish container, host or browser evidence, and test
-source does not establish execution results.
+These tests do not establish container or host evidence, and test source does
+not establish execution results. The browser method runs in the real-provider job
+and is skipped, never passed, where no verified archive is present.
