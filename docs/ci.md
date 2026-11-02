@@ -199,7 +199,9 @@ required check is added; the required checks remain six.
 
 All security dependencies in the current plan remain unmet and cannot be cleared
 by this functional assembler. Even all-passing methods therefore yield blocked
-records. Container AC-008 is additionally blocked by the absence of Node.js;
+records. Container AC-008 is additionally blocked because the pinned Node.js is
+not in the fixture image, though the image does carry the Node.js runtime that
+Playwright's driver bundles, off `PATH` and not the pinned release;
 AC-003-N02 is blocked by its unavailable browser method, while its API and
 integration methods still run. Missing, skipped or unexecuted planned tests
 always block their cases. AC-003-B01, AC-003-N01 and AC-003-P01 state their advertised-client

@@ -297,7 +297,10 @@ public sealed partial class EvidenceBundleTests
             run.ChangeReport(path, report => report["rows"] = new JsonArray([.. report["rows"]!.AsArray()
                 .Where(row => !unsupported.Contains(Str(row!["name"]))).Select(row => row!.DeepClone())]));
         run.Assemble();
-        Assert.Contains(run.Record("AC-008-P01")["knownLimitations"]!.AsArray(), text => Str(text)!.Contains("Node.js", StringComparison.Ordinal));
+        // The records' reason, in the words that the evidence instructions and the CI description use.
+        const string node = "the pinned Node.js is not in the fixture image";
+        Assert.Contains(run.Record("AC-008-P01")["knownLimitations"]!.AsArray(), text => Str(text)!.Contains(node, StringComparison.Ordinal));
+        Assert.All(new[] { "docs/evidence/README.md", "docs/ci.md" }, path => Assert.Contains(node, Regex.Replace(Files[path], @"\s+", " "), StringComparison.Ordinal));
         Assert.Contains(run.Record("AC-003-N02")["knownLimitations"]!.AsArray(), text => Str(text)!.Contains("browser", StringComparison.Ordinal));
     }
 
