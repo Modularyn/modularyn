@@ -59,6 +59,10 @@ public sealed class EvidencePipelineTests
     [InlineData("timeout --kill-after=30s \"${bound}\" ")]
     [InlineData(" -longRunning 60")]
     [InlineData(" 2>&1 | long_running")]
+    [InlineData("awk -f .github/scripts/g02-project-output.awk")]
+    [InlineData("/ \\[OUTPUT\\] / || /\\[D::/ { next }")]
+    [InlineData(" || /^ *Output:$/")]
+    [InlineData("/ \\[FAIL\\]$/ { print; failing = 1; fflush(); next }")]
     [InlineData("grep --line-buffered -oE \"\\[Long Running Test\\] '[^']*', Elapsed: [0-9:]+|\\[OUTPUT\\] G02 phase: [a-z0-9-]+$\" || true")]
     [InlineData("|\\[OUTPUT\\] G02 phase: [a-z0-9-]+$")]
     [InlineData(" -showLiveOutput")]
@@ -222,7 +226,7 @@ internal static class EvidencePipelineContract
             if (!lines.Contains(Bound) || !lines.Contains(LongRunning) || runs.Count == 0
                 || runs.Any(run => !run.Line.StartsWith(BoundedRun + "docker run ", StringComparison.Ordinal)
                     || !run.Line.Contains(" -longRunning 60 ", StringComparison.Ordinal)
-                    || !Regex.IsMatch(run.Line, @" 2>&1 \| long_running \|\| (?:run|status)=\$\?\z", RegexOptions.CultureInvariant)
+                    || !Regex.IsMatch(run.Line, @" 2>&1 \| (?:long_running|awk -f \.github/scripts/g02-project-output\.awk) \|\| (?:run|status)=\$\?\z", RegexOptions.CultureInvariant)
                     || !Stops(path, lines, run.Line, run.Index, script)))
                 yield return $"{path}: every container test run must run under timeout within {Bound}, by name, with -longRunning 60, show only "
                     + "its long-running-test lines, and stop its container and fail the step naming the run when it exceeds the bound.";
@@ -244,7 +248,28 @@ internal static class EvidencePipelineContract
             || !files.GetValueOrDefault(PhaseTestPath, "").Contains("internal const string PhasePrefix = \"G02 phase: \";", StringComparison.Ordinal))
             yield return $"{ContainerResultsScriptPath}: each project must run with -showLiveOutput, of which only {PhaseTestPath}'s "
                 + "\"G02 phase: \" markers and the long-running-test lines are shown.";
+
+        // A project run's failures show as the real-provider job's do: each [FAIL] line with its message and stack trace, and the
+        // run's summary, never a test's output, through ProjectOutputPath's fixed program.
+        var program = files.GetValueOrDefault(ProjectOutputPath, "").Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n')
+            .Where(line => line.Length > 0 && !line.StartsWith('#'));
+        if (project < 0 || !results[project..].Split('\n')[0].EndsWith(" 2>&1 | awk -f " + ProjectOutputPath + " || run=$?", StringComparison.Ordinal)
+            || !program.SequenceEqual(ProjectOutput))
+            yield return $"{ContainerResultsScriptPath}: each project run's output must pass through {ProjectOutputPath}, which shows only the "
+                + "long-running lines, the phase markers, each failure's message and stack trace, and the summary.";
     }
+
+    internal const string ProjectOutputPath = ".github/scripts/g02-project-output.awk";
+    private static readonly string[] ProjectOutput =
+    [
+        "match($0, /\\[Long Running Test\\] '[^']*', Elapsed: [0-9:]+/) { print substr($0, RSTART, RLENGTH); fflush(); next }",
+        "match($0, /\\[OUTPUT\\] G02 phase: [a-z0-9-]+$/) { print substr($0, RSTART, RLENGTH); fflush(); next }",
+        "/ \\[OUTPUT\\] / || /\\[D::/ { next }",
+        "/ \\[FAIL\\]$/ { print; failing = 1; fflush(); next }",
+        "/ \\[(PASS|SKIP|NOT RUN)\\]$/ || /^ *Output:$/ || /^  (Discovering|Discovered|Starting|Finished):/ || /^=== / { failing = 0; next }",
+        "/^ +[^ ].*  Total: [0-9]+, Errors: [0-9]+, Failed: [0-9]+, Skipped: [0-9]+, Not Run: [0-9]+, Time: / { print; failing = 0; fflush(); next }",
+        "failing { print; fflush() }"
+    ];
 
     // The line after a run stops it at its bound: through bounded, with the run's own name, or for the composition rows inline.
     private static bool Stops(string path, List<string> lines, string run, int index, string script)

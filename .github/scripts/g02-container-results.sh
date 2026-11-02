@@ -19,7 +19,7 @@ bound=300
 export MODULARYN_EVIDENCE_DIR="${evidence}" MODULARYN_EVIDENCE_MODE=single-host-container
 remove_raw() { rm -f "${output}/"*.raw.json "${output}/"*.methods; }
 trap remove_raw EXIT
-# Of a run's output, only xunit's long-running-test lines, a test's name and its elapsed time, and the live phase markers that
+# Of the measurement's output, only xunit's long-running-test lines, a test's name and its elapsed time, and the live phase markers that
 # AC-003-N02's integration row writes, the fixed prefix and a phase name.
 long_running() { grep --line-buffered -oE "\[Long Running Test\] '[^']*', Elapsed: [0-9:]+|\[OUTPUT\] G02 phase: [a-z0-9-]+$" || true; }
 # timeout ends a run past its bound with 124, or 137 once it has to kill the docker client; the container is then stopped too.
@@ -74,7 +74,7 @@ while IFS= read -r project; do
     run=0
     watch_run "g02-${name}" &
     watcher=$!
-    timeout --kill-after=30s "${bound}" docker run --rm --pull=never --platform=linux/amd64 --name="g02-${name}" --network="container:${POSTGRES_CONTAINER}" --read-only --tmpfs=/tmp --cap-drop=ALL --security-opt=no-new-privileges --group-add="${group}" --volume="${output}:/output" --env=MODULARYN_TEST_POSTGRESQL --entrypoint=dotnet "${COMPOSITION_IMAGE}" "/app/projects/${name}/${name}.dll" -noLogo -noColor -preEnumerateTheories -failSkips -longRunning 60 -showLiveOutput "${selected[@]}" -result-ctrf "/output/${name}.raw.json" 2>&1 | long_running || run=$?
+    timeout --kill-after=30s "${bound}" docker run --rm --pull=never --platform=linux/amd64 --name="g02-${name}" --network="container:${POSTGRES_CONTAINER}" --read-only --tmpfs=/tmp --cap-drop=ALL --security-opt=no-new-privileges --group-add="${group}" --volume="${output}:/output" --env=MODULARYN_TEST_POSTGRESQL --entrypoint=dotnet "${COMPOSITION_IMAGE}" "/app/projects/${name}/${name}.dll" -noLogo -noColor -preEnumerateTheories -failSkips -longRunning 60 -showLiveOutput "${selected[@]}" -result-ctrf "/output/${name}.raw.json" 2>&1 | awk -f .github/scripts/g02-project-output.awk || run=$?
     # A run that ends in time stops its watcher's sleep, which under set -e ends the watcher before it prints, and the watcher.
     pkill -P "${watcher}" 2> /dev/null || true
     kill "${watcher}" 2> /dev/null || true
