@@ -15,6 +15,17 @@ public sealed class G02AC009Tests
     private const long Maximum = 1024;
     private static CancellationToken Cancellation => FilesHost.Cancellation;
 
+    /// <summary>Waits until running work gives its signal. If the work ends first, its own failure fails the test, and a signal
+    /// that never comes fails it after two minutes, where each step takes milliseconds: neither waits forever.</summary>
+    private static async Task SignalledAsync(Task signal, Task work)
+    {
+        if (await Task.WhenAny(signal, work).WaitAsync(TimeSpan.FromMinutes(2), Cancellation) == work && !signal.IsCompleted)
+        {
+            await work;
+            Assert.Fail("The work ended without reaching the point the test holds it at.");
+        }
+    }
+
     [Fact]
     public async Task AC_009_B01_UploadSizeAndCancellationLeaveNoPartialVersion_Integration()
     {
@@ -52,7 +63,7 @@ public sealed class G02AC009Tests
         pause.Arm();
         var upload = files.UploadAsync(member.Context, member.Principal, FilesHost.Request(fourth, name: "paused.txt"), new MemoryStream(fourth),
             cancellation.Token);
-        await pause.Reached.WaitAsync(Cancellation);
+        await SignalledAsync(pause.Reached, upload);
         var staged = host.Content(tenant.Id, pause.VersionId, ".pending");
         Assert.True(File.Exists(staged));
         Assert.Equal(1, await host.CountAsync("FileUploads", tenant.Id));
@@ -108,7 +119,7 @@ public sealed class G02AC009Tests
         pause.Arm();
         var upload = files.UploadAsync(member.Context, member.Principal, FilesHost.Request(fourth, sizes[1024].FileId), new MemoryStream(fourth),
             cancellation.Token);
-        await pause.Reached.WaitAsync(Cancellation);
+        await SignalledAsync(pause.Reached, upload);
         Assert.Equal(new[] { sizes[1024] }, await files.ListAsync(member.Context, member.Principal, sizes[1024].FileId, Cancellation));
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => upload);
