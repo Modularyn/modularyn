@@ -202,8 +202,11 @@ the tests reach PostgreSQL on loopback as their probe requires. The published
 sample image runs on the same network against the same database. The
 published-sample readiness test, `The_published_sample_image_is_ready_over_HTTP`,
 reaches it at `MODULARYN_SAMPLE_BASE_URL` from inside the fixture image and
-requires `/health/ready` to answer `Healthy`. That is a container observation of
-the shipped image, never AC-001 coverage. [CI's container acceptance](../ci.md#container-acceptance)
+requires `/health/ready` to answer `Healthy`, and
+`The_published_sample_image_serves_its_sign_in_page_over_HTTP` makes an
+application request there, for the sample's sign-in page under its content
+security policy. Those are container observations of the shipped image, never
+AC-001 coverage. [CI's container acceptance](../ci.md#container-acceptance)
 describes the job.
 
 ### CODE-10 record output

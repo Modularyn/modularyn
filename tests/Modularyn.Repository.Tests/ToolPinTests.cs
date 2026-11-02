@@ -545,7 +545,11 @@ public sealed class ToolPinTests
     [InlineData("composition-unhardened", "every docker run of the sample or composition fixture image must use")]
     [InlineData("composition-host-network", "every docker run of the sample or composition fixture image must use")]
     [InlineData("sample-writable-root", "every docker run of the sample or composition fixture image must use")]
-    [InlineData("composition-report-unchecked", "fail unless its report shows the five expected tests, all passed")]
+    [InlineData("composition-missing-sign-in-page", "exactly the container rows of every CODE-10 method in the evidence plan and the published sample image's readiness and sign-in page tests")]
+    [InlineData("composition-missing-readiness", "exactly the container rows of every CODE-10 method in the evidence plan and the published sample image's readiness and sign-in page tests")]
+    [InlineData("composition-report-unchecked", "fail unless its report shows the six expected tests, all passed")]
+    [InlineData("composition-report-five", "fail unless its report shows the six expected tests, all passed")]
+    [InlineData("composition-sign-in-page-unexpected", "fail unless its report shows the six expected tests, all passed")]
     [InlineData("host-evidence-missing", "'Choose the host evidence directory' step must, before its 'Test against PostgreSQL' step")]
     [InlineData("host-evidence-in-checkout", "'Choose the host evidence directory' step must, before its 'Test against PostgreSQL' step")]
     [InlineData("host-evidence-unchecked", "must check the host evidence records with bash .github/scripts/evidence-records.sh")]
@@ -638,8 +642,20 @@ public sealed class ToolPinTests
             case "sample-writable-root":
                 files[CompositionScript] = ReplaceText(script, "--name=\"${sample}\" --network=\"${network}\" --read-only ", "--name=\"${sample}\" --network=\"${network}\" ");
                 break;
+            case "composition-missing-sign-in-page":
+                files[CompositionScript] = ReplaceText(script, " -method \"" + ToolPinContract.SignInPageTest + "\"", "");
+                break;
+            case "composition-missing-readiness":
+                files[CompositionScript] = ReplaceText(script, " -method \"" + ToolPinContract.ReadinessTest + "\" -method", " -method");
+                break;
             case "composition-report-unchecked":
-                files[CompositionScript] = ReplaceText(script, "[ \"$(jq -r '.results.summary.tests' \"${report}\")\" = \"5\" ] && [ \"${passed}\" = \"${expected}\" ]", "true");
+                files[CompositionScript] = ReplaceText(script, "[ \"$(jq -r '.results.summary.tests' \"${report}\")\" = \"6\" ] && [ \"${passed}\" = \"${expected}\" ]", "true");
+                break;
+            case "composition-report-five":
+                files[CompositionScript] = ReplaceText(script, "[ \"$(jq -r '.results.summary.tests' \"${report}\")\" = \"6\" ]", "[ \"$(jq -r '.results.summary.tests' \"${report}\")\" = \"5\" ]");
+                break;
+            case "composition-sign-in-page-unexpected":
+                files[CompositionScript] = ReplaceText(script, "  '" + ToolPinContract.SignInPageTest + "' \\\n", "");
                 break;
             case "host-evidence-missing":
                 files[CiPath] = ReplaceLine(ci, "      - name: " + ToolPinContract.HostEvidenceStep, "      - name: Choose a directory");

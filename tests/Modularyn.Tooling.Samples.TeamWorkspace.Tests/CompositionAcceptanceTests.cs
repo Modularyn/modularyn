@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using Modularyn.Framework.Hosting;
 using Modularyn.Framework.Modularity;
 using Xunit;
@@ -255,19 +256,67 @@ public sealed class CompositionAcceptanceTests
         Assert.SkipWhen(DeploymentMode.Current() != DeploymentMode.Container, DeploymentMode.ContainerOnly);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         timeout.CancelAfter(TimeSpan.FromMinutes(1));
+        using var health = await PublishedSampleAsync("/health/ready", timeout.Token);
+        Assert.Equal(HttpStatusCode.OK, health.StatusCode);
+        Assert.Equal("Healthy", await health.Content.ReadAsStringAsync(timeout.Token));
+    }
+
+    /// <summary>
+    /// An application request through the published sample image, beside its health check: the sample's sign-in page, at the
+    /// route the sample's API inventory declares, over the same origin and declared proxy as the readiness test. The page must be
+    /// HTML under the sample's content security policy, which admits only same-origin scripts, and nosniff; it carries no
+    /// inline script, and it references its same-origin sign-in script. Like the readiness test, it observes the shipped image
+    /// and is never AC-001 coverage.
+    /// </summary>
+    [Fact]
+    [Trait("Deployment", DeploymentMode.Container)]
+    public async Task The_published_sample_image_serves_its_sign_in_page_over_HTTP()
+    {
+        Assert.SkipWhen(DeploymentMode.Current() != DeploymentMode.Container, DeploymentMode.ContainerOnly);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromMinutes(1));
+        var script = WorkspaceApi.Endpoint("SignInScript").Route;
+        using var page = await PublishedSampleAsync(WorkspaceApi.Endpoint("SignInPage").Route, timeout.Token);
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+        Assert.Equal("text/html", page.Content.Headers.ContentType?.MediaType);
+        var policy = Assert.Single(page.Headers.TryGetValues("Content-Security-Policy", out var policies) ? policies : []);
+        Assert.Equal(SignInPagePolicy, policy);
+        Assert.Contains("script-src 'self'", policy.Split(';').Select(directive => directive.Trim()));
+        Assert.Equal("nosniff", Assert.Single(page.Headers.TryGetValues("X-Content-Type-Options", out var options) ? options : []));
+        var html = await page.Content.ReadAsStringAsync(timeout.Token);
+        // No inline script: every script element only names a source, and no element carries an event handler or a script URL.
+        var scripts = Regex.Matches(html, @"<script\b(?<attributes>[^>]*)>(?<body>.*?)</script\s*>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.CultureInvariant);
+        Assert.Equal(Regex.Matches(html, @"<script\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant).Count, scripts.Count);
+        Assert.All(scripts, element => Assert.True(element.Groups["body"].Value.Trim().Length == 0
+            && Regex.IsMatch(element.Groups["attributes"].Value, @"\ssrc\s*=", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant), "inline script"));
+        Assert.DoesNotMatch(new Regex(@"<[^>]*\son[a-z]+\s*=", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant), html);
+        Assert.DoesNotContain("javascript:", html, StringComparison.OrdinalIgnoreCase);
+        // The page's one script is its sign-in script, by a root-relative, so same-origin, path.
+        var sources = scripts.Select(element => Regex.Match(element.Groups["attributes"].Value, "\\ssrc=\"(?<source>[^\"]*)\"", RegexOptions.CultureInvariant).Groups["source"].Value).ToList();
+        Assert.Equal(new[] { script }, sources);
+        Assert.True(script.StartsWith('/') && !script.StartsWith("//", StringComparison.Ordinal), "The sign-in script must be same-origin.");
+    }
+
+    // The sample's sign-in page policy (the host's WorkspacePages): nothing by default, and scripts, connections and forms only
+    // from its own origin.
+    private const string SignInPagePolicy =
+        "default-src 'none'; script-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
+
+    // One GET of the published sample image at MODULARYN_SAMPLE_BASE_URL, which a container run sets to the sample container.
+    private static async Task<HttpResponseMessage> PublishedSampleAsync(string path, CancellationToken token)
+    {
         var address = Environment.GetEnvironmentVariable("MODULARYN_SAMPLE_BASE_URL");
         Assert.False(string.IsNullOrWhiteSpace(address), "A container run names the published sample container in MODULARYN_SAMPLE_BASE_URL.");
         Assert.True(Uri.TryCreate(address, UriKind.Absolute, out var origin) && origin.Scheme is "http" or "https"
             && origin.UserInfo.Length == 0 && origin.AbsolutePath == "/" && origin.Query.Length == 0 && origin.Fragment.Length == 0,
             "The sample address must be an HTTP origin without credentials, path or query parameters.");
         using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { BaseAddress = origin, Timeout = TimeSpan.FromSeconds(30) };
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/health/ready");
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
         // The image listens on private HTTP behind the TLS proxy its configuration declares (the host README). Over HTTP this
         // run is that declared proxy, so it forwards the scheme; the image applies the header only from its declared proxy.
         if (origin.Scheme == Uri.UriSchemeHttp) request.Headers.Add("X-Forwarded-Proto", Uri.UriSchemeHttps);
-        using var health = await client.SendAsync(request, timeout.Token);
-        Assert.Equal(HttpStatusCode.OK, health.StatusCode);
-        Assert.Equal("Healthy", await health.Content.ReadAsStringAsync(timeout.Token));
+        var response = await client.SendAsync(request, HttpCompletionOption.ResponseContentRead, token);
+        return response;
     }
 
     private static async Task RunAsync(string caseId, string mode, Func<CaseObservations, CancellationToken, Task> action)

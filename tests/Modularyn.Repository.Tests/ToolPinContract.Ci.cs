@@ -34,6 +34,7 @@ internal static partial class ToolPinContract
     public static readonly string EvidenceCheckRun = $"bash {EvidenceScriptPath}";
     public const string EvidenceCheckTest = "Modularyn.Repository.Tests.CiEvidenceTests.The_records_this_CI_run_wrote_validate_against_the_repository_contracts";
     public const string ReadinessTest = "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.The_published_sample_image_is_ready_over_HTTP";
+    public const string SignInPageTest = "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.The_published_sample_image_serves_its_sign_in_page_over_HTTP";
     public const string AcceptanceNetwork = "modularyn-acceptance";
     public const string BuildTestJob = "build-test";
     public const string RealProviderJob = "real-provider";
@@ -1112,8 +1113,9 @@ internal static partial class ToolPinContract
 
         var script = files.GetValueOrDefault(CompositionScriptPath, "");
         var scriptLines = LogicalLines(script).Select(line => line.Trim()).ToList();
-        // Exactly the planned CODE-10 methods and the readiness test, through the test executable's own filters.
-        var planned = PlannedMethods(files, "CODE-10").Append(ReadinessTest).ToList();
+        // Exactly the planned CODE-10 methods and the published sample image's readiness and sign-in page tests, through the test
+        // executable's own filters.
+        var planned = PlannedMethods(files, "CODE-10").Append(ReadinessTest).Append(SignInPageTest).ToList();
         var fixtureRun = scriptLines.Where(line => line.StartsWith("docker run ", StringComparison.Ordinal)
             && line.Contains("\"${COMPOSITION_IMAGE}\"", StringComparison.Ordinal) && line.Contains("-result-ctrf ", StringComparison.Ordinal)).ToList();
         if (planned.Count < 2 || fixtureRun is not [var rows]
@@ -1122,7 +1124,7 @@ internal static partial class ToolPinContract
             || !rows.Contains("-preEnumerateTheories -trait \"Deployment=single-host-container\"", StringComparison.Ordinal))
         {
             errors.Add($"{CompositionScriptPath}: must run the composition fixture image once with a report, selecting through its own filters "
-                + "exactly the container rows of every CODE-10 method in the evidence plan and the published sample image's readiness test.");
+                + "exactly the container rows of every CODE-10 method in the evidence plan and the published sample image's readiness and sign-in page tests.");
         }
 
         foreach (var line in scriptLines.Where(line => line.Contains("docker run ", StringComparison.Ordinal)
@@ -1138,10 +1140,12 @@ internal static partial class ToolPinContract
         }
 
         if (!scriptLines.Contains($"network={AcceptanceNetwork}", StringComparer.Ordinal)
-            || !script.Contains("[ \"$(jq -r '.results.summary.tests' \"${report}\")\" = \"5\" ] && [ \"${passed}\" = \"${expected}\" ]", StringComparison.Ordinal)
+            || !script.Contains("[ \"$(jq -r '.results.summary.tests' \"${report}\")\" = \"6\" ] && [ \"${passed}\" = \"${expected}\" ]", StringComparison.Ordinal)
+            || !new[] { ReadinessTest, SignInPageTest }.All(test => script.Replace("\r\n", "\n", StringComparison.Ordinal)
+                .Contains($"\n  '{test}' \\\n", StringComparison.Ordinal))
             || !script.Contains("select(.status == \"passed\")", StringComparison.Ordinal))
         {
-            errors.Add($"{CompositionScriptPath}: must use the {AcceptanceNetwork} network and fail unless its report shows the five expected tests, all passed.");
+            errors.Add($"{CompositionScriptPath}: must use the {AcceptanceNetwork} network and fail unless its report shows the six expected tests, all passed.");
         }
     }
 
