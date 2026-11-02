@@ -128,9 +128,10 @@ name `application/octet-stream`, which detection returns for bytes it does not
 recognize. Nor may it name active or executable content, even when a host lists
 it (`ActiveContentTypes`): `text/html`, `application/xhtml+xml`,
 `image/svg+xml`, `text/xml` and `application/xml`, which a browser or viewer runs
-script or markup in, and the executables detection recognizes,
+script or markup in, `application/postscript`, which is itself a program, and the
+executables detection recognizes,
 `application/vnd.microsoft.portable-executable`, `application/x-executable` and
-`application/x-mach-binary`. Archives, PostScript and PDF stay listable, and are
+`application/x-mach-binary`. Archives and PDF stay listable, and are
 released unscanned like any other listed type. The maximum is from one byte to
 1 GiB (`MaximumLengthLimit`), the largest request body the ingress admits, so no
 upload over HTTP is larger; Files fixes no upload limit of its own, since the

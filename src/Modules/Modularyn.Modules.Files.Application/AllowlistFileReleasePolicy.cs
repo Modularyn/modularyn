@@ -26,11 +26,11 @@ public sealed class AllowlistFileReleasePolicy : IFileReleasePolicy
 
     /// <summary>
     /// Active or executable content the policy never releases, even when a host lists it: HTML, XHTML, SVG and XML, which a
-    /// browser or viewer runs script or markup in, and the executables detection recognizes.
+    /// browser or viewer runs script or markup in, PostScript, which is itself a program, and the executables detection recognizes.
     /// </summary>
     public static IReadOnlySet<string> ActiveContentTypes { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
-        FileContentTypes.Html, "application/xhtml+xml", FileContentTypes.Svg, FileContentTypes.Xml, "application/xml",
+        FileContentTypes.Html, "application/xhtml+xml", FileContentTypes.Svg, FileContentTypes.Xml, "application/xml", FileContentTypes.PostScript,
         FileContentTypes.WindowsExecutable, FileContentTypes.Executable, FileContentTypes.MachExecutable
     };
 

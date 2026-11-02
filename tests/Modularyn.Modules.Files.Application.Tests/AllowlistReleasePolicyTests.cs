@@ -31,11 +31,11 @@ public sealed class AllowlistReleasePolicyTests
     public void TM_G02_042_The_allowlist_policy_never_releases_active_or_executable_content_even_when_a_host_lists_it()
     {
         Assert.True(AllowlistFileReleasePolicy.ActiveContentTypes.SetEquals([
-            "text/html", "application/xhtml+xml", "image/svg+xml", "text/xml", "application/xml",
+            "text/html", "application/xhtml+xml", "image/svg+xml", "text/xml", "application/xml", "application/postscript",
             "application/vnd.microsoft.portable-executable", "application/x-executable", "application/x-mach-binary"]));
         // Every one of them that detection can return is refused, alone and beside an allowed type.
         var detectable = AllowlistFileReleasePolicy.ActiveContentTypes.Where(FileContentTypes.Detectable.Contains).ToArray();
-        Assert.Equal(6, detectable.Length);
+        Assert.Equal(7, detectable.Length);
         foreach (var type in AllowlistFileReleasePolicy.ActiveContentTypes)
         {
             Assert.Throws<ArgumentException>(() => new AllowlistFileReleasePolicy([type], 4096));
