@@ -161,7 +161,7 @@ public sealed partial class G02AC003Tests
     [Trait("Requires", "PostgreSQL")]
     public async Task AC_003_N02_CrossSiteEndedSessionAndOverCeilingCallsAreRefused_Integration()
     {
-        await using var database = await AuthorizationDatabase.CreateAsync();
+        await using var database = await AuthorizationDatabase.CreateAsync(Phase);
         Phase("database");
         var clock = new TestClock();
         await using var host = AuthorizationHost.Create(database, clock);

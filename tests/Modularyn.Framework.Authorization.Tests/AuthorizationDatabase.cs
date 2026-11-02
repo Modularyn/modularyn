@@ -73,22 +73,34 @@ internal sealed class AuthorizationDatabase : IAsyncDisposable
     internal string ItemsSchema => schemas[4];
     private static CancellationToken Cancellation => TestContext.Current.CancellationToken;
 
-    internal static async Task<AuthorizationDatabase> CreateAsync()
+    /// <summary>Creates the fixture. A caller that passes <paramref name="phase"/> receives one fixed marker name before and after
+    /// each step that can wait on the database, so a run stopped at its bound shows which step it was in.</summary>
+    internal static async Task<AuthorizationDatabase> CreateAsync(Action<string>? phase = null)
     {
         var target = PostgreSqlTarget.FromEnvironment();
+        phase?.Invoke("probe-start");
         var session = await PostgreSqlProbe.ConnectAsync(target, Cancellation);
+        phase?.Invoke("probe");
         Assert.InRange(session.ServerVersionNumber, 180000, 189999);
         Assert.Equal("off", session.Parameters.GetValueOrDefault("is_superuser"));
         var options = new PostgreSqlPersistenceOptions(System.Environment.GetEnvironmentVariable(PostgreSqlTarget.Variable)!);
+        phase?.Invoke("test-lock-start");
         var database = new AuthorizationDatabase(options, await PostgreSqlTestLock.AcquireAsync(options.ConnectionString, Cancellation));
+        phase?.Invoke("test-lock");
         try
         {
+            phase?.Invoke("compose-start");
             var composition = await new ModuleComposer([database.Registry, database.Values]).ComposeAsync(new(database.Manifests, Environment), Cancellation);
+            phase?.Invoke("composed");
             Assert.Empty(composition.Diagnostics);
             var registry = new PostgreSqlModuleRegistry([database.Directory, database.Identity, database.Authorization, database.Settings, database.ItemsModule]);
+            phase?.Invoke("migrate-start");
             var migrated = await new PostgreSqlMigrationCoordinator(registry).ApplyAsync(composition.Plan!, cancellationToken: Cancellation);
+            phase?.Invoke("migrated");
             Assert.Empty(migrated.Diagnostics);
+            phase?.Invoke("validate-start");
             Assert.Empty(await new MigrationActivationValidator(registry).ValidateAsync(composition.Plan!.Selection, Cancellation));
+            phase?.Invoke("validated");
             return database;
         }
         catch
