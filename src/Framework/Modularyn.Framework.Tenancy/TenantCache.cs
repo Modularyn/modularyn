@@ -50,9 +50,10 @@ public sealed record TenantCacheEntry
 /// operation), module, schema version, principal for principal-scoped entries, entry name and parts, each length-prefixed
 /// so no two distinct identities share a key. Entries expire at their declared staleness limit; invalidating a tenant, a
 /// host operation or a principal makes their earlier entries unreachable at once. Concurrent misses for one key share a single factory call, whose failure
-/// is not cached. That call runs under the cache's factory deadline, apart from any one waiter: at the deadline its token
-/// fires, every waiter receives <see cref="TenantCacheDeadlineException"/> whether or not the factory stops, nothing it
-/// returns later is cached, and the next caller starts a new call. The store is this process's memory: during an outage
+/// is not cached. That call starts on the thread pool with its first caller's execution context, so no caller waits on
+/// its synchronous work, and runs under the cache's factory deadline, apart from any one waiter: at the deadline its token
+/// fires, every waiter receives <see cref="TenantCacheDeadlineException"/> whether or not the factory stops or blocks its
+/// thread, nothing it returns later is cached, and the next caller starts a new call. The store is this process's memory: during an outage
 /// of a dependency the factory fails or reaches its deadline and nothing is cached, and it coordinates nothing across processes.
 /// </summary>
 public sealed class TenantCache : IDisposable
@@ -152,7 +153,9 @@ public sealed class TenantCache : IDisposable
             T value;
             try
             {
-                produced = factory(token);
+                // The factory starts on the thread pool, with this caller's execution context, so the flight is published at once
+                // and a factory that blocks its thread blocks a pool thread, never the callers waiting for its key.
+                produced = Task.Run(() => factory(token), CancellationToken.None);
                 // The wait is bounded too, so a factory that ignores its token still releases every waiter at the deadline.
                 value = await produced.WaitAsync(token).ConfigureAwait(false);
             }

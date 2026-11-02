@@ -5,13 +5,15 @@ using Xunit;
 
 namespace Modularyn.Framework.Tenancy.Tests;
 
-// TM-G02-034, in part: the one factory call that concurrent misses share runs under the cache's factory deadline. At the
-// deadline its token fires and every waiter is released with TenantCacheDeadlineException, whether or not the factory stops;
-// the call is forgotten, so the next caller starts a new one; and a value that arrives after the deadline is never cached.
-// Time is the test's TimerClock, so the deadline passes without any test waiting for it.
+// TM-G02-034, in part: the one factory call that concurrent misses share starts on the thread pool with its first caller's
+// execution context and runs under the cache's factory deadline. At the deadline its token fires and every waiter is
+// released with TenantCacheDeadlineException, whether the factory stops, ignores its token or blocks its thread; the call
+// is forgotten, so the next caller starts a new one; and a value that arrives after the deadline is never cached. Time is
+// the test's TimerClock, so the deadline passes without any test waiting for it.
 public sealed class TenantCacheDeadlineTests : IAsyncDisposable
 {
     private static readonly TimeSpan Deadline = new TenantCacheOptions().FactoryDeadline;
+    private static readonly AsyncLocal<string?> Ambient = new();
     private static CancellationToken Cancellation => TestContext.Current.CancellationToken;
     private readonly TimerClock clock = new();
     private readonly MemoryDirectory directory = new();
@@ -48,15 +50,18 @@ public sealed class TenantCacheDeadlineTests : IAsyncDisposable
         var entry = Entry("stalled");
         var calls = 0;
         CancellationToken given = default;
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         async Task<string> Stalled(CancellationToken token)
         {
             Interlocked.Increment(ref calls);
             given = token;
+            started.TrySetResult();
             await Task.Delay(Timeout.Infinite, token);
             return "never";
         }
         // Every waiter joins the one call, each with a token of its own that never fires.
         var waiters = Enumerable.Range(0, 8).Select(index => Cache.GetOrCreateAsync(a, entry, Stalled, Cancellation)).ToArray();
+        await started.Task.WaitAsync(Cancellation);
         Assert.Equal(1, calls);
         clock.Advance(Deadline - TimeSpan.FromTicks(1));
         Assert.False(given.IsCancellationRequested);
@@ -92,15 +97,67 @@ public sealed class TenantCacheDeadlineTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task TM_G02_034_A_factory_that_blocks_its_thread_still_releases_every_waiter_at_the_deadline()
+    {
+        var a = await EnterAsync();
+        var entry = Entry("blocking");
+        using var gate = new ManualResetEventSlim();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var returned = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        Task<string> Blocking(CancellationToken token)
+        {
+            Interlocked.Increment(ref calls);
+            started.TrySetResult();
+            // It blocks its thread and ignores its token.
+            gate.Wait();
+            returned.TrySetResult();
+            return Task.FromResult("blocked");
+        }
+        try
+        {
+            // Every caller, the first included, gets its task back at once although the factory has not returned. The
+            // real-time limits here are safety nets that a passing test never reaches.
+            var waiters = await Task.Run(() => Enumerable.Range(0, 4).Select(index => Cache.GetOrCreateAsync(a, entry, Blocking, Cancellation)).ToArray(),
+                Cancellation).WaitAsync(TimeSpan.FromSeconds(30), Cancellation);
+            await started.Task.WaitAsync(Cancellation);
+            clock.Advance(Deadline);
+            foreach (var waiter in waiters) await Assert.ThrowsAsync<TenantCacheDeadlineException>(() => Released(waiter));
+            Assert.Equal(1, calls);
+            // The next call starts afresh while the blocked factory still holds its pool thread.
+            Assert.Equal("fresh", await Released(Cache.GetOrCreateAsync(a, entry, _ => Task.FromResult("fresh"), Cancellation)));
+            Assert.False(returned.Task.IsCompleted);
+        }
+        finally
+        {
+            gate.Set();
+            await returned.Task.WaitAsync(TimeSpan.FromSeconds(30), Cancellation);
+        }
+        // Once it returns, its value reaches nothing.
+        Assert.Equal("fresh", await Cache.GetOrCreateAsync<string>(a, entry, _ => throw new InvalidOperationException("Expected a hit."), Cancellation));
+    }
+
+    [Fact]
+    public async Task TM_G02_034_The_shared_factory_keeps_its_first_caller_s_execution_context()
+    {
+        var a = await EnterAsync();
+        // An AsyncLocal value of the caller that starts the call, such as an ambient tenant or trace, reaches the factory on the pool.
+        Ambient.Value = "first caller";
+        Assert.Equal("first caller", await Cache.GetOrCreateAsync(a, Entry("ambient"), _ => Task.FromResult(Ambient.Value ?? "none"), Cancellation));
+    }
+
+    [Fact]
     public async Task TM_G02_034_A_waiter_s_own_cancellation_releases_only_that_waiter()
     {
         var a = await EnterAsync();
         var entry = Entry("shared");
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         CancellationToken given = default;
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         async Task<string> Shared(CancellationToken token)
         {
             given = token;
+            started.TrySetResult();
             await gate.Task;
             return "shared";
         }
@@ -109,6 +166,7 @@ public sealed class TenantCacheDeadlineTests : IAsyncDisposable
         var first = Cache.GetOrCreateAsync(a, entry, Shared, impatient.Token);
         var others = Enumerable.Range(0, 4).Select(index => Cache.GetOrCreateAsync<string>(a, entry,
             _ => throw new InvalidOperationException("The call must be shared."), Cancellation)).ToArray();
+        await started.Task.WaitAsync(Cancellation);
         impatient.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Released(first));
         // Neither the shared call nor any other waiter was cancelled with it, and a value just inside the deadline reaches them all.
@@ -124,13 +182,15 @@ public sealed class TenantCacheDeadlineTests : IAsyncDisposable
     public async Task TM_G02_034_A_value_that_arrives_after_the_deadline_is_never_cached()
     {
         var a = await EnterAsync();
-        // A value the factory returns once the deadline has passed is neither delivered nor cached.
+        // A value the factory returns once the deadline has passed, before the deadline's timer has run, is neither delivered
+        // nor cached.
         var entry = Entry("late");
-        await Assert.ThrowsAsync<TenantCacheDeadlineException>(() => Cache.GetOrCreateAsync(a, entry, _ =>
-        {
-            clock.Advance(Deadline);
-            return Task.FromResult("late");
-        }, Cancellation));
+        var arriving = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var late = Cache.GetOrCreateAsync(a, entry, _ => arriving.Task, Cancellation);
+        clock.AdvanceBeforeTimersRun(Deadline);
+        arriving.SetResult("late");
+        await Assert.ThrowsAsync<TenantCacheDeadlineException>(() => Released(late));
+        clock.Advance(TimeSpan.Zero);
         Assert.Equal("fresh", await Cache.GetOrCreateAsync(a, entry, _ => Task.FromResult("fresh"), Cancellation));
 
         // Nor does one that arrives after its waiters were released replace the value a later call cached.

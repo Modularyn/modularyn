@@ -262,11 +262,17 @@ internal sealed class TimerClock : TimeProvider
 
     internal void Advance(TimeSpan by)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(by, TimeSpan.Zero);
-        Interlocked.Add(ref elapsed, by.Ticks);
+        AdvanceBeforeTimersRun(by);
         ManualTimer[] created;
         lock (timers) created = [.. timers];
         foreach (var timer in created) timer.FireIfDue();
+    }
+
+    /// <summary>Moves the clock without running the timers it reaches, as when a timer's callback runs late; the next Advance runs them.</summary>
+    internal void AdvanceBeforeTimersRun(TimeSpan by)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(by, TimeSpan.Zero);
+        Interlocked.Add(ref elapsed, by.Ticks);
     }
 
     private sealed class ManualTimer(TimerClock clock, TimerCallback callback, object? state) : ITimer
