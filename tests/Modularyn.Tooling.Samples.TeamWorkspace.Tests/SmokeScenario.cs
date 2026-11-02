@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Modularyn.Framework.Api.Contracts;
 using Modularyn.Framework.Tenancy;
 using Modularyn.Modules.Identity.Application.Contracts;
@@ -133,7 +134,13 @@ public static class SmokeScenario
             Check.That(text.Contains("workspace.note-revised", StringComparison.Ordinal), "audited-note-write");
             Check.That(!text.Contains(grant.Token, StringComparison.Ordinal), "grant-not-in-audit");
         }
+        // ASP.NET Core's request logs are Information and stay out; its warnings, such as the refused form post's missing
+        // antiforgery token, are kept.
+        var aspNetCore = host.Logs.Entries.Where(entry => entry.Category.StartsWith("Microsoft.AspNetCore", StringComparison.Ordinal)).ToArray();
+        Check.That(aspNetCore.All(entry => entry.Level >= LogLevel.Warning), "no-aspnetcore-information-log");
+        Check.That(aspNetCore.Any(entry => entry.Category.StartsWith("Microsoft.AspNetCore.Antiforgery", StringComparison.Ordinal)), "aspnetcore-warnings-kept");
         Check.That(!host.Logs.Lines.Concat(traces).Any(line => line.Contains(grant.Token, StringComparison.Ordinal)
+            || line.Contains(FileSteps.GrantHeader, StringComparison.OrdinalIgnoreCase)
             || line.Contains(member.Password, StringComparison.Ordinal) || line.Contains(owner.Password, StringComparison.Ordinal)), "secret-log-and-trace-canaries");
     }
 

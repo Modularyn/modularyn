@@ -253,16 +253,20 @@ internal static class RunDirectory
     internal static void Create(string path) => KeyRingDirectory.Create(path);
 }
 
+/// <summary>One log entry as the host's logger factory passed it on, after its filters: level, category and text with any exception.</summary>
+internal sealed record CapturedLog(LogLevel Level, string Category, string Text);
+
 internal sealed class CapturedLogs : ILoggerProvider
 {
-    internal ConcurrentQueue<string> Lines { get; } = new();
-    public ILogger CreateLogger(string categoryName) => new Capture(Lines);
+    internal ConcurrentQueue<CapturedLog> Entries { get; } = new();
+    internal IEnumerable<string> Lines => Entries.Select(entry => entry.Text);
+    public ILogger CreateLogger(string categoryName) => new Capture(Entries, categoryName);
     public void Dispose() { }
-    private sealed class Capture(ConcurrentQueue<string> lines) : ILogger
+    private sealed class Capture(ConcurrentQueue<CapturedLog> entries, string category) : ILogger
     {
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
         public bool IsEnabled(LogLevel logLevel) => true;
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-            lines.Enqueue(formatter(state, exception));
+            entries.Enqueue(new(logLevel, category, formatter(state, exception) + (exception is null ? "" : "\n" + exception)));
     }
 }

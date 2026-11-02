@@ -78,8 +78,9 @@ moderation adapter or public anonymous file access.
 Grant issuance returns the token once in an uncached JSON body. Download uses
 `X-Modularyn-File-Grant` on `GET /api/v1/t/{tenant}/download`; it accepts no query
 parameters. Never put the token in a URL, browser storage or a diagnostic. The
-host installs no HTTP body/header logging, suppresses ASP.NET Core request logs,
-and retains the foundation's redacting logger. A reverse proxy must likewise
+host installs no HTTP body/header logging, keeps ASP.NET Core's logs at Warning
+and above, so its Information-level request logs stay out while antiforgery and
+data-protection warnings remain, and retains the foundation's redacting logger. A reverse proxy must likewise
 omit credentials, request/response bodies and the grant header from its logs and
 traces. The token lifetime is two minutes. A download has a fifteen-second
 deadline that aborts the request and disposes the read stream, releasing the

@@ -66,8 +66,9 @@ public static class TeamWorkspaceHost
         builder.WebHost.UseKestrel().UseUrls(configuration["ASPNETCORE_URLS"] ?? "http://127.0.0.1:8080");
         builder.Host.UseDefaultServiceProvider(options => { options.ValidateScopes = true; options.ValidateOnBuild = true; });
         builder.Logging.AddConsole();
-        // Request URI, headers, body and exceptions are not access-log fields. Modularyn's logger also redacts secret forms.
-        builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.None);
+        // ASP.NET Core's request logs are Information and stay out; its warnings, such as antiforgery and data-protection ones,
+        // are kept. None carries a request URI, header, body or token, and Modularyn's logger also redacts secret forms.
+        builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
         builder.Services.AddRouting();
         builder.Services.AddAuthorization();
         builder.Services.AddModularynSecrets(configuration);

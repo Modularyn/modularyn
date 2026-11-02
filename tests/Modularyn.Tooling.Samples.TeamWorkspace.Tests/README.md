@@ -32,7 +32,8 @@ The scenario covers:
 - Settings authorization/version conflicts, cache invalidation, feature denial and culture fallback.
 - Idempotent note creation, optimistic revision conflict, history and form antiforgery.
 - Quarantined upload, a member's allowed release and refused PDF release, an owner's release of its own file, and hidden unreleased content.
-- Header-only download grants, integrity/security headers, expiry and log/trace canaries.
+- Header-only download grants, integrity/security headers, expiry and log/trace canaries for the grant, its header and the passwords.
+- No ASP.NET Core log below Warning, and its antiforgery warning kept.
 - A stalled download followed by another download through the single read slot.
 - Durable inbox activity and one digest per occurrence in the member's IANA zone.
 - Active OpenAPI inventory and separately authorized audit access.
