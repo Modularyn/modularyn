@@ -2320,7 +2320,7 @@
     {
       "id": "RR-G02-021",
       "title": "The principal inside authorized work",
-      "statement": "AuthorizedWorkRunner decides for the principal its caller passes, but the work runs in a new scope whose principal accessor holds nothing, so module code that resolves the accessor there sees no principal and is refused, and a step must pass the principal it was given. The Authorization README does not yet say so.",
+      "statement": "AuthorizedWorkRunner decides for the principal its caller passes, but the work runs in a new scope whose principal accessor holds nothing, so module code that resolves the accessor there sees no principal and is refused. The Authorization README states that a step must pass the principal it was given; what remains is that the runner does not set the accessor, so code that relies on it fails closed rather than acting.",
       "controls": [
         "TM-G02-019",
         "TM-G02-023"
@@ -2331,7 +2331,8 @@
       "owner": "No owner named",
       "tests": [],
       "sources": [
-        "src/Framework/Modularyn.Framework.Authorization/AuthorizedWork.cs"
+        "src/Framework/Modularyn.Framework.Authorization/AuthorizedWork.cs",
+        "src/Framework/Modularyn.Framework.Authorization/README.md"
       ],
       "acceptance": "pending"
     },
@@ -2482,7 +2483,7 @@
     {
       "id": "RR-G02-030",
       "title": "A sealed reference does not bind its row's payload, kind or state",
-      "statement": "The seal binds a stored reference to its row's identity and its store's purpose. A writer with direct database access can therefore requeue a row, or change its payload or kind, and it runs again under the same reference. AC-004-N03 shows each such run stays in the producer's revalidated tenant and within its current authority, and stops once that authority is revoked.",
+      "statement": "The seal binds a stored reference to its row's identity and its store's purpose. A writer with direct database access can therefore requeue a row, or change its payload or kind, and it runs again under the same reference. AC-004-N03 shows each such run stays in the producer's revalidated tenant and within its current authority, and stops once that authority is revoked. The Reviewer judged stating it acceptable for G-02, since a direct database writer is already outside the model's trust boundary, as RR-G02-029 accepts for audit rows, and asked that it be revisited when payloads gain external effects (RR-G02-041).",
       "controls": [
         "TM-G02-027",
         "TM-G02-039",
@@ -2500,7 +2501,8 @@
         }
       ],
       "sources": [
-        "01M6CW0KAW23WTVS1KVRNHBDVV"
+        "01M6CW0KAW23WTVS1KVRNHBDVV",
+        "01M6DYWAT80HZS98SSV9011XDR"
       ],
       "acceptance": "pending"
     },
@@ -2680,7 +2682,7 @@
       "orders": [
         "SEC-02"
       ],
-      "owner": "CODE-04",
+      "owner": "A later settings work order, which must add a tenant-configurable declaration to setting definitions and refuse a tenant's override of any setting that lacks it",
       "tests": [
         {
           "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
@@ -2754,7 +2756,7 @@
     {
       "id": "RR-G02-044",
       "title": "Test browser and package provenance",
-      "statement": "The pinned Chrome Headless Shell archives' SHA-256 values rest on Playwright's CDN and Google serving identical bytes, since neither publishes a hash, and their third-party licenses were not reviewed one by one. On the review machine, dotnet nuget verify failed the timestamp chains of Microsoft.Playwright's countersignature and of System.ComponentModel.Annotations 5.0.0 (NU3028, NU3037); the register relies on the catalog's SHA-512, which matches.",
+      "statement": "The pinned Chrome Headless Shell archives' SHA-256 values rest on Playwright's CDN and Google serving identical bytes, since neither publishes a hash, and their third-party licenses were not reviewed one by one. dotnet nuget verify --all verified Microsoft.Playwright 1.64.1's Microsoft author signature and nuget.org repository countersignature, with their timestamps, without error. It failed only System.ComponentModel.Annotations 5.0.0, signed in 2020: both signatures' validity periods have expired (NU3037), and the local trust store explicitly distrusts both timestamps' Symantec chain (NU3028). Restore still gates both packages on the lock's content hashes, and both packages match nuget.org's catalog SHA-512.",
       "controls": [],
       "orders": [
         "SEC-08"
