@@ -10,7 +10,7 @@ namespace Modularyn.Repository.Tests;
 // The evidence assembler's outcome, binding and sanitization rules, on synthetic metadata-validation inputs. Every input is
 // generated beneath the checkout's ignored artifacts directory and deleted when the test ends. Synthetic reports prove the
 // assembler's rules only; they are never provider evidence.
-public sealed class EvidenceBundleTests
+public sealed partial class EvidenceBundleTests
 {
     private static IReadOnlyDictionary<string, string> Files => RepositoryFiles.Current;
 
