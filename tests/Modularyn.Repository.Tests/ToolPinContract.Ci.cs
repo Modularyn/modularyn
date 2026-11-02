@@ -1116,7 +1116,9 @@ internal static partial class ToolPinContract
         // Exactly the planned CODE-10 methods and the published sample image's readiness and sign-in page tests, through the test
         // executable's own filters.
         var planned = PlannedMethods(files, "CODE-10").Append(ReadinessTest).Append(SignInPageTest).ToList();
-        var fixtureRun = scriptLines.Where(line => line.StartsWith("docker run ", StringComparison.Ordinal)
+        // The run is bounded (docs/ci.md, "Container acceptance"), so its docker run follows the timeout that EvidencePipelineContract
+        // requires of every container test run.
+        var fixtureRun = scriptLines.Where(line => line.StartsWith(EvidencePipelineContract.BoundedRun + "docker run ", StringComparison.Ordinal)
             && line.Contains("\"${COMPOSITION_IMAGE}\"", StringComparison.Ordinal) && line.Contains("-result-ctrf ", StringComparison.Ordinal)).ToList();
         if (planned.Count < 2 || fixtureRun is not [var rows]
             || Regex.Matches(rows, "-method \"(?<name>[^\"]+)\"").Select(match => match.Groups["name"].Value).Order(StringComparer.Ordinal)

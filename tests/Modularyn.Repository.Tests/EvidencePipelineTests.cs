@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Xunit;
 
 namespace Modularyn.Repository.Tests;
@@ -12,13 +13,18 @@ public sealed class EvidencePipelineTests
         var entries = ToolPinContract.DockerAllowlist.Where(entry =>
             entry.Path == ".github/scripts/g02-container-results.sh"
             || entry.Line.Contains("--env=MODULARYN_EVIDENCE_RUN_ID", StringComparison.Ordinal)
+            || entry.Line.Contains("g02-", StringComparison.Ordinal)
             || entry.Line.Contains("The sample image ownership check did not run.", StringComparison.Ordinal)).ToArray();
-        Assert.Equal(4, entries.Length);
+        Assert.Equal(6, entries.Length);
         foreach (var entry in entries)
         {
             var files = RepositoryFiles.Current.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
-            Assert.Contains("--cap-drop=ALL", entry.Line, StringComparison.Ordinal);
-            files[entry.Path] = files[entry.Path].Replace(entry.Line, entry.Line.Replace("--cap-drop=ALL", "--cap-add=ALL", StringComparison.Ordinal), StringComparison.Ordinal);
+            // A run that gains a capability, or a stop that becomes a forced removal, is no longer the listed line.
+            var changed = entry.Line.Contains("--cap-drop=ALL", StringComparison.Ordinal)
+                ? entry.Line.Replace("--cap-drop=ALL", "--cap-add=ALL", StringComparison.Ordinal)
+                : entry.Line.Replace("docker kill ", "docker rm --force ", StringComparison.Ordinal);
+            Assert.NotEqual(entry.Line, changed);
+            files[entry.Path] = files[entry.Path].Replace(entry.Line, changed, StringComparison.Ordinal);
             Assert.Contains(ToolPinContract.DockerCommandErrors(files), error => error.Contains("not on the allowlist", StringComparison.Ordinal));
         }
     }
@@ -47,6 +53,19 @@ public sealed class EvidencePipelineTests
     [InlineData("- name: Build the evidence assembler")]
     [InlineData("[ -z \"${writable}\" ] || fail \"Root must own every file of the sample image, and its user may write none.\"")]
     [InlineData("[ -z \"${writable}\" ] || fail \"Root must own every file of the composition fixture image, and its user may write none: ${writable}\"")]
+    [InlineData("timeout --kill-after=30s \"${bound}\" ")]
+    [InlineData(" -longRunning 60")]
+    [InlineData(" 2>&1 | long_running")]
+    [InlineData("grep --line-buffered -oE \"\\[Long Running Test\\] '[^']*', Elapsed: [0-9:]+\" || true")]
+    [InlineData("bounded \"g02-${name}\" \"${run}\"")]
+    [InlineData("bounded g02-measurement \"${run}\"")]
+    [InlineData("docker kill \"$1\" > /dev/null 2>&1 || true")]
+    [InlineData("docker kill g02-composition > /dev/null 2>&1 || true")]
+    [InlineData("echo \"::error::The G-02 container run $1 did not finish within ${bound} seconds.\"")]
+    [InlineData("fail \"The G-02 container run g02-composition did not finish within ${bound} seconds.\"")]
+    [InlineData("echo \"G-02 container run ${name}: $(( ${#selected[@]} / 2 )) planned methods, within ${bound} seconds.\"")]
+    [InlineData("| select($names | index($name)) | \"\\(.status) \\($name)\"' \"${report}\"")]
+    [InlineData("bound=300")]
     public void Removing_a_bundle_stage_is_rejected(string text)
     {
         var files = RepositoryFiles.Current.ToDictionary(pair => pair.Key, pair => pair.Value.Replace(text, "removed-stage", StringComparison.Ordinal), StringComparer.Ordinal);
@@ -140,6 +159,68 @@ internal static class EvidencePipelineContract
         ("${COMPOSITION_IMAGE}", "[ -z \"${writable}\" ] || fail \"Root must own every file of the composition fixture image, and its user may write none: ${writable}\"")
     ];
 
+    // Every container test run is bounded and shown (docs/ci.md, "Container acceptance"): it runs under timeout within its bound,
+    // by name, with xunit's long-running report, and of its output shows only those lines; a run past its bound stops its
+    // container and fails the step naming the run. The readiness poll, a single short test that bounds itself, is the exception.
+    internal const string BoundedRun = "timeout --kill-after=30s \"${bound}\" ";
+    private const string Bound = "bound=300";
+    private const string LongRunning = """long_running() { grep --line-buffered -oE "\[Long Running Test\] '[^']*', Elapsed: [0-9:]+" || true; }""";
+    private const string Stopped = """
+        bounded() {
+          if [ "$2" -eq 124 ] || [ "$2" -eq 137 ]; then
+            docker kill "$1" > /dev/null 2>&1 || true
+            echo "::error::The G-02 container run $1 did not finish within ${bound} seconds."
+            exit 1
+          fi
+        }
+        """;
+    private static readonly string[] CompositionStopped =
+    [
+        "if [ \"${status}\" -eq 124 ] || [ \"${status}\" -eq 137 ]; then", "docker kill g02-composition > /dev/null 2>&1 || true",
+        "fail \"The G-02 container run g02-composition did not finish within ${bound} seconds.\"", "fi"
+    ];
+    private const string ProjectCount = "echo \"G-02 container run ${name}: $(( ${#selected[@]} / 2 )) planned methods, within ${bound} seconds.\"";
+    private const string ProjectOutcomes = "| select($names | index($name)) | \"\\(.status) \\($name)\"' \"${report}\"";
+
+    private static IEnumerable<string> BoundedRunErrors(IReadOnlyDictionary<string, string> files)
+    {
+        foreach (var path in new[] { ToolPinContract.CompositionScriptPath, ContainerResultsScriptPath })
+        {
+            var script = files.GetValueOrDefault(path, "").Replace("\r\n", "\n", StringComparison.Ordinal);
+            var lines = script.Split('\n').Select(line => line.Trim()).ToList();
+            var runs = lines.Select((line, index) => (Line: line, Index: index)).Where(item => item.Line.Contains("docker run ", StringComparison.Ordinal)
+                && item.Line.Contains("\"${COMPOSITION_IMAGE}\"", StringComparison.Ordinal) && !item.Line.StartsWith("if docker run ", StringComparison.Ordinal)).ToList();
+            if (!lines.Contains(Bound) || !lines.Contains(LongRunning) || runs.Count == 0
+                || runs.Any(run => !run.Line.StartsWith(BoundedRun + "docker run ", StringComparison.Ordinal)
+                    || !run.Line.Contains(" -longRunning 60 ", StringComparison.Ordinal)
+                    || !Regex.IsMatch(run.Line, @" 2>&1 \| long_running \|\| (?:run|status)=\$\?\z", RegexOptions.CultureInvariant)
+                    || !Stops(path, lines, run.Line, run.Index, script)))
+                yield return $"{path}: every container test run must run under timeout within {Bound}, by name, with -longRunning 60, show only "
+                    + "its long-running-test lines, and stop its container and fail the step naming the run when it exceeds the bound.";
+        }
+
+        // Each project's run is announced with its method count, and its planned outcomes are printed before collection.
+        var results = files.GetValueOrDefault(ContainerResultsScriptPath, "").Replace("\r\n", "\n", StringComparison.Ordinal);
+        var count = results.IndexOf(ProjectCount, StringComparison.Ordinal);
+        var project = results.IndexOf("--name=\"g02-${name}\"", StringComparison.Ordinal);
+        var outcomes = results.IndexOf(ProjectOutcomes, StringComparison.Ordinal);
+        var collect = results.IndexOf("MODULARYN_EVIDENCE_LABEL=\"${name}\"", StringComparison.Ordinal);
+        if (count < 0 || project < count || outcomes < project || collect < outcomes)
+            yield return $"{ContainerResultsScriptPath}: must name each project and its planned method count before its run, and print its "
+                + "report's planned method names and statuses after it, before collection.";
+    }
+
+    // The line after a run stops it at its bound: through bounded, with the run's own name, or for the composition rows inline.
+    private static bool Stops(string path, List<string> lines, string run, int index, string script)
+    {
+        var name = Regex.Match(run, @" --name=(?<name>\S+) ", RegexOptions.CultureInvariant);
+        if (!name.Success) return false;
+        if (path == ToolPinContract.CompositionScriptPath)
+            return name.Groups["name"].Value == "g02-composition" && lines.Skip(index + 1).Take(CompositionStopped.Length).SequenceEqual(CompositionStopped);
+        return script.Contains(Stopped.Replace("\r\n", "\n", StringComparison.Ordinal) + "\n", StringComparison.Ordinal) && index + 1 < lines.Count
+            && lines[index + 1] == "bounded " + name.Groups["name"].Value + " \"${run}\"";
+    }
+
     // Each assembler command and the EvidenceBundleCommandTests method that performs it.
     private static readonly (string Command, string Method)[] Commands =
     [
@@ -191,6 +272,8 @@ internal static class EvidencePipelineContract
                 || !lines[at - 1].Contains("--entrypoint=find \"" + image + "\" /app ", StringComparison.Ordinal))
                 errors.Add($"{ToolPinContract.CiPath}: the runtime ownership check of {image} must fail unless its find, on the line before, finds nothing.");
         }
+
+        errors.AddRange(BoundedRunErrors(files));
 
         var build = ci.IndexOf("      - name: " + AssemblerBuildStep + "\n", StringComparison.Ordinal);
         var rows = ci.IndexOf("      - name: " + ToolPinContract.CompositionTestStep + "\n", StringComparison.Ordinal);
