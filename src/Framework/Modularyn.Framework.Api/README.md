@@ -128,8 +128,14 @@ Feature evaluation still uses its existing gate, and a missing gate yields false
   Removal checks: dropping any of those rules, or the document's description of
   a page, its form, a download or an upload, fails its test. A form post's
   antiforgery is TM-G02-007's, recorded in [the framework](../README.md#threat-model-controls).
-  Remaining: the sample's pages, downloads and uploads (CODE-09); adversarial
-  evidence (SEC-08).
+  Response media types are declared, not yet checked at runtime: neither the
+  inventory check nor the endpoint compares a response's `Content-Type` with its
+  declaration, so a handler that sends another type than it declares is not
+  refused. The ingress disables content sniffing on every response, so such a
+  response is never rendered as HTML it did not declare (`Ingress.Tests`
+  `ContentTypeOptionsTests.TM_G02_011_*`). Remaining: the runtime check of each
+  response's type against its declaration (SEC-08); the sample's pages,
+  downloads and uploads (CODE-09); adversarial evidence (SEC-08).
 
 Compilation and real-provider qualification remain Builder checks. The contract
 fixture uses PostgreSQL, actual sessions, tenancy, authorization, tracked writes

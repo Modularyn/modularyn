@@ -116,7 +116,8 @@ public static class IngressServiceCollectionExtensions
 public static class IngressApplicationBuilderExtensions
 {
     /// <summary>
-    /// Adds the ingress policy at the start of the pipeline, in order: declared-proxy forwarded headers, host filtering,
+    /// Adds the ingress policy at the start of the pipeline, in order: content sniffing disabled on every response,
+    /// declared-proxy forwarded headers, host filtering,
     /// HTTPS redirection, HSTS, the request body limit, cross-origin policy, authentication when authentication services
     /// are registered, and antiforgery enforcement. Authentication therefore never runs for a plain-HTTP or
     /// unconfigured-host request, and antiforgery tokens are validated against the authenticated user they were issued
@@ -134,6 +135,7 @@ public static class IngressApplicationBuilderExtensions
                 + "which the ingress places after its transport checks, and call UseAuthorization after the ingress.");
         // Kept so that the startup check can see whether the application placed authorization after the ingress.
         app.ApplicationServices.GetRequiredService<IngressPipeline>().Application = app;
+        app.UseMiddleware<ContentTypeOptionsMiddleware>();
         app.UseMiddleware<ProxyTrustMiddleware>();
         app.UseHostFiltering();
         app.UseHttpsRedirection();

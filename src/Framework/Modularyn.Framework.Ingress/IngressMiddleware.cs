@@ -81,6 +81,24 @@ internal sealed partial class ProxyTrustMiddleware
     private static partial void UndeclaredForwarder(ILogger logger, string peer);
 }
 
+/// <summary>
+/// Disables content sniffing on every response the pipeline produces, the ingress's own refusals and redirects included, so
+/// a browser renders a response only as its Content-Type says, never as HTML it guessed from the body. The header is set as
+/// the response starts, after every later callback, so no handler can change or remove it.
+/// </summary>
+internal sealed class ContentTypeOptionsMiddleware(RequestDelegate next)
+{
+    public Task Invoke(HttpContext context)
+    {
+        context.Response.OnStarting(static state =>
+        {
+            ((HttpResponse)state).Headers.XContentTypeOptions = "nosniff";
+            return Task.CompletedTask;
+        }, context.Response);
+        return next(context);
+    }
+}
+
 /// <summary>Refuses a declared body larger than the limit before any handler, and caps undeclared bodies at the same limit.</summary>
 internal sealed class RequestBodyLimitMiddleware(RequestDelegate next, IOptions<IngressOptions> options)
 {

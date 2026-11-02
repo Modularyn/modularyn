@@ -444,6 +444,16 @@ package.
    antiforgery cookie is `__Host-Modularyn-Antiforgery`, Secure, HttpOnly and
    SameSite=Strict.
 
+Before these steps, the ingress disables content sniffing: every response the
+pipeline produces, its own refusals and redirects included, carries
+`X-Content-Type-Options: nosniff`, set as the response starts so that no later
+code can change or remove it. A browser therefore renders a response only as its
+`Content-Type` says, never as HTML it guessed from the body. Responses produced
+before the pipeline runs, Kestrel's own and the host's host filtering's empty 400
+for an unconfigured host, do not carry it. Response media types are declared in
+the [API inventory](Modularyn.Framework.Api.Contracts/README.md), and not yet
+checked at runtime against what a handler sends; SEC-08 carries that check.
+
 The options are validated before startup: public and cross-origin origins are
 exact HTTPS origins with ASCII hosts and no wildcard, path, query or user
 information; proxies are canonical single addresses; methods and headers are
@@ -761,8 +771,14 @@ recorded in [the API conventions](Modularyn.Framework.Api/README.md#threat-model
   refuses the host and the endpoint refuses each request (SEC-09;
   `Sdk.Client.Tests` `ContractDefinitionTests.TM_G02_007_*`; removing either
   check fails it).
+  Content sniffing is disabled on every response the pipeline produces, so a
+  response whose type a handler gets wrong is never rendered as HTML (SEC-09;
+  `Ingress.Tests` `ContentTypeOptionsTests.TM_G02_011_*`; removing the header, or
+  setting it before the handler instead of as the response starts, fails it).
   Remaining: no state change on safe methods, which the ingress cannot observe,
-  through endpoint conventions (CODE-06) and contract tests (SEC-08); the
+  through endpoint conventions (CODE-06) and contract tests (SEC-08); a runtime
+  check that each response's type is the one its endpoint declares, since
+  response media types are declared but not yet checked at runtime (SEC-08); the
   sample's pages and their browser evidence (CODE-09, SEC-08).
 - **TM-G02-008, deferred.** Operation-specific input contracts and server-derived
   fields (CODE-06; SEC-08 for AC-003-N01).
