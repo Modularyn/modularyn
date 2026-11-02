@@ -68,6 +68,7 @@ internal sealed class AuthorizationDatabase : IAsyncDisposable
     internal IReadOnlyList<ModuleManifest> Manifests { get; }
     internal AuthorizationRegistry Registry { get; }
     internal ValueDefinitionRegistry Values { get; }
+    internal string IdentitySchema => schemas[1];
     internal string AuthorizationSchema => schemas[2];
     internal string ItemsSchema => schemas[4];
     private static CancellationToken Cancellation => TestContext.Current.CancellationToken;
