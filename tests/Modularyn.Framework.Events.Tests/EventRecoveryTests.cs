@@ -4,6 +4,7 @@ using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Persistence.Abstractions;
 using Modularyn.Framework.Persistence.EfCore;
 using Modularyn.Framework.Tenancy;
+using Modularyn.Framework.Tenancy.Abstractions;
 using Npgsql;
 using Xunit;
 
@@ -283,6 +284,54 @@ public sealed class EventRecoveryTests
         Assert.Equal(("other", 1), (effect.Key, effect.Count));
         Assert.Equal(EventState.Completed, Assert.Single(await host.RowsAsync<InboxEvent>(database.Consumer, other.Context), row => row.Id == otherId).State);
     }
+
+    [Fact]
+    public async Task A_validly_sealed_reference_naming_another_tenant_than_its_row_never_acts_in_either_tenant()
+    {
+        await using var database = await DurableDatabase.CreateAsync();
+        var clock = new DurableClock();
+        await using var host = DurableHost.Create(database, clock);
+        await using var owner = await host.EnterServiceAsync(await host.TenantAsync());
+        await using var other = await host.EnterServiceAsync(await host.TenantAsync());
+        var sent = await host.ProduceAsync(owner, "sent");
+        var received = await host.ProduceAsync(owner, "received");
+        // References sealed with the host's own key ring and bound to the very rows they are stored on, but captured in
+        // another tenant: they open, and revalidate for that tenant, so only the tenant checks behind the seal stand between
+        // them and the rows. Receipt refuses one on the outbox and consumption one on the inbox, each before any read.
+        await ForgeAsync(database, database.ProducerSchema, "OutboxEvents", sent, PropagatedTenantContext.Capture(other.Context, clock).ToJson(host.Outbox.OutboxBinding(sent)));
+        var dispatch = await host.HostAsync();
+        var principal = host.WorkerPrincipal();
+        for (var attempt = 1; attempt <= 3; attempt++)
+        {
+            Assert.Equal(attempt == 1 ? 1 : 0, await host.Pump().DispatchAsync(dispatch, principal, cancellationToken: Token));
+            clock.Advance(TimeSpan.FromSeconds(1 << (attempt - 1)));
+        }
+        var outbox = Assert.Single(await host.RowsAsync<OutboxEvent>(database.Producer, owner.Context), row => row.Id == sent);
+        Assert.Equal((EventState.Poison, "DeliveryFailed", 3), (outbox.State, outbox.Code, outbox.Attempts));
+        Assert.DoesNotContain(await host.RowsAsync<InboxEvent>(database.Consumer, other.Context), row => row.Id == sent);
+        Assert.DoesNotContain(await host.RowsAsync<InboxEvent>(database.Consumer, owner.Context), row => row.Id == sent);
+
+        await ForgeAsync(database, database.Consumer.Schema, "InboxEvents", received,
+            PropagatedTenantContext.Capture(other.Context, clock).ToJson(host.Inbox.InboxBinding(received)));
+        for (var attempt = 1; attempt <= 3; attempt++)
+        {
+            Assert.Equal(0, await host.Pump().ConsumeAsync(dispatch, principal, cancellationToken: Token));
+            clock.Advance(TimeSpan.FromSeconds(1 << (attempt - 1)));
+        }
+        var inbox = Assert.Single(await host.RowsAsync<InboxEvent>(database.Consumer, owner.Context), row => row.Id == received);
+        Assert.Equal((EventState.Poison, "HandlerFailed", 3), (inbox.State, inbox.Code, inbox.Attempts));
+        foreach (var unit in new[] { owner, other })
+        {
+            Assert.Empty(await host.RowsAsync<DurableEffect>(database.Consumer, unit.Context));
+            Assert.Empty(await host.RowsAsync<EventPosition>(database.Consumer, unit.Context));
+        }
+        Assert.Empty(await host.RowsAsync<InboxEvent>(database.Consumer, other.Context));
+    }
+
+    // Replaces a row's stored reference directly, as only a database writer could.
+    private static Task ForgeAsync(DurableDatabase database, string schema, string table, Guid id, string propagated) =>
+        database.ExecuteAsync("UPDATE \"" + schema + "\".\"" + table + "\" SET \"Propagated\" = @propagated WHERE \"Id\" = @id",
+            new NpgsqlParameter("propagated", propagated), new NpgsqlParameter("id", id));
 
     [Fact]
     public async Task Stores_refuse_suppressed_units_and_another_modules_transaction()

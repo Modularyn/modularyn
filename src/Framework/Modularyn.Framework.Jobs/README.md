@@ -56,9 +56,11 @@ the lease recoverable. Permanent authorization refusal is `Denied`; transient
 refusals have a separate bounded deferral count, leaving handler attempts distinct.
 A stored reference that does not open under its seal and its row's binding, such
 as one copied from another row, is denied at once with `MTN014`, before any claim;
-the worker's own tenant check stays behind the seal. Any other failure outside a
-handler's attempt takes the same bounded deferrals with the code `DispatchFailed`
-and never ends the pass for other jobs. A refusal on expired ownership closes the previous attempt in the same host
+the worker's own tenant check stays behind the seal: a validly sealed reference
+that names another tenant than its row fails before any claim, and the
+materializer's before any read. Any such failure outside a handler's attempt takes
+the same bounded deferrals, with the code `DispatchFailed` for a job and
+`ScheduleFailed` for a schedule, and never ends the pass for other jobs. A refusal on expired ownership closes the previous attempt in the same host
 disposition transaction. Exhaustion is visible as `Failed`. Schedules also bound
 authorization deferrals; exhaustion disables the schedule while retaining its
 cursor, deferral count and last refusal code for inspection, and redacts its

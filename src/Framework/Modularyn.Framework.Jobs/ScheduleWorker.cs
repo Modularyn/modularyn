@@ -36,9 +36,10 @@ public sealed class ScheduleWorker(JobStore store, AuthorizedWorkRunner runner)
                 {
                     if (unit.Context.TenantId != candidate.TenantId) throw new InvalidOperationException("The schedule is outside its producer's tenant.");
                     await using var work = await EfCoreUnitOfWork.BeginAsync(store.Module, unit.Context, cancellationToken: token).ConfigureAwait(false);
-                    var row = await work.Context.Set<JobSchedule>().SingleAsync(row => row.Id == candidate.Id, token).ConfigureAwait(false);
+                    // The unit's tenant filter finds the schedule only in its own tenant, which the check above already holds.
+                    var row = await work.Context.Set<JobSchedule>().SingleOrDefaultAsync(row => row.Id == candidate.Id, token).ConfigureAwait(false);
                     var now = store.Now;
-                    if (!row.Enabled || row.NextCheckAt > now) return;
+                    if (row is null || !row.Enabled || row.NextCheckAt > now) return;
                     var schedule = new DailySchedule(row.TimeZone, row.LocalTime, row.Misfire);
                     var today = schedule.LocalDate(now);
                     var occurrences = new List<ScheduleOccurrence>();

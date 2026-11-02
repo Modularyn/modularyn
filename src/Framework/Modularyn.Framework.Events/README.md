@@ -32,8 +32,10 @@ propagated context. Receipt never copies the outbox's reference. The reference
 remains attached to its original producer through replay. A stored reference that
 does not open, such as one copied from another receipt of any tenant, is denied at
 once with `MTN014` and its payload redacted, before any read or effect. Behind the
-seal, a reference that named another tenant than its row would still never act in
-either tenant: receipt refuses it, and consumption refuses it before any read.
+seal, a validly sealed reference that names another tenant than its row, which only
+the key ring's holder could produce, still never acts in either tenant: receipt
+refuses it and consumption refuses it before any read, so both count it against the
+failure budget and quarantine it.
 
 An event has a stable identity, kind, positive schema version, consumer, ordering
 key and positive position. Identity and position uniqueness include the tenant.
