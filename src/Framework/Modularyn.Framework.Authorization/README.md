@@ -175,7 +175,10 @@ refuses with the transient `MAZ008` and logs event 8300. An interactive user's
 authority is its effective subject's, which is the delegation's subject under a
 delegation. A service identity acts for the producer of propagated work, the user
 that the revalidated context names, within its own scope, or as itself in a
-context it is the actor of, with exactly its scope.
+context it is the actor of, with exactly its scope. A context that names a user
+for any other reason, such as a request resolved from claims that server code
+built, gives a service identity no subject, and it is refused with `MAZ009`
+(SEC-08, `G02AC004Tests.AC_004_N03_HostAndWorkerAuthorityCannotComeFromPayloads_Isolation`).
 
 The stored propagated reference therefore decides whose authority a worker
 exercises. Only server code may produce one, with

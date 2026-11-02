@@ -114,12 +114,14 @@ internal sealed partial class AuthorizationEvaluator(AuthorizationRegistry regis
     /// Whose authority applies. An interactive user acts with its effective subject's authority, and must be the actor the
     /// tenant context was established for. A service identity acts either as itself, in a context it is the actor of, or
     /// for the producer of propagated work, the user that the revalidated context names, never with more than its scope.
+    /// A context that names a user for any other reason, such as a request resolved from claims that server code built,
+    /// gives a service identity no subject at all.
     /// </summary>
     internal static ActorReference? SubjectOf(TenantContext context, ExecutionPrincipal principal)
     {
         if (principal.ServiceScope is not null)
         {
-            if (context.Actor.Kind == ActorKind.User) return context.Actor;
+            if (context.Actor.Kind == ActorKind.User) return context.Source == TenantContextSource.Propagated ? context.Actor : null;
             return context.Actor.Subject == principal.Actor.Id ? context.Actor : null;
         }
         if (principal.Actor.Kind != IdentityKind.User || context.Actor.Kind != ActorKind.User || context.Actor.Subject != principal.Actor.Id) return null;
