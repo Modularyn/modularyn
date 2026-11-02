@@ -68,7 +68,7 @@ internal sealed class TenancyDatabase : IAsyncDisposable
         Assert.InRange(session.ServerVersionNumber, 180000, 189999);
         Assert.Equal("off", session.Parameters.GetValueOrDefault("is_superuser"));
         var options = new PostgreSqlPersistenceOptions(System.Environment.GetEnvironmentVariable(PostgreSqlTarget.Variable)!);
-        var database = new TenancyDatabase(options, await PostgreSqlTestLock.AcquireAsync(options.ConnectionString, Cancellation));
+        var database = await PostgreSqlTestLock.HoldAsync(options.ConnectionString, held => new TenancyDatabase(options, held), Cancellation);
         try
         {
             await database.MigrateAsync();

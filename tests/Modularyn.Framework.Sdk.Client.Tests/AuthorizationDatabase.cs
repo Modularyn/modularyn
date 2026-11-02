@@ -80,7 +80,7 @@ internal sealed class AuthorizationDatabase : IAsyncDisposable
         Assert.InRange(session.ServerVersionNumber, 180000, 189999);
         Assert.Equal("off", session.Parameters.GetValueOrDefault("is_superuser"));
         var options = new PostgreSqlPersistenceOptions(System.Environment.GetEnvironmentVariable(PostgreSqlTarget.Variable)!);
-        var database = new AuthorizationDatabase(options, await PostgreSqlTestLock.AcquireAsync(options.ConnectionString, Cancellation));
+        var database = await PostgreSqlTestLock.HoldAsync(options.ConnectionString, held => new AuthorizationDatabase(options, held), Cancellation);
         try
         {
             var composition = await new ModuleComposer([database.Registry, database.Values]).ComposeAsync(new(database.Manifests, Environment), Cancellation);

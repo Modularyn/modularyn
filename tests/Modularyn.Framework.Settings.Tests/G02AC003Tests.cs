@@ -13,6 +13,17 @@ public sealed partial class G02AC003Tests
 {
     private static CancellationToken Cancellation => TestContext.Current.CancellationToken;
 
+    /// <summary>Waits until running work gives its signal. If the work ends first, its own failure fails the test, and a signal
+    /// that never comes fails it after two minutes, where each step takes milliseconds: neither waits forever.</summary>
+    private static async Task SignalledAsync(Task signal, Task work)
+    {
+        if (await Task.WhenAny(signal, work).WaitAsync(TimeSpan.FromMinutes(2), Cancellation) == work && !signal.IsCompleted)
+        {
+            await work;
+            Assert.Fail("The work ended without reaching the point the test holds it at.");
+        }
+    }
+
     [Fact]
     public async Task AC_003_P02_PrecedenceAndInvalidationKeepTenantValuesSeparate_Unit()
     {
@@ -96,7 +107,7 @@ public sealed partial class G02AC003Tests
         Task<string> Read(Func<CancellationToken, Task<string>> factory) => cache.GetOrCreateAsync(context, "Preferences", "1", "setting.Title",
             TestDefinitions.Staleness, factory, Cancellation);
         var first = Read(Old);
-        await started.Task.WaitAsync(Cancellation);
+        await SignalledAsync(started.Task, first);
         var shared = Read(Old);
         cache.InvalidateGlobal("Preferences");
         Assert.Equal("after", await Read(_ => Task.FromResult("after")));

@@ -135,7 +135,7 @@ internal sealed class AdversarialDatabase : IAsyncDisposable
         Assert.InRange(session.ServerVersionNumber, 180000, 189999);
         Assert.Equal("off", session.Parameters.GetValueOrDefault("is_superuser"));
         var options = new PostgreSqlPersistenceOptions(System.Environment.GetEnvironmentVariable(PostgreSqlTarget.Variable)!);
-        var database = new AdversarialDatabase(options, await PostgreSqlTestLock.AcquireAsync(options.ConnectionString, Cancellation), new());
+        var database = await PostgreSqlTestLock.HoldAsync(options.ConnectionString, held => new AdversarialDatabase(options, held, new()), Cancellation);
         try
         {
             await database.MigrateAsync();

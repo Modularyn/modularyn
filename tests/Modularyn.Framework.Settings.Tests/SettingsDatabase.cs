@@ -64,7 +64,7 @@ internal sealed class SettingsDatabase : IAsyncDisposable
         Assert.InRange(session.ServerVersionNumber, 180000, 189999);
         Assert.Equal("off", session.Parameters.GetValueOrDefault("is_superuser"));
         var options = new PostgreSqlPersistenceOptions(Environment.GetEnvironmentVariable(PostgreSqlTarget.Variable)!);
-        var database = new SettingsDatabase(options, await PostgreSqlTestLock.AcquireAsync(options.ConnectionString, Cancellation));
+        var database = await PostgreSqlTestLock.HoldAsync(options.ConnectionString, held => new SettingsDatabase(options, held), Cancellation);
         try
         {
             var manifests = new[] { TenantDirectoryModule.Manifest(TestDefinitions.Version), SettingsModule.Manifest(TestDefinitions.Version), TestDefinitions.Manifest };

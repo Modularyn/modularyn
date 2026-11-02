@@ -171,6 +171,10 @@ internal static class EvidenceWriter
     internal static async Task WriteAsync(EvidenceRun run, string caseId, string mode, EvidenceOutcome outcome, CaseObservations observations)
     {
         if (outcome == EvidenceOutcome.Skipped) return;
+        Require(outcome is EvidenceOutcome.Passed or EvidenceOutcome.Failed, "test outcome");
+        Require(Regex.IsMatch(run.RunId, "^[a-z0-9][a-z0-9._-]{0,79}\\z", RegexOptions.CultureInvariant), "run identity");
+        Require(EvidenceDocuments.Read(PlanPath)["cases"]!.AsArray().Any(row => (string?)row!["caseId"] == caseId
+            && (string?)row!["family"] == "AC-001"), "CODE-10 case scope");
         // A database that could not be reached has no measured tuple. The test failure remains in the test runner;
         // do not invent a database pin just to produce a syntactically complete verification record.
         Require(observations.ServerVersionNumber is not null, "no measured provider tuple; retain the test runner failure");
@@ -182,8 +186,29 @@ internal static class EvidenceWriter
             EvidenceRun.VerifySource(run.Repository ?? throw new EvidenceValidationException("repository unavailable"), run.SourceCommit);
             EvidenceDocuments.MatchCheckout(run.Repository);
         }
-        await WriteMeasuredAsync(run, caseId, mode, outcome, observations,
-            MeasuredTuple(observations.ServerVersionNumber!.Value, run.Mode, run.ImageDigest));
+        // Production writes observations only. The bundle assembler is the single writer of case records for every family.
+        var tuple = MeasuredTuple(observations.ServerVersionNumber!.Value, run.Mode, run.ImageDigest);
+        ValidateMeasuredTuple(tuple, run.Mode);
+        var result = CreateResult(run, caseId, mode, outcome, tuple, observations);
+        result["observedOutcomes"] = JsonSerializer.SerializeToNode(observations.Outcomes);
+        var artifacts = new JsonArray();
+        foreach (var file in observations.ImplementationFiles ?? throw new EvidenceValidationException("implementation inventory unavailable"))
+        {
+            var source = Path.Combine(AppContext.BaseDirectory, file.Path);
+            var location = "composition-implementation/" + caseId.ToLowerInvariant() + "/" + file.Path;
+            var target = Path.Combine(run.OutputDirectory, location);
+            _ = EvidenceRun.RelativeLocation(run.OutputDirectory, target);
+            var bytes = await File.ReadAllBytesAsync(source);
+            Require(Hash(bytes) == file.Sha256, "implementation changed while retaining it");
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            await WriteNewAsync(target, bytes);
+            artifacts.Add(Artifact(location, bytes));
+        }
+        result["implementationArtifacts"] = artifacts;
+        var path = Path.Combine(run.OutputDirectory, "observations", caseId.ToLowerInvariant() + ".json");
+        _ = EvidenceRun.RelativeLocation(run.OutputDirectory, path);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        await WriteNewAsync(path, Bytes(result));
     }
 
     /// <summary>Writes the case/mode/run directory for a measured tuple: implementation bytes, the result, then the record.</summary>
@@ -302,6 +327,12 @@ internal static class EvidenceWriter
     {
         Require(OperatingSystem.IsLinux() && RuntimeInformation.ProcessArchitecture == Architecture.X64, "G-02 requires Linux x64");
         return Tuple(serverVersion, mode, imageDigest, Environment.OSVersion.Version.ToString());
+    }
+
+    internal static void ValidateMeasuredTuple(JsonObject tuple, string mode)
+    {
+        ValidateTarget(tuple);
+        ValidatePins(tuple, mode);
     }
 
     /// <summary>The tuple this process measures, for the operating-system version given; only Linux x64 records it.</summary>

@@ -86,8 +86,8 @@ internal sealed class SmokeHost : IAsyncDisposable
         var session = await PostgreSqlProbe.ConnectAsync(PostgreSqlTarget.FromEnvironment(), token);
         Check.That(session.ServerVersionNumber is >= 180000 and < 190000 && session.Parameters.GetValueOrDefault("is_superuser") == "off", "database-role-and-version");
         var connection = Environment.GetEnvironmentVariable(PostgreSqlTarget.Variable)!;
-        var held = await PostgreSqlTestLock.AcquireAsync(connection, token);
-        var host = new SmokeHost(connection, held, RunDirectory.NewPath()) { ServerVersionNumber = session.ServerVersionNumber };
+        var host = await PostgreSqlTestLock.HoldAsync(connection, held => new SmokeHost(connection, held, RunDirectory.NewPath()) { ServerVersionNumber = session.ServerVersionNumber },
+            token);
         try { await host.InitializeAsync(token, selection, configure, developmentSeed); return host; }
         catch { await host.DisposeAsync(); throw; }
     }
