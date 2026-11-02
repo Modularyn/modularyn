@@ -83,6 +83,12 @@ host. Like every test project, the sample's tests accompany the product of their
 own name, such as `Modularyn.Tooling.Samples.TeamWorkspace` (DEP001), which is
 not a composition root.
 
+DEP014 checks direct references only. References between test projects are not
+checked, as they were not before composition roots, so a test project that
+references a sample's own test project reaches that sample's host transitively.
+No product can, since DEP012 keeps every product from a test project. SEC-08
+carries that case.
+
 DEP009 stays in force for every other project, other Tooling projects included:
 a project under `Modularyn.Tooling.Samples.` that does not end in `.Host`, and a
 `.Host` project outside that prefix, reach a module only at
