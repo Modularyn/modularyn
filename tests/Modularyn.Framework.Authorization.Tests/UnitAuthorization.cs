@@ -19,14 +19,25 @@ namespace Modularyn.Framework.Authorization.Tests;
 
 /// <summary>
 /// Authority held in memory, for unit tests of the evaluator's decisions; the PostgreSQL source is exercised by the
-/// real-provider tests. It can be made unavailable, and counts its reads.
+/// real-provider tests. It can be made unavailable or to stall, and counts its reads.
 /// </summary>
 internal sealed class MemoryAuthority : IAuthoritySource
 {
     private readonly ConcurrentDictionary<(Guid Tenant, string Subject), ConcurrentDictionary<string, bool>> held = new();
     private readonly ConcurrentDictionary<(Guid Tenant, string Subject, string Type, string Id, string Permission), DateTimeOffset?> resources = new();
+    private StalledRead? stall;
     internal bool Unavailable { get; set; }
     internal int Reads;
+
+    /// <summary>A read that has begun and waits, ignoring its token, until the test releases it.</summary>
+    internal sealed class StalledRead
+    {
+        internal TaskCompletionSource<CancellationToken> Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    /// <summary>Makes the next read of authority stall; the reads after it answer at once.</summary>
+    internal StalledRead StallNextRead() => stall = new StalledRead();
 
     internal void Grant(Guid tenant, string subject, params string[] permissions)
     {
@@ -45,9 +56,22 @@ internal sealed class MemoryAuthority : IAuthoritySource
     public Task<AuthoritySnapshot> ReadAsync(TenantContext context, ActorReference subject, CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref Reads);
+        if (Interlocked.Exchange(ref stall, null) is { } stalled) return StalledAsync(stalled, context, subject, cancellationToken);
+        return Task.FromResult(Read(context, subject));
+    }
+
+    private async Task<AuthoritySnapshot> StalledAsync(StalledRead stalled, TenantContext context, ActorReference subject, CancellationToken cancellationToken)
+    {
+        stalled.Entered.SetResult(cancellationToken);
+        await stalled.Release.Task;
+        return Read(context, subject);
+    }
+
+    private AuthoritySnapshot Read(TenantContext context, ActorReference subject)
+    {
         if (Unavailable) throw new InvalidOperationException("The authority store is unavailable.");
         var permissions = held.TryGetValue((context.TenantId!.Value, subject.Subject), out var set) ? set.Keys.ToArray() : [];
-        return Task.FromResult(new AuthoritySnapshot(subject, false, permissions, [], null, DateTimeOffset.UtcNow));
+        return new AuthoritySnapshot(subject, false, permissions, [], null, DateTimeOffset.UtcNow);
     }
 
     public Task<bool> HasResourceGrantAsync(TenantContext context, ActorReference subject, ResourceReference resource, string permission, DateTimeOffset now,

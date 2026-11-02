@@ -51,8 +51,8 @@ public sealed class SettingsService
     }
 
     /// <summary>
-    /// The effective value. A fill that overruns its definition's staleness bound is reported as
-    /// <see cref="ValueUnavailableException"/>, like any other unavailable read, and caches nothing.
+    /// The effective value. A fill that overruns its definition's staleness bound or the cache's factory deadline is
+    /// reported as <see cref="ValueUnavailableException"/>, like any other unavailable read, and caches nothing.
     /// </summary>
     public async Task<ResolvedValue> ResolveAsync(TenantContext tenant, ScopedValueDefinition definition, CancellationToken cancellationToken = default)
     {
@@ -62,10 +62,12 @@ public sealed class SettingsService
         try
         {
             return await cache.GetOrCreateAsync(tenant, definition.ModuleId, definition.Version.Value, definition.AssetName,
-                definition.MaxStaleness, async _ =>
+                definition.MaxStaleness, async cacheDeadline =>
                 {
-                    // A shared cache miss owns its own revalidated context, even if its first waiter ends or cancels.
+                    // A shared cache miss owns its own revalidated context, even if its first waiter ends or cancels, and ends at
+                    // its staleness bound or at the cache's factory deadline, whichever comes first.
                     using var timeout = new CancellationTokenSource(definition.MaxStaleness, time);
+                    using var ended = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, cacheDeadline);
                     ResolvedValue? result = null;
                     TenantWorkOutcome outcome;
                     try
@@ -73,18 +75,18 @@ public sealed class SettingsService
                         outcome = await runner.RunAsync(propagated, async (unit, token) =>
                         {
                             result = await LoadAsync(unit.Context, definition, token).ConfigureAwait(false);
-                        }, timeout.Token).ConfigureAwait(false);
+                        }, ended.Token).ConfigureAwait(false);
                     }
-                    catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+                    catch (OperationCanceledException) when (ended.IsCancellationRequested)
                     {
-                        // The staleness deadline ended the fill: the value is unavailable, not the caller's cancellation.
+                        // A deadline ended the fill: the value is unavailable, not the caller's cancellation.
                         throw new ValueUnavailableException();
                     }
                     if (outcome.Disposition != TenantWorkDisposition.Completed || result is null) throw new ValueUnavailableException();
                     return result;
                 }, cancellationToken).ConfigureAwait(false);
         }
-        catch (TenantCacheStaleException)
+        catch (Exception exception) when (exception is TenantCacheStaleException or TenantCacheDeadlineException)
         {
             throw new ValueUnavailableException();
         }

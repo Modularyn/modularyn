@@ -252,6 +252,40 @@ public sealed class DecisionTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task TM_G02_034_A_bounded_decision_refuses_when_its_cache_fill_passes_the_factory_deadline()
+    {
+        var clock = new TimerClock();
+        var deadline = TimeSpan.FromSeconds(5);
+        await using var authorization = UnitAuthorization.Create(services =>
+        {
+            services.AddSingleton<TimeProvider>(clock);
+            services.Replace(ServiceDescriptor.Singleton(_ => new TenantCache(clock, new TenantCacheOptions { FactoryDeadline = deadline })));
+        });
+        var tenant = authorization.Directory.Add("Tenant A");
+        authorization.Seams.Membership.Add("user-1", tenant);
+        authorization.Authority.Grant(tenant, "user-1", Items.Read);
+        var evaluator = authorization.Get<IPermissionEvaluator>();
+        var unit = await authorization.EnterAsync("user-1", tenant);
+        var stalled = authorization.Authority.StallNextRead();
+        var decision = evaluator.AuthorizeAsync(Request(unit, Items.Read), Cancellation).AsTask();
+        var read = await stalled.Entered.Task.WaitAsync(Cancellation);
+        // The store does not answer. At the cache's deadline, well before the bound, the decision refuses, transiently; the
+        // wait's real-time limit is a safety net that a passing test never reaches.
+        Assert.True(deadline < authorization.Get<IOptions<AuthorizationSecurityOptions>>().Value.FreshnessBound);
+        clock.Advance(deadline);
+        var refused = await decision.WaitAsync(TimeSpan.FromSeconds(30), Cancellation);
+        Assert.Equal((false, AuthorizationCodes.Unavailable, true), (refused.Permitted, refused.Code, refused.IsTransient));
+        // The fault became neither a permit nor a second read of the stalled store, and the stalled fill was told to stop.
+        Assert.Equal(1, authorization.Authority.Reads);
+        Assert.True(read.IsCancellationRequested);
+        // Once the store answers, the next decision starts a new fill and permits; the abandoned fill cached nothing.
+        stalled.Release.SetResult();
+        var permitted = await evaluator.AuthorizeAsync(Request(unit, Items.Read), Cancellation);
+        Assert.Equal((true, AuthorizationSource.Store), (permitted.Permitted, permitted.Source));
+        Assert.Equal(2, authorization.Authority.Reads);
+    }
+
+    [Fact]
     public async Task TM_G02_002_Permissions_and_host_operations_must_match_the_composed_manifests()
     {
         var version = SemanticVersion.Parse("1.0.0");
