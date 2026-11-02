@@ -1,6 +1,6 @@
 # Roadmap
 
-This sequence is planned, not promised. There are no delivery dates. Modularyn is in planning, nothing has been released, and G-01 is the first goal. Milestone completion requires evidence and acceptance; listing an outcome here does not claim it is implemented.
+This sequence is planned, not promised. There are no delivery dates. Modularyn is in development and nothing has been released. M1 (G-01) is complete, and M2 (G-02) is in progress. Milestone completion requires evidence and acceptance; listing an outcome here does not claim it is implemented.
 
 | Milestone | Planned outcome |
 | --- | --- |
