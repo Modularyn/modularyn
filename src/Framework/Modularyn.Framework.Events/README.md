@@ -68,7 +68,10 @@ completed receipts until a tenant maintenance unit prunes them, which nothing
 runs on its own. Positions grow by one row per tenant, consumer and ordering key.
 The dispatcher's and the consumer's cross-tenant scans read every tenant's rows
 for their consumer, and every index leads with the tenant, so the cost of each
-pass grows with that history across all tenants.
+pass grows with that history across all tenants. The scans are not fair between
+tenants: each pass takes up to its limit in one order across all tenants, the
+dispatcher's by creation time and the consumer's by due time, so a tenant with a
+large backlog can fill a pass and delay other tenants' events until it drains.
 
 The default failure budget is three attempts, with exponential delays starting
 at one second. Unsupported kinds or versions and handler failures retain their

@@ -135,7 +135,11 @@ claim, and schedule occurrences by one row per schedule for every civil date it
 evaluates, skipped and missed dates included, so a daily schedule adds about 365
 rows a year. The job worker's and the materializer's cross-tenant scans read every
 tenant's rows, and every index leads with the tenant, so the cost of each pass
-grows with that history across all tenants.
+grows with that history across all tenants. The scans are not fair between
+tenants: each pass takes up to its limit in one order across all tenants, jobs by
+the time they become available and schedules by their next check, so a tenant
+with many due jobs or schedules can fill a pass and delay other tenants' work
+until it drains.
 
 The PostgreSQL tests cover once-per-due-time execution, leases and restart,
 renewal, failure, both cancellation outcomes, schedule transitions, misfires and
