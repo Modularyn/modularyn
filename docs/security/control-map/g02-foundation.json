@@ -2040,7 +2040,7 @@
     {
       "id": "RR-G02-007",
       "title": "Secrets in module code and release artifacts",
-      "statement": "Secret types keep secrets out of what the framework formats and logs, but cannot stop module code from logging a revealed value or placing one in an exception. That a secret setting accepts only replacement is not evidenced, and release artifacts are not scanned for secrets.",
+      "statement": "Secret types keep secrets out of what the framework formats and logs, but cannot stop module code from logging a revealed value or placing one in an exception. That a secret setting accepts only replacement is not evidenced, and release artifacts are not scanned for secrets. The repository itself is scanned by CI's secret-scan check, gitleaks over the full history on every pull request and every push to main, but no cited test evidences that scan.",
       "controls": [
         "TM-G02-047"
       ],

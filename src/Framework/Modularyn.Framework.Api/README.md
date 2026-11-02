@@ -43,9 +43,9 @@ is refused all the same. A start of a response that names no type waits for its
 first bytes, so a late refusal can still answer `MAP008`; once a handler's flush
 has sent an untyped response's headers, the connection is aborted instead, and
 no byte of the handler's arrives. On Linux and Windows the client's connection is
-reset at once. On macOS, Kestrel's abortive close sometimes leaves it open after
-the abort, with nothing after the headers, until the client gives up; the
-supported tuple is Linux x64. An empty response, such as a redirect or a bare
+reset at once. On macOS the abort does not always reach the client, which then
+waits with nothing after the headers until it gives up; the supported tuple is
+Linux x64. An empty response, such as a redirect or a bare
 status, needs no type.
 
 The check covers every supported write path, because each goes through the
