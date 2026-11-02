@@ -130,7 +130,8 @@ internal sealed class ClientServer : IAsyncDisposable
         builder.Services.AddModularynDataProtection(builder.Configuration);
         builder.Services.AddModularynIngress(builder.Configuration);
         AuthorizationHost.Compose(builder.Services, builder.Configuration, database, clock, new TestSeams(), new RecordingAuthorityAudit());
-        builder.Services.AddModularynIdentityHttp();
+        // The fixture authenticates through its own adapter on purpose, so it opts out of the session-scheme default explicitly.
+        builder.Services.AddModularynIdentityHttp(new IdentityHttpOptions { AllowOtherDefaultScheme = true });
         // This adapter tests the credential-provider seam against the actual session validator, without an authentication gateway double.
         builder.Services.AddAuthentication(options =>
         {

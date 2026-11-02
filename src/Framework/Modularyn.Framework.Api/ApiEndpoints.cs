@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json.Serialization;
 using System.Text.Json;
@@ -49,24 +48,34 @@ public static class ApiEndpoints
     /// Registers the inventory check, which refuses a host whose routed endpoints are not all declared with a matching
     /// authorization classification while the host builds its request pipeline, before the server accepts any request.
     /// </summary>
+    /// <remarks>It also replaces the server's trace-context propagator, so no inbound trace context or baggage is extracted
+    /// and every request's correlation is server-issued, or a declared proxy's (<see cref="RequestCorrelation"/>).</remarks>
     public static IServiceCollection AddModularynApi(this IServiceCollection services)
     {
         services.TryAddEnumerable(ServiceDescriptor.Transient<IStartupFilter, ApiInventoryStartupCheck>());
+        services.Replace(ServiceDescriptor.Singleton<System.Diagnostics.DistributedContextPropagator>(
+            new ServerIssuedPropagator(System.Diagnostics.DistributedContextPropagator.CreateDefaultPropagator())));
         return services;
     }
 
-    /// <summary>Place before ingress so even an early refusal retains a server-issued correlation.</summary>
+    /// <summary>
+    /// Place before ingress so even an early refusal retains a server-issued correlation: a trace context the peer
+    /// supplied is adopted only from a declared proxy (<see cref="RequestCorrelation"/>). A refusal that left no body, such
+    /// as the ingress's own or a missing route, is answered with a problem whose code says only what the status says:
+    /// <see cref="ApiCodes.Refused"/> for every status but a missing route, a version mismatch or unavailability. It never
+    /// claims a permission decision or a peer's contract violation.
+    /// </summary>
     public static IApplicationBuilder UseModularynApi(this IApplicationBuilder app) => app.Use(async (context, next) =>
     {
-        context.Response.Headers[FrameworkApi.CorrelationHeader] = Activity.Current?.TraceId.ToString() ?? context.TraceIdentifier;
+        using var correlation = RequestCorrelation.Begin(context);
+        context.Response.Headers[FrameworkApi.CorrelationHeader] = RequestCorrelation.Current(context);
         await next(context).ConfigureAwait(false);
         if (context.Response.StatusCode >= 400 && !context.Response.HasStarted
             && context.Response.ContentLength is null or 0)
         {
             var code = context.Response.StatusCode switch
             {
-                400 => ApiCodes.Validation, 401 => "MAZ001", 403 => "MAZ005", 404 => ApiCodes.NotFound,
-                409 => ApiCodes.Conflict, 426 => ApiCodes.Version, 503 => ApiCodes.Unavailable, _ => ApiCodes.Protocol
+                404 => ApiCodes.NotFound, 426 => ApiCodes.Version, 503 => ApiCodes.Unavailable, _ => ApiCodes.Refused
             };
             await ProblemAsync(context, code, context.Response.StatusCode).ConfigureAwait(false);
         }
@@ -138,7 +147,7 @@ public static class ApiEndpoints
     private static async Task InvokeAsync(HttpContext context, ApiEndpointMetadata declared, RequestDelegate inner)
     {
         context.Response.Headers.CacheControl = "no-store";
-        context.Response.Headers[FrameworkApi.CorrelationHeader] = Activity.Current?.TraceId.ToString() ?? context.TraceIdentifier;
+        context.Response.Headers[FrameworkApi.CorrelationHeader] = RequestCorrelation.Current(context);
         // Authorization delegates are retained inside this wrapper; no inventory field grants permission.
         var endpoint = context.GetEndpoint();
         var source = new DefaultEndpointDataSource(endpoint!);

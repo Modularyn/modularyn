@@ -62,7 +62,9 @@ public sealed record ApiInventory(int OldestVersion, int CurrentVersion, IReadOn
                 || endpoint.SuccessStatus is < 200 or > 299
                 || endpoint.ResponseMediaType is not ("application/json" or "text/plain")
                 || endpoint.Authentication is not ("none" or "session" or "explicitCredential")
-                || endpoint.ClientVisible && (endpoint.Response is null || endpoint.Mutation && !endpoint.Idempotent))
+                // A client-visible endpoint generates client methods, which pin a version; so it is versioned, and a retried
+                // mutation is idempotent.
+                || endpoint.ClientVisible && (endpoint.Response is null || !endpoint.Versioned || endpoint.Mutation && !endpoint.Idempotent))
                 throw new FormatException("An endpoint must declare its complete route, access and client contract.");
         }
     }
@@ -106,4 +108,7 @@ public static class ApiCodes
     public const string OutcomeUnknown = "MAP006";
     public const string Unavailable = "MAP007";
     public const string Protocol = "MAP008";
+
+    /// <summary>The request was refused before or without reaching an endpoint, as its status says; nothing more is claimed.</summary>
+    public const string Refused = "MAP009";
 }

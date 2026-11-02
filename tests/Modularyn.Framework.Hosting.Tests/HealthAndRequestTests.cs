@@ -106,7 +106,7 @@ public sealed class HealthAndRequestTests
     }
 
     [Fact]
-    public async Task Http_health_discloses_only_status_and_requests_retain_W3c_context_without_logging_content()
+    public async Task Http_health_discloses_only_status_and_requests_run_under_a_server_issued_W3c_trace_without_logging_content()
     {
         using var output = new ConsoleLogCapture();
         using var fixture = new LifecycleFixture();
@@ -124,6 +124,7 @@ public sealed class HealthAndRequestTests
             builder.Logging.AddJsonConsole(options => options.IncludeScopes = true);
             builder.WebHost.ConfigureKestrel(server => server.Listen(IPAddress.Loopback, 0));
             builder.Services.AddModularynModules(LifecycleFixture.Environment, [Registration(fixture, dependency)], LifecycleFixture.Unverified);
+            var issued = "";
             await using (var application = builder.Build())
             {
                 application.UseRouting();
@@ -168,10 +169,14 @@ public sealed class HealthAndRequestTests
                 using var request = new HttpRequestMessage(HttpMethod.Post, "/work");
                 request.Headers.Add("traceparent", $"00-{trace.ToHexString()}-{parentSpan.ToHexString()}-01");
                 request.Content = new StringContent("private-request-content", Encoding.UTF8, "text/plain");
+                // The client's trace context is not adopted: no proxy is declared, so the request runs under a trace the server
+                // issued (TM-G02-053), and the client's trace appears in no log.
                 using (var response = await client.SendAsync(request, Cancellation))
                 {
                     Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-                    Assert.Equal(trace.ToHexString(), await response.Content.ReadAsStringAsync(Cancellation));
+                    issued = await response.Content.ReadAsStringAsync(Cancellation);
+                    Assert.Matches("^[0-9a-f]{32}$", issued);
+                    Assert.NotEqual(trace.ToHexString(), issued);
                 }
 
                 var host = application.Services.GetRequiredService<ModuleHost>();
@@ -189,7 +194,9 @@ public sealed class HealthAndRequestTests
                 Assert.Empty(fixture.ActiveResources);
             }
             var logs = output.Read();
-            Assert.Contains(trace.ToHexString(), logs, StringComparison.Ordinal);
+            Assert.Contains(issued, logs, StringComparison.Ordinal);
+            Assert.DoesNotContain(trace.ToHexString(), logs, StringComparison.Ordinal);
+            Assert.DoesNotContain(parentSpan.ToHexString(), logs, StringComparison.Ordinal);
             Assert.DoesNotContain("private-health-content", logs, StringComparison.Ordinal);
             Assert.DoesNotContain("private-configuration-content", logs, StringComparison.Ordinal);
             Assert.DoesNotContain("private-request-content", logs, StringComparison.Ordinal);
