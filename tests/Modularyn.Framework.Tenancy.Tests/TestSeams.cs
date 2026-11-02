@@ -232,6 +232,91 @@ internal sealed class TestSeams
     }
 }
 
+/// <summary>
+/// A clock the test moves explicitly, for elapsed and UTC time and for timers: each timer fires on the advancing thread once
+/// the clock reaches it, in the order the timers were created, so a deadline passes without a test waiting in real time.
+/// It starts at the current whole second.
+/// </summary>
+internal sealed class TimerClock : TimeProvider
+{
+    private readonly DateTimeOffset origin;
+    private readonly List<ManualTimer> timers = [];
+    private long elapsed;
+
+    public TimerClock()
+    {
+        var now = DateTime.UtcNow.Ticks;
+        origin = new DateTimeOffset(now - now % TimeSpan.TicksPerSecond, TimeSpan.Zero);
+    }
+
+    public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+    public override long GetTimestamp() => Interlocked.Read(ref elapsed);
+    public override DateTimeOffset GetUtcNow() => origin.AddTicks(GetTimestamp());
+
+    public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+    {
+        var timer = new ManualTimer(this, callback, state);
+        timer.Change(dueTime, period);
+        return timer;
+    }
+
+    internal void Advance(TimeSpan by)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(by, TimeSpan.Zero);
+        Interlocked.Add(ref elapsed, by.Ticks);
+        ManualTimer[] created;
+        lock (timers) created = [.. timers];
+        foreach (var timer in created) timer.FireIfDue();
+    }
+
+    private sealed class ManualTimer(TimerClock clock, TimerCallback callback, object? state) : ITimer
+    {
+        private long due = long.MaxValue;
+        private long period;
+        private bool disposed;
+
+        public bool Change(TimeSpan dueTime, TimeSpan period)
+        {
+            lock (clock.timers)
+            {
+                if (disposed) return false;
+                due = dueTime == Timeout.InfiniteTimeSpan ? long.MaxValue : clock.GetTimestamp() + dueTime.Ticks;
+                this.period = period == Timeout.InfiniteTimeSpan || period <= TimeSpan.Zero ? 0 : period.Ticks;
+                if (!clock.timers.Contains(this)) clock.timers.Add(this);
+                return true;
+            }
+        }
+
+        internal void FireIfDue()
+        {
+            while (true)
+            {
+                lock (clock.timers)
+                {
+                    if (disposed || clock.GetTimestamp() < due) return;
+                    due = period > 0 ? due + period : long.MaxValue;
+                }
+                callback(state);
+            }
+        }
+
+        public void Dispose()
+        {
+            lock (clock.timers)
+            {
+                disposed = true;
+                clock.timers.Remove(this);
+            }
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            Dispose();
+            return ValueTask.CompletedTask;
+        }
+    }
+}
+
 /// <summary>Builds the tenancy services over an in-memory directory, the way AddModularynTenancy builds them over PostgreSQL.</summary>
 internal static class UnitServices
 {

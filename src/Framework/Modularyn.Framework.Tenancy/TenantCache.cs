@@ -50,8 +50,10 @@ public sealed record TenantCacheEntry
 /// operation), module, schema version, principal for principal-scoped entries, entry name and parts, each length-prefixed
 /// so no two distinct identities share a key. Entries expire at their declared staleness limit; invalidating a tenant, a
 /// host operation or a principal makes their earlier entries unreachable at once. Concurrent misses for one key share a single factory call, whose failure
-/// is not cached. The store is this process's memory: during an outage of a dependency the factory fails and nothing is
-/// cached, and it coordinates nothing across processes.
+/// is not cached. That call runs under the cache's factory deadline, apart from any one waiter: at the deadline its token
+/// fires, every waiter receives <see cref="TenantCacheDeadlineException"/> whether or not the factory stops, and the
+/// next caller starts a new call. The store is this process's memory: during an outage
+/// of a dependency the factory fails or reaches its deadline and nothing is cached, and it coordinates nothing across processes.
 /// </summary>
 public sealed class TenantCache : IDisposable
 {
@@ -60,8 +62,13 @@ public sealed class TenantCache : IDisposable
     private readonly ConcurrentDictionary<string, long> generations = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, Flight> flights = new(StringComparer.Ordinal);
     private readonly TimeProvider time;
+    private readonly TimeSpan factoryDeadline;
 
-    public TenantCache(TimeProvider? time = null) => this.time = time ?? TimeProvider.System;
+    public TenantCache(TimeProvider? time = null, TenantCacheOptions? options = null)
+    {
+        this.time = time ?? TimeProvider.System;
+        factoryDeadline = TenantCacheOptions.Require(options).FactoryDeadline;
+    }
 
     /// <summary>The key for an entry in a context; exposed so evidence can record it. The context must be active.</summary>
     public string KeyFor(TenantContext context, TenantCacheEntry entry)
@@ -135,11 +142,24 @@ public sealed class TenantCache : IDisposable
 
     private async Task<Stored> ProduceAsync<T>(string key, Flight flight, TenantCacheEntry entry, Func<CancellationToken, Task<T>> factory)
     {
+        // The shared factory runs under the cache's own deadline, independently of any one waiter's cancellation.
+        using var deadline = new CancellationTokenSource(factoryDeadline, time);
+        var token = deadline.Token;
+        var startedAt = time.GetTimestamp();
+        Task<T>? produced = null;
         try
         {
-            var startedAt = time.GetTimestamp();
-            // The shared factory runs independently of any one waiter's cancellation.
-            var value = await factory(CancellationToken.None).ConfigureAwait(false);
+            T value;
+            try
+            {
+                produced = factory(token);
+                // The wait is bounded too, so a factory that ignores its token still releases every waiter at the deadline.
+                value = await produced.WaitAsync(token).ConfigureAwait(false);
+            }
+            catch (Exception) when (Overran(token, startedAt))
+            {
+                throw new TenantCacheDeadlineException();
+            }
             var stored = new Stored(typeof(T), value, startedAt);
             // Time spent obtaining the value counts toward its staleness, too.
             var remaining = entry.MaxStaleness - time.GetElapsedTime(startedAt);
@@ -147,8 +167,18 @@ public sealed class TenantCache : IDisposable
                 cache.Set(key, stored, new MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = remaining });
             return stored;
         }
-        finally { flights.TryRemove(new KeyValuePair<string, Flight>(key, flight)); }
+        finally
+        {
+            flights.TryRemove(new KeyValuePair<string, Flight>(key, flight));
+            // A factory left running past its deadline is abandoned, and its later failure is observed here.
+            if (produced is { IsCompletedSuccessfully: false })
+                _ = produced.ContinueWith(static task => _ = task.Exception, CancellationToken.None,
+                    TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        }
     }
+
+    private bool Overran(CancellationToken deadline, long startedAt) =>
+        deadline.IsCancellationRequested || time.GetElapsedTime(startedAt) >= factoryDeadline;
 
     private static T Unwrap<T>(Stored stored) => stored.Type == typeof(T)
         ? (T)stored.Value!
@@ -179,5 +209,34 @@ public sealed class TenantCache : IDisposable
     }
 }
 
+/// <summary>The tenant cache's options. Each has a safe default; a host that sets them passes them when it registers tenancy.</summary>
+public sealed class TenantCacheOptions
+{
+    public static readonly TimeSpan MinimumFactoryDeadline = TimeSpan.FromSeconds(1);
+    public static readonly TimeSpan MaximumFactoryDeadline = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// How long one shared factory call may run before every waiter of its key is released with
+    /// <see cref="TenantCacheDeadlineException"/> and the next caller starts a new call.
+    /// Thirty seconds by default, the default freshness bound of authorization's cached authority; from one second to five minutes.
+    /// </summary>
+    public TimeSpan FactoryDeadline { get; init; } = TimeSpan.FromSeconds(30);
+
+    internal static TenantCacheOptions Require(TenantCacheOptions? options)
+    {
+        options ??= new();
+        if (options.FactoryDeadline < MinimumFactoryDeadline || options.FactoryDeadline > MaximumFactoryDeadline)
+            throw new ArgumentOutOfRangeException(nameof(options), "Declare a tenant cache factory deadline from one second to five minutes.");
+        return options;
+    }
+}
+
 /// <summary>A cache factory took longer than its entry's declared staleness bound, so its value was neither cached nor delivered.</summary>
 public sealed class TenantCacheStaleException() : InvalidOperationException("The cache factory exceeded the entry's declared staleness bound.");
+
+/// <summary>
+/// A shared cache factory did not finish within the cache's factory deadline. Every waiter of its key received this fault,
+/// and the next caller starts a new factory. It is an unavailable read:
+/// a caller refuses or reports the value unavailable, and never substitutes a default.
+/// </summary>
+public sealed class TenantCacheDeadlineException() : InvalidOperationException("The shared cache factory did not finish within the cache's factory deadline.");
