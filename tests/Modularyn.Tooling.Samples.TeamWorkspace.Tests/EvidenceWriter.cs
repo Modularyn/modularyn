@@ -19,28 +19,46 @@ namespace Modularyn.Tooling.Samples.TeamWorkspace.Tests;
 
 internal enum EvidenceOutcome { Passed, Failed, Skipped }
 
-internal sealed record EvidenceRun(string Repository, string OutputDirectory, string SourceCommit, string RunId, DateOnly Date)
+/// <summary>
+/// One run's evidence settings. A host run has a checkout: its commit must be the clean checkout's HEAD. A container run, in
+/// the composition fixture image, has none: CI checked the clean checkout before publishing the image, and here every loaded
+/// Modularyn assembly's embedded source revision must equal the commit, and CI supplies the image's measured digest.
+/// </summary>
+internal sealed record EvidenceRun(string? Repository, string OutputDirectory, string SourceCommit, string RunId, DateOnly Date,
+    string Mode = DeploymentMode.Host, string? ImageDigest = null)
 {
     private static readonly string Session = Guid.NewGuid().ToString("N");
 
-    internal static EvidenceRun? FromEnvironment()
-    {
-        var output = Environment.GetEnvironmentVariable("MODULARYN_EVIDENCE_DIR");
-        return FromSettings(output, Environment.GetEnvironmentVariable("MODULARYN_SOURCE_COMMIT"),
-            Environment.GetEnvironmentVariable("MODULARYN_EVIDENCE_RUN_ID"));
-    }
+    internal static EvidenceRun? FromEnvironment() => FromSettings(Environment.GetEnvironmentVariable("MODULARYN_EVIDENCE_DIR"),
+        Environment.GetEnvironmentVariable("MODULARYN_SOURCE_COMMIT"), Environment.GetEnvironmentVariable("MODULARYN_EVIDENCE_RUN_ID"),
+        DeploymentMode.Current(), Environment.GetEnvironmentVariable("MODULARYN_CONTAINER_IMAGE_DIGEST"));
 
-    internal static EvidenceRun? FromSettings(string? output, string? sourceCommit, string? runId)
+    internal static EvidenceRun? FromSettings(string? output, string? sourceCommit, string? runId,
+        string mode = DeploymentMode.Host, string? imageDigest = null)
     {
         if (string.IsNullOrWhiteSpace(output)) return null;
-        var root = FindRepository();
         var commit = sourceCommit ?? "";
         var run = runId ?? Session;
         Require(Regex.IsMatch(run, "^[a-z0-9][a-z0-9._-]{0,79}\\z", RegexOptions.CultureInvariant), "run identity");
-        VerifySource(root, commit);
-        var directory = Path.GetFullPath(output, root);
-        _ = RelativeLocation(root, directory);
-        return new(root, directory, commit, run, DateOnly.FromDateTime(DateTime.UtcNow));
+        Require(mode is DeploymentMode.Host or DeploymentMode.Container, "deployment mode");
+        Require(Path.IsPathFullyQualified(output), "output must be an absolute directory");
+        var directory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(output));
+        Require(new DirectoryInfo(directory).LinkTarget is null, "output links are refused");
+        string? root = null;
+        if (mode == DeploymentMode.Container)
+        {
+            Require(imageDigest is not null && Regex.IsMatch(imageDigest, "^sha256:[0-9a-f]{64}\\z", RegexOptions.CultureInvariant),
+                "measured container image digest required");
+            VerifyRevision(commit);
+        }
+        else
+        {
+            Require(imageDigest is null, "a host run has no container image");
+            root = FindRepository();
+            VerifySource(root, commit);
+            EvidenceDocuments.MatchCheckout(root);
+        }
+        return new(root, directory, commit, run, DateOnly.FromDateTime(DateTime.UtcNow), mode, imageDigest);
     }
 
     internal static string FindRepository()
@@ -51,12 +69,13 @@ internal sealed record EvidenceRun(string Repository, string OutputDirectory, st
         return root!.FullName;
     }
 
-    internal static string RelativeLocation(string root, string path)
+    /// <summary>A retained file's location: relative to the evidence directory, the root of the run's retained bundle.</summary>
+    internal static string RelativeLocation(string output, string path)
     {
-        var relative = Path.GetRelativePath(root, Path.GetFullPath(path)).Replace(Path.DirectorySeparatorChar, '/');
+        var relative = Path.GetRelativePath(output, Path.GetFullPath(path)).Replace(Path.DirectorySeparatorChar, '/');
         Require(Regex.IsMatch(relative, "^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)*\\z", RegexOptions.CultureInvariant),
-            "output must be a repository-relative location");
-        var current = root;
+            "output must stay beneath the evidence directory");
+        var current = output;
         foreach (var segment in relative.Split('/'))
         {
             current = Path.Combine(current, segment);
@@ -71,11 +90,20 @@ internal sealed record EvidenceRun(string Repository, string OutputDirectory, st
         Require(Git(root, "rev-parse", "HEAD").Trim() == commit, "source commit differs from HEAD");
         Require(Git(root, "diff", "--name-only", "HEAD", "--").Length == 0
             && Git(root, "ls-files", "--others", "--exclude-standard").Length == 0, "source tree must be clean");
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies()
-                     .Where(assembly => assembly.GetName().Name?.StartsWith("Modularyn.", StringComparison.Ordinal) == true))
+        VerifyRevision(commit);
+    }
+
+    /// <summary>Every loaded Modularyn assembly embeds the source revision it was built from; each must be the commit.</summary>
+    internal static void VerifyRevision(string commit)
+    {
+        Require(Regex.IsMatch(commit, "^[0-9a-f]{40}\\z", RegexOptions.CultureInvariant), "exact source commit required");
+        var assemblies = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(assembly => assembly.GetName().Name?.StartsWith("Modularyn.", StringComparison.Ordinal) == true).ToArray();
+        Require(assemblies.Length > 0, "built assembly source revision unavailable");
+        foreach (var assembly in assemblies)
         {
             var version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "";
-            Require(version.Split('+', '.').Contains(commit, StringComparer.Ordinal), "built assembly source revision differs from HEAD");
+            Require(version.Split('+', '.').Contains(commit, StringComparer.Ordinal), "built assembly source revision differs from the commit");
         }
     }
 
@@ -97,6 +125,42 @@ internal sealed record EvidenceRun(string Repository, string OutputDirectory, st
     }
 }
 
+/// <summary>
+/// The repository documents a record is built from, embedded in this assembly when it is built, so a container run, which has
+/// no checkout, reads the copies its source revision binds. A host run also requires each copy to equal the checkout's file.
+/// </summary>
+internal static class EvidenceDocuments
+{
+    internal const string RegisterPath = "docs/coverage/register.json";
+    internal const string SkeletonPath = "docs/capability-reports/g02-skeleton.json";
+    internal static readonly string[] Paths = [EvidenceWriter.SchemaPath, EvidenceWriter.CorpusPath, EvidenceWriter.PlanPath, RegisterPath, SkeletonPath];
+
+    internal static byte[] Bytes(string path)
+    {
+        Require(Paths.Contains(path, StringComparer.Ordinal), "unknown evidence document");
+        using var stream = typeof(EvidenceDocuments).Assembly.GetManifestResourceStream(path)
+            ?? throw new EvidenceValidationException("evidence document unavailable");
+        using var bytes = new MemoryStream();
+        stream.CopyTo(bytes);
+        return bytes.ToArray();
+    }
+
+    /// <summary>The document's text as File.ReadAllText reads the checkout's copy: UTF-8, without a byte-order mark.</summary>
+    internal static string Text(string path)
+    {
+        using var reader = new StreamReader(new MemoryStream(Bytes(path)), Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        return reader.ReadToEnd();
+    }
+
+    internal static JsonNode Read(string path) => JsonNode.Parse(Text(path))!;
+
+    internal static void MatchCheckout(string root)
+    {
+        foreach (var path in Paths)
+            Require(File.ReadAllBytes(Path.Combine(root, path)).AsSpan().SequenceEqual(Bytes(path)), "repository document differs from the built copy");
+    }
+}
+
 internal static class EvidenceWriter
 {
     internal const string SchemaPath = "schemas/evidence-record/evidence-record.schema.json";
@@ -110,12 +174,26 @@ internal static class EvidenceWriter
         // A database that could not be reached has no measured tuple. The test failure remains in the test runner;
         // do not invent a database pin just to produce a syntactically complete verification record.
         Require(observations.ServerVersionNumber is not null, "no measured provider tuple; retain the test runner failure");
-        Require(mode == "single-host", "container lifecycle observations are unavailable");
-        EvidenceRun.VerifySource(run.Repository, run.SourceCommit);
-        var tuple = MeasuredTuple(observations.ServerVersionNumber!.Value);
-        ValidateTarget(run.Repository, tuple);
+        Require(mode == run.Mode, "a row writes evidence only in its own deployment");
+        // Source identity is checked again after the method: the clean checkout on a host, the embedded revision in the image.
+        if (run.Mode == DeploymentMode.Container) EvidenceRun.VerifyRevision(run.SourceCommit);
+        else
+        {
+            EvidenceRun.VerifySource(run.Repository ?? throw new EvidenceValidationException("repository unavailable"), run.SourceCommit);
+            EvidenceDocuments.MatchCheckout(run.Repository);
+        }
+        await WriteMeasuredAsync(run, caseId, mode, outcome, observations,
+            MeasuredTuple(observations.ServerVersionNumber!.Value, run.Mode, run.ImageDigest));
+    }
+
+    /// <summary>Writes the case/mode/run directory for a measured tuple: implementation bytes, the result, then the record.</summary>
+    internal static async Task WriteMeasuredAsync(EvidenceRun run, string caseId, string mode, EvidenceOutcome outcome,
+        CaseObservations observations, JsonObject tuple)
+    {
+        Require(mode == run.Mode, "a row writes evidence only in its own deployment");
+        ValidateTarget(tuple);
         var directory = Path.Combine(run.OutputDirectory, run.RunId, caseId.ToLowerInvariant(), mode);
-        _ = EvidenceRun.RelativeLocation(run.Repository, directory);
+        _ = EvidenceRun.RelativeLocation(run.OutputDirectory, directory);
         Directory.CreateDirectory(directory);
         var artifactDirectory = Path.Combine(directory, "implementation");
         Directory.CreateDirectory(artifactDirectory);
@@ -129,15 +207,15 @@ internal static class EvidenceWriter
             File.Copy(source, destination, overwrite: false);
             var bytes = await File.ReadAllBytesAsync(destination);
             Require(Hash(bytes) == file.Sha256, "implementation changed while retaining it");
-            artifacts.Add(Artifact(EvidenceRun.RelativeLocation(run.Repository, destination), bytes));
+            artifacts.Add(Artifact(EvidenceRun.RelativeLocation(run.OutputDirectory, destination), bytes));
         }
         var result = CreateResult(run, caseId, mode, outcome, tuple, observations);
         var resultBytes = Bytes(result);
         var resultPath = Path.Combine(directory, "result.json");
         var record = CreateRecord(run, caseId, mode, outcome, tuple, artifacts,
-            Artifact(EvidenceRun.RelativeLocation(run.Repository, resultPath), resultBytes), observations.Outcomes)
+            Artifact(EvidenceRun.RelativeLocation(run.OutputDirectory, resultPath), resultBytes), observations.Outcomes)
             ?? throw new EvidenceValidationException("verification record required");
-        Validate(record.ToJsonString(), File.ReadAllText(Path.Combine(run.Repository, SchemaPath)));
+        Validate(record.ToJsonString(), EvidenceDocuments.Text(SchemaPath));
         await WriteNewAsync(resultPath, resultBytes);
         // The record is last: an interrupted write cannot leave a record claiming success over missing result bytes.
         var pending = Path.Combine(directory, "record.pending");
@@ -162,15 +240,16 @@ internal static class EvidenceWriter
     {
         if (outcome == EvidenceOutcome.Skipped) return null;
         Require(outcome is EvidenceOutcome.Passed or EvidenceOutcome.Failed, "test outcome");
-        Require(mode is "single-host" or "single-host-container", "deployment mode");
+        Require(mode is DeploymentMode.Host or DeploymentMode.Container, "deployment mode");
+        Require(mode == run.Mode, "a row writes evidence only in its own deployment");
         Require(tuple["deployment"]!["topology"]!.GetValue<string>() == mode, "tuple deployment mode mismatch");
         Require(Regex.IsMatch(run.SourceCommit, "^[0-9a-f]{40}\\z", RegexOptions.CultureInvariant), "exact source commit");
         Require(Regex.IsMatch(run.RunId, "^[a-z0-9][a-z0-9._-]{0,79}\\z", RegexOptions.CultureInvariant), "run identity");
-        var corpusText = File.ReadAllText(Path.Combine(run.Repository, CorpusPath)).Replace("\r\n", "\n", StringComparison.Ordinal);
+        var corpusText = EvidenceDocuments.Text(CorpusPath).Replace("\r\n", "\n", StringComparison.Ordinal);
         var corpus = JsonNode.Parse(corpusText)!["cases"]!.AsArray().Single(row => row!["id"]!.GetValue<string>() == caseId)!;
-        var plan = Read(run.Repository, PlanPath)["cases"]!.AsArray().Single(row => row!["caseId"]!.GetValue<string>() == caseId)!;
+        var plan = EvidenceDocuments.Read(PlanPath)["cases"]!.AsArray().Single(row => row!["caseId"]!.GetValue<string>() == caseId)!;
         Require(plan["family"]!.GetValue<string>() == "AC-001", "CODE-10 case scope");
-        var register = Read(run.Repository, "docs/coverage/register.json")["entries"]!.AsArray();
+        var register = EvidenceDocuments.Read(EvidenceDocuments.RegisterPath)["entries"]!.AsArray();
         var subjects = new JsonArray(corpus["requirements"]!.AsArray().Select(id => (JsonNode)new JsonObject
         {
             ["id"] = id!.DeepClone(), ["kind"] = "requirement",
@@ -180,6 +259,12 @@ internal static class EvidenceWriter
         outcomes.Add(outcome == EvidenceOutcome.Passed
             ? "The integration method passed; prerequisite and unit-result qualification is still blocked."
             : "The integration method failed; only observations completed before the failure are retained.");
+        var limitations = new JsonArray(
+            "AC-031 security prerequisite evidence on this exact commit and tuple has not been supplied by the Builder.",
+            "The planned unit methods are retained as required mappings; this integration run supplies no result for those methods.");
+        if (mode == DeploymentMode.Container)
+            limitations.Add("This row ran in the test-only composition fixture image on the pinned base, not in the published sample image, "
+                + "which carries no test module or composition switch; that image's readiness is observed separately.");
         var record = new JsonObject
         {
             ["format"] = "modularyn.evidence-record", ["formatVersion"] = 1,
@@ -201,24 +286,28 @@ internal static class EvidenceWriter
             },
             ["documentation"] = new JsonArray("docs/evidence/README.md", "docs/acceptance/AC-001.md",
                 "src/Tooling/Modularyn.Tooling.Samples.TeamWorkspace.Host/README.md"),
-            ["knownLimitations"] = new JsonArray(
-                "AC-031 security prerequisite evidence on this exact commit and tuple has not been supplied by the Builder.",
-                "The planned unit methods are retained as required mappings; this integration run supplies no result for those methods.",
-                "The published container has no controls for the corpus graph mutations, initialization fault or lifecycle inspection."),
+            ["knownLimitations"] = limitations,
             ["securityDependencies"] = new JsonArray(new JsonObject
             {
                 ["family"] = "AC-031", ["status"] = "unmet", ["evidenceRecords"] = new JsonArray()
             })
         };
         ValidatePins(tuple, mode);
-        ValidateTarget(run.Repository, tuple);
-        Validate(record.ToJsonString(), File.ReadAllText(Path.Combine(run.Repository, SchemaPath)));
+        ValidateTarget(tuple);
+        Validate(record.ToJsonString(), EvidenceDocuments.Text(SchemaPath));
         return record;
     }
 
-    internal static JsonObject MeasuredTuple(int serverVersion)
+    internal static JsonObject MeasuredTuple(int serverVersion, string mode, string? imageDigest)
     {
         Require(OperatingSystem.IsLinux() && RuntimeInformation.ProcessArchitecture == Architecture.X64, "G-02 requires Linux x64");
+        return Tuple(serverVersion, mode, imageDigest, Environment.OSVersion.Version.ToString());
+    }
+
+    /// <summary>The tuple this process measures, for the operating-system version given; only Linux x64 records it.</summary>
+    internal static JsonObject Tuple(int serverVersion, string mode, string? imageDigest, string operatingSystemVersion)
+    {
+        Require(mode is DeploymentMode.Host or DeploymentMode.Container, "deployment mode");
         var assemblies = new[] { typeof(ModuleHost).Assembly, typeof(ModuleComposer).Assembly, typeof(WorkspaceDefinition).Assembly,
             typeof(TeamWorkspaceHost).Assembly, typeof(FileSystemBlobStore).Assembly };
         var versions = WorkspaceComposition.Declarations().ToDictionary(module => module.Id, module => module.Version.ToString(), StringComparer.Ordinal);
@@ -237,8 +326,8 @@ internal static class EvidenceWriter
             ["ui"] = new JsonArray(), ["tenancyMode"] = "shared-database",
             ["deployment"] = new JsonObject
             {
-                ["operatingSystem"] = new JsonObject { ["name"] = "Linux", ["version"] = Environment.OSVersion.Version.ToString() },
-                ["architecture"] = "x64", ["topology"] = "single-host", ["containerImageDigest"] = null
+                ["operatingSystem"] = new JsonObject { ["name"] = "Linux", ["version"] = operatingSystemVersion },
+                ["architecture"] = "x64", ["topology"] = mode, ["containerImageDigest"] = mode == DeploymentMode.Container ? imageDigest : null
             },
             ["providers"] = new JsonArray(
                 new JsonObject { ["name"] = "EF Core PostgreSQL", ["version"] = Version(typeof(NpgsqlDbContextOptionsBuilder).Assembly), ["mode"] = "real" },
@@ -246,9 +335,9 @@ internal static class EvidenceWriter
         };
     }
 
-    private static void ValidateTarget(string root, JsonObject tuple)
+    private static void ValidateTarget(JsonObject tuple)
     {
-        var target = Read(root, "docs/capability-reports/g02-skeleton.json")["target"]!;
+        var target = EvidenceDocuments.Read(EvidenceDocuments.SkeletonPath)["target"]!;
         foreach (var field in new[] { "sdkVersion", "runtimeVersion", "languageVersion" })
             Require(JsonNode.DeepEquals(target[field], tuple["runtime"]![field]), "G-02 runtime pins differ");
         Require(JsonNode.DeepEquals(target["runtimeVersion"], tuple["runtime"]!["aspNetCoreVersion"]), "ASP.NET Core pin differs");
@@ -265,7 +354,10 @@ internal static class EvidenceWriter
         foreach (var component in tuple["moduleVersions"]!.AsArray().Concat(tuple["providers"]!.AsArray()).Concat(tuple["ui"]!.AsArray())
                      .Append(tuple["database"]).Append(tuple["deployment"]!["operatingSystem"]))
             Require(component?["version"] is JsonValue version && version.TryGetValue<string>(out var text) && !string.IsNullOrWhiteSpace(text), "every version must be measured");
-        Require(mode != "single-host-container" || tuple["deployment"]!["containerImageDigest"] is not null, "container image digest required");
+        Require(mode != DeploymentMode.Container || tuple["deployment"]!["containerImageDigest"] is JsonValue digest
+            && digest.TryGetValue<string>(out var value) && Regex.IsMatch(value, "^sha256:[0-9a-f]{64}\\z", RegexOptions.CultureInvariant),
+            "container image digest required");
+        Require(mode != DeploymentMode.Host || tuple["deployment"]!["containerImageDigest"] is null, "a host run has no container image");
     }
 
     private static string Version(Assembly assembly) => assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0]

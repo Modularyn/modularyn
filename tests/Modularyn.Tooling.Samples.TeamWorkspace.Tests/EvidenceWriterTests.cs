@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Modularyn.Tooling.Samples.TeamWorkspace.Host;
 using Xunit;
 
 namespace Modularyn.Tooling.Samples.TeamWorkspace.Tests;
@@ -30,7 +31,7 @@ public sealed class EvidenceWriterTests
                 await EvidenceWriter.WriteNewAsync(path, EvidenceWriter.Bytes(record));
                 var bytes = await File.ReadAllBytesAsync(path, TestContext.Current.CancellationToken);
                 var text = Encoding.UTF8.GetString(bytes);
-                EvidenceSchema.Validate(text, File.ReadAllText(Path.Combine(fixture.Run.Repository, EvidenceWriter.SchemaPath)));
+                EvidenceSchema.Validate(text, EvidenceDocuments.Text(EvidenceWriter.SchemaPath));
                 var read = JsonNode.Parse(text)!;
                 Assert.Equal(fixture.Run.SourceCommit, read["sourceCommit"]!.GetValue<string>());
                 Assert.Equal(caseId, read["caseId"]!.GetValue<string>());
@@ -39,17 +40,62 @@ public sealed class EvidenceWriterTests
                 Assert.Equal(outcome == EvidenceOutcome.Failed ? "failed" : "blocked", read["verification"]!["status"]!.GetValue<string>());
                 Assert.Equal("unmet", read["securityDependencies"]![0]!["status"]!.GetValue<string>());
                 Assert.Equal(EvidenceWriter.Hash(fixture.ResultBytes), read["verification"]!["results"]![0]!["sha256"]!.GetValue<string>());
-                var source = EvidenceWriter.Read(fixture.Run.Repository, EvidenceWriter.CorpusPath)["cases"]!.AsArray()
+                var source = EvidenceDocuments.Read(EvidenceWriter.CorpusPath)["cases"]!.AsArray()
                     .Single(row => row!["id"]!.GetValue<string>() == caseId)!;
                 Assert.True(JsonNode.DeepEquals(source["expectedOutcome"], read["expectedOutcomes"]));
                 Assert.True(JsonNode.DeepEquals(source["preconditions"], read["fixtureInputs"]));
-                var planned = EvidenceWriter.Read(fixture.Run.Repository, EvidenceWriter.PlanPath)["cases"]!.AsArray()
+                var planned = EvidenceDocuments.Read(EvidenceWriter.PlanPath)["cases"]!.AsArray()
                     .Single(row => row!["caseId"]!.GetValue<string>() == caseId)!["plannedTests"]!.AsArray();
                 Assert.Equal(planned.Select(test => test!["name"]!.GetValue<string>()), read["tests"]!.AsArray().Select(test => test!["name"]!.GetValue<string>()));
                 Assert.DoesNotContain(fixture.Run.OutputDirectory, text, StringComparison.Ordinal);
+                Assert.Equal(mode == DeploymentMode.Container, read["knownLimitations"]!.AsArray()
+                    .Any(limitation => limitation!.GetValue<string>().Contains("composition fixture image", StringComparison.Ordinal)));
             }
         }
         finally { Directory.Delete(fixture.Run.OutputDirectory, recursive: true); }
+    }
+
+    [Theory]
+    [InlineData("single-host")]
+    [InlineData("single-host-container")]
+    public async Task A_written_case_directory_holds_a_valid_record_whose_hashes_match_its_retained_bytes(string mode)
+    {
+        var fixture = MetadataFixture("AC-001-R01", mode);
+        var observations = new CaseObservations();
+        observations.Bind(180006, DeploymentArtifacts.Describe().Modules.First().Files);
+        observations.Observed("Metadata validation input only; no provider execution took place.");
+        // These are transient file-handling inputs, never retained provider evidence, and they are deleted even on failure.
+        try
+        {
+            // The tuple of this composition's real modules and providers, with a Linux version in place of this platform's.
+            var tuple = EvidenceWriter.Tuple(180006, mode, fixture.Run.ImageDigest, "6.8.0");
+            Assert.Equal(mode, tuple["deployment"]!["topology"]!.GetValue<string>());
+            await EvidenceWriter.WriteMeasuredAsync(fixture.Run, "AC-001-R01", mode, EvidenceOutcome.Passed, observations, tuple);
+            var directory = Path.Combine(fixture.Run.OutputDirectory, fixture.Run.RunId, "ac-001-r01", mode);
+            var text = await File.ReadAllTextAsync(Path.Combine(directory, "record.json"), TestContext.Current.CancellationToken);
+            EvidenceSchema.Validate(text, EvidenceDocuments.Text(EvidenceWriter.SchemaPath));
+            Assert.False(File.Exists(Path.Combine(directory, "record.pending")));
+            var record = JsonNode.Parse(text)!;
+            var result = Assert.Single(record["verification"]!["results"]!.AsArray())!;
+            Assert.Equal(fixture.Run.RunId + "/ac-001-r01/" + mode + "/result.json", result["location"]!.GetValue<string>());
+            var retained = record["implementationArtifacts"]!.AsArray().Append(result).ToArray();
+            Assert.Equal(observations.ImplementationFiles!.Count + 1, retained.Length);
+            foreach (var item in retained)
+            {
+                var bytes = await File.ReadAllBytesAsync(Path.Combine(fixture.Run.OutputDirectory, item!["location"]!.GetValue<string>()),
+                    TestContext.Current.CancellationToken);
+                Assert.Equal(EvidenceWriter.Hash(bytes), item["sha256"]!.GetValue<string>());
+            }
+            Assert.Equal("passed", JsonNode.Parse(await File.ReadAllBytesAsync(Path.Combine(directory, "result.json"),
+                TestContext.Current.CancellationToken))!["integrationOutcome"]!.GetValue<string>());
+            Assert.Equal("blocked", record["verification"]!["status"]!.GetValue<string>());
+            Assert.DoesNotContain(fixture.Run.OutputDirectory, text, StringComparison.Ordinal);
+            Assert.True(JsonNode.DeepEquals(tuple, record["tuple"]));
+            await Assert.ThrowsAnyAsync<IOException>(() => EvidenceWriter.WriteMeasuredAsync(fixture.Run, "AC-001-R01", mode,
+                EvidenceOutcome.Failed, observations, tuple));
+            Assert.Equal(text, await File.ReadAllTextAsync(Path.Combine(directory, "record.json"), TestContext.Current.CancellationToken));
+        }
+        finally { if (Directory.Exists(fixture.Run.OutputDirectory)) Directory.Delete(fixture.Run.OutputDirectory, recursive: true); }
     }
 
     [Fact]
@@ -132,7 +178,7 @@ public sealed class EvidenceWriterTests
     {
         var fixture = MetadataFixture("AC-001-N01", "single-host");
         var record = Create(fixture, "AC-001-N01", "single-host", EvidenceOutcome.Failed)!;
-        var schema = EvidenceWriter.Read(fixture.Run.Repository, EvidenceWriter.SchemaPath);
+        var schema = EvidenceDocuments.Read(EvidenceWriter.SchemaPath);
         var text = record.ToJsonString();
         switch (mutation)
         {
@@ -149,7 +195,8 @@ public sealed class EvidenceWriterTests
     public void Each_run_and_mode_has_a_separate_record_identity()
     {
         var host = MetadataFixture("AC-001-P01", "single-host");
-        var container = MetadataFixture("AC-001-P01", "single-host-container") with { Run = host.Run };
+        var container = MetadataFixture("AC-001-P01", "single-host-container");
+        container = container with { Run = container.Run with { RunId = host.Run.RunId } };
         var another = host with { Run = host.Run with { RunId = Guid.NewGuid().ToString("N") } };
         var ids = new[] { Create(host, "AC-001-P01", "single-host", EvidenceOutcome.Passed)!,
             Create(container, "AC-001-P01", "single-host-container", EvidenceOutcome.Passed)!,
@@ -159,11 +206,69 @@ public sealed class EvidenceWriterTests
     }
 
     [Fact]
-    public void Output_locations_cannot_escape_the_repository()
+    public void Output_locations_cannot_escape_the_evidence_directory()
+    {
+        var output = MetadataFixture("AC-001-P01", "single-host").Run.OutputDirectory;
+        Assert.Equal("run/ac-001-p01/single-host/result.json",
+            EvidenceRun.RelativeLocation(output, Path.Combine(output, "run", "ac-001-p01", "single-host", "result.json")));
+        Assert.Throws<EvidenceValidationException>(() => EvidenceRun.RelativeLocation(output, Path.Combine(output, "..", "evidence")));
+        Assert.Throws<EvidenceValidationException>(() => EvidenceRun.RelativeLocation(output, output));
+        Assert.Throws<EvidenceValidationException>(() => EvidenceRun.FromSettings(Path.Combine("relative", "evidence"), null, "run"));
+    }
+
+    [Fact]
+    public void A_row_writes_a_record_only_for_its_own_deployment()
+    {
+        var host = MetadataFixture("AC-001-B01", "single-host");
+        var container = MetadataFixture("AC-001-B01", "single-host-container");
+        Assert.Throws<EvidenceValidationException>(() => Create(host with { Run = container.Run }, "AC-001-B01", "single-host", EvidenceOutcome.Passed));
+        Assert.Throws<EvidenceValidationException>(() => Create(container with { Run = host.Run }, "AC-001-B01", "single-host-container", EvidenceOutcome.Passed));
+        host.Tuple["deployment"]!["containerImageDigest"] = container.Tuple["deployment"]!["containerImageDigest"]!.DeepClone();
+        Assert.Throws<EvidenceValidationException>(() => Create(host, "AC-001-B01", "single-host", EvidenceOutcome.Passed));
+    }
+
+    [Fact]
+    public void A_container_run_binds_to_the_embedded_source_revision_and_the_measured_image_digest()
+    {
+        // The image has no checkout, so the commit must be the source revision every loaded Modularyn assembly embeds.
+        var embedded = typeof(EvidenceWriter).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+            .Cast<System.Reflection.AssemblyInformationalVersionAttribute>().Single().InformationalVersion.Split('+')[^1];
+        var output = Path.Combine(Path.GetTempPath(), "modularyn-evidence-" + Guid.NewGuid().ToString("N"));
+        var digest = "sha256:" + EvidenceWriter.Hash(Encoding.UTF8.GetBytes("composition fixture image"));
+        var run = EvidenceRun.FromSettings(output, embedded, "ci-run", DeploymentMode.Container, digest)!;
+        Assert.Null(run.Repository);
+        Assert.Equal(DeploymentMode.Container, run.Mode);
+        Assert.Equal(digest, run.ImageDigest);
+        Assert.Equal(embedded, run.SourceCommit);
+        var other = new string(embedded.Select(character => character == '0' ? '1' : '0').ToArray());
+        Assert.Throws<EvidenceValidationException>(() => EvidenceRun.FromSettings(output, other, "ci-run", DeploymentMode.Container, digest));
+        Assert.Throws<EvidenceValidationException>(() => EvidenceRun.FromSettings(output, embedded, "ci-run", DeploymentMode.Container, null));
+        Assert.Throws<EvidenceValidationException>(() => EvidenceRun.FromSettings(output, embedded, "ci-run", DeploymentMode.Container, digest.ToUpperInvariant()));
+        Assert.Throws<EvidenceValidationException>(() => EvidenceRun.FromSettings(output, embedded, "ci-run", DeploymentMode.Container, digest[7..]));
+        Assert.Throws<EvidenceValidationException>(() => EvidenceRun.FromSettings(output, embedded, "ci-run", DeploymentMode.Host, digest));
+        Assert.Throws<EvidenceValidationException>(() => EvidenceRun.FromSettings(output, embedded, "ci-run", "container", digest));
+        Assert.False(Directory.Exists(output));
+    }
+
+    [Fact]
+    public void Embedded_evidence_documents_equal_the_checkout_and_a_changed_copy_is_refused()
     {
         var root = EvidenceRun.FindRepository();
-        Assert.Throws<EvidenceValidationException>(() => EvidenceRun.RelativeLocation(root, Path.Combine(root, "..", "evidence")));
-        Assert.Throws<EvidenceValidationException>(() => EvidenceRun.RelativeLocation(root, root));
+        EvidenceDocuments.MatchCheckout(root);
+        var copy = Path.Combine(Path.GetTempPath(), "modularyn-evidence-documents-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            foreach (var path in EvidenceDocuments.Paths)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.Combine(copy, path))!);
+                File.Copy(Path.Combine(root, path), Path.Combine(copy, path));
+            }
+            EvidenceDocuments.MatchCheckout(copy);
+            File.AppendAllText(Path.Combine(copy, EvidenceWriter.CorpusPath), "\n");
+            Assert.Throws<EvidenceValidationException>(() => EvidenceDocuments.MatchCheckout(copy));
+            Assert.Throws<EvidenceValidationException>(() => EvidenceDocuments.Bytes("docs/evidence/README.md"));
+        }
+        finally { Directory.Delete(copy, recursive: true); }
     }
 
     private static JsonObject? Create(RecordFixture fixture, string caseId, string mode, EvidenceOutcome outcome) =>
@@ -175,18 +280,20 @@ public sealed class EvidenceWriterTests
     {
         var root = EvidenceRun.FindRepository();
         var runId = Guid.NewGuid().ToString("N");
-        var run = new EvidenceRun(root, Path.Combine(root, "tests", "Modularyn.Tooling.Samples.TeamWorkspace.Tests", "TestResults", runId),
-            EvidenceRun.Git(root, "rev-parse", "HEAD").Trim(), runId, DateOnly.FromDateTime(DateTime.UtcNow));
+        var input = Encoding.UTF8.GetBytes("Evidence writer metadata validation input.\n");
+        var digest = mode == "single-host-container" ? "sha256:" + EvidenceWriter.Hash(input) : null;
+        var run = new EvidenceRun(mode == "single-host-container" ? null : root,
+            Path.Combine(root, "tests", "Modularyn.Tooling.Samples.TeamWorkspace.Tests", "TestResults", runId),
+            EvidenceRun.Git(root, "rev-parse", "HEAD").Trim(), runId, DateOnly.FromDateTime(DateTime.UtcNow), mode, digest);
         var tuple = EvidenceWriter.Read(root, "docs/evidence/examples/ac-009-r01-single-host-container.json")["tuple"]!.DeepClone().AsObject();
-        var plan = EvidenceWriter.Read(root, EvidenceWriter.PlanPath)["cases"]!.AsArray()
+        var plan = EvidenceDocuments.Read(EvidenceWriter.PlanPath)["cases"]!.AsArray()
             .Single(row => row!["caseId"]!.GetValue<string>() == caseId)!;
         tuple["moduleVersions"] = new JsonArray(plan["plannedTests"]!.AsArray()
             .Select(test => Path.GetFileNameWithoutExtension(test!["project"]!.GetValue<string>())[..^6]).Distinct(StringComparer.Ordinal)
             .Select(id => (JsonNode)new JsonObject { ["id"] = id, ["version"] = "1.0.0" }).ToArray());
         tuple["deployment"]!["topology"] = mode;
         tuple["deployment"]!["operatingSystem"]!["version"] = "6.8.0";
-        var input = Encoding.UTF8.GetBytes("Evidence writer metadata validation input.\n");
-        tuple["deployment"]!["containerImageDigest"] = mode == "single-host-container" ? "sha256:" + EvidenceWriter.Hash(input) : null;
+        tuple["deployment"]!["containerImageDigest"] = digest;
         tuple["providers"]![0]!["version"] = "10.0.3";
         tuple["providers"]![1]!["version"] = "1.0.0";
         return new(run, tuple, new JsonArray(EvidenceWriter.Artifact("urn:modularyn:evidence-writer-test:input", input)), input);

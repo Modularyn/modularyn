@@ -324,12 +324,15 @@ internal sealed class CaseObservations
     internal List<string> Outcomes { get; } = [];
     internal int? ServerVersionNumber { get; private set; }
     internal IReadOnlyList<LockedFile>? ImplementationFiles { get; private set; }
-    internal void Bind(SmokeHost host)
+    internal void Bind(SmokeHost host) => Bind(host.ServerVersionNumber, host.ImplementationFiles);
+
+    /// <summary>The database version and implementation inventory a fixture host measured; every host of one case agrees.</summary>
+    internal void Bind(int serverVersionNumber, IReadOnlyList<LockedFile> implementationFiles)
     {
-        if (ServerVersionNumber is { } prior) Assert.Equal(prior, host.ServerVersionNumber);
-        ServerVersionNumber = host.ServerVersionNumber;
-        if (ImplementationFiles is { } files) Assert.Equal(files, host.ImplementationFiles);
-        ImplementationFiles = host.ImplementationFiles;
+        if (ServerVersionNumber is { } prior) Assert.Equal(prior, serverVersionNumber);
+        ServerVersionNumber = serverVersionNumber;
+        if (ImplementationFiles is { } files) Assert.Equal(files, implementationFiles);
+        ImplementationFiles = implementationFiles;
     }
     internal void Observed(string outcome) => Outcomes.Add(outcome);
     internal void Effects(string stage, EffectObservation[] effects) => Snapshots.Add(JsonSerializer.SerializeToNode(new { stage, effects }));
