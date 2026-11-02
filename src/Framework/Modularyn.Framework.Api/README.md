@@ -113,6 +113,23 @@ returns only primitive presentation values and evaluated feature results. It
 returns no secret, reference, provenance, permission grant or other authority.
 Feature evaluation still uses its existing gate, and a missing gate yields false.
 
+## Threat-model controls
+
+- **TM-G02-011, SEC-09's part.** Delivered: pages and file downloads declared in
+  the inventory with their authorization classification and response media
+  type, never inferred; HTML only for a declared page, whose form declares
+  antiforgery; binary only for a declared download with its explicit content
+  types and disposition; JSON for every client-visible endpoint; neither a page
+  nor a download generating a client method, and every other operation's OpenAPI
+  description unchanged. Tests: `Sdk.Client.Tests`
+  `ContractDefinitionTests.TM_G02_011_*` and `Repository.Tests`
+  `ApiGenerationTests.Pages_and_downloads_are_described_with_their_declared_media_types_and_generate_no_client_methods`.
+  Removal checks: dropping any of those rules, or the document's description of
+  a page, its form or a download, fails its test. The page form's antiforgery is
+  TM-G02-007's, recorded in [the framework](../README.md#threat-model-controls).
+  Remaining: the sample's pages and downloads (CODE-09); adversarial evidence
+  (SEC-08).
+
 Compilation and real-provider qualification remain Builder checks. The contract
 fixture uses PostgreSQL, actual sessions, tenancy, authorization, tracked writes
 and TLS. Its authority-audit seam is test scaffolding; the audit package's own

@@ -679,6 +679,8 @@ The controls of TB-G02-04, identity and sessions, are recorded in
 and those of TB-G02-05, authorization, with SEC-05's parts of TM-G02-017,
 TM-G02-028 and TM-G02-033, in
 [authorization](Modularyn.Framework.Authorization/README.md#threat-model-controls).
+SEC-09's part of TM-G02-011, of TB-G02-03, the declared pages and downloads, is
+recorded in [the API conventions](Modularyn.Framework.Api/README.md#threat-model-controls).
 
 - **TM-G02-001, partly.** Delivered: the deployment lock and package integrity
   as a trust validator, and MDC108 for a host without one. Tests:
@@ -705,7 +707,9 @@ TM-G02-028 and TM-G02-033, in
   and `OwnershipTests.Host_refuses_declared_migrations_when_the_completion_gate_was_not_registered`).
   Declared endpoints: the inventory check refuses an undeclared or misclassified
   endpoint before the server listens (CODE-06; `Hosting.Tests`
-  `ApiHostingTests.TM_G02_011_*`). Remaining: disabling a module with a
+  `ApiHostingTests.TM_G02_011_*`), pages and downloads included, each declared
+  with its response media type (SEC-09; `Sdk.Client.Tests`
+  `ContractDefinitionTests.TM_G02_011_*`). Remaining: disabling a module with a
   report of its dependents, active work and retained data (FND-003), which no
   G-02 work order covers: CODE-02's scope excludes it and the tool command is
   DEV-005, Tooling, at G-06. Under the restart model, a selection that drops a
@@ -728,6 +732,11 @@ TM-G02-028 and TM-G02-033, in
   `MigrationCoordinationTests.A_different_registry_cannot_reassign_persisted_table_and_history_ownership`;
   `Identity.Persistence.EfCore.Tests`
   `MigrationTests.TM_G02_004_The_migration_creates_exactly_the_mapped_columns_in_the_module_schema`.
+  A sample's host, the one composition root that the dependency rules allow, may
+  reference modules' persistence adapters to configure them, but no project may
+  reference it, so no module reaches another's persistence through it, and DEP009
+  holds for every other project (SEC-09; `Repository.Tests` `CompositionRootTests`;
+  removing DEP014, or narrowing or widening the role, fails them).
 - **TM-G02-005, deferred.** No extension-property mechanism exists, and no G-02
   work order covers FND-005.
 - **TM-G02-006, partly.** Delivered: declared-proxy forwarded headers, host
@@ -745,9 +754,14 @@ TM-G02-028 and TM-G02-033, in
   (`AC_003_N02_*`, `TM_G02_007_*`). The session cookie is the identity module's
   `__Host-` cookie, and antiforgery tokens are validated against the
   authenticated user (SEC-03; `AuthenticationOrderTests.TM_G02_007_*` and
-  `Identity.HttpApi.Tests` `SessionCookieTests.TM_G02_007_*`). Remaining: no state
-  change on safe methods, which the ingress cannot observe, through endpoint
-  conventions (CODE-06) and contract tests (SEC-08).
+  `Identity.HttpApi.Tests` `SessionCookieTests.TM_G02_007_*`). A page that accepts
+  a form declares antiforgery in the inventory, and a declared form that opts out
+  of validation never maps: the inventory check refuses the host and the endpoint
+  refuses each request (SEC-09; `Sdk.Client.Tests`
+  `ContractDefinitionTests.TM_G02_007_*`; removing either check fails it).
+  Remaining: no state change on safe methods, which the ingress cannot observe,
+  through endpoint conventions (CODE-06) and contract tests (SEC-08); the
+  sample's pages and their browser evidence (CODE-09, SEC-08).
 - **TM-G02-008, deferred.** Operation-specific input contracts and server-derived
   fields (CODE-06; SEC-08 for AC-003-N01).
 - **TM-G02-009, partly.** Delivered: body size, header size and count, request
