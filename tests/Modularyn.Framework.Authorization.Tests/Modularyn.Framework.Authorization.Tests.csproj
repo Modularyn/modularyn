@@ -10,7 +10,9 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" PrivateAssets="all" />
     <PackageReference Include="xunit.v3" PrivateAssets="all" />
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Playwright" PrivateAssets="all" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../src/Framework/Modularyn.Framework.Api/Modularyn.Framework.Api.csproj" />
     <ProjectReference Include="../../src/Framework/Modularyn.Framework.Authorization/Modularyn.Framework.Authorization.csproj" />
     <ProjectReference Include="../../src/Framework/Modularyn.Framework.Features/Modularyn.Framework.Features.csproj" />
     <ProjectReference Include="../../src/Framework/Modularyn.Framework.Ingress/Modularyn.Framework.Ingress.csproj" />

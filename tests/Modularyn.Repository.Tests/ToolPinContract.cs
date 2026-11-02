@@ -40,6 +40,7 @@ internal static partial class ToolPinContract
         ValidateWorkflows(files, errors);
         ValidateGitleaks(files, register, errors);
         ValidateNode(files, register, errors);
+        ValidateBrowser(files, register, errors);
         ValidateImages(files, register, errors);
         ValidateJobs(files, register, errors);
         return errors;

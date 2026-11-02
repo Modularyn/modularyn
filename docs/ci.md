@@ -69,7 +69,7 @@ The probe test signs in with the variable's credentials over TCP and checks that
 
 The `real-provider` job runs on `ubuntu-latest`, a Linux x64 runner, with a PostgreSQL service from `docker.io/library/postgres:18.6-trixie` at its pinned index digest, published only on the runner's `127.0.0.1:5432`. The service starts with `POSTGRES_HOST_AUTH_METHOD=reject`, so no host connection can sign in until the job has created its credentials, and a `pg_isready` health check gates the job's steps. The image needs a superuser password to initialize; the job gives it the run's public id, which never authenticates anything.
 
-After the SDK and Node.js steps, which are the same as `build-test`'s on Linux and which a test keeps identical, the job restores and builds, then installs and type-checks the TypeScript client as [TypeScript client](#typescript-client) describes. Its last step, `Test against PostgreSQL`, then runs `bash .github/scripts/postgresql-test-database.sh ci bash .github/scripts/real-provider-tests.sh`. The database script:
+After the SDK and Node.js steps, which are the same as `build-test`'s on Linux and which a test keeps identical, the job restores and builds, then installs and type-checks the TypeScript client as [TypeScript client](#typescript-client) describes, and downloads and verifies the pinned browser archive as [Browsers](#browsers) describes. Its last step, `Test against PostgreSQL`, then runs `bash .github/scripts/postgresql-test-database.sh ci bash .github/scripts/real-provider-tests.sh`. The database script:
 
 1. fails unless the runner is Linux x64 and the service runs `POSTGRES_IMAGE`, the same reference as the service image, pulled by its index digest, on linux/amd64, and reports PostgreSQL `POSTGRESQL_VERSION`, 18.6;
 2. generates a role and database name and a 64-character hexadecimal password from `/dev/urandom` and masks the password in the log;
@@ -149,7 +149,25 @@ These limits remain, as limits of a drift guard, and review is the control for t
 
 ## Browsers
 
-No workflow installs browsers. Playwright 1.64.1 downloads its browser builds without verifying a hash, so CI never runs `playwright install`, and the tests reject a workflow or CI script that does. The first browser test is AC-003-N02, written by work order SEC-08; that order pins the browsers before its test runs in CI, as the digest-pinned Playwright image or as hash-verified browser archives, as [What CI-01 pins](dependencies/README.md#what-ci-01-pins) requires.
+No workflow installs browsers through Playwright. Playwright 1.64.1 downloads its browser builds without verifying a hash, so CI never runs `playwright install`, and the tests reject a workflow or CI script that does. The one browser test, AC-003-N02's in `Modularyn.Framework.Authorization.Tests`, runs Chrome Headless Shell from the Chrome for Testing archive that [.github/browsers.json](../.github/browsers.json) pins by SHA-256, as the dependency README's [SEC-08 adoption](dependencies/README.md#sec-08-adoption) describes:
+
+1. The `real-provider` job's `Download and verify the pinned browser archive` step, after the TypeScript type check and before `Test against PostgreSQL`, requires the pin file's version to equal the job's `CHROME_HEADLESS_SHELL_VERSION`, selects `linux64` on a Linux x64 runner and fails on any other, and requires the URL to be the Chrome for Testing archive of that version on Playwright's CDN.
+2. It downloads the archive over HTTPS with TLS 1.2 or later, checks its SHA-256 with `sha256sum`, and on a mismatch removes it and fails. Only then does it name the archive in `MODULARYN_TEST_BROWSER_ARCHIVE` for the later steps; no credential exists yet.
+3. The test reads the pin file itself, copies the named archive into a new private directory while hashing the bytes it copies, and extracts and launches that copy only when its SHA-256 equals the pin for the running platform. Without a verified archive the test is skipped with its reason, never reported as passed, and the tests script fails on a skipped test, so the job cannot pass without the browser.
+
+Locally, on Linux x64 or Apple silicon, download the platform's archive from the URL in the pin file, check it against the pinned SHA-256 and name it before running the database script:
+
+```sh
+platform=mac-arm64 # linux64 on Linux x64
+url="$(jq -er --arg platform "${platform}" '.archives[$platform].url' .github/browsers.json)"
+sha256="$(jq -er --arg platform "${platform}" '.archives[$platform].sha256' .github/browsers.json)"
+archive="${TMPDIR:-/tmp}/chrome-headless-shell-${platform}.zip"
+curl --fail --location --proto '=https' --tlsv1.2 --output "${archive}" "${url}"
+echo "${sha256}  ${archive}" | shasum -a 256 --check
+export MODULARYN_TEST_BROWSER_ARCHIVE="${archive}"
+```
+
+No archive is pinned for other platforms, so there the browser test is skipped, which the tests script counts as a failure. The repository tests hold the pin file, the step and the register to agree, as [Checks](dependencies/README.md#checks) lists.
 
 ## Conventions
 
