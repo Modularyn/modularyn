@@ -56,8 +56,7 @@ run_tests() {
   if [ -n "${RUNNER_TEMP:-}" ]; then
     results="${RUNNER_TEMP}/real-provider-results"
   else
-    mkdir -p artifacts
-    local_results="$(mktemp -d "${PWD}/artifacts/real-provider.XXXXXXXX")"
+    local_results="$(mktemp -d)"
     trap remove_local_results EXIT
     results="${local_results}/real-provider-results"
   fi
