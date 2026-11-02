@@ -4,6 +4,9 @@
   "moduleFamilies": ["Modules", "Cms", "Pro"],
   "nonModulePrefixes": ["Modularyn.Pro.Studio."],
   "eventContractRole": "application-contracts",
+  "compositionRootPrefix": "Modularyn.Tooling.Samples.",
+  "compositionRootSuffix": ".Host",
+  "compositionRootReferences": ["application-contracts", "application-services", "persistence-adapter", "http-endpoints"],
   "editionReferences": {
     "community": {
       "community": ["ProjectReference", "PackageReference"],
@@ -74,6 +77,7 @@
     "DEP010": "The source role does not allow this support package.",
     "DEP011": "Dependency cycles are forbidden.",
     "DEP012": "Product projects must not reference test projects.",
-    "DEP013": "The dependency companion, guide and names contract must agree."
+    "DEP013": "The dependency companion, guide and names contract must agree.",
+    "DEP014": "No project may reference a composition root."
   }
 }
