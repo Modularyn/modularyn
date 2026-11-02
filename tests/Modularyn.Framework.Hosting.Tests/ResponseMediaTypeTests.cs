@@ -24,6 +24,8 @@ public sealed class ResponseMediaTypeTests
 {
     private const string Undeclared = "8400";
     private const string Problem = "application/problem+json";
+    // How long an aborted response may take to end; the abort itself takes well under a second.
+    private static readonly TimeSpan AbortBound = TimeSpan.FromSeconds(5);
     private static CancellationToken Cancellation => TestContext.Current.CancellationToken;
 
     private static readonly ApiInventory Inventory = new(1, 1, [],
@@ -97,15 +99,25 @@ public sealed class ResponseMediaTypeTests
             Assert.Equal(refusals, events.Count(Undeclared));
 
             // Once a flush has sent an untyped response's headers, bytes that follow cannot be refused with a problem: the
-            // connection is aborted and none of them arrives.
+            // connection is aborted and none of them arrives. The abort resets the connection at once, so each request reads its
+            // headers and then its body within a bound of a few seconds rather than the client's 100-second timeout: a read that
+            // stalls fails here at once with that reason, and a read that ends must end in the abort, with no marker received.
             foreach (var path in allowed.Keys)
             {
+                using var bound = CancellationTokenSource.CreateLinkedTokenSource(Cancellation);
+                bound.CancelAfter(AbortBound);
+                using var received = new MemoryStream();
                 var aborted = await Record.ExceptionAsync(async () =>
                 {
-                    using var response = await client.GetAsync(path + "?send=flushed-untyped", Cancellation);
-                    Assert.DoesNotContain(marker, await response.Content.ReadAsStringAsync(Cancellation), StringComparison.Ordinal);
+                    using var response = await client.GetAsync(path + "?send=flushed-untyped", HttpCompletionOption.ResponseHeadersRead, bound.Token);
+                    await using var body = await response.Content.ReadAsStreamAsync(bound.Token);
+                    await body.CopyToAsync(received, bound.Token);
                 });
-                Assert.IsType<HttpRequestException>(aborted, exactMatch: false);
+                Assert.False(bound.IsCancellationRequested,
+                    $"{path}: the aborted response neither ended nor failed within {AbortBound.TotalSeconds} seconds: {aborted?.GetType().Name}");
+                Assert.True(aborted is HttpRequestException or IOException,
+                    $"{path}: reading the body must end in the abort, but it ended with {aborted?.GetType().Name ?? "the complete body"}");
+                Assert.DoesNotContain(marker, Encoding.UTF8.GetString(received.ToArray()), StringComparison.Ordinal);
             }
             Assert.Equal(refusals + allowed.Count, events.Count(Undeclared));
             await application.StopAsync(Cancellation);
