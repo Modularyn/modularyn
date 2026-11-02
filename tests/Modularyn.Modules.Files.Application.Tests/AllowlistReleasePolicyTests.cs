@@ -33,24 +33,25 @@ public sealed class AllowlistReleasePolicyTests
         Assert.Equal(FileReleaseVerdict.Release, await DecideAsync(policy, []));
         // The display name is never consulted, either way.
         Assert.Equal(FileReleaseVerdict.Release, await DecideAsync(policy, FilesHost.Text(40), name: "photo.png"));
-        Assert.Equal(FileReleaseVerdict.Reject, await DecideAsync(policy, Pdf(400), name: "notes.txt"));
+        Assert.Equal(FileReleaseVerdict.Defer, await DecideAsync(policy, Pdf(400), name: "notes.txt"));
 
+        // The policy refuses by leaving the version pending, never by rejecting it, so another decision may still handle it.
         // Over the maximum, and a type off the allowlist.
-        Assert.Equal(FileReleaseVerdict.Reject, await DecideAsync(policy, Png(4097)));
-        Assert.Equal(FileReleaseVerdict.Reject, await DecideAsync(policy, FilesHost.Text(4097)));
-        Assert.Equal(FileReleaseVerdict.Reject, await DecideAsync(policy, Pdf(400)));
-        Assert.Equal(FileReleaseVerdict.Reject, await DecideAsync(policy, FilesHost.Bytes(200)));
+        Assert.Equal(FileReleaseVerdict.Defer, await DecideAsync(policy, Png(4097)));
+        Assert.Equal(FileReleaseVerdict.Defer, await DecideAsync(policy, FilesHost.Text(4097)));
+        Assert.Equal(FileReleaseVerdict.Defer, await DecideAsync(policy, Pdf(400)));
+        Assert.Equal(FileReleaseVerdict.Defer, await DecideAsync(policy, FilesHost.Bytes(200)));
         // Uncertain detection: a record whose type the bytes contradict, text with a binary data byte past its header or in it
         // behind a byte-order mark, and bytes fewer or more than the verified length.
-        Assert.Equal(FileReleaseVerdict.Reject, await DecideAsync(policy, FilesHost.Text(100), FileContentTypes.Png));
-        Assert.Equal(FileReleaseVerdict.Reject, await DecideAsync(policy, Png(100), FileContentTypes.PlainText));
-        Assert.Equal(FileReleaseVerdict.Reject, await DecideAsync(policy, [.. FilesHost.Text(FileContentTypes.SniffLength), 0x00, .. FilesHost.Text(10)]));
-        Assert.Equal(FileReleaseVerdict.Reject, await DecideAsync(policy, [.. FilesHost.Text(3000), 0x1A]));
-        Assert.Equal(FileReleaseVerdict.Reject, await DecideAsync(policy, [0xFF, 0xFE, 0x41, 0x00, 0x42, 0x00]));
-        Assert.Equal(FileReleaseVerdict.Reject, await DecideAsync(policy, Png(100), length: 101));
-        Assert.Equal(FileReleaseVerdict.Reject, await DecideAsync(policy, Png(100), length: 99));
-        Assert.Equal(FileReleaseVerdict.Reject, await DecideAsync(policy, Png(3000), length: 2000));
-        Assert.Equal(FileReleaseVerdict.Reject, await DecideAsync(policy, Png(2000), length: 3000));
+        Assert.Equal(FileReleaseVerdict.Defer, await DecideAsync(policy, FilesHost.Text(100), FileContentTypes.Png));
+        Assert.Equal(FileReleaseVerdict.Defer, await DecideAsync(policy, Png(100), FileContentTypes.PlainText));
+        Assert.Equal(FileReleaseVerdict.Defer, await DecideAsync(policy, [.. FilesHost.Text(FileContentTypes.SniffLength), 0x00, .. FilesHost.Text(10)]));
+        Assert.Equal(FileReleaseVerdict.Defer, await DecideAsync(policy, [.. FilesHost.Text(3000), 0x1A]));
+        Assert.Equal(FileReleaseVerdict.Defer, await DecideAsync(policy, [0xFF, 0xFE, 0x41, 0x00, 0x42, 0x00]));
+        Assert.Equal(FileReleaseVerdict.Defer, await DecideAsync(policy, Png(100), length: 101));
+        Assert.Equal(FileReleaseVerdict.Defer, await DecideAsync(policy, Png(100), length: 99));
+        Assert.Equal(FileReleaseVerdict.Defer, await DecideAsync(policy, Png(3000), length: 2000));
+        Assert.Equal(FileReleaseVerdict.Defer, await DecideAsync(policy, Png(2000), length: 3000));
     }
 
     internal static byte[] Png(int length) => [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, .. FilesHost.Bytes(length - 8)];

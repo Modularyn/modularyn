@@ -7,7 +7,8 @@ namespace Modularyn.Modules.Files.Application.Tests;
 
 /// <summary>
 /// The opt-in allowlist release policy through the Files service, over real PostgreSQL, the filesystem provider and the real
-/// evaluator: it releases only what its allowlist and maximum admit, and nothing is released without it.
+/// evaluator: it releases only what its allowlist and maximum admit, leaves everything else pending in quarantine, and nothing
+/// is released without it.
 /// </summary>
 [Collection(FilesPostgreSqlCollection.Name)]
 [Trait("Requires", "PostgreSQL")]
@@ -44,17 +45,25 @@ public sealed class AllowlistReleaseTests
         }
 
         // A type off the allowlist, a version over its maximum, bytes that detection does not recognize and text with a binary
-        // data byte past its header are rejected, and stay unreadable and ungrantable.
+        // data byte past its header stay in quarantine: pending, unreadable and ungrantable, however often release is asked.
+        var refused = new List<FileVersionInfo>();
         foreach (var (content, name) in new[]
         {
             (AllowlistReleasePolicyTests.Pdf(400), "report.pdf"), (AllowlistReleasePolicyTests.Png(4097), "large.png"), (FilesHost.Bytes(200), "photo.png"),
             ([.. FilesHost.Text(FileContentTypes.SniffLength), 0x00, .. FilesHost.Text(10)], "notes.txt")
         })
         {
-            var rejected = await UploadAndReleaseAsync(files, member, content, name);
-            Assert.Equal(FileQuarantineState.Rejected, rejected.Quarantine);
-            await AssertQuarantinedAsync(files, member, rejected);
+            var pending = await UploadAndReleaseAsync(files, member, content, name);
+            Assert.Equal(FileQuarantineState.Pending, pending.Quarantine);
+            Assert.Equal(pending, await files.ReleaseAsync(member.Context, member.Principal, pending.FileId, pending.VersionId, Cancellation));
+            await AssertQuarantinedAsync(files, member, pending);
+            refused.Add(pending);
         }
+
+        // Pending is not final: a later policy, such as the deployment's own decision, may still release one.
+        var decided = await host.Files(Uploads, new TestReleasePolicy(FileReleaseVerdict.Release)).ReleaseAsync(member.Context, member.Principal,
+            refused[0].FileId, refused[0].VersionId, Cancellation);
+        Assert.Equal(FileQuarantineState.Released, decided.Quarantine);
     }
 
     [Fact]
@@ -75,10 +84,10 @@ public sealed class AllowlistReleaseTests
             + " SET \"ContentType\" = @type WHERE \"TenantId\" = @tenant AND \"Id\" = @id RETURNING 1",
             new NpgsqlParameter("type", FileContentTypes.Png), new NpgsqlParameter("tenant", tenant.Id), new NpgsqlParameter("id", version.VersionId)));
         var files = host.Files(release: new AllowlistFileReleasePolicy([FileContentTypes.Png], maximumLength: 4096));
-        var rejected = await files.ReleaseAsync(member.Context, member.Principal, version.FileId, version.VersionId, Cancellation);
-        Assert.Equal(FileQuarantineState.Rejected, rejected.Quarantine);
-        Assert.Equal(FileContentTypes.Png, rejected.ContentType);
-        await AssertQuarantinedAsync(files, member, rejected);
+        var pending = await files.ReleaseAsync(member.Context, member.Principal, version.FileId, version.VersionId, Cancellation);
+        Assert.Equal(FileQuarantineState.Pending, pending.Quarantine);
+        Assert.Equal(FileContentTypes.Png, pending.ContentType);
+        await AssertQuarantinedAsync(files, member, pending);
     }
 
     [Fact]

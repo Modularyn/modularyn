@@ -127,8 +127,10 @@ The allowlist must be nonempty and name types that detection returns; it cannot
 name `application/octet-stream`, which detection returns for bytes it does not
 recognize. The policy releases a version only when its verified length is at most
 the maximum and the type `FileContentTypes.Detect` finds again in its verified
-bytes is on the allowlist and is the type recorded for it. It rejects every other
-version, and `Rejected` is final:
+bytes is on the allowlist and is the type recorded for it. Every other version
+stays in quarantine as it was: the policy defers, so the version stays `Pending`
+and unreadable, never `Rejected`, which would be final, and a later policy or the
+deployment's own decision may still handle it. It does so for:
 
 - a type off the allowlist, or a version over the maximum;
 - bytes that detection does not recognize;
@@ -136,6 +138,9 @@ version, and `Rejected` is final:
   binary data byte anywhere in it, which includes UTF-16 text, since detection
   calls a header with a byte-order mark text whatever follows; and bytes fewer or
   more than the verified length.
+
+Asking again repeats the same checks over the same bytes, so the version stays
+pending until another policy decides.
 
 **It does no malware or content scanning, and makes no file safe.** It reads the
 bytes only to detect their type and count them. A PNG or PDF it releases can
@@ -329,12 +334,14 @@ every control to its evidence.
   (`TM_G02_042_*`). SEC-09 adds the opt-in allowlist release policy, which a host
   must pass explicitly: it releases a version only when the type detected again
   from its verified bytes and its length are within the host's allowlist and
-  maximum, and rejects everything else, uncertain detection included. Tests:
+  maximum, and leaves everything else pending in quarantine, uncertain detection
+  included, for a later policy or the deployment's own decision. Tests:
   `Application.Tests` `AllowlistReleasePolicyTests` and `AllowlistReleaseTests`
   (`TM_G02_042_*`). Removal checks: skipping the allowlist, the maximum, the
   second detection, the text check of the header or of the rest, or the byte
-  count, allowing the generic binary type or a maximum below one byte, or
-  composing the policy by default fails one of them. Remaining: a scanner or
+  count, allowing the generic binary type or a maximum below one byte, rejecting
+  instead of leaving pending, or composing the policy by default fails one of
+  them. Remaining: a scanner or
   moderation adapter, which the deployment supplies and no G-02 work order
   builds, so a deployment that uses the allowlist policy accepts its
   no-scanning residual; the sample's registration of it with a narrow allowlist
