@@ -127,12 +127,14 @@ dotnet "$workspace_publish/Modularyn.Tooling.Samples.TeamWorkspace.Host.dll" pro
   `workspace.host-operator-provisioning` with its claim of the provisioning
   record, and `workspace.host-operator-provisioned`, naming the operations
   granted, when it completes; each record commits with its change.
-- **Refusals.** Exit status 3, changing nothing, when a `HostOperators` entry
+- **Refusals.** Exit status 3, making no provisioning or authority change, when a `HostOperators` entry
   names a user, or an earlier run has claimed the provisioning record; without
   the bootstrap entry, or with one lacking host authority or provisioning; and
   for an unknown or disabled account. The record's fixed key lets only one run
   claim it. A completed provisioning is final; one that stopped after its claim
   resumes when run again for the same account, and for no other.
+  Refusals reached after both host scopes are acquired still leave tenancy's two
+  `tenancy.host-scope-granted` audit entries; refusals before scope acquisition do not.
 - **What counts as an existing host operator.** Two things: a user named by any
   `HostOperators` entry, and the provisioning record, which every run of this
   command claims before it grants anything. Service entries, such as the
@@ -187,3 +189,20 @@ image for linux/amd64 and runs it without a network, configuration or secret:
 it must refuse to start with its fixed diagnostic and describe exactly the
 deployment lock written from the published files (`docs/ci.md`). No image is
 published.
+
+The job then runs this image configured, as [CI's container acceptance](../../../docs/ci.md#container-acceptance)
+describes. On an internal network against PostgreSQL, it applies migrations
+with `--migrate`, then starts the image with the settings in
+`.github/scripts/composition-sample.env`, the connection string as a mounted
+secret file, in-memory key and BLOB directories, a read-only root filesystem,
+no capability and no privilege escalation. The sample tests' readiness test
+reaches `/health/ready` over private HTTP as the image's declared TLS proxy and
+requires `Healthy`. That observes the published image only.
+
+The AC-001 container rows do not run in this image. They compose test modules
+in version variants, invalid graphs and an injected fault, and this image
+carries no test module and no switch that would select one: shipping either
+would be a security regression. They run in CI's test-only composition fixture
+image, the sample test project's published executable on the same pinned base,
+which is never published. See [the evidence instructions](../../../docs/evidence/README.md)
+for both modes and the remaining qualification gaps.
