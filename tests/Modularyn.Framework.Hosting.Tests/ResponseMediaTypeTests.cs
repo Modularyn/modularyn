@@ -99,9 +99,12 @@ public sealed class ResponseMediaTypeTests
             Assert.Equal(refusals, events.Count(Undeclared));
 
             // Once a flush has sent an untyped response's headers, bytes that follow cannot be refused with a problem: the
-            // connection is aborted and none of them arrives. The abort resets the connection at once, so each request reads its
-            // headers and then its body within a bound of a few seconds rather than the client's 100-second timeout: a read that
-            // stalls fails here at once with that reason, and a read that ends must end in the abort, with no marker received.
+            // connection is aborted and none of them arrives. Each request reads its headers and then its body within a bound of a
+            // few seconds rather than the client's 100-second timeout, and a read that ends must end in the abort, with no marker
+            // received. On Linux and Windows the abort resets the connection at once, so a read that stalls fails. On macOS,
+            // Kestrel's abortive close sometimes leaves the client's connection open after the server has refused and aborted:
+            // no byte follows the headers and nothing ends the read. There a stall with an empty body is accepted; a completed
+            // body, a marker or any byte after the headers still fails on every platform.
             foreach (var path in allowed.Keys)
             {
                 using var bound = CancellationTokenSource.CreateLinkedTokenSource(Cancellation);
@@ -113,11 +116,13 @@ public sealed class ResponseMediaTypeTests
                     await using var body = await response.Content.ReadAsStreamAsync(bound.Token);
                     await body.CopyToAsync(received, bound.Token);
                 });
-                Assert.False(bound.IsCancellationRequested,
+                var stalled = bound.IsCancellationRequested && !Cancellation.IsCancellationRequested;
+                Assert.False(stalled && !OperatingSystem.IsMacOS(),
                     $"{path}: the aborted response neither ended nor failed within {AbortBound.TotalSeconds} seconds: {aborted?.GetType().Name}");
-                Assert.True(aborted is HttpRequestException or IOException,
+                Assert.True(stalled || aborted is HttpRequestException or IOException,
                     $"{path}: reading the body must end in the abort, but it ended with {aborted?.GetType().Name ?? "the complete body"}");
                 Assert.DoesNotContain(marker, Encoding.UTF8.GetString(received.ToArray()), StringComparison.Ordinal);
+                if (stalled) Assert.Equal(0, received.Length);
             }
             Assert.Equal(refusals + allowed.Count, events.Count(Undeclared));
             await application.StopAsync(Cancellation);

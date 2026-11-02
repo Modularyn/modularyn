@@ -42,7 +42,10 @@ set, and logs error 8400 naming the endpoint. A handler that catches the refusal
 is refused all the same. A start of a response that names no type waits for its
 first bytes, so a late refusal can still answer `MAP008`; once a handler's flush
 has sent an untyped response's headers, the connection is aborted instead, and
-no byte of the handler's arrives. An empty response, such as a redirect or a bare
+no byte of the handler's arrives. On Linux and Windows the client's connection is
+reset at once. On macOS, Kestrel's abortive close sometimes leaves it open after
+the abort, with nothing after the headers, until the client gives up; the
+supported tuple is Linux x64. An empty response, such as a redirect or a bare
 status, needs no type.
 
 The check covers every supported write path, because each goes through the
