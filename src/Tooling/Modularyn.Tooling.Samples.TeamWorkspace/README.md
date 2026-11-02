@@ -138,12 +138,16 @@ the deployment's bootstrap authority, as the host README describes.
 
 ## Validation status and limits
 
-This is implementation source for Builder validation, not Linux qualification.
-Restore, compilation, execution against PostgreSQL, Linux host/container startup,
-browser automation and the six exact-head CI checks have not run in this task.
-No foundation file, package reference, central package version or CI file is
-changed. The Builder creates the new projects' package locks through its restore
-workflow; a deployment trust lock is a separate artifact and is not a package lock.
+Verified on the Builder's macOS machine: the locked restore, the Release build
+with no warnings, the unit tests with and without invariant globalization, and
+the PostgreSQL tests, which run the host in process over Kestrel and TLS against
+PostgreSQL 18 through the smoke scenario and the provisioning command. Not yet
+verified, until CI's first run: execution on Linux x64, the container's build
+and run in the `container-build` job, and the six exact-head CI checks. Browser
+automation is SEC-08's. No foundation file, package reference or central package
+version is changed; the Builder extended the CI workflow and its contract tests
+for the container build. The package locks are committed; a deployment trust
+lock is a separate artifact and is not a package lock.
 
 The sibling test project is an xUnit test project like the repository's others.
 Its smoke scenario carries `[Trait("Requires", "PostgreSQL")]`, so the

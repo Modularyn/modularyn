@@ -3,7 +3,10 @@
 This is the sample's composition root. The sibling application's README describes
 behavior and security boundaries. The target is Linux x64 with .NET/ASP.NET Core
 10.0.14, PostgreSQL 18.6, a shared database and local filesystem BLOB storage.
-Host and container execution are pending Builder verification.
+The host has run in process, over Kestrel and TLS against PostgreSQL 18, in the
+sample's tests on the Builder's macOS machine. Its run on Linux x64 and the
+container's build and run are verified only from CI's first run of the
+`real-provider` and `container-build` jobs.
 
 ## Deployment configuration
 
@@ -50,10 +53,12 @@ database, not superuser, database creation or role creation.
 
 ## Builder sequence
 
-The Builder first performs its locked restore workflow, generating the new
-projects' package lock files, builds the solution and runs the tests. Nothing
-in this sample replaces restore. The following deployment steps are for the
-Builder after successful validation; they were not executed during authoring.
+The projects' package locks are committed; restore with
+`dotnet restore --locked-mode`, build the solution and run the tests first.
+Nothing in this sample replaces restore. The publish and describe steps below
+have run locally as CI's `container-build` job runs them; migration, startup and
+provisioning have run in process in the PostgreSQL tests, through the same host
+methods these commands call.
 
 From the repository root, choose output directories inside the workspace:
 
