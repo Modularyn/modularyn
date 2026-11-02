@@ -7,6 +7,7 @@ using Modularyn.Framework.Audit;
 using Modularyn.Framework.Authorization;
 using Modularyn.Framework.Authorization.Abstractions;
 using Modularyn.Framework.Configuration;
+using Modularyn.Framework.Hosting;
 using Modularyn.Framework.Persistence.EfCore;
 using Modularyn.Framework.Persistence.EfCore.Tests;
 using Modularyn.Framework.Security.Abstractions;
@@ -248,6 +249,12 @@ internal sealed class ProvisioningDeployment : IAsyncDisposable
     {
         await using var sibling = await buildSibling!(token);
         Assert.NotSame(app!.Services, sibling.Services);
+        // Activation's migration-readiness check holds the exclusive migration lock, and an activation that finds it held is
+        // refused with MDC202 for the operator to retry (the persistence README). Both hosts therefore activate first, one
+        // after the other, so each run's own activation repeats a completed one. The two runs then start together and race
+        // for the provisioning claim itself.
+        await app.Services.GetRequiredService<ModuleHost>().StartAsync(token);
+        await sibling.Services.GetRequiredService<ModuleHost>().StartAsync(token);
         var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         async Task<ProvisioningOutcome> RunAsync(WebApplication host, Guid account)
         {
