@@ -72,7 +72,8 @@ member's own upload stays quarantined.
 plain text, with a maximum of **10 MiB**. It checks detected type and length and
 **does no content scanning**. Files' upload detector may admit other supported
 types into quarantine, such as PDF, but this deployment refuses their release.
-Rejected versions remain quarantined and unreadable. There is no scanner,
+Versions the allowlist refuses stay **pending** in quarantine, unreadable, and
+are never marked rejected, which would be final. There is no scanner,
 moderation adapter or public anonymous file access.
 
 Grant issuance returns the token once in an uncached JSON body. Download uses
