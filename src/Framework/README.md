@@ -451,8 +451,9 @@ code can change or remove it. A browser therefore renders a response only as its
 `Content-Type` says, never as HTML it guessed from the body. Responses produced
 before the pipeline runs, Kestrel's own and the host's host filtering's empty 400
 for an unconfigured host, do not carry it. Response media types are declared in
-the [API inventory](Modularyn.Framework.Api.Contracts/README.md), and not yet
-checked at runtime against what a handler sends; SEC-08 carries that check.
+the [API inventory](Modularyn.Framework.Api.Contracts/README.md), and the
+endpoint wrapper refuses, at run time, any response whose type its declaration
+does not allow ([endpoint conventions](Modularyn.Framework.Api/README.md)).
 
 The options are validated before startup: public and cross-origin origins are
 exact HTTPS origins with ASCII hosts and no wildcard, path, query or user

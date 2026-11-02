@@ -135,9 +135,10 @@ public sealed class HealthAndRequestTests
                     var correlation = Activity.Current!.TraceId;
                     await Task.Yield();
                     Assert.Equal(correlation, Activity.Current!.TraceId);
+                    context.Response.ContentType = ApiMediaTypes.PlainText;
                     await context.Response.WriteAsync(correlation.ToHexString(), context.RequestAborted);
                 }).AllowAnonymous().WithApiContract(new ApiEndpoint("TestWork", "POST", "/work", "Anonymous", null,
-                    false, null, null, Mutation: true, Versioned: false));
+                    false, null, null, Mutation: true, Versioned: false, ResponseMediaType: ApiMediaTypes.PlainText));
                 await application.StartAsync(Cancellation);
                 var addresses = application.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!;
                 using var client = new HttpClient { BaseAddress = new Uri(Assert.Single(addresses.Addresses)) };

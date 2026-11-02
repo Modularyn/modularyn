@@ -5,9 +5,11 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Modularyn.Framework.Api.Contracts;
 using Modularyn.Framework.Authorization;
 using Modularyn.Framework.Tenancy;
@@ -27,7 +29,7 @@ public sealed record ApiEndpointMetadata(ApiEndpoint Contract, ApiInventory Inve
     public int CurrentVersion => Inventory.CurrentVersion;
 }
 
-public static class ApiEndpoints
+public static partial class ApiEndpoints
 {
     private static readonly JsonSerializerOptions Reading = new(JsonSerializerDefaults.Web)
     {
@@ -171,6 +173,10 @@ public static class ApiEndpoints
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30), context.RequestServices.GetService<TimeProvider>() ?? TimeProvider.System);
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(originalCancellation, deadline.Token);
         context.RequestAborted = cancellation.Token;
+        // Nothing the handler sends reaches the client until its media type is one the declaration allows (TM-G02-011).
+        var originalBody = context.Features.Get<IHttpResponseBodyFeature>()!;
+        var body = new DeclaredResponseBody(context, declared.Contract, originalBody);
+        context.Features.Set<IHttpResponseBodyFeature>(body);
         try
         {
             if (declared.Contract.Versioned)
@@ -183,7 +189,13 @@ public static class ApiEndpoints
             }
             if (declared.Contract.Idempotent) context.Response.Headers[FrameworkApi.OperationHeader] = OperationId(context).ToString("D");
             await inner(context).ConfigureAwait(false);
+            // Bytes the handler left in the body's writer pass the same check on their way out.
+            await body.CompleteWriterAsync(context.RequestAborted).ConfigureAwait(false);
+            // A handler that caught the refusal and returned normally is refused all the same.
+            if (body.Refused) await RefuseUndeclaredAsync(context, declared.Contract, originalBody).ConfigureAwait(false);
         }
+        catch (Exception) when (body.Refused)
+        { await RefuseUndeclaredAsync(context, declared.Contract, originalBody).ConfigureAwait(false); }
         catch (ApiException exception) when (!context.Response.HasStarted)
         { await ProblemAsync(context, exception.Code, exception.Status, exception.Errors).ConfigureAwait(false); }
         catch (JsonException) when (!context.Response.HasStarted)
@@ -195,8 +207,32 @@ public static class ApiEndpoints
         {
             await ProblemAsync(context, declared.Contract.Mutation ? ApiCodes.OutcomeUnknown : ApiCodes.Unavailable, 503).ConfigureAwait(false);
         }
-        finally { context.RequestAborted = originalCancellation; }
+        finally
+        {
+            context.Features.Set(originalBody);
+            context.RequestAborted = originalCancellation;
+        }
     }
+
+    // The handler sent a type its declaration does not allow, and none of its bytes has left. Before the response starts the
+    // endpoint answers 500 with MAP008 in place of everything the handler set; once it has started, the connection is aborted.
+    private static async Task RefuseUndeclaredAsync(HttpContext context, ApiEndpoint contract, IHttpResponseBodyFeature original)
+    {
+        context.Features.Set(original);
+        var logger = context.RequestServices.GetService<ILoggerFactory>()?.CreateLogger(typeof(ApiEndpoints).FullName!);
+        if (logger is not null) UndeclaredMediaType(logger, contract.Name);
+        if (context.Response.HasStarted)
+        {
+            context.Abort();
+            return;
+        }
+        context.Response.Clear();
+        await ProblemAsync(context, ApiCodes.Protocol, 500).ConfigureAwait(false);
+    }
+
+    [LoggerMessage(EventId = 8400, Level = LogLevel.Error,
+        Message = "The endpoint {Endpoint} sent a response type its inventory declaration does not allow, so the response was refused.")]
+    private static partial void UndeclaredMediaType(ILogger logger, string endpoint);
 
     private static Task ProblemAsync(HttpContext context, string code, int status, IReadOnlyDictionary<string, string[]>? errors = null)
     {

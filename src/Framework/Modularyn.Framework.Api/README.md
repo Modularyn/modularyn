@@ -29,6 +29,22 @@ form post, so the inventory check refuses the host before it listens and the
 endpoint answers each request with 500 and `MAP008` without running its handler.
 Both read the endpoint's last antiforgery declaration, as the ingress does.
 
+The wrapper also checks, at run time, that each response is sent with a media type
+its declaration allows (TM-G02-011): JSON for a JSON endpoint, HTML for a page,
+one of a download's declared types and plain text where the inventory declares
+it, with any parameters such as a charset ignored, and the API's own
+`application/problem+json` for every endpoint. It holds back everything the
+handler writes, through the body's stream, its pipe writer or a file, until that
+holds. Bytes or a file sent with no type or with any other, and an empty response
+started with an undeclared type, are refused before any of them leaves: the
+endpoint answers 500 with `MAP008` in place of every status and header the handler
+set, and logs error 8400 naming the endpoint. A handler that catches the refusal
+is refused all the same. A start of a response that names no type waits for its
+first bytes, so a late refusal can still answer `MAP008`; once a handler's flush
+has sent an untyped response's headers, the connection is aborted instead, and
+no byte of the handler's arrives. An empty response, such as a redirect or a bare
+status, needs no type.
+
 `ApiEndpoints.Describe` reads every mapped endpoint, including non-client routes,
 and combines its declared schemas. Undeclared routes fail validation. The built-in
 inventory contains the identity, health and bootstrap routes; a composed host's
@@ -128,14 +144,16 @@ Feature evaluation still uses its existing gate, and a missing gate yields false
   Removal checks: dropping any of those rules, or the document's description of
   a page, its form, a download or an upload, fails its test. A form post's
   antiforgery is TM-G02-007's, recorded in [the framework](../README.md#threat-model-controls).
-  Response media types are declared, not yet checked at runtime: neither the
-  inventory check nor the endpoint compares a response's `Content-Type` with its
-  declaration, so a handler that sends another type than it declares is not
-  refused. The ingress disables content sniffing on every response, so such a
-  response is never rendered as HTML it did not declare (`Ingress.Tests`
-  `ContentTypeOptionsTests.TM_G02_011_*`). Remaining: the runtime check of each
-  response's type against its declaration (SEC-08); the sample's pages,
-  downloads and uploads (CODE-09); adversarial evidence (SEC-08).
+  Each response's media type is checked at run time against its declaration
+  (SEC-08): a handler that sends a type its endpoint does not declare is refused
+  with `MAP008` before any of its bytes leaves, or its connection aborted once an
+  untyped response's headers are out. Tests: `Hosting.Tests`
+  `ResponseMediaTypeTests.TM_G02_011_*`; removing the check, or the refusal of a
+  handler that caught it, fails it. The ingress also disables content sniffing
+  on every response, so a mislabelled response is not rendered as a type it
+  does not name (`Ingress.Tests` `ContentTypeOptionsTests.TM_G02_011_*`).
+  SEC-08's [control map](../../../docs/security/control-map/README.md) records
+  the evidence and what remains.
 
 Compilation and real-provider qualification remain Builder checks. The contract
 fixture uses PostgreSQL, actual sessions, tenancy, authorization, tracked writes
