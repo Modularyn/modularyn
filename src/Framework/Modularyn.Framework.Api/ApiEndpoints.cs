@@ -121,7 +121,7 @@ public static class ApiEndpoints
                 || point.Kind is AuthorizationEntryPointKind.InterceptionOnly or AuthorizationEntryPointKind.Undeclared)
                 throw new InvalidOperationException("The endpoint authorization wrapper must match its inventory classification.");
             if (OptsOutOfAntiforgery(declared.Contract, endpoint))
-                throw new InvalidOperationException("A page that accepts a form must keep its antiforgery validation.");
+                throw new InvalidOperationException("A form post must keep its antiforgery validation.");
             declarations.Add(declared.Contract);
         }
         var models = endpoints.SelectMany(endpoint => endpoint.Metadata.GetMetadata<ApiEndpointMetadata>()!.Inventory.Models)
@@ -144,9 +144,9 @@ public static class ApiEndpoints
             return Results.Json(await reader.ReadAsync(tenant, context.RequestAborted).ConfigureAwait(false));
         }).RequireTenantMember().WithApiContract(FrameworkApi.Endpoint("GetConfiguration"));
 
-    // A page's form is declared with antiforgery, which the ingress validates unless the endpoint opts out. The ingress reads
-    // the endpoint's last declaration, as this does, from its final metadata; an endpoint that opts out is not the declared
-    // page, so the inventory check refuses the host and the endpoint refuses each request.
+    // A form post, a page's form or a form upload, is declared with antiforgery, which the ingress validates unless the endpoint
+    // opts out. The ingress reads the endpoint's last declaration, as this does, from its final metadata; an endpoint that opts
+    // out is not the declared form post, so the inventory check refuses the host and the endpoint refuses each request.
     private static bool OptsOutOfAntiforgery(ApiEndpoint contract, Endpoint endpoint) =>
         contract.Antiforgery && endpoint.Metadata.GetMetadata<IAntiforgeryMetadata>() is { RequiresValidation: false };
 

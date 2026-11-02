@@ -28,20 +28,31 @@ inventory validation refuses any other combination:
 | `text/html` | `responseMediaType` with `page: true` | A browser page: GET, or POST for its form; `authentication` is `session` or `none`; no request or response model and no response schema; never client-visible |
 | `application/octet-stream` | `responseMediaType` with `download` | A binary download: no response model or schema; never client-visible |
 
-A page that accepts a form, its POST, declares `antiforgery: true`, and no other
-entry may; its request schema, if it declares one, describes the form, which the
-OpenAPI document lists as `application/x-www-form-urlencoded`. HTML appears only
-for a declared page. A download's `download` names its disposition, `attachment`
-or `inline`, and the explicit `mediaTypes` its bytes are sent with: each a
-concrete lowercase `type/subtype` with no parameters or wildcard, never HTML or
-JSON, as RFC 6838's restricted names. The OpenAPI document lists those types,
-without a schema, as OpenAPI 3.1 describes binary content, and marks the
-operations `x-modularyn-page`, `x-modularyn-antiforgery` and
-`x-modularyn-download`. The marks appear only where an entry declares a page or
-a download, so every other operation's description is unchanged, and neither a
-page nor a download generates a client method. The inventory states what an
-endpoint sends; the endpoint itself sends its headers, such as the Files module's
-delivery headers for a download.
+A download's `download` names its disposition, `attachment` or `inline`, and the
+explicit `mediaTypes` its bytes are sent with: each a concrete lowercase
+`type/subtype` with no parameters or wildcard, never HTML or JSON, as RFC 6838's
+restricted names.
+
+A request body is declared the same way. It is JSON by default, and form-encoded
+for a page's form, whose request schema, if it declares one, describes the form.
+An upload declares `upload` in place of a request model or schema, on a POST or
+PUT, with the explicit `mediaTypes` it accepts: either exactly
+`multipart/form-data`, a form upload, or binary types under the download rules
+that are not multipart or form-encoded either. A page's form uploads only as
+`multipart/form-data`. Every form post, a page's POST or a form upload, declares
+`antiforgery: true`, and no other entry may. HTML appears only for a declared
+page.
+
+The OpenAPI document lists a page's form as `application/x-www-form-urlencoded`,
+and a download's and an upload's media types without a schema, as OpenAPI 3.1
+describes binary content. It marks operations with `x-modularyn-page`,
+`x-modularyn-antiforgery`, `x-modularyn-download` and `x-modularyn-upload`
+(`form` or `binary`) only where an entry declares a page, a form post, a
+download or an upload, so every other operation's description is unchanged.
+None of them generates a client method, since generated clients send and read
+JSON only. The inventory states what an endpoint sends and accepts; the endpoint
+itself sends its headers, such as the Files module's delivery headers for a
+download.
 
 `ApiGenerator.OpenApi`, `DotNet` and `TypeScript` produce deterministic text using
 only the shared framework and System.Text.Json. The checked OpenAPI document and

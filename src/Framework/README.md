@@ -755,11 +755,12 @@ recorded in [the API conventions](Modularyn.Framework.Api/README.md#threat-model
   (`AC_003_N02_*`, `TM_G02_007_*`). The session cookie is the identity module's
   `__Host-` cookie, and antiforgery tokens are validated against the
   authenticated user (SEC-03; `AuthenticationOrderTests.TM_G02_007_*` and
-  `Identity.HttpApi.Tests` `SessionCookieTests.TM_G02_007_*`). A page that accepts
-  a form declares antiforgery in the inventory, and a declared form that opts out
-  of validation never maps: the inventory check refuses the host and the endpoint
-  refuses each request (SEC-09; `Sdk.Client.Tests`
-  `ContractDefinitionTests.TM_G02_007_*`; removing either check fails it).
+  `Identity.HttpApi.Tests` `SessionCookieTests.TM_G02_007_*`). Every form post, a
+  page's form or a form upload, declares antiforgery in the inventory, and a
+  declared form post that opts out of validation never maps: the inventory check
+  refuses the host and the endpoint refuses each request (SEC-09;
+  `Sdk.Client.Tests` `ContractDefinitionTests.TM_G02_007_*`; removing either
+  check fails it).
   Remaining: no state change on safe methods, which the ingress cannot observe,
   through endpoint conventions (CODE-06) and contract tests (SEC-08); the
   sample's pages and their browser evidence (CODE-09, SEC-08).

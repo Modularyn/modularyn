@@ -64,9 +64,9 @@ public sealed class ApiGenerationTests
     }
 
     [Fact]
-    public void Pages_and_downloads_are_described_with_their_declared_media_types_and_generate_no_client_methods()
+    public void Pages_downloads_and_uploads_are_described_with_their_declared_media_types_and_generate_no_client_methods()
     {
-        // The inventory's own form of the declarations: a page, its form and a download.
+        // The inventory's own form of the declarations: a page, its form, a download, a binary upload and a form upload.
         var declarations = ApiInventory.Read("""
             {
               "oldestVersion": 1, "currentVersion": 1, "models": [],
@@ -81,7 +81,13 @@ public sealed class ApiGenerationTests
                 { "name": "DownloadAttachment", "method": "GET", "route": "/t/{tenant}/attachments/{attachment}/content",
                   "authorization": "MemberOnly", "permission": null, "clientVisible": false, "request": null, "response": null,
                   "versioned": false, "authentication": "session", "responseMediaType": "application/octet-stream",
-                  "download": { "disposition": "attachment", "mediaTypes": ["application/pdf", "image/png"] } }
+                  "download": { "disposition": "attachment", "mediaTypes": ["application/pdf", "image/png"] } },
+                { "name": "UploadAttachment", "method": "POST", "route": "/t/{tenant}/attachments", "authorization": "MemberOnly",
+                  "permission": null, "clientVisible": false, "request": null, "response": null, "mutation": true, "versioned": false,
+                  "authentication": "session", "upload": { "mediaTypes": ["image/png", "application/pdf"] } },
+                { "name": "UploadAttachmentForm", "method": "POST", "route": "/t/{tenant}/attachments/form", "authorization": "MemberOnly",
+                  "permission": null, "clientVisible": false, "request": null, "response": null, "mutation": true, "versioned": false,
+                  "authentication": "session", "antiforgery": true, "upload": { "mediaTypes": ["multipart/form-data"] } }
               ]
             }
             """);
@@ -105,6 +111,15 @@ public sealed class ApiGenerationTests
         var content = download.GetProperty("responses").GetProperty("200").GetProperty("content");
         Assert.Equal(new[] { "application/pdf", "image/png" }, Keys(content));
         Assert.All(content.EnumerateObject(), type => Assert.Empty(Keys(type.Value)));
+        var upload = paths.GetProperty("/t/{tenant}/attachments").GetProperty("post");
+        Assert.Equal("binary", upload.GetProperty("x-modularyn-upload").GetString());
+        Assert.False(upload.TryGetProperty("x-modularyn-antiforgery", out _));
+        Assert.Equal(new[] { "image/png", "application/pdf" }, Keys(upload.GetProperty("requestBody").GetProperty("content")));
+        var formUpload = paths.GetProperty("/t/{tenant}/attachments/form").GetProperty("post");
+        Assert.Equal("form", formUpload.GetProperty("x-modularyn-upload").GetString());
+        Assert.True(formUpload.GetProperty("x-modularyn-antiforgery").GetBoolean());
+        Assert.False(formUpload.TryGetProperty("x-modularyn-page", out _));
+        Assert.Equal(new[] { "multipart/form-data" }, Keys(formUpload.GetProperty("requestBody").GetProperty("content")));
 
         // Every operation that declares neither keeps its description, and generated clients, which read JSON, gain no method.
         using var original = JsonDocument.Parse(ApiGenerator.OpenApi(FrameworkApi.Inventory));
