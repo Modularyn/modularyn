@@ -56,7 +56,10 @@ public sealed class EvidencePipelineTests
     [InlineData("timeout --kill-after=30s \"${bound}\" ")]
     [InlineData(" -longRunning 60")]
     [InlineData(" 2>&1 | long_running")]
-    [InlineData("grep --line-buffered -oE \"\\[Long Running Test\\] '[^']*', Elapsed: [0-9:]+\" || true")]
+    [InlineData("grep --line-buffered -oE \"\\[Long Running Test\\] '[^']*', Elapsed: [0-9:]+|\\[OUTPUT\\] G02 phase: [a-z0-9-]+$\" || true")]
+    [InlineData("|\\[OUTPUT\\] G02 phase: [a-z0-9-]+$")]
+    [InlineData(" -showLiveOutput")]
+    [InlineData("internal const string PhasePrefix = \"G02 phase: \";")]
     [InlineData("bounded \"g02-${name}\" \"${run}\"")]
     [InlineData("bounded g02-measurement \"${run}\"")]
     [InlineData("docker kill \"$1\" > /dev/null 2>&1 || true")]
@@ -163,8 +166,9 @@ internal static class EvidencePipelineContract
     // by name, with xunit's long-running report, and of its output shows only those lines; a run past its bound stops its
     // container and fails the step naming the run. The readiness poll, a single short test that bounds itself, is the exception.
     internal const string BoundedRun = "timeout --kill-after=30s \"${bound}\" ";
+    private const string PhaseTestPath = "tests/Modularyn.Framework.Authorization.Tests/G02AC003Tests.CrossSite.cs";
     private const string Bound = "bound=300";
-    private const string LongRunning = """long_running() { grep --line-buffered -oE "\[Long Running Test\] '[^']*', Elapsed: [0-9:]+" || true; }""";
+    private const string LongRunning = """long_running() { grep --line-buffered -oE "\[Long Running Test\] '[^']*', Elapsed: [0-9:]+|\[OUTPUT\] G02 phase: [a-z0-9-]+$" || true; }""";
     private const string Stopped = """
         bounded() {
           if [ "$2" -eq 124 ] || [ "$2" -eq 137 ]; then
@@ -208,6 +212,13 @@ internal static class EvidencePipelineContract
         if (count < 0 || project < count || outcomes < project || collect < outcomes)
             yield return $"{ContainerResultsScriptPath}: must name each project and its planned method count before its run, and print its "
                 + "report's planned method names and statuses after it, before collection.";
+
+        // Each project runs with xunit's live output, of which the filter passes only the phase markers that AC-003-N02's
+        // integration row writes with the same fixed prefix.
+        if (project < 0 || !results[project..].Split('\n')[0].Contains(" -showLiveOutput ", StringComparison.Ordinal)
+            || !files.GetValueOrDefault(PhaseTestPath, "").Contains("internal const string PhasePrefix = \"G02 phase: \";", StringComparison.Ordinal))
+            yield return $"{ContainerResultsScriptPath}: each project must run with -showLiveOutput, of which only {PhaseTestPath}'s "
+                + "\"G02 phase: \" markers and the long-running-test lines are shown.";
     }
 
     // The line after a run stops it at its bound: through bounded, with the run's own name, or for the composition rows inline.

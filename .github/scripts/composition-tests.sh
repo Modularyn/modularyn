@@ -31,8 +31,9 @@ fail() {
 [[ "${MODULARYN_SOURCE_COMMIT:-}" =~ ^[0-9a-f]{40}$ ]] || fail "MODULARYN_SOURCE_COMMIT must be the exact head."
 loopback="Host=127.0.0.1;Port=5432;"
 bound=300
-# Of a run's output, only xunit's long-running-test lines: the test's name and its elapsed time.
-long_running() { grep --line-buffered -oE "\[Long Running Test\] '[^']*', Elapsed: [0-9:]+" || true; }
+# Of a run's output, only xunit's long-running-test lines, a test's name and its elapsed time, and the live phase markers that
+# AC-003-N02's integration row writes, the fixed prefix and a phase name.
+long_running() { grep --line-buffered -oE "\[Long Running Test\] '[^']*', Elapsed: [0-9:]+|\[OUTPUT\] G02 phase: [a-z0-9-]+$" || true; }
 [[ "${MODULARYN_TEST_POSTGRESQL:-}" == "${loopback}"* ]] || fail "MODULARYN_TEST_POSTGRESQL must name the database container's loopback port."
 
 network=modularyn-acceptance
