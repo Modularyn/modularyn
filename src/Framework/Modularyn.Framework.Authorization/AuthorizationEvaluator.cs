@@ -157,7 +157,8 @@ internal sealed partial class AuthorizationEvaluator(AuthorizationRegistry regis
     /// <summary>
     /// Bounded authority from the cache, filled in a revalidated unit of its own. When the cache itself fails, or may have
     /// missed an invalidation, the decision is taken from the store and nothing is cached; when the store fails, the caller
-    /// refuses.
+    /// refuses. A fill that outlived its staleness bound or the cache's factory deadline is the store failing to answer in
+    /// time, so it refuses too, rather than sending every waiter of the stalled fill to the store again.
     /// </summary>
     private async Task<(AuthoritySnapshot Snapshot, AuthorizationSource Source)> CachedAsync(TenantContext context, ActorReference subject,
         CancellationToken cancellationToken)
@@ -166,15 +167,16 @@ internal sealed partial class AuthorizationEvaluator(AuthorizationRegistry regis
         var filled = false;
         try
         {
-            var snapshot = await cache.GetOrCreateAsync(context, subject, bound, async _ =>
+            var snapshot = await cache.GetOrCreateAsync(context, subject, bound, async cacheDeadline =>
             {
                 filled = true;
-                return await FillAsync(context, subject).ConfigureAwait(false);
+                return await FillAsync(context, subject, cacheDeadline).ConfigureAwait(false);
             }, cancellationToken).ConfigureAwait(false);
             return (snapshot, filled ? AuthorizationSource.Store : AuthorizationSource.Cache);
         }
         catch (AuthoritySourceException) { throw; }
-        catch (Exception exception) when (!IsCancellation(exception, cancellationToken) && exception is not TenantCacheStaleException)
+        catch (Exception exception) when (!IsCancellation(exception, cancellationToken)
+            && exception is not TenantCacheStaleException and not TenantCacheDeadlineException)
         {
             CacheUnavailable(logger);
             return (await source.ReadAsync(context, subject, cancellationToken).ConfigureAwait(false), AuthorizationSource.Store);
@@ -182,18 +184,19 @@ internal sealed partial class AuthorizationEvaluator(AuthorizationRegistry regis
     }
 
     // A shared fill can outlive the request that started it, so it runs in its own revalidated unit, as SEC-04's propagated
-    // work does, and gives up at the declared bound.
-    private async Task<AuthoritySnapshot> FillAsync(TenantContext context, ActorReference subject)
+    // work does, and gives up at the declared bound or at the cache's factory deadline, whichever comes first.
+    private async Task<AuthoritySnapshot> FillAsync(TenantContext context, ActorReference subject, CancellationToken cacheDeadline)
     {
         try
         {
             var propagated = PropagatedTenantContext.Capture(context, time);
             using var deadline = new CancellationTokenSource(bound, time);
+            using var ended = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token, cacheDeadline);
             AuthoritySnapshot? snapshot = null;
             var outcome = await runner.RunAsync(propagated, async (unit, token) =>
             {
                 snapshot = await source.ReadAsync(unit.Context, subject, token).ConfigureAwait(false);
-            }, deadline.Token).ConfigureAwait(false);
+            }, ended.Token).ConfigureAwait(false);
             return outcome.Disposition == TenantWorkDisposition.Completed && snapshot is not null ? snapshot : throw new AuthoritySourceException();
         }
         catch (AuthoritySourceException) { throw; }
