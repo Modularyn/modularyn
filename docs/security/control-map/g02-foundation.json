@@ -1516,7 +1516,7 @@
         },
         {
           "project": "tests/Modularyn.Framework.Configuration.Tests/Modularyn.Framework.Configuration.Tests.csproj",
-          "name": "Modularyn.Framework.Configuration.Tests.SecretStoreTests.TM_G02_047_Unavailable_or_escaping_secrets_are_refused_by_reference_name_only"
+          "name": "Modularyn.Framework.Configuration.Tests.SecretStoreTests.TM_G02_047_Unavailable_or_escaping_secrets_are_refused_for_their_reason_never_by_their_name"
         },
         {
           "project": "tests/Modularyn.Framework.Configuration.Tests/Modularyn.Framework.Configuration.Tests.csproj",
@@ -1533,6 +1533,10 @@
         {
           "project": "tests/Modularyn.Framework.Configuration.Tests/Modularyn.Framework.Configuration.Tests.csproj",
           "name": "Modularyn.Framework.Configuration.Tests.SecretStoreTests.TM_G02_047_A_secret_reference_is_masked_in_telemetry_as_settings_mask_it_while_configuration_still_binds_it"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Configuration.Tests/Modularyn.Framework.Configuration.Tests.csproj",
+          "name": "Modularyn.Framework.Configuration.Tests.SecretStoreTests.TM_G02_047_A_refused_resolution_logged_through_the_framework_carries_no_secret_name"
         }
       ],
       "residuals": [
@@ -2036,7 +2040,7 @@
     {
       "id": "RR-G02-007",
       "title": "Secrets in module code and release artifacts",
-      "statement": "Secret types keep secrets out of what the framework formats and logs, but cannot stop module code from logging a revealed value or placing one in an exception. That a secret setting accepts only replacement is not evidenced, release artifacts are not scanned for secrets, and a secret store's own startup refusal names the secret it could not read.",
+      "statement": "Secret types keep secrets out of what the framework formats and logs, but cannot stop module code from logging a revealed value or placing one in an exception. That a secret setting accepts only replacement is not evidenced, and release artifacts are not scanned for secrets.",
       "controls": [
         "TM-G02-047"
       ],

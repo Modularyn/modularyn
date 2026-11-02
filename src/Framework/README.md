@@ -269,9 +269,10 @@ token, a data-protection payload, a JSON web token, a PEM private key and a secr
 reference, `secret:<name>`. A reference is not the secret, but it names where one
 is kept, and Settings shows a secret setting only as `[secret]`, so telemetry
 masks it the same way and audit records and durable payloads refuse it (SEC-08).
-Configuration still binds and serializes the reference itself. The secret store's
-own refusal still names the secret it could not read, as `Secret '<name>'`, so an
-operator can mount it. It is a
+Configuration still binds and serializes the reference itself. For the same
+reason the secret store's refusals name no secret: each gives its reason and asks
+the operator to compare the mounted secret directory with the configuration's
+secret references. The scrubber is a
 deny list behind the rule that the framework's events carry allowlisted fields
 only, and it does not recognize a value outside those forms.
 
@@ -357,7 +358,12 @@ the fully qualified, existing directory in `Modularyn:Secrets:Directory`, where
 the deployment mounts one file per secret. A link is followed only when its
 final target stays inside that directory. Empty files and files over 64 KiB are
 refused, and the bytes are returned exactly. A `SecretResolutionException`
-names the reference only and carries no inner exception. `SecretValue` formats,
+gives its reason, such as a secret that is not present, is empty or too large,
+or is a link that leaves the directory, and asks the operator to compare the
+mounted secret directory with the configuration's secret references. It never
+names the secret, since a reference's name is a secret form (SEC-08): no message,
+`ToString()`, property, log or trace of the refusal carries it, and it has no
+inner exception. `SecretValue` formats,
 logs, debugs and serializes as `[secret]`, cannot be deserialized, reveals its
 value only through `RevealBytes` and `RevealString`, and clears its bytes on
 disposal.
