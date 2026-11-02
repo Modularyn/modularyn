@@ -237,7 +237,7 @@ internal static class G02EvidencePlanContract
             "planned test must be fully qualified and name its case");
     }
 
-    private static void CheckExistingTest(string project, string name, IReadOnlyDictionary<string, string> files)
+    internal static void CheckExistingTest(string project, string name, IReadOnlyDictionary<string, string> files)
     {
         Require(files.ContainsKey(project), "existing test project must be present in the repository");
         var methodSeparator = name.LastIndexOf('.');
