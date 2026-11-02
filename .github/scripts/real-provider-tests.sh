@@ -81,8 +81,9 @@ run_tests() {
   for project in "${projects[@]}"; do
     name="$(basename "${project}" .csproj)"
     names+=("${name}")
-    # Raw runner diagnostics can contain test arguments. Only bounded results are retained or printed.
-    run_project > /dev/null 2>&1 || outcome=1
+    # The console logger's detailed output reaches the log, so a failed test's name, message and stack trace show there. A
+    # failure stops neither the other projects nor the evidence collection, and still fails the script.
+    run_project || outcome=1
   done
 
   (count_results "${results}" "${names[@]}") || outcome=1

@@ -300,8 +300,10 @@ the job; xunit v3 then reports the skipped test as failed with the exception
 `FAIL_SKIP`, and collection records it as skipped, which blocks its case rather
 than failing it. Runner output, failure messages, traces, attachments, arbitrary display names,
 credentials, connection strings and machine paths are not copied. Raw reports
-are deleted after collection, and runner diagnostics are suppressed in the CI
-log. The retained reports have no free-form diagnostic field. Unit tests use
+are deleted after collection, and the retained reports have no free-form
+diagnostic field. A failure's message and stack trace never reach the bundle;
+the CI log shows them for the runs that [CI's real-provider tests](../ci.md#in-ci)
+and [container acceptance](../ci.md#container-acceptance) name. Unit tests use
 synthetic reports, generated beneath the checkout and deleted afterward; they
 supply no provider evidence.
 
