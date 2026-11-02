@@ -16,6 +16,7 @@ public sealed class CompositionAcceptanceTests
     public Task AC_001_B01_CompatibilityEdgesHonorTheDeclaredRange_Integration(string mode) =>
         RunAsync("AC-001-B01", mode, async (observations, token) =>
         {
+            string? refusedConstraint = null;
             foreach (var (version, compatible) in new[] { ("1.9.9", false), ("2.0.0", true), ("2.2.0", true), ("2.2.1", false) })
             {
                 await using var scenario = await CompositionScenario.CreateAsync(CompositionScenario.Graph(version), token);
@@ -26,6 +27,10 @@ public sealed class CompositionAcceptanceTests
                     await scenario.Host.StartApplicationAsync(token);
                     observations.Capture("ready-" + version, scenario);
                     Assert.True(scenario.Modules.Report.IsReady);
+                    // The resolved selection names this edge version of B, after C and before A.
+                    var resolved = scenario.Modules.Report.Plan!.Modules.Where(module => CompositionScenario.Ids.Contains(module.Id)).ToArray();
+                    Assert.Equal(new[] { "C", "B", "A" }, resolved.Select(module => module.Id));
+                    Assert.Equal(version, resolved.Single(module => module.Id == "B").Version.ToString());
                     await ReadyOverHttpAsync(scenario.Host, token);
                     Assert.All(scenario.Modules.Report.Modules, module => Assert.Equal(ModuleState.Ready, module.State));
                     var effects = await scenario.EffectsAsync(token);
@@ -44,6 +49,10 @@ public sealed class CompositionAcceptanceTests
                     Assert.Equal(new[] { "A", "B" }, diagnostic.ModuleIds);
                     Assert.Contains("[2.0.0, 2.2.0]", diagnostic.Message, StringComparison.Ordinal);
                     Assert.Contains("candidate 'B' is " + version, diagnostic.Message, StringComparison.Ordinal);
+                    // Both rejected versions identify the same unsatisfied constraint; only the candidate's version differs.
+                    var constraint = diagnostic.Message.Replace("candidate 'B' is " + version + ".", "candidate 'B' is outside it.", StringComparison.Ordinal);
+                    Assert.Equal(refusedConstraint ?? constraint, constraint);
+                    refusedConstraint = constraint;
                     AssertRefused(scenario);
                     var effects = await scenario.EffectsAsync(token);
                     Assert.Empty(effects);
@@ -51,6 +60,7 @@ public sealed class CompositionAcceptanceTests
                 }
                 observations.Observed("B " + version + (compatible ? " reached readiness with three durable effects." : " was refused by the inclusive [2.0.0, 2.2.0] constraint before activation."));
             }
+            Assert.NotNull(refusedConstraint);
         });
 
     [Theory]
