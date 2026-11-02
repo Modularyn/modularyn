@@ -74,7 +74,7 @@ while IFS= read -r project; do
     run=0
     watch_run "g02-${name}" &
     watcher=$!
-    timeout --kill-after=30s "${bound}" docker run --rm --pull=never --platform=linux/amd64 --name="g02-${name}" --network="container:${POSTGRES_CONTAINER}" --read-only --tmpfs=/tmp --cap-drop=ALL --security-opt=no-new-privileges --group-add="${group}" --volume="${output}:/output" --env=MODULARYN_TEST_POSTGRESQL --entrypoint=dotnet "${COMPOSITION_IMAGE}" "/app/projects/${name}/${name}.dll" -noLogo -noColor -preEnumerateTheories -failSkips -longRunning 60 -showLiveOutput "${selected[@]}" -result-ctrf "/output/${name}.raw.json" 2>&1 | awk -f .github/scripts/g02-project-output.awk || run=$?
+    timeout --kill-after=30s "${bound}" docker run --rm --pull=never --platform=linux/amd64 --name="g02-${name}" --network="container:${POSTGRES_CONTAINER}" --read-only --tmpfs=/tmp --cap-drop=ALL --security-opt=no-new-privileges --group-add="${group}" --volume="${output}:/output" --env=MODULARYN_TEST_POSTGRESQL --env=ASPNETCORE_HTTP_PORTS= --workdir="/app/projects/${name}" --entrypoint=dotnet "${COMPOSITION_IMAGE}" "/app/projects/${name}/${name}.dll" -noLogo -noColor -preEnumerateTheories -failSkips -longRunning 60 -showLiveOutput "${selected[@]}" -result-ctrf "/output/${name}.raw.json" 2>&1 | awk -f .github/scripts/g02-project-output.awk || run=$?
     # A run that ends in time stops its watcher's sleep, which under set -e ends the watcher before it prints, and the watcher.
     pkill -P "${watcher}" 2> /dev/null || true
     kill "${watcher}" 2> /dev/null || true

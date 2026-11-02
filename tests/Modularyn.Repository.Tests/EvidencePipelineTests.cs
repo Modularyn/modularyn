@@ -66,6 +66,8 @@ public sealed class EvidencePipelineTests
     [InlineData("grep --line-buffered -oE \"\\[Long Running Test\\] '[^']*', Elapsed: [0-9:]+|\\[OUTPUT\\] G02 phase: [a-z0-9-]+$\" || true")]
     [InlineData("|\\[OUTPUT\\] G02 phase: [a-z0-9-]+$")]
     [InlineData(" -showLiveOutput")]
+    [InlineData(" --env=ASPNETCORE_HTTP_PORTS=")]
+    [InlineData(" --workdir=\"/app/projects/${name}\"")]
     [InlineData("internal const string PhasePrefix = \"G02 phase: \";")]
     [InlineData("bounded \"g02-${name}\" \"${run}\"")]
     [InlineData("bounded g02-measurement \"${run}\"")]
@@ -245,9 +247,12 @@ internal static class EvidencePipelineContract
         // Each project runs with xunit's live output, of which the filter passes only the phase markers that AC-003-N02's
         // integration row writes with the same fixed prefix.
         if (project < 0 || !results[project..].Split('\n')[0].Contains(" -showLiveOutput ", StringComparison.Ordinal)
+            // As dotnet test runs from the output folder: each project from its own publish folder, without the base image's
+            // HTTP ports, so a test's Kestrel binds only what the test configures.
+            || !results[project..].Split('\n')[0].Contains(" --env=ASPNETCORE_HTTP_PORTS= --workdir=\"/app/projects/${name}\" ", StringComparison.Ordinal)
             || !files.GetValueOrDefault(PhaseTestPath, "").Contains("internal const string PhasePrefix = \"G02 phase: \";", StringComparison.Ordinal))
-            yield return $"{ContainerResultsScriptPath}: each project must run with -showLiveOutput, of which only {PhaseTestPath}'s "
-                + "\"G02 phase: \" markers and the long-running-test lines are shown.";
+            yield return $"{ContainerResultsScriptPath}: each project must run from its own publish folder, without the image's HTTP ports, "
+                + $"with -showLiveOutput, of which only {PhaseTestPath}'s \"G02 phase: \" markers and the long-running-test lines are shown.";
 
         // A project run's failures show as the real-provider job's do: each [FAIL] line with its message and stack trace, and the
         // run's summary, never a test's output, through ProjectOutputPath's fixed program.
