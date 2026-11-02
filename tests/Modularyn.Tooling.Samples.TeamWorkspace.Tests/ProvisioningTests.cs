@@ -251,8 +251,9 @@ internal sealed class ProvisioningDeployment : IAsyncDisposable
         Assert.NotSame(app!.Services, sibling.Services);
         // Activation's migration-readiness check holds the exclusive migration lock, and an activation that finds it held is
         // refused with MDC202 for the operator to retry (the persistence README). Both hosts therefore activate first, one
-        // after the other, so each run's own activation repeats a completed one. The two runs then start together and race
-        // for the provisioning claim itself.
+        // after the other, so each run's own activation repeats a completed one. The two runs then start together, and the
+        // first to claim the provisioning record decides. On a local PostgreSQL 18 the second run reached its claim only after
+        // the first had completed, so this test does not exercise the losing insert of a simultaneous claim.
         await app.Services.GetRequiredService<ModuleHost>().StartAsync(token);
         await sibling.Services.GetRequiredService<ModuleHost>().StartAsync(token);
         var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
