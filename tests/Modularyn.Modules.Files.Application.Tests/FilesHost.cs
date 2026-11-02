@@ -333,6 +333,9 @@ internal sealed class FilesHost : IAsyncDisposable
     internal async Task<long> CountAsync(string table, Guid tenant) => await ScalarAsync<long>(
         "SELECT COUNT(*) FROM \"" + schemas[3] + "\".\"" + table + "\" WHERE \"TenantId\" = @tenant", new NpgsqlParameter("tenant", tenant));
 
+    /// <summary>The Files schema's qualified table name, for a test that writes to it directly, as a database writer could.</summary>
+    internal string FilesTable(string table) => "\"" + schemas[3] + "\".\"" + table + "\"";
+
     internal async Task<T> ScalarAsync<T>(string sql, params NpgsqlParameter[] parameters)
     {
         await using var connection = new NpgsqlConnection(Options.ConnectionString);

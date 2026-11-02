@@ -7,8 +7,9 @@ public sealed record FileReleaseCandidate(Guid TenantId, Guid FileId, Guid Versi
 
 /// <summary>
 /// The deployment's quarantine policy, such as a scanner adapter or a moderation step; Files installs none and contains no
-/// scanner. It receives one pending version's verified bytes and decides. Without a policy, on a deferral or when it fails,
-/// the version stays pending and unreadable.
+/// scanner. Its one opt-in policy, the application's <c>AllowlistFileReleasePolicy</c>, releases by detected type and length
+/// only, scanning nothing, and applies only when a host passes it. A policy receives one pending version's verified bytes
+/// and decides. Without a policy, on a deferral or when it fails, the version stays pending and unreadable.
 /// </summary>
 public interface IFileReleasePolicy
 {

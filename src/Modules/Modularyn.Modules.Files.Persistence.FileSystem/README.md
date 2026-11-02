@@ -110,6 +110,42 @@ on `Defer` and when the policy throws, the version stays pending; the policy's
 exception reaches the caller. Files contains no scanner: a scanner or moderation
 step is an adapter the deployment supplies.
 
+### The opt-in allowlist release policy
+
+`AllowlistFileReleasePolicy` is the one release policy Files offers, and it is
+opt-in. Files never constructs it, and a `FileService` composed without a release
+policy keeps every version pending. A host that accepts releasing content nobody
+has scanned passes it explicitly, naming the detected types it releases and the
+largest version, in bytes, that it releases:
+
+```csharp
+var release = new AllowlistFileReleasePolicy([FileContentTypes.Png, FileContentTypes.Pdf], maximumLength: 4 * 1024 * 1024);
+var files = new FileService(metadata, blobs, evaluator, timeProvider, policy, release, recoverySchedule);
+```
+
+The allowlist must be nonempty and name types that detection returns; it cannot
+name `application/octet-stream`, which detection returns for bytes it does not
+recognize. The policy releases a version only when its verified length is at most
+the maximum and the type `FileContentTypes.Detect` finds again in its verified
+bytes is on the allowlist and is the type recorded for it. It rejects every other
+version, and `Rejected` is final:
+
+- a type off the allowlist, or a version over the maximum;
+- bytes that detection does not recognize;
+- uncertain detection: a recorded type that the bytes contradict; text with a
+  binary data byte anywhere in it, which includes UTF-16 text, since detection
+  calls a header with a byte-order mark text whatever follows; and bytes fewer or
+  more than the verified length.
+
+**It does no malware or content scanning, and makes no file safe.** It reads the
+bytes only to detect their type and count them. A PNG or PDF it releases can
+still carry an exploit for its viewer, a PDF can carry script, and text can be a
+script. It never consults the display name, so a text file named as a script is
+released as text and downloaded under that name, as an attachment with sniffing
+disabled. It suits the sample and deployments that accept that residual risk; a
+production deployment supplies its own policy, such as a scanner adapter, under
+its own decision.
+
 ## Download grants and delivery
 
 A download grant is bound to one tenant, one released version, one purpose and
@@ -290,8 +326,18 @@ every control to its evidence.
   missing, deferring or failing policy keeping the version quarantined; types
   detected from the bytes against an allowed list, never from the name or a
   claim. Tests: `Application.Tests` `FileQuarantineTests` and `FileRulesTests`
-  (`TM_G02_042_*`). Remaining: a scanner or moderation adapter, which the
-  deployment supplies and no G-02 work order builds; the sample's policy
+  (`TM_G02_042_*`). SEC-09 adds the opt-in allowlist release policy, which a host
+  must pass explicitly: it releases a version only when the type detected again
+  from its verified bytes and its length are within the host's allowlist and
+  maximum, and rejects everything else, uncertain detection included. Tests:
+  `Application.Tests` `AllowlistReleasePolicyTests` and `AllowlistReleaseTests`
+  (`TM_G02_042_*`). Removal checks: skipping the allowlist, the maximum, the
+  second detection, the text check of the header or of the rest, or the byte
+  count, allowing the generic binary type or a maximum below one byte, or
+  composing the policy by default fails one of them. Remaining: a scanner or
+  moderation adapter, which the deployment supplies and no G-02 work order
+  builds, so a deployment that uses the allowlist policy accepts its
+  no-scanning residual; the sample's registration of it with a narrow allowlist
   (CODE-09); adversarial evidence (SEC-08).
 - **TM-G02-043, partly.** Delivered by CODE-07: storage locations from
   server-issued identities only, links and reparse points refused on every path
@@ -363,7 +409,10 @@ step that runs `Requires!=PostgreSQL` runs them on Linux, Windows and macOS, the
 first over contexts that tenancy establishes from its in-memory directory. One
 of them runs the test assembly again with file locking disabled by the runtime
 switch, to show that the store refuses to start; on Windows, where the switch
-has no effect, the store starts.
+has no effect, the store starts. `AllowlistReleasePolicyTests` needs no database
+either: it decides on bytes as Files hands them over. `AllowlistReleaseTests`
+runs the policy through the service over PostgreSQL, including a stored type that
+a direct database write changed.
 
 These tests do not establish endpoint, container, host or browser evidence, and
 test source does not establish execution results.
