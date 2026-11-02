@@ -1,6 +1,8 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Modularyn.Framework.Hosting;
 using Xunit;
@@ -48,6 +50,41 @@ public sealed class SecretStoreTests : IDisposable
         Assert.Throws<ObjectDisposedException>(() => value.RevealBytes().Length);
         await host.StopAsync(Cancellation);
         AssertAbsent(sentinel, logs);
+    }
+
+    [Fact(DisplayName = "TM-G02-047 a secret reference is masked in telemetry as Settings masks it, while configuration still binds it")]
+    public async Task TM_G02_047_A_secret_reference_is_masked_in_telemetry_as_settings_mask_it_while_configuration_still_binds_it()
+    {
+        // SEC-08's decision: a reference is not the secret, but it names where one is kept, and Settings displays a secret
+        // setting only as [secret]. So the log scrubber treats the reference form as a secret form too: every log event,
+        // whatever carries it, shows [redacted] in its place, and audit records and durable payloads refuse it. Binding and
+        // serialization of the options themselves keep it, since configuration needs it.
+        var name = "db-" + Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(6));
+        var reference = SecretReference.Parse("secret:" + name);
+        var logs = new CapturedLogs();
+        using var host = Host(logs);
+        await host.StartAsync(Cancellation);
+        var logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Any.Module");
+        var options = host.Services.GetRequiredService<IOptions<SampleOptions>>().Value;
+        logger.LogInformation("Using {Reference} for {Setting}", reference, "Sample:Password");
+        logger.LogInformation("Options {Options}", JsonSerializer.Serialize(options));
+        logger.LogInformation("Inline " + reference);
+        using (logger.BeginScope(new Dictionary<string, object?> { ["Reference"] = reference.ToString() }))
+            logger.LogWarning(new InvalidOperationException("Could not use " + reference), "Failed");
+        await host.StopAsync(Cancellation);
+
+        var everything = string.Join("\n", logs.Entries);
+        Assert.DoesNotContain(reference.ToString(), everything, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret:database-password", everything, StringComparison.Ordinal);
+        Assert.DoesNotContain(name, everything, StringComparison.Ordinal);
+        Assert.Contains("Using [redacted] for Sample:Password", everything, StringComparison.Ordinal);
+        Assert.True(Observability.SecretForms.Contains(reference.ToString()));
+        Assert.Equal(Observability.SecretForms.Redacted, Observability.SecretForms.Scrub(reference.ToString()));
+        // The configuration contract's own texts for a discarded or expected reference name none, and are kept.
+        Assert.False(Observability.SecretForms.Contains("secret:<discarded>"));
+        // Configuration binds and serializes the reference itself; only telemetry masks it.
+        Assert.Equal("secret:database-password", options.Password!.ToString());
+        Assert.Contains("\"Password\":\"secret:database-password\"", JsonSerializer.Serialize(options), StringComparison.Ordinal);
     }
 
     [Theory(DisplayName = "TM-G02-047 unavailable or escaping secrets are refused by reference name only")]

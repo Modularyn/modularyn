@@ -265,7 +265,13 @@ event, from any category and before any provider sees it, has each secret form
 that `SecretForms` recognizes replaced by `[redacted]` in its message, structured
 values, scopes and exception: an authorization header's credential, a connection
 string's password, the session cookie and a bare session token, a file grant
-token, a data-protection payload, a JSON web token and a PEM private key. It is a
+token, a data-protection payload, a JSON web token, a PEM private key and a secret
+reference, `secret:<name>`. A reference is not the secret, but it names where one
+is kept, and Settings shows a secret setting only as `[secret]`, so telemetry
+masks it the same way and audit records and durable payloads refuse it (SEC-08).
+Configuration still binds and serializes the reference itself. The secret store's
+own refusal still names the secret it could not read, as `Secret '<name>'`, so an
+operator can mount it. It is a
 deny list behind the rule that the framework's events carry allowlisted fields
 only, and it does not recognize a value outside those forms.
 
