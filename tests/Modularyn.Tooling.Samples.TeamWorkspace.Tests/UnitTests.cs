@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Extensions.Configuration;
 using Modularyn.Framework.Api.Contracts;
 using Modularyn.Framework.Jobs;
 using Modularyn.Framework.Tenancy.Abstractions;
@@ -90,6 +91,30 @@ public sealed class UnitTests
     public async Task The_provisioning_command_takes_exactly_one_account_identifier_and_nothing_else(string arguments) =>
         // Refused as a usage error before any configuration is read, so no secret can ride on the command line.
         Check.That(await Program.Main(arguments.Split(' ')) == 2, "provisioning-usage");
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("Production", null)]
+    [InlineData("Staging", null)]
+    [InlineData(null, "Development")]
+    public async Task A_production_host_refuses_the_development_seed(string? environment, string? aspNetCoreEnvironment)
+    {
+        // Only DOTNET_ENVIRONMENT of Development or Testing admits the seed; an absent one is production, and ASP.NET Core's
+        // own variable does not count. The refusal comes before any other configuration is read.
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Workspace:DevelopmentSeed"] = "true", ["DOTNET_ENVIRONMENT"] = environment, ["ASPNETCORE_ENVIRONMENT"] = aspNetCoreEnvironment
+        }).Build();
+        try
+        {
+            await using var app = await TeamWorkspaceHost.BuildAsync(configuration, cancellationToken: TestContext.Current.CancellationToken);
+            throw new SmokeFailure("seed-refused-in-production");
+        }
+        catch (InvalidOperationException exception)
+        {
+            Check.That(exception.Message == "Development seed is refused outside Development and Testing.", "seed-refused-in-production");
+        }
+    }
 
     [Fact]
     public void The_container_runs_as_a_non_root_user_that_owns_none_of_its_files_and_holds_no_secret()
