@@ -13,7 +13,7 @@ an observed deployment.
 
 AC-001 covers the merged Modularity and Hosting packages. Its exact existing
 unit methods belong to CODE-02; CODE-10 owns the planned real-provider methods
-on CODE-09's `Modularyn.Tooling.Samples.TeamWorkspace` host and container. Test
+on CODE-09's `Modularyn.Tooling.Samples.TeamWorkspace.Host` host and container. Test
 ownership and existence are read from each entry in the evidence plan. Existing
 source does not qualify an action or supply deployment evidence.
 
