@@ -16,6 +16,47 @@ public sealed class EventRecoveryTests
 {
     private static CancellationToken Token => DurableDatabase.Token;
 
+    [Theory]
+    [InlineData("kind")]
+    [InlineData("schema")]
+    [InlineData("key")]
+    [InlineData("position")]
+    [InlineData("payload")]
+    public async Task An_accepted_event_identity_cannot_be_delivered_with_different_content(string mutation)
+    {
+        await using var database = await DurableDatabase.CreateAsync();
+        var clock = new DurableClock();
+        await using var host = DurableHost.Create(database, clock);
+        await using var unit = await host.EnterServiceAsync(await host.TenantAsync());
+        var id = await host.ProduceAsync(unit, "identity-content");
+        var dispatch = await host.HostAsync();
+        var principal = host.WorkerPrincipal();
+        await Assert.ThrowsAsync<EventInterruptedException>(() => host.Pump(new G02AC006Tests.StopAt(EventCheckpoint.ReceivedBeforeDispatchAcknowledgement))
+            .DispatchAsync(dispatch, principal, cancellationToken: Token));
+        var accepted = Assert.Single(await host.RowsAsync<InboxEvent>(database.Consumer, unit.Context));
+        Assert.Equal(id, accepted.Id);
+        (string Column, object Value) changed = mutation switch
+        {
+            "kind" => ("Kind", "item.other"),
+            "schema" => ("SchemaVersion", accepted.SchemaVersion + 1),
+            "key" => ("OrderingKey", "different-item"),
+            "position" => ("Position", accepted.Position + 1),
+            "payload" => ("Payload", "different-content"),
+            _ => throw new ArgumentOutOfRangeException(nameof(mutation))
+        };
+        // Simulate a transport retry carrying different content while preserving the previously accepted identity.
+        await database.ExecuteAsync("UPDATE \"" + database.Producer.Schema + "\".\"OutboxEvents\" SET \"" + changed.Column
+            + "\" = @value WHERE \"Id\" = @id", new NpgsqlParameter("value", changed.Value), new NpgsqlParameter("id", id));
+        Assert.Equal(0, await host.Pump().DispatchAsync(dispatch, principal, cancellationToken: Token));
+        var refused = Assert.Single(await host.RowsAsync<OutboxEvent>(database.Producer, unit.Context));
+        Assert.Equal("DeliveryFailed", refused.Code);
+        Assert.Equal(EventState.Pending, refused.State);
+        var receipt = Assert.Single(await host.RowsAsync<InboxEvent>(database.Consumer, unit.Context));
+        Assert.Equal((accepted.Id, accepted.Kind, accepted.SchemaVersion, accepted.OrderingKey, accepted.Position, accepted.Payload, accepted.Version),
+            (receipt.Id, receipt.Kind, receipt.SchemaVersion, receipt.OrderingKey, receipt.Position, receipt.Payload, receipt.Version));
+        Assert.Empty(await host.RowsAsync<DurableEffect>(database.Consumer, unit.Context));
+    }
+
     [Fact]
     public async Task PostgreSQL_session_loss_before_commit_removes_flushed_business_and_intent_rows()
     {

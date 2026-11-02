@@ -56,7 +56,8 @@ run_tests() {
   if [ -n "${RUNNER_TEMP:-}" ]; then
     results="${RUNNER_TEMP}/real-provider-results"
   else
-    local_results="$(mktemp -d)"
+    mkdir -p artifacts
+    local_results="$(mktemp -d "${PWD}/artifacts/real-provider.XXXXXXXX")"
     trap remove_local_results EXIT
     results="${local_results}/real-provider-results"
   fi
@@ -69,14 +70,26 @@ run_tests() {
   done < <(git ls-files -z -- 'tests/*/*.Tests.csproj')
   [ "${#projects[@]}" -gt 0 ] || fail "No test project found under tests/."
 
+  local outcome=0
+  if [ -n "${MODULARYN_EVIDENCE_DIR:-}" ]; then
+    bash .github/scripts/g02-host-results.sh prepare
+  fi
+  run_project() {
+    dotnet test "${project}" -c Release --no-build --results-directory "${results}" --logger "trx;LogFileName=${name}.trx" \
+      --logger "console;verbosity=detailed" --filter "Requires=PostgreSQL"
+  }
   for project in "${projects[@]}"; do
     name="$(basename "${project}" .csproj)"
     names+=("${name}")
-    dotnet test "${project}" -c Release --no-build --results-directory "${results}" --logger "trx;LogFileName=${name}.trx" \
-      --logger "console;verbosity=detailed" --filter "Requires=PostgreSQL"
+    # Raw runner diagnostics can contain test arguments. Only bounded results are retained or printed.
+    run_project > /dev/null 2>&1 || outcome=1
   done
 
-  count_results "${results}" "${names[@]}"
+  (count_results "${results}" "${names[@]}") || outcome=1
+  if [ -n "${MODULARYN_EVIDENCE_DIR:-}" ]; then
+    bash .github/scripts/g02-host-results.sh complete || outcome=1
+  fi
+  return "${outcome}"
 }
 
 case "${1:-}" in

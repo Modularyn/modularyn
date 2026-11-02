@@ -208,65 +208,98 @@ describes the job.
 
 ### CODE-10 record output
 
-Records are opt-in. A run without `MODULARYN_EVIDENCE_DIR` writes none. A run
-requesting records supplies the following values:
+The single [bundle assembler](../../tests/Modularyn.Repository.Tests/evidence_bundle.py)
+reads the plan, corpus, measured selection and xunit v3 results. The host job
+collects VSTest TRX reports, then runs the planned methods absent from that
+provider selection through their own executables and collects CTRF reports.
+The container job collects CTRF reports from those executables inside the
+existing composition fixture image. Every row of a planned theory is required:
+AC-001 needs its deployment's row, and AC-008 needs both advertised clients.
+A row from another deployment cannot supply a result.
+
+`EvidenceMeasurementTests` runs in the deployment before result collection. It
+probes PostgreSQL and measures the runtime, operating system, provider versions
+and built assemblies. Each Modularyn assembly in the inventory must embed the
+exact source revision; conflicting copies refuse the run. The host also checks
+the clean checkout. The container job checks that checkout before publishing,
+and supplies the measured fixture image digest. Measurement never substitutes
+planned versions for unavailable measurements. If the database or built inventory
+cannot be measured, bundle generation fails and CI cannot claim valid evidence.
 
 | Variable | Meaning |
 |---|---|
-| `MODULARYN_EVIDENCE_DIR` | Absolute output directory, the root of the run's retained bundle; CI uses one beneath `RUNNER_TEMP`. Every location a record names is relative to it, and linked paths are refused. |
-| `MODULARYN_SOURCE_COMMIT` | Exact forty-character lowercase commit. On a host it must be the clean checkout's HEAD; in both modes it must be the source revision embedded in every loaded Modularyn assembly. |
-| `MODULARYN_CONTAINER_IMAGE_DIGEST` | Container rows only: the composition fixture image's digest as CI measures it, `sha256:` and 64 lowercase hexadecimal characters. A host run refuses one. |
-| `MODULARYN_EVIDENCE_RUN_ID` | Optional unique lowercase run identifier; a process-wide random identifier is generated when absent. Reusing a case/mode/run destination refuses overwrite. |
+| `MODULARYN_EVIDENCE_DIR` | Absolute bundle directory. CI uses `host-evidence` or `composition-output/evidence` beneath `RUNNER_TEMP`. Linked paths and overwrites are refused. |
+| `MODULARYN_SOURCE_COMMIT` | The clean checkout's exact forty-character lowercase HEAD, embedded in the measured assemblies. |
+| `MODULARYN_EVIDENCE_RUN_ID` | The workflow run id and attempt, shared by the two jobs. Each half has a distinct deployment mode. |
+| `MODULARYN_CONTAINER_IMAGE_DIGEST` | The measured composition fixture image digest, required only in container mode. |
+| `MODULARYN_EVIDENCE_MEASURE` | `1` only for the explicit measurement invocation. Ordinary unit runs skip that invocation. |
+| `MODULARYN_EVIDENCE_BINARIES` | The built test tree on the host or the fixture image's application directory. This path is never retained in a record. |
 
-A host run has a checkout, and the writer checks it before the method and again
-after it: the commit is HEAD, the tree is clean and the built assemblies embed
-the commit. A container run has none. CI checks the clean checkout at the exact
-head before it publishes the test project, and the writer inside the image
-checks that the embedded source revision equals `MODULARYN_SOURCE_COMMIT`. The
-schema, corpus, plan, coverage register and capability skeleton that a record
-is built from are embedded in the test assembly, so the image reads the copies
-its source revision binds; a host run also requires each copy to equal the
-checkout's file. The writer measures the database version from the probe,
-package versions from loaded assemblies, runtime and operating-system versions
-from the process, and SDK/language versions embedded by the build. The tuple's
-topology is the row's own mode, and a container record's tuple carries the
-measured image digest. Record output requires the planned Linux x64 tuple and
-runtime pins; a build on another platform is not relabelled as Linux evidence.
-If setup never reaches a database, its version is unmeasured: the writer refuses
-a record, and the test runner retains the failure.
+A bundle half contains `measurement.json`, retained implementation bytes,
+sanitized reports, and one `<run>/<case>/<mode>/result.json` and `record.json`
+for each of the 41 plan cases. `manifest.json` is written last and lists each
+record's case, mode, location, tuple hash and SHA-256. It also binds the run,
+commit, measured selection, plan and corpus, together with the measurement and
+sanitized report hashes. Records retain every planned test
+mapping and every corpus precondition and expected observation. The shared
+measured selection includes every tested package; each record selects the
+providers its case requires, as the repository contract specifies.
 
-Each `<run>/<case>/<mode>` directory beneath the output contains `result.json`,
-retained implementation bytes under `implementation/`, and a schema-validated
-`record.json` written last. Result and implementation hashes cover the retained
-bytes. The corpus hash normalizes checkout line endings to LF. No log, trace,
-exception text, response body, credential, connection string or machine path is
-copied into a record. Skipped rows produce no evidence record. A container
-record also states that its row ran in the composition fixture image rather
-than the published one. The unit tests write complete case directories for both
-modes with the real composition's tuple and check their hashes, and exercise
-serialized records against the repository schema for all four cases and both
-shapes, the container binding, invalid pins and identities, missing output,
-skipped outcomes and overwrite refusal. Their transient metadata inputs are
-deleted and supply no provider evidence.
+AC-001 uses this same assembler. Its methods now write observation inputs,
+retaining the original graph, versions, lifecycle events, diagnostics, states,
+cleanup inventories, effect counts, result outcome and implementation bytes.
+Those inputs are hashed results in the assembled record. They are bound to the
+same run and measured selection as the runner results. A method failure remains
+the test runner's failure if observation capture also refuses; absent observations
+block the case. The older writer's metadata fixtures remain regression checks
+of its schema and refusal rules and are never CI qualification records.
 
-In CI the real-provider job writes the host records beneath `RUNNER_TEMP`, and
-the container-build job's rows write theirs to the fixture image's mounted
-output directory, also beneath `RUNNER_TEMP`. After each run, the job checks
-every record with the repository's own evaluator, `EvidenceRecordContract`,
-through `CiEvidenceTests`: one valid record for each AC-001 case, all from one
-run, at their case and mode locations, bound to the run's commit and mode, and
-retaining bytes that match every result and artifact hash. It then prints each
-record's SHA-256. CI uploads no artifact; retaining the records is a later step
-of the milestone.
+| Condition | Case outcome |
+|---|---|
+| Any planned method or required theory row is missing, skipped or unexecuted | `blocked`, even if another row failed |
+| Every required row executed, and at least one failed | `failed` |
+| Every required row passed, but a security dependency is unmet | `blocked` |
+| Every required row passed and all security prerequisites are satisfied | Eligible for `passed` |
 
-`result.json` retains the integration method's actual `passed` or `failed`
-outcome after fixture disposal. The case record reports `failed` for a failed
-method and `blocked` for a successful method: AC-031 evidence on the same commit
-and tuple and the separately executed planned unit-method results have not been
-assembled by this writer. The required test mappings remain complete, and these
-limitations remain explicit. No record produced here claims that G-02 passed.
-The Builder must assemble those prerequisites and retain both modes' records on
-the same commit before a case can receive passing qualification evidence.
+The current plan declares every security dependency unmet. This assembler
+preserves that state and refuses to promote functional results into security
+clearance. All 41 cases therefore remain blocked when their methods pass,
+until the Builder supplies reviewed prerequisite evidence on the same commit
+and tuple. AC-001 requires AC-031; AC-003 and AC-004 have the identity,
+authorization, tenancy and audit dependencies each row names; AC-005 through
+AC-009 retain their respective authorization, tenancy, audit and trust dependencies.
+No inferred family pass resolves circular prerequisites.
+
+In container mode AC-008's four cases also remain blocked because their planned
+methods require both .NET and TypeScript, and the pinned base has no Node.js.
+AC-003-N02's browser method cannot run there because the image lacks the pinned
+browser and its runtime dependencies; its API and integration methods still run.
+The remaining planned methods run inside the fixture image, including unit
+methods. Unsupported methods are not edited, renamed or made to skip; their
+absence and specific reason remain in their case records. AC-003-N01 also states
+that its second advertised client is covered by argument about the server
+boundary rather than by executing that client. AC-003-B01 and AC-003-P01 state
+the same limitation for the advertised clients; their methods execute direct API
+and server entry points.
+
+Collection accepts only exact planned identities and bounded row outcomes.
+Runner output, failure messages, traces, attachments, arbitrary display names,
+credentials, connection strings and machine paths are not copied. Raw reports
+are deleted after collection, and runner diagnostics are suppressed in the CI
+log. The retained reports have no free-form diagnostic field. Unit tests use
+synthetic reports, generated beneath the checkout and deleted afterward; they
+supply no provider evidence.
+
+Both jobs run [evidence-records.sh](../../.github/scripts/evidence-records.sh)
+even after a test failure. It assembles the half, requires its manifest, and runs
+`CiEvidenceTests` with `-failSkips`. `EvidenceBundleContract` checks the complete
+41-case inventory, the manifest, identities, tuple projections, retained hashes,
+and outcome consistency; `EvidenceRecordContract` applies the unchanged schema
+and semantic contracts to every record. Duplicate records, conflicting reports,
+other commits or selections, and interrupted writes refuse the bundle. The job
+then prints every record hash and the checked manifest. Both halves must come
+from the same workflow attempt and exact head; neither half alone establishes
+the gate. CI uploads no artifact, and nothing is published as a package.
 
 ### Remaining checks
 

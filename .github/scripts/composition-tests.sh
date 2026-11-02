@@ -45,6 +45,8 @@ trap remove_secrets EXIT
 rm -rf "${secrets}" "${output}"
 (umask 027 && mkdir "${secrets}" && printf 'Host=modularyn-postgres;Port=5432;%s' "${MODULARYN_TEST_POSTGRESQL#"${loopback}"}" > "${secrets}/database")
 mkdir -m 0770 "${output}"
+# The runner assembles records here after the fixture exits. Keep the root runner-owned and group-writable for both users.
+mkdir -m 0770 "${output}/evidence"
 
 proxy="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "${POSTGRES_CONTAINER}")"
 [[ "${proxy}" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || fail "Cannot read the database container's address on ${network}."
@@ -63,7 +65,6 @@ for attempt in $(seq 1 30); do
   sleep 2
 done
 if [ -z "${ready}" ]; then
-  docker logs --tail=50 "${sample}" 2>&1 || true
   fail "The published sample image did not become ready."
 fi
 echo "The published sample image is ready after ${attempt} checks."
@@ -71,11 +72,13 @@ echo "The published sample image is ready after ${attempt} checks."
 digest="$(docker image inspect --format '{{.Id}}' "${COMPOSITION_IMAGE}")"
 [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]] || fail "Cannot measure the composition fixture image's digest."
 echo "The container rows run in the composition fixture image ${digest}."
+export MODULARYN_CONTAINER_IMAGE_DIGEST="${digest}"
+bash .github/scripts/g02-container-results.sh prepare
 status=0
-docker run --rm --pull=never --platform=linux/amd64 --network="container:${POSTGRES_CONTAINER}" --read-only --tmpfs=/tmp --cap-drop=ALL --security-opt=no-new-privileges --group-add="${group}" --volume="${output}:/output" --env=MODULARYN_TEST_POSTGRESQL --env=MODULARYN_SAMPLE_BASE_URL --env=MODULARYN_SOURCE_COMMIT --env=MODULARYN_CONTAINER_IMAGE_DIGEST="${digest}" --env=MODULARYN_EVIDENCE_DIR=/output/evidence "${COMPOSITION_IMAGE}" -noLogo -noColor -preEnumerateTheories -trait "Deployment=single-host-container" -method "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_B01_CompatibilityEdgesHonorTheDeclaredRange_Integration" -method "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_N01_InvalidGraphsRefuseActivationWithDiagnostics_Integration" -method "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_P01_DependenciesInitializeOnceAndStopInReverseOrder_Integration" -method "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_R01_FailedInitializationCleansUpAndRecovers_Integration" -method "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.The_published_sample_image_is_ready_over_HTTP" -result-ctrf /output/composition-results.json || status=$?
+docker run --rm --pull=never --platform=linux/amd64 --network="container:${POSTGRES_CONTAINER}" --read-only --tmpfs=/tmp --cap-drop=ALL --security-opt=no-new-privileges --group-add="${group}" --volume="${output}:/output" --env=MODULARYN_TEST_POSTGRESQL --env=MODULARYN_SAMPLE_BASE_URL --env=MODULARYN_SOURCE_COMMIT --env=MODULARYN_EVIDENCE_RUN_ID --env=MODULARYN_CONTAINER_IMAGE_DIGEST="${digest}" --env=MODULARYN_EVIDENCE_DIR=/output/evidence "${COMPOSITION_IMAGE}" -noLogo -noColor -preEnumerateTheories -trait "Deployment=single-host-container" -method "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_B01_CompatibilityEdgesHonorTheDeclaredRange_Integration" -method "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_N01_InvalidGraphsRefuseActivationWithDiagnostics_Integration" -method "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_P01_DependenciesInitializeOnceAndStopInReverseOrder_Integration" -method "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_R01_FailedInitializationCleansUpAndRecovers_Integration" -method "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.The_published_sample_image_is_ready_over_HTTP" -result-ctrf /output/composition-results.json > /dev/null 2>&1 || status=$?
 
+check_composition_results() {
 [ -f "${report}" ] || fail "The composition fixture image wrote no report."
-jq -r '.results.tests[] | "\(.status) \(.name)"' "${report}"
 expected="$(printf '%s\n' \
   'Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_B01_CompatibilityEdgesHonorTheDeclaredRange_Integration(mode: "single-host-container")' \
   'Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_N01_InvalidGraphsRefuseActivationWithDiagnostics_Integration(mode: "single-host-container")' \
@@ -88,3 +91,8 @@ passed="$(jq -r '.results.tests[] | select(.status == "passed") | .name' "${repo
   || fail "The four AC-001 container rows and the readiness test must all pass, with none skipped and none missing."
 [ "${status}" -eq 0 ] || fail "The composition fixture image's tests exited with status ${status}."
 echo "The four AC-001 container rows and the published sample image's readiness test passed."
+
+}
+(check_composition_results) || status=1
+bash .github/scripts/g02-container-results.sh complete || status=1
+exit "${status}"

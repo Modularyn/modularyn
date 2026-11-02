@@ -7,9 +7,9 @@
     <UseMicrosoftTestingPlatformRunner>false</UseMicrosoftTestingPlatformRunner>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" PrivateAssets="all" />
-    <PackageReference Include="xunit.v3" PrivateAssets="all" />
-    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" PrivateAssets="all" Publish="true" />
+    <PackageReference Include="xunit.v3" PrivateAssets="all" Publish="true" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" Publish="true" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../../src/Modules/Modularyn.Modules.Files.Application/Modularyn.Modules.Files.Application.csproj" />
     <ProjectReference Include="../../src/Modules/Modularyn.Modules.Files.Persistence.EfCore/Modularyn.Modules.Files.Persistence.EfCore.csproj" />

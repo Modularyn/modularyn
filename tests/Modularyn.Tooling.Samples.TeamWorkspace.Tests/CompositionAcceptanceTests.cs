@@ -283,17 +283,37 @@ public sealed class CompositionAcceptanceTests
         timeout.CancelAfter(TimeSpan.FromMinutes(5));
         var run = EvidenceRun.FromEnvironment();
         var observations = new CaseObservations();
+        await EvidenceExecution.RunAsync(() => action(observations, timeout.Token), outcome => run is null
+            ? Task.CompletedTask : EvidenceWriter.WriteAsync(run, caseId, mode, outcome, observations));
+    }
+}
+
+internal static class EvidenceExecution
+{
+    internal static async Task RunAsync(Func<Task> action, Func<EvidenceOutcome, Task> capture)
+    {
         var outcome = EvidenceOutcome.Failed;
+        var methodFailed = false;
         try
         {
-            await action(observations, timeout.Token);
+            await action();
             outcome = EvidenceOutcome.Passed;
+        }
+        catch
+        {
+            methodFailed = true;
+            throw;
         }
         finally
         {
             // All scenario disposal has completed before a successful outcome can reach the writer. No exception,
             // response, credential, log, trace or connection string is ever copied into an evidence artifact.
-            if (run is not null) await EvidenceWriter.WriteAsync(run, caseId, mode, outcome, observations);
+            try { await capture(outcome); }
+            catch when (methodFailed)
+            {
+                // Keep the original test failure. Missing observations separately block bundle qualification;
+                // neither exception text nor its data is copied to evidence or emitted by this writer.
+            }
         }
     }
 }

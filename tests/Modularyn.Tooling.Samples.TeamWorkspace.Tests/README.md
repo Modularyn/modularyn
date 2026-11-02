@@ -101,3 +101,10 @@ holds both inserts until both wait on it, so on release one claim commits and
 the other takes the losing insert's path. A refusal after acquiring both host scopes
 retains their two tenancy audit entries. These regressions do not take ownership
 of a security work order or qualify a security prerequisite.
+
+The G-02 bundle uses this project's measurement invocation and AC-001 observation
+capture, then the shared assembler in the repository tests. Only the assembler
+writes qualification records; it retains the composition snapshots and exact
+implementation hashes alongside the results of every planned method. Capture
+refusal preserves a method's original failure, and missing capture blocks the
+case. See [record output](../../docs/evidence/README.md#code-10-record-output).
