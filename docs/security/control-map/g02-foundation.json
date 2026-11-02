@@ -136,11 +136,7 @@
         },
         {
           "project": "tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj",
-          "name": "Modularyn.Repository.Tests.ArchitectureRejectionTests.Forbidden_references_report_their_specific_reason"
-        },
-        {
-          "project": "tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj",
-          "name": "Modularyn.Repository.Tests.CompositionRootTests.No_test_project_may_reference_another_test_project"
+          "name": "Modularyn.Repository.Tests.ArchitectureRejectionTests.Every_cross_module_role_pair_is_enforced_for_projects_and_packages"
         }
       ],
       "residuals": [
@@ -1533,10 +1529,6 @@
         {
           "project": "tests/Modularyn.Framework.Settings.Tests/Modularyn.Framework.Settings.Tests.csproj",
           "name": "Modularyn.Framework.Settings.Tests.SecretReferenceTests.References_are_persisted_and_cached_while_secret_contents_never_enter_storage_logs_or_diagnostics"
-        },
-        {
-          "project": "tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj",
-          "name": "Modularyn.Repository.Tests.ToolPinTests.Secret_scan_pins_the_gitleaks_digest_at_the_registered_version"
         },
         {
           "project": "tests/Modularyn.Framework.Configuration.Tests/Modularyn.Framework.Configuration.Tests.csproj",

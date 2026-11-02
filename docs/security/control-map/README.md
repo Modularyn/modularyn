@@ -29,7 +29,7 @@ Where a control is only partly evidenced, the part that is not is a residual, so
 | Controls with evidence | 59 |
 | Controls with evidence and one or more residuals | 53 |
 | Controls with a residual and no evidence | 1 (`TM-G02-005`, extension properties, which are not built) |
-| Test citations | 346 |
+| Test citations | 344 |
 | Residual risks | 45 |
 
 ## Decisions for the operator
