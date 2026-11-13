@@ -291,9 +291,10 @@ AC-009 retain their respective authorization, tenancy, audit and trust dependenc
 No inferred family pass resolves circular prerequisites.
 
 In container mode AC-008's four cases also remain blocked because their planned
-methods require both .NET and TypeScript, and the pinned Node.js is not in the
-fixture image. The image does carry the Node.js runtime that Playwright's driver
-bundles, off `PATH` and not the pinned release.
+methods require both .NET and TypeScript. The TypeScript method starts node in the
+TypeScript client's directory, and the fixture image has no node on PATH and none
+of the TypeScript client's sources or packages. The image does carry the pinned
+Node.js release that Playwright's driver bundles, off `PATH`.
 AC-003-N02's browser method cannot run there because the image lacks the pinned
 browser and its runtime dependencies; its API and integration methods still run.
 The remaining planned methods run inside the fixture image, including unit

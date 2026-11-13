@@ -298,7 +298,7 @@ public sealed partial class EvidenceBundleTests
                 .Where(row => !unsupported.Contains(Str(row!["name"]))).Select(row => row!.DeepClone())]));
         run.Assemble();
         // The records' reason, in the words that the evidence instructions and the CI description use.
-        const string node = "the pinned Node.js is not in the fixture image";
+        const string node = "the fixture image has no node on PATH and none of the TypeScript client's sources or packages";
         Assert.Contains(run.Record("AC-008-P01")["knownLimitations"]!.AsArray(), text => Str(text)!.Contains(node, StringComparison.Ordinal));
         Assert.All(new[] { "docs/evidence/README.md", "docs/ci.md" }, path => Assert.Contains(node, Regex.Replace(Files[path], @"\s+", " "), StringComparison.Ordinal));
         Assert.Contains(run.Record("AC-003-N02")["knownLimitations"]!.AsArray(), text => Str(text)!.Contains("browser", StringComparison.Ordinal));

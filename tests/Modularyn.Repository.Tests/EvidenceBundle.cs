@@ -162,7 +162,7 @@ internal static class EvidenceBundle
     internal static string? ContainerReason(JsonNode test)
     {
         if (Str(test["name"])!.Contains(".G02AC008Tests.", StringComparison.Ordinal))
-            return "The planned method requires both advertised clients; the pinned Node.js is not in the fixture image.";
+            return "The planned method requires both advertised clients; the fixture image has no node on PATH and none of the TypeScript client's sources or packages.";
         if (Str(test["layer"]) == "ui")
             return "The planned browser method requires the pinned browser and its runtime dependencies, absent from the fixture image.";
         return null;
