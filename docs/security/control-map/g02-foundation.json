@@ -1093,8 +1093,44 @@
           "name": "Modularyn.Framework.Tenancy.Tests.TenantCacheTests.TM_G02_034_Concurrent_misses_share_one_factory_call_and_failures_are_not_cached"
         },
         {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.TenantCacheDeadlineTests.TM_G02_034_A_stalled_factory_releases_every_waiter_at_the_deadline_and_the_next_call_starts_a_new_one"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.TenantCacheDeadlineTests.TM_G02_034_A_factory_that_ignores_its_token_still_releases_its_waiters_at_the_deadline"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.TenantCacheDeadlineTests.TM_G02_034_A_factory_that_blocks_its_thread_still_releases_every_waiter_at_the_deadline"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.TenantCacheDeadlineTests.TM_G02_034_A_waiter_s_own_cancellation_releases_only_that_waiter"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.TenantCacheDeadlineTests.TM_G02_034_A_value_that_arrives_after_the_deadline_is_never_cached"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.TenantCacheDeadlineTests.TM_G02_034_The_factory_deadline_is_thirty_seconds_unless_set_and_is_bounded"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.TenantCacheDeadlineTests.TM_G02_034_The_shared_factory_keeps_its_first_caller_s_execution_context"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.TenantCacheDeadlineTests.TM_G02_034_A_flight_whose_waiters_all_left_reports_no_unobserved_fault"
+        },
+        {
           "project": "tests/Modularyn.Framework.Settings.Tests/Modularyn.Framework.Settings.Tests.csproj",
           "name": "Modularyn.Framework.Settings.Tests.ManagementTests.TM_G02_034_A_fill_that_overruns_its_staleness_bound_is_reported_unavailable"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Settings.Tests/Modularyn.Framework.Settings.Tests.csproj",
+          "name": "Modularyn.Framework.Settings.Tests.ManagementTests.TM_G02_034_A_fill_that_passes_the_cache_s_factory_deadline_is_reported_unavailable_and_stopped"
         },
         {
           "project": "tests/Modularyn.Framework.Settings.Tests/Modularyn.Framework.Settings.Tests.csproj",
@@ -1103,6 +1139,10 @@
         {
           "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
           "name": "Modularyn.Framework.Authorization.Tests.G02AC003Tests.AC_003_R02_CacheOutageAndRestartKeepCurrentAuthorization_Integration"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Authorization.Tests/Modularyn.Framework.Authorization.Tests.csproj",
+          "name": "Modularyn.Framework.Authorization.Tests.DecisionTests.TM_G02_034_A_bounded_decision_refuses_when_its_cache_fill_passes_the_factory_deadline"
         },
         {
           "project": "tests/Modularyn.Framework.Settings.Tests/Modularyn.Framework.Settings.Tests.csproj",
@@ -2110,7 +2150,7 @@
     {
       "id": "RR-G02-011",
       "title": "Shared capacity and within-tenant availability",
-      "statement": "G-02 has no per-tenant quotas: request bounds and quota reservation limit single requests and one tenant's temporary storage, not its share of the host (TH-G02-070). Within a tenant, one member can hold every read slot or pending upload place; TenantCache has no size bound, and cache outage behaviour (AC-030) is outside G-02.",
+      "statement": "G-02 has no per-tenant quotas: request bounds and quota reservation limit single requests and one tenant's temporary storage, not its share of the host (TH-G02-070). Within a tenant, one member can hold every read slot or pending upload place. TenantCache has no size bound. Its shared factory starts on the thread pool, so the factory deadline releases every waiter even of a factory that blocks its thread synchronously; but a factory that ignores its token keeps running after its waiters are released, and holds its pool thread for as long as it blocks it, until the factory's own bound ends it, so a dependency that stalls and ignores cancellation can hold one abandoned call per key for each deadline that passes. Cache outage behaviour (AC-030) is outside G-02.",
       "controls": [
         "TM-G02-009",
         "TM-G02-034",
@@ -2122,10 +2162,20 @@
         "SEC-06"
       ],
       "owner": "OPS-018 resource governance at G-08",
-      "tests": [],
+      "tests": [
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.TenantCacheDeadlineTests.TM_G02_034_A_factory_that_ignores_its_token_still_releases_its_waiters_at_the_deadline"
+        },
+        {
+          "project": "tests/Modularyn.Framework.Tenancy.Tests/Modularyn.Framework.Tenancy.Tests.csproj",
+          "name": "Modularyn.Framework.Tenancy.Tests.TenantCacheDeadlineTests.TM_G02_034_A_factory_that_blocks_its_thread_still_releases_every_waiter_at_the_deadline"
+        }
+      ],
       "sources": [
         "docs/security/threat-models/g02-foundation.md",
-        "src/Modules/Modularyn.Modules.Files.Persistence.FileSystem/README.md"
+        "src/Modules/Modularyn.Modules.Files.Persistence.FileSystem/README.md",
+        "src/Framework/README.md"
       ],
       "acceptance": "pending"
     },
