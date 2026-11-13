@@ -69,14 +69,27 @@ run_tests() {
   done < <(git ls-files -z -- 'tests/*/*.Tests.csproj')
   [ "${#projects[@]}" -gt 0 ] || fail "No test project found under tests/."
 
+  local outcome=0
+  if [ -n "${MODULARYN_EVIDENCE_DIR:-}" ]; then
+    bash .github/scripts/g02-host-results.sh prepare
+  fi
+  run_project() {
+    dotnet test "${project}" -c Release --no-build --results-directory "${results}" --logger "trx;LogFileName=${name}.trx" \
+      --logger "console;verbosity=detailed" --filter "Requires=PostgreSQL"
+  }
   for project in "${projects[@]}"; do
     name="$(basename "${project}" .csproj)"
     names+=("${name}")
-    dotnet test "${project}" -c Release --no-build --results-directory "${results}" --logger "trx;LogFileName=${name}.trx" \
-      --logger "console;verbosity=detailed" --filter "Requires=PostgreSQL"
+    # The console logger's detailed output reaches the log, so a failed test's name, message and stack trace show there. A
+    # failure stops neither the other projects nor the evidence collection, and still fails the script.
+    run_project || outcome=1
   done
 
-  count_results "${results}" "${names[@]}"
+  (count_results "${results}" "${names[@]}") || outcome=1
+  if [ -n "${MODULARYN_EVIDENCE_DIR:-}" ]; then
+    bash .github/scripts/g02-host-results.sh complete || outcome=1
+  fi
+  return "${outcome}"
 }
 
 case "${1:-}" in

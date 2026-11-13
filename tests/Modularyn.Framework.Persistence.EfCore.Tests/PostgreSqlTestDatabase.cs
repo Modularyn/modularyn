@@ -33,7 +33,17 @@ public abstract class PostgreSqlTestDatabase : IAsyncLifetime
         Assert.Equal("UTF8", session.Parameters.GetValueOrDefault("server_encoding"));
         Options = new(System.Environment.GetEnvironmentVariable(PostgreSqlTarget.Variable)!);
         testLock = await PostgreSqlTestLock.AcquireAsync(Options.ConnectionString, Cancellation);
-        await CreateSchemaAsync(Schema);
+        try
+        {
+            await CreateSchemaAsync(Schema);
+        }
+        catch
+        {
+            // A failed setup releases the test lock at once, so the tests after it do not wait for this instance's disposal.
+            await testLock.DisposeAsync();
+            testLock = null;
+            throw;
+        }
     }
 
     protected async Task CreateSchemaAsync(string schema)

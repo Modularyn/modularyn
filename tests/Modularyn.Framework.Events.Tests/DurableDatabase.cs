@@ -104,7 +104,7 @@ internal sealed class DurableDatabase : IAsyncDisposable
         Assert.InRange(session.ServerVersionNumber, 180000, 189999);
         Assert.Equal("off", session.Parameters.GetValueOrDefault("is_superuser"));
         var options = new PostgreSqlPersistenceOptions(Environment.GetEnvironmentVariable(PostgreSqlTarget.Variable)!);
-        var database = new DurableDatabase(options, await PostgreSqlTestLock.AcquireAsync(options.ConnectionString, Token));
+        var database = await PostgreSqlTestLock.HoldAsync(options.ConnectionString, held => new DurableDatabase(options, held), Token);
         try
         {
             var composed = await new ModuleComposer([database.Registry]).ComposeAsync(new(database.Manifests,

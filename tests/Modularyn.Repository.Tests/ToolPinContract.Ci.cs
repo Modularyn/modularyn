@@ -34,6 +34,7 @@ internal static partial class ToolPinContract
     public static readonly string EvidenceCheckRun = $"bash {EvidenceScriptPath}";
     public const string EvidenceCheckTest = "Modularyn.Repository.Tests.CiEvidenceTests.The_records_this_CI_run_wrote_validate_against_the_repository_contracts";
     public const string ReadinessTest = "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.The_published_sample_image_is_ready_over_HTTP";
+    public const string SignInPageTest = "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.The_published_sample_image_serves_its_sign_in_page_over_HTTP";
     public const string AcceptanceNetwork = "modularyn-acceptance";
     public const string BuildTestJob = "build-test";
     public const string RealProviderJob = "real-provider";
@@ -82,6 +83,15 @@ internal static partial class ToolPinContract
     private static readonly Regex NpmCommand = new(
         @"(?:^|[;&|(`]\s*|\brun:[ \t]+|\b(?:then|do|else)\s+)npm(?:\.cmd)?\s+(?<arguments>[^;&|)`#]*)", RegexOptions.CultureInvariant);
     private static readonly Regex NpmClean = new(@"^npm ci(?:\s|$)", RegexOptions.CultureInvariant);
+    public const string PythonRule = "no CI step runs python or python3: every tool CI runs is pinned, registered and drift-guarded, and no Python runtime is.";
+    // python, python3, a versioned, quoted or absolute python, or the py launcher, in a command position: at the start of a line,
+    // after a separator, an opening substitution or a run or shell key, after a shell keyword or launcher, or after env with its
+    // options and variable assignments, each optionally followed by variable assignments.
+    private static readonly Regex PythonCommand = new(
+        @"(?:^|[;&|(`{]\s*|\brun:[ \t]+|\bshell:[ \t]+|\b(?:then|do|else|exec|command|time|nohup|sudo|xargs)\s+(?:-\S+\s+)*"
+        + @"|\benv(?:\s+(?:-u\s*\S+|--unset=\S+|-C\s*\S+|-\S+|[A-Za-z_][A-Za-z0-9_]*=\S*))*\s+)"
+        + @"(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*[""']?(?:\S*/)?(?:python[0-9.]*|py)(?:\.exe)?[""']?(?=$|[\s;&|)`])", RegexOptions.CultureInvariant);
+    private static readonly Regex PythonShebang = new(@"\bpython|\bpy(?:\s|$)", RegexOptions.CultureInvariant);
     private static readonly Regex EnvEntry = new(@"^          (?<name>[A-Za-z_][A-Za-z0-9_]*):\s*(?<value>.*?)\s*$", RegexOptions.CultureInvariant);
     private static readonly Regex NumericUser = new("^[1-9][0-9]*(?::[1-9][0-9]*)?$", RegexOptions.CultureInvariant);
     // The hardening that every docker run of the composition fixture image or the sample image in the container rows' script
@@ -741,6 +751,37 @@ internal static partial class ToolPinContract
 
         errors.AddRange(DockerCommandErrors(files));
         errors.AddRange(NpmCommandErrors(files));
+        errors.AddRange(PythonCommandErrors(files));
+    }
+
+    // Every tool a CI step runs is pinned, registered and drift-guarded, and no Python runtime is: the evidence assembler runs on
+    // the pinned SDK (docs/ci.md, "Evidence records"). So no workflow step or CI script runs python, python3, a versioned or
+    // absolute python, or the py launcher, whether directly, after variable assignments, through env or another launcher, or
+    // as a step's shell; and no CI script is a Python file or names Python in its shebang. Like the docker and npm rules, this
+    // reads tokens: it is a drift guard, and review is the control for a command assembled another way.
+    public static IEnumerable<string> PythonCommandErrors(IReadOnlyDictionary<string, string> files)
+    {
+        foreach (var (path, text) in files.Where(pair => InDockerScope(pair.Key)).OrderBy(pair => pair.Key, StringComparer.Ordinal))
+        {
+            if (path.EndsWith(".py", StringComparison.Ordinal))
+            {
+                yield return $"{path}: {PythonRule}";
+            }
+
+            var lines = text.Replace("\r\n", "\n").Split('\n');
+            for (var index = 0; index < lines.Length; index++)
+            {
+                var line = lines[index].Trim();
+                if (index == 0 && line.StartsWith("#!", StringComparison.Ordinal) && PythonShebang.IsMatch(line))
+                {
+                    yield return $"{path}:1: {PythonRule}";
+                }
+                else if (!line.StartsWith('#') && PythonCommand.IsMatch(line))
+                {
+                    yield return $"{path}:{index + 1}: {PythonRule}";
+                }
+            }
+        }
     }
 
     // npm runs a package's install scripts unless told not to, and npm install may rewrite the lock, so the workflows and CI
@@ -958,10 +999,13 @@ internal static partial class ToolPinContract
 
         errors.AddRange(EvidenceScriptErrors(files.GetValueOrDefault(EvidenceScriptPath, "")));
 
-        // Both scripts hold the credentials in their environment, so neither may write to a runner file that a later step reads.
+        // These scripts, and the evidence scripts the tests scripts call, hold the credentials in their environment, so none may
+        // write to a runner file that a later step reads.
         var tests = files.GetValueOrDefault(TestsScriptPath, "");
         foreach (var (path, text) in new[] { (DatabaseScriptPath, script), (TestsScriptPath, tests),
-                     (CompositionScriptPath, files.GetValueOrDefault(CompositionScriptPath, "")) })
+                     (CompositionScriptPath, files.GetValueOrDefault(CompositionScriptPath, "")) }
+                     .Concat(new[] { EvidencePipelineContract.HostResultsScriptPath, EvidencePipelineContract.ContainerResultsScriptPath,
+                         EvidencePipelineContract.BundleScriptPath }.Select(path => (path, files.GetValueOrDefault(path, "")))))
         {
             if (RunnerFiles.Any(file => text.Contains(file, StringComparison.Ordinal)))
             {
@@ -1069,9 +1113,12 @@ internal static partial class ToolPinContract
 
         var script = files.GetValueOrDefault(CompositionScriptPath, "");
         var scriptLines = LogicalLines(script).Select(line => line.Trim()).ToList();
-        // Exactly the planned CODE-10 methods and the readiness test, through the test executable's own filters.
-        var planned = PlannedMethods(files, "CODE-10").Append(ReadinessTest).ToList();
-        var fixtureRun = scriptLines.Where(line => line.StartsWith("docker run ", StringComparison.Ordinal)
+        // Exactly the planned CODE-10 methods and the published sample image's readiness and sign-in page tests, through the test
+        // executable's own filters.
+        var planned = PlannedMethods(files, "CODE-10").Append(ReadinessTest).Append(SignInPageTest).ToList();
+        // The run is bounded (docs/ci.md, "Container acceptance"), so its docker run follows the timeout that EvidencePipelineContract
+        // requires of every container test run.
+        var fixtureRun = scriptLines.Where(line => line.StartsWith(EvidencePipelineContract.BoundedRun + "docker run ", StringComparison.Ordinal)
             && line.Contains("\"${COMPOSITION_IMAGE}\"", StringComparison.Ordinal) && line.Contains("-result-ctrf ", StringComparison.Ordinal)).ToList();
         if (planned.Count < 2 || fixtureRun is not [var rows]
             || Regex.Matches(rows, "-method \"(?<name>[^\"]+)\"").Select(match => match.Groups["name"].Value).Order(StringComparer.Ordinal)
@@ -1079,7 +1126,7 @@ internal static partial class ToolPinContract
             || !rows.Contains("-preEnumerateTheories -trait \"Deployment=single-host-container\"", StringComparison.Ordinal))
         {
             errors.Add($"{CompositionScriptPath}: must run the composition fixture image once with a report, selecting through its own filters "
-                + "exactly the container rows of every CODE-10 method in the evidence plan and the published sample image's readiness test.");
+                + "exactly the container rows of every CODE-10 method in the evidence plan and the published sample image's readiness and sign-in page tests.");
         }
 
         foreach (var line in scriptLines.Where(line => line.Contains("docker run ", StringComparison.Ordinal)
@@ -1095,10 +1142,12 @@ internal static partial class ToolPinContract
         }
 
         if (!scriptLines.Contains($"network={AcceptanceNetwork}", StringComparer.Ordinal)
-            || !script.Contains("[ \"$(jq -r '.results.summary.tests' \"${report}\")\" = \"5\" ] && [ \"${passed}\" = \"${expected}\" ]", StringComparison.Ordinal)
+            || !script.Contains("[ \"$(jq -r '.results.summary.tests' \"${report}\")\" = \"6\" ] && [ \"${passed}\" = \"${expected}\" ]", StringComparison.Ordinal)
+            || !new[] { ReadinessTest, SignInPageTest }.All(test => script.Replace("\r\n", "\n", StringComparison.Ordinal)
+                .Contains($"\n  '{test}' \\\n", StringComparison.Ordinal))
             || !script.Contains("select(.status == \"passed\")", StringComparison.Ordinal))
         {
-            errors.Add($"{CompositionScriptPath}: must use the {AcceptanceNetwork} network and fail unless its report shows the five expected tests, all passed.");
+            errors.Add($"{CompositionScriptPath}: must use the {AcceptanceNetwork} network and fail unless its report shows the six expected tests, all passed.");
         }
     }
 

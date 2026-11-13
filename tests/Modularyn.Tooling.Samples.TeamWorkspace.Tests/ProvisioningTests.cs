@@ -182,8 +182,7 @@ internal sealed class ProvisioningDeployment : IAsyncDisposable
         var session = await PostgreSqlProbe.ConnectAsync(PostgreSqlTarget.FromEnvironment(), token);
         Check.That(session.ServerVersionNumber is >= 180000 and < 190000 && session.Parameters.GetValueOrDefault("is_superuser") == "off", "database-role-and-version");
         var connection = Environment.GetEnvironmentVariable(PostgreSqlTarget.Variable)!;
-        var held = await PostgreSqlTestLock.AcquireAsync(connection, token);
-        var deployment = new ProvisioningDeployment(connection, held, RunDirectory.NewPath());
+        var deployment = await PostgreSqlTestLock.HoldAsync(connection, held => new ProvisioningDeployment(connection, held, RunDirectory.NewPath()), token);
         try
         {
             RunDirectory.Create(deployment.directory);

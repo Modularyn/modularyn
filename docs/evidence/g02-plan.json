@@ -119,7 +119,7 @@
           "name": "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_B01_CompatibilityEdgesHonorTheDeclaredRange_Integration",
           "layer": "real-provider-integration",
           "workOrder": "CODE-10",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -168,7 +168,7 @@
           "name": "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_N01_InvalidGraphsRefuseActivationWithDiagnostics_Integration",
           "layer": "real-provider-integration",
           "workOrder": "CODE-10",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -219,7 +219,7 @@
           "name": "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_P01_DependenciesInitializeOnceAndStopInReverseOrder_Integration",
           "layer": "real-provider-integration",
           "workOrder": "CODE-10",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -263,7 +263,7 @@
           "name": "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_R01_FailedInitializationCleansUpAndRecovers_Integration",
           "layer": "real-provider-integration",
           "workOrder": "CODE-10",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -1316,14 +1316,14 @@
           "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_B01_DuplicateAndReorderedEventsKeepProjectionVersion_Integration",
           "layer": "real-provider-integration",
           "workOrder": "CODE-05",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
           "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_B01_DuplicateAndReorderedEventsKeepProjectionVersion_Contract",
           "layer": "api-contract",
           "workOrder": "CODE-05",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -1366,14 +1366,14 @@
           "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_N01_UnsupportedEventsRemainVisibleWithoutMutation_Integration",
           "layer": "real-provider-integration",
           "workOrder": "CODE-05",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
           "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_N01_UnsupportedEventsRemainVisibleWithoutMutation_Contract",
           "layer": "api-contract",
           "workOrder": "CODE-05",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -1415,14 +1415,14 @@
           "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_P01_CommittedIntentProducesOneProjectionEffect_Integration",
           "layer": "real-provider-integration",
           "workOrder": "CODE-05",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
           "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_P01_CommittedIntentProducesOneProjectionEffect_Contract",
           "layer": "api-contract",
           "workOrder": "CODE-05",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -1464,21 +1464,21 @@
           "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_R01_AllFiveCrashWindowsReconcileCommittedIntent_Integration",
           "layer": "real-provider-integration",
           "workOrder": "CODE-05",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
           "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_R01_AllFiveCrashWindowsReconcileCommittedIntent_Contract",
           "layer": "api-contract",
           "workOrder": "CODE-05",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Events.Tests/Modularyn.Framework.Events.Tests.csproj",
           "name": "Modularyn.Framework.Events.Tests.G02AC006Tests.AC_006_R01_AllFiveCrashWindowsReconcileCommittedIntent_Recovery",
           "layer": "operational-recovery",
           "workOrder": "CODE-05",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -1520,14 +1520,14 @@
           "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC_007_B01_ScheduleEdgesAndMisfiresFollowDeclaredPolicy_Integration",
           "layer": "real-provider-integration",
           "workOrder": "CODE-05",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
           "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC_007_B01_ScheduleEdgesAndMisfiresFollowDeclaredPolicy_Recovery",
           "layer": "operational-recovery",
           "workOrder": "CODE-05",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -1573,14 +1573,14 @@
           "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC_007_N01_RetryExhaustionAndCancellationHaveDistinctOutcomes_Integration",
           "layer": "real-provider-integration",
           "workOrder": "CODE-05",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
           "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC_007_N01_RetryExhaustionAndCancellationHaveDistinctOutcomes_Recovery",
           "layer": "operational-recovery",
           "workOrder": "CODE-05",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -1626,14 +1626,14 @@
           "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC_007_P01_DueJobRunsOnceWithVisibleState_Integration",
           "layer": "real-provider-integration",
           "workOrder": "CODE-05",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
           "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC_007_P01_DueJobRunsOnceWithVisibleState_Recovery",
           "layer": "operational-recovery",
           "workOrder": "CODE-05",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -1680,14 +1680,14 @@
           "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC_007_R01_LeaseLossAndRestartLeaveOneCommittedEffect_Integration",
           "layer": "real-provider-integration",
           "workOrder": "CODE-05",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Modules.BackgroundJobs.Application.Tests/Modularyn.Modules.BackgroundJobs.Application.Tests.csproj",
           "name": "Modularyn.Modules.BackgroundJobs.Application.Tests.G02AC007Tests.AC_007_R01_LeaseLossAndRestartLeaveOneCommittedEffect_Recovery",
           "layer": "operational-recovery",
           "workOrder": "CODE-05",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -1733,7 +1733,7 @@
           "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC_008_B01_VersionAndCancellationEdgesPreserveAuthoritativeOutcome_Contract",
           "layer": "api-contract",
           "workOrder": "CODE-06",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -1778,7 +1778,7 @@
           "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC_008_N01_EveryClientRetainsDistinctTypedFailures_Contract",
           "layer": "api-contract",
           "workOrder": "CODE-06",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -1823,7 +1823,7 @@
           "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC_008_P01_AdvertisedClientsAgreeWithTheEndpointContract_Contract",
           "layer": "api-contract",
           "workOrder": "CODE-06",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [
@@ -1870,21 +1870,21 @@
           "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC_008_R01_InterruptedResponseReconcilesWithoutDuplicateCreation_Contract",
           "layer": "api-contract",
           "workOrder": "CODE-06",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
           "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC_008_R01_InterruptedResponseReconcilesWithoutDuplicateCreation_Integration",
           "layer": "real-provider-integration",
           "workOrder": "CODE-06",
-          "status": "planned"
+          "status": "existing"
         },
         {
           "project": "tests/Modularyn.Framework.Sdk.Client.Tests/Modularyn.Framework.Sdk.Client.Tests.csproj",
           "name": "Modularyn.Framework.Sdk.Client.Tests.G02AC008Tests.AC_008_R01_InterruptedResponseReconcilesWithoutDuplicateCreation_Recovery",
           "layer": "operational-recovery",
           "workOrder": "CODE-06",
-          "status": "planned"
+          "status": "existing"
         }
       ],
       "layers": [

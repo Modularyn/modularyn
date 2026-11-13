@@ -594,7 +594,7 @@ jobs:
           fi
           echo "SHA-256 verified, ${actual}"
           echo "MODULARYN_TEST_BROWSER_ARCHIVE=${archive}" >> "${GITHUB_ENV}"
-      # The host rows of the AC-001 cases write their evidence records beneath the runner's temporary directory, bound to the
+      # The host bundle binds its measured selection and planned results beneath the runner's temporary directory to the
       # exact head that the checkout step fetched (docs/ci.md, "Evidence records"). Neither value is a secret.
       - name: Choose the host evidence directory
         shell: bash
@@ -604,9 +604,10 @@ jobs:
           [[ "${head}" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Cannot read the exact head."; exit 1; }
           echo "MODULARYN_EVIDENCE_DIR=${RUNNER_TEMP}/host-evidence" >> "${GITHUB_ENV}"
           echo "MODULARYN_SOURCE_COMMIT=${head}" >> "${GITHUB_ENV}"
+          echo "MODULARYN_EVIDENCE_RUN_ID=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "${GITHUB_ENV}"
       # The database script creates the per-run credentials and runs the tests script with MODULARYN_TEST_POSTGRESQL
       # set, so the credentials exist only in this step. The tests script runs every project's PostgreSQL tests with
-      # detailed output and fails unless at least one ran and all passed. MODULARYN_CLIENT_TEST_VITEST makes the client
+      # bounded result output and fails unless at least one ran and all passed. MODULARYN_CLIENT_TEST_VITEST makes the client
       # tests run the TypeScript scenarios under Vitest as well as on Node.js alone; neither runner receives the credentials.
       - name: Test against PostgreSQL
         shell: bash
@@ -615,8 +616,9 @@ jobs:
           POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
           MODULARYN_CLIENT_TEST_VITEST: '1'
         run: bash .github/scripts/postgresql-test-database.sh ci bash .github/scripts/real-provider-tests.sh
-      # The repository's own evidence contracts check every record the host rows wrote; the job then prints each record's SHA-256.
+      # The repository's own evidence contracts check the complete host bundle; the job then prints each record's SHA-256.
       - name: Check the host evidence records
+        if: ${{ always() }}
         shell: bash
         env:
           MODULARYN_EVIDENCE_MODE: single-host
@@ -882,6 +884,8 @@ jobs:
             || fail "Without configuration the sample host must print only its fixed startup diagnostic."
           described="$(docker run --rm --pull=never --platform=linux/amd64 --network=none "${SAMPLE_IMAGE}" --describe-deployment)" || fail "The sample image did not describe its deployment."
           [ "${described}" = "$(cat "${RUNNER_TEMP}/team-workspace/deployment-lock.json")" ] || fail "The sample image's files are not those its deployment lock describes."
+          writable="$(docker run --rm --pull=never --platform=linux/amd64 --network=none --read-only --cap-drop=ALL --security-opt=no-new-privileges --entrypoint=find "${SAMPLE_IMAGE}" /app \( ! -user 0 -o -perm /022 \) -print)" || fail "The sample image ownership check did not run."
+          [ -z "${writable}" ] || fail "Root must own every file of the sample image, and its user may write none."
           echo "Sample image $(docker image inspect --format '{{.Id}}' "${SAMPLE_IMAGE}") on ${platform}, user ${user}, refuses to start without configuration"
       # The AC-001 container rows (docs/ci.md, "Container acceptance"). The sample's test project, an xunit v3 executable with
       # the sample host, its modules and the test modules A, B and C, is published framework-dependent with the pinned SDK from
@@ -901,7 +905,14 @@ jobs:
           rm -rf "${publish_dir}"
           dotnet restore --locked-mode "${project}"
           dotnet publish "${project}" -c Release --no-restore --self-contained false -o "${publish_dir}"
+          while IFS= read -r planned_project; do
+            [ "${planned_project}" != "${project}" ] || continue
+            name="$(basename "${planned_project}" .csproj)"
+            dotnet restore --locked-mode "${planned_project}"
+            dotnet publish "${planned_project}" -c Release --no-restore --self-contained false -o "${publish_dir}/projects/${name}"
+          done < <(jq -r '[.cases[].plannedTests[].project] | unique[]' docs/evidence/g02-plan.json)
           echo "MODULARYN_SOURCE_COMMIT=${head}" >> "${GITHUB_ENV}"
+          echo "MODULARYN_EVIDENCE_RUN_ID=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "${GITHUB_ENV}"
       - name: Build the composition fixture image for linux/amd64
         shell: bash
         run: |
@@ -930,6 +941,16 @@ jobs:
           writable="$(docker run --rm --pull=never --platform=linux/amd64 --network=none --entrypoint=find "${COMPOSITION_IMAGE}" /app \( ! -user 0 -o -writable \) -print)" || fail "The composition fixture image did not run."
           [ -z "${writable}" ] || fail "Root must own every file of the composition fixture image, and its user may write none: ${writable}"
           echo "Composition fixture image $(docker image inspect --format '{{.Id}}' "${COMPOSITION_IMAGE}") on ${platform}, user ${user}, on the layers of ${ASPNET_IMAGE}"
+      # The evidence assembler runs on the runner from the repository tests' Release build, with the pinned SDK and its locked
+      # packages (docs/ci.md, "Evidence records"): the container rows' script collects each report with it as the fixture
+      # image writes it, and the evidence check assembles and checks the container half with it.
+      - name: Build the evidence assembler
+        shell: bash
+        run: |
+          set -euo pipefail
+          project=tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj
+          dotnet restore --locked-mode "${project}"
+          dotnet build "${project}" -c Release --no-restore
       # PostgreSQL for the container rows, on an internal Docker network that reaches nothing outside it, configured as the
       # real-provider job's service is: host connections are rejected until the database script creates the test role, and
       # that script removes the bootstrap superuser password, the run's public id, which never authenticates anything.
@@ -957,15 +978,13 @@ jobs:
         env:
           POSTGRES_PORT: '5432'
         run: bash .github/scripts/postgresql-test-database.sh ci bash .github/scripts/composition-tests.sh
-      # The repository's own evidence contracts check every record the container rows wrote; the job then prints each record's
+      # The repository's own evidence contracts check the complete container bundle; the job then prints each record's
       # SHA-256.
       - name: Check the container evidence records
+        if: ${{ always() }}
         shell: bash
         env:
           MODULARYN_EVIDENCE_MODE: single-host-container
         run: |
           set -euo pipefail
-          project=tests/Modularyn.Repository.Tests/Modularyn.Repository.Tests.csproj
-          dotnet restore --locked-mode "${project}"
-          dotnet build "${project}" -c Release --no-restore
           MODULARYN_EVIDENCE_DIR="${RUNNER_TEMP}/composition-output/evidence" bash .github/scripts/evidence-records.sh

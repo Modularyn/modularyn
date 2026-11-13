@@ -19,6 +19,41 @@ public sealed class ProviderLifecycleTests
 {
     private static CancellationToken Token => DurableDatabase.Token;
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(10)]
+    public async Task Renewal_at_or_after_expiry_cannot_revive_the_same_lease(long ticksAfterExpiry)
+    {
+        await using var database = await DurableDatabase.CreateAsync();
+        var clock = new DurableClock();
+        await using var host = DurableHost.Create(database, clock);
+        await using var unit = await host.EnterServiceAsync(await host.TenantAsync());
+        await host.QueueAsync(unit, "expired-renewal");
+        bool? renewed = null;
+        JobRecord? before = null;
+        JobRecord? after = null;
+        var worker = host.Worker(async (execution, token) =>
+        {
+            before = Assert.Single(await host.RowsAsync<JobRecord>(database.Producer, unit.Context));
+            clock.Set(before.LeaseUntil!.Value.AddTicks(ticksAfterExpiry));
+            // The public renewal checks expiry before reaching the store. Exercise the store's own scan-to-renew guard
+            // directly so removing it fails this test even while that earlier checkpoint remains intact.
+            var renew = typeof(JobStore).GetMethod("RenewAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                ?? throw new InvalidOperationException("The store renewal method is unavailable.");
+            renewed = await (Task<bool>)renew.Invoke(host.JobStore, [execution.Work.Context.Tenant!, execution.Claim, token])!;
+            after = Assert.Single(await host.RowsAsync<JobRecord>(database.Producer, unit.Context));
+            await DurableModel.EffectAsync(execution.Work, execution.Payload, 1, token);
+        });
+        Assert.Equal(0, await worker.RunDueAsync(await host.HostAsync(), host.WorkerPrincipal(), cancellationToken: Token));
+        // Assertions outside the handler cannot be swallowed by its failure-disposition boundary.
+        Assert.False(Assert.IsType<bool>(renewed));
+        Assert.NotNull(before);
+        Assert.NotNull(after);
+        Assert.Equal((before.Lease, before.LeaseUntil, before.Version), (after.Lease, after.LeaseUntil, after.Version));
+        Assert.Equal(JobAttemptState.LeaseLost, Assert.Single(await host.RowsAsync<JobAttempt>(database.Producer, unit.Context)).State);
+        Assert.Empty(await host.RowsAsync<DurableEffect>(database.Producer, unit.Context));
+    }
+
     [Fact]
     public async Task Lease_renewal_extends_the_same_attempt_without_invalidating_its_commit()
     {

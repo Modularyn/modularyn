@@ -92,9 +92,9 @@ public sealed partial class G02AC003Tests
         {
             if (batch != 4) return;
             paused.SetResult();
-            await revoked.Task.WaitAsync(Cancellation);
+            await revoked.Task.WaitAsync(SignalDeadline, Cancellation);
         }, Cancellation);
-        await paused.Task.WaitAsync(Cancellation);
+        await SignalledAsync(paused.Task, a);
         // While A is paused, B runs to completion, and A's revocation then lands in A only.
         var b = await ItemWork.BulkUpdateAsync(host.Services, database.ItemsModule, unitB.Context, unitB.Principal, Hundred, 10, null, Cancellation);
         await host.Get<AuthorityAdministration>().RevokePermissionAsync(ownerA.Context, ownerA.Principal, user.Actor, Items.BulkUpdate, Cancellation);

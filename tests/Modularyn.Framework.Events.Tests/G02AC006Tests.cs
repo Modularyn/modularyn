@@ -186,6 +186,19 @@ public sealed class G02AC006Tests(ITestOutputHelper output)
                         ? EventCheckpoint.EffectBeforeCommit : EventCheckpoint.CommittedBeforeAcknowledgement))
                         .ConsumeAsync(dispatch, principal, cancellationToken: Token));
                     Assert.Equal(window == 4 ? 1 : 0, (await host.RowsAsync<DurableEffect>(database.Consumer, unit.Context)).Length);
+                    if (window == 4)
+                    {
+                        // The acknowledgement was lost after commit. A fresh consumer pass must see the committed receipt
+                        // and position now, before the restart loop that also covers the precommit interruption.
+                        await using var afterCommit = DurableHost.Create(database, clock);
+                        Assert.Equal(0, await afterCommit.Pump().ConsumeAsync(await afterCommit.HostAsync(), afterCommit.WorkerPrincipal(), cancellationToken: Token));
+                        var receipt = Assert.Single(await afterCommit.RowsAsync<InboxEvent>(database.Consumer, unit.Context));
+                        Assert.Equal(id, receipt.Id);
+                        Assert.Equal(EventState.Completed, receipt.State);
+                        Assert.Equal(1, receipt.Attempts);
+                        Assert.Equal(1, Assert.Single(await afterCommit.RowsAsync<EventPosition>(database.Consumer, unit.Context)).Position);
+                        Assert.Equal(1, Assert.Single(await afterCommit.RowsAsync<DurableEffect>(database.Consumer, unit.Context)).Count);
+                    }
                 }
             }
             for (var restart = 0; restart < (repeatRestart ? 2 : 1); restart++)

@@ -7,7 +7,7 @@ using Xunit;
 
 namespace Modularyn.Repository.Tests;
 
-// CI's check of the AC-001 evidence records its own run wrote: the host records of the real-provider job and the container
+// CI's check of the evidence records its own run wrote: the host records of the real-provider job and the container
 // records of the container-build job (docs/ci.md). CI runs the one test below through the test executable's own filter, after
 // the run that wrote the records, with MODULARYN_EVIDENCE_DIR, MODULARYN_SOURCE_COMMIT and MODULARYN_EVIDENCE_MODE set.
 internal static class CiEvidence
@@ -24,6 +24,8 @@ internal static class CiEvidence
     // bound to the run's exact commit and deployment mode, and retaining exactly the bytes its result and artifact hashes name.
     public static List<string> Errors(string directory, string? commit, string? mode, IReadOnlyDictionary<string, string> files)
     {
+        if (File.Exists(Path.Combine(directory, "manifest.json")))
+            return EvidenceBundleContract.Errors(directory, commit, mode, files);
         var errors = new List<string>();
         if (commit is null || !Commit.IsMatch(commit))
         {
