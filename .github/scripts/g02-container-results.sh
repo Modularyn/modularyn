@@ -3,9 +3,10 @@
 # assembler's commands run on the runner, on the pinned SDK, through evidence-bundle.sh.
 #
 # Every run is bounded and shown (docs/ci.md, "Container acceptance"): the script names each project and how many planned
-# methods it runs, timeout stops a run that exceeds its bound, which fails the step naming the run, and of the runner's output
-# only xunit's long-running-test lines appear, each a test name and its elapsed time. After a run, its report's planned method
-# names and statuses are printed, and nothing else of the report.
+# methods it runs, timeout stops a run that exceeds its bound, which fails the step naming the run, and the runner's output
+# passes through g02-project-output.awk: xunit's long-running-test lines, the live phase markers, each failed test's [FAIL]
+# line with its message and stack trace, and the summary. After a run, its report's planned method names and statuses are
+# printed, and nothing else of the report.
 set -euo pipefail
 fail() { echo "::error::G-02 container result collection failed."; exit 1; }
 [ "${GITHUB_ACTIONS:-}" = true ] || fail
@@ -19,9 +20,6 @@ bound=300
 export MODULARYN_EVIDENCE_DIR="${evidence}" MODULARYN_EVIDENCE_MODE=single-host-container
 remove_raw() { rm -f "${output}/"*.raw.json "${output}/"*.methods; }
 trap remove_raw EXIT
-# Of the measurement's output, only xunit's long-running-test lines, a test's name and its elapsed time, and the live phase markers that
-# AC-003-N02's integration row writes, the fixed prefix and a phase name.
-long_running() { grep --line-buffered -oE "\[Long Running Test\] '[^']*', Elapsed: [0-9:]+|\[OUTPUT\] G02 phase: [a-z0-9-]+$" || true; }
 # timeout ends a run past its bound with 124, or 137 once it has to kill the docker client; the container is then stopped too.
 bounded() {
   if [ "$2" -eq 124 ] || [ "$2" -eq 137 ]; then
@@ -49,7 +47,7 @@ watch_run() {
 }
 if [ "$1" = prepare ]; then
   run=0
-  timeout --kill-after=30s "${bound}" docker run --rm --pull=never --platform=linux/amd64 --name=g02-measurement --network="container:${POSTGRES_CONTAINER}" --read-only --tmpfs=/tmp --cap-drop=ALL --security-opt=no-new-privileges --group-add="${group}" --volume="${output}:/output" --env=MODULARYN_TEST_POSTGRESQL --env=MODULARYN_SOURCE_COMMIT --env=MODULARYN_EVIDENCE_RUN_ID --env=MODULARYN_CONTAINER_IMAGE_DIGEST --env=MODULARYN_EVIDENCE_DIR=/output/evidence --env=MODULARYN_EVIDENCE_MEASURE=1 --env=MODULARYN_EVIDENCE_BINARIES=/app "${COMPOSITION_IMAGE}" -noLogo -noColor -failSkips -longRunning 60 -method Modularyn.Tooling.Samples.TeamWorkspace.Tests.EvidenceMeasurementTests.Measure_the_evidence_run_before_collecting_results 2>&1 | long_running || run=$?
+  timeout --kill-after=30s "${bound}" docker run --rm --pull=never --platform=linux/amd64 --name=g02-measurement --network="container:${POSTGRES_CONTAINER}" --read-only --tmpfs=/tmp --cap-drop=ALL --security-opt=no-new-privileges --group-add="${group}" --volume="${output}:/output" --env=MODULARYN_TEST_POSTGRESQL --env=MODULARYN_SOURCE_COMMIT --env=MODULARYN_EVIDENCE_RUN_ID --env=MODULARYN_CONTAINER_IMAGE_DIGEST --env=MODULARYN_EVIDENCE_DIR=/output/evidence --env=MODULARYN_EVIDENCE_MEASURE=1 --env=MODULARYN_EVIDENCE_BINARIES=/app "${COMPOSITION_IMAGE}" -noLogo -noColor -failSkips -longRunning 60 -method Modularyn.Tooling.Samples.TeamWorkspace.Tests.EvidenceMeasurementTests.Measure_the_evidence_run_before_collecting_results 2>&1 | awk -f .github/scripts/g02-project-output.awk || run=$?
   bounded g02-measurement "${run}"
   [ "${run}" -eq 0 ] || fail
   exit 0

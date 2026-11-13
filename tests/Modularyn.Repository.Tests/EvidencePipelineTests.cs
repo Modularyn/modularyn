@@ -58,13 +58,12 @@ public sealed class EvidencePipelineTests
     [InlineData("[ -z \"${writable}\" ] || fail \"Root must own every file of the composition fixture image, and its user may write none: ${writable}\"")]
     [InlineData("timeout --kill-after=30s \"${bound}\" ")]
     [InlineData(" -longRunning 60")]
-    [InlineData(" 2>&1 | long_running")]
     [InlineData("awk -f .github/scripts/g02-project-output.awk")]
+    [InlineData("jq -r '.results.tests[] | \"\\(.status) \\(.name)\"' \"${report}\"")]
+    [InlineData("docker logs --tail=50 \"${sample}\" 2>&1 || true")]
     [InlineData("/ \\[OUTPUT\\] / || /\\[D::/ { next }")]
     [InlineData(" || /^ *Output:$/")]
     [InlineData("/ \\[FAIL\\]$/ { print; failing = 1; fflush(); next }")]
-    [InlineData("grep --line-buffered -oE \"\\[Long Running Test\\] '[^']*', Elapsed: [0-9:]+|\\[OUTPUT\\] G02 phase: [a-z0-9-]+$\" || true")]
-    [InlineData("|\\[OUTPUT\\] G02 phase: [a-z0-9-]+$")]
     [InlineData(" -showLiveOutput")]
     [InlineData(" --env=ASPNETCORE_HTTP_PORTS=")]
     [InlineData(" --workdir=\"/app/projects/${name}\"")]
@@ -194,12 +193,17 @@ internal static class EvidencePipelineContract
     ];
 
     // Every container test run is bounded and shown (docs/ci.md, "Container acceptance"): it runs under timeout within its bound,
-    // by name, with xunit's long-running report, and of its output shows only those lines; a run past its bound stops its
-    // container and fails the step naming the run. The readiness poll, a single short test that bounds itself, is the exception.
+    // by name, with xunit's long-running report, and shows its output only through ProjectOutputPath's filter: the long-running
+    // lines, the phase markers, each failure's [FAIL] line with its message and stack trace, and the summary; a run past its bound
+    // stops its container and fails the step naming the run. The readiness poll, a single short test that bounds itself, is the
+    // exception.
     internal const string BoundedRun = "timeout --kill-after=30s \"${bound}\" ";
     private const string PhaseTestPath = "tests/Modularyn.Framework.Authorization.Tests/G02AC003Tests.CrossSite.cs";
     private const string Bound = "bound=300";
-    private const string LongRunning = """long_running() { grep --line-buffered -oE "\[Long Running Test\] '[^']*', Elapsed: [0-9:]+|\[OUTPUT\] G02 phase: [a-z0-9-]+$" || true; }""";
+    // The composition rows print each test's status and name from their report, and a sample that never becomes ready prints its
+    // last 50 log lines before the step fails: the job uploads no artifact, so its log is the only diagnostic.
+    private const string CompositionOutcomes = "jq -r '.results.tests[] | \"\\(.status) \\(.name)\"' \"${report}\"";
+    private const string SampleLogTail = "docker logs --tail=50 \"${sample}\" 2>&1 || true";
     private const string Stopped = """
         bounded() {
           if [ "$2" -eq 124 ] || [ "$2" -eq 137 ]; then
@@ -225,14 +229,19 @@ internal static class EvidencePipelineContract
             var lines = script.Split('\n').Select(line => line.Trim()).ToList();
             var runs = lines.Select((line, index) => (Line: line, Index: index)).Where(item => item.Line.Contains("docker run ", StringComparison.Ordinal)
                 && item.Line.Contains("\"${COMPOSITION_IMAGE}\"", StringComparison.Ordinal) && !item.Line.StartsWith("if docker run ", StringComparison.Ordinal)).ToList();
-            if (!lines.Contains(Bound) || !lines.Contains(LongRunning) || runs.Count == 0
+            if (!lines.Contains(Bound) || runs.Count == 0
                 || runs.Any(run => !run.Line.StartsWith(BoundedRun + "docker run ", StringComparison.Ordinal)
                     || !run.Line.Contains(" -longRunning 60 ", StringComparison.Ordinal)
-                    || !Regex.IsMatch(run.Line, @" 2>&1 \| (?:long_running|awk -f \.github/scripts/g02-project-output\.awk) \|\| (?:run|status)=\$\?\z", RegexOptions.CultureInvariant)
+                    || !Regex.IsMatch(run.Line, @" 2>&1 \| awk -f \.github/scripts/g02-project-output\.awk \|\| (?:run|status)=\$\?\z", RegexOptions.CultureInvariant)
                     || !Stops(path, lines, run.Line, run.Index, script)))
-                yield return $"{path}: every container test run must run under timeout within {Bound}, by name, with -longRunning 60, show only "
-                    + "its long-running-test lines, and stop its container and fail the step naming the run when it exceeds the bound.";
+                yield return $"{path}: every container test run must run under timeout within {Bound}, by name, with -longRunning 60, show its output only "
+                    + $"through {ProjectOutputPath}, and stop its container and fail the step naming the run when it exceeds the bound.";
         }
+
+        var composition = files.GetValueOrDefault(ToolPinContract.CompositionScriptPath, "").Replace("\r\n", "\n", StringComparison.Ordinal);
+        if (!composition.Contains(CompositionOutcomes, StringComparison.Ordinal) || !composition.Contains(SampleLogTail, StringComparison.Ordinal))
+            yield return $"{ToolPinContract.CompositionScriptPath}: must print each composition test's status and name from its report, "
+                + "and the published sample's last 50 log lines when it never becomes ready.";
 
         // Each project's run is announced with its method count, and its planned outcomes are printed before collection.
         var results = files.GetValueOrDefault(ContainerResultsScriptPath, "").Replace("\r\n", "\n", StringComparison.Ordinal);

@@ -11,8 +11,8 @@
 #   4. runs the composition fixture image in the database container's network namespace, so the tests reach the database
 #      on loopback as their probe requires, with an output directory mounted for the report and the evidence records,
 #      selecting exactly the four AC-001 container rows and the published sample image's readiness and sign-in page tests
-#      through the test executable's own filters, within a bound that fails the step, showing only xunit's long-running-test
-#      lines;
+#      through the test executable's own filters, within a bound that fails the step, showing its failures and summary through
+#      the shared filter, as every other test run does;
 #      and
 #   5. fails unless the report shows exactly those six tests and every one passed: none skipped, none missing.
 #
@@ -31,9 +31,6 @@ fail() {
 [[ "${MODULARYN_SOURCE_COMMIT:-}" =~ ^[0-9a-f]{40}$ ]] || fail "MODULARYN_SOURCE_COMMIT must be the exact head."
 loopback="Host=127.0.0.1;Port=5432;"
 bound=300
-# Of a run's output, only xunit's long-running-test lines, a test's name and its elapsed time, and the live phase markers that
-# AC-003-N02's integration row writes, the fixed prefix and a phase name.
-long_running() { grep --line-buffered -oE "\[Long Running Test\] '[^']*', Elapsed: [0-9:]+|\[OUTPUT\] G02 phase: [a-z0-9-]+$" || true; }
 [[ "${MODULARYN_TEST_POSTGRESQL:-}" == "${loopback}"* ]] || fail "MODULARYN_TEST_POSTGRESQL must name the database container's loopback port."
 
 network=modularyn-acceptance
@@ -71,6 +68,7 @@ for attempt in $(seq 1 30); do
   sleep 2
 done
 if [ -z "${ready}" ]; then
+  docker logs --tail=50 "${sample}" 2>&1 || true
   fail "The published sample image did not become ready."
 fi
 echo "The published sample image is ready after ${attempt} checks."
@@ -81,7 +79,7 @@ echo "The container rows run in the composition fixture image ${digest}."
 export MODULARYN_CONTAINER_IMAGE_DIGEST="${digest}"
 bash .github/scripts/g02-container-results.sh prepare
 status=0
-timeout --kill-after=30s "${bound}" docker run --rm --pull=never --platform=linux/amd64 --name=g02-composition --network="container:${POSTGRES_CONTAINER}" --read-only --tmpfs=/tmp --cap-drop=ALL --security-opt=no-new-privileges --group-add="${group}" --volume="${output}:/output" --env=MODULARYN_TEST_POSTGRESQL --env=MODULARYN_SAMPLE_BASE_URL --env=MODULARYN_SOURCE_COMMIT --env=MODULARYN_EVIDENCE_RUN_ID --env=MODULARYN_CONTAINER_IMAGE_DIGEST="${digest}" --env=MODULARYN_EVIDENCE_DIR=/output/evidence "${COMPOSITION_IMAGE}" -noLogo -noColor -longRunning 60 -preEnumerateTheories -trait "Deployment=single-host-container" -method "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_B01_CompatibilityEdgesHonorTheDeclaredRange_Integration" -method "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_N01_InvalidGraphsRefuseActivationWithDiagnostics_Integration" -method "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_P01_DependenciesInitializeOnceAndStopInReverseOrder_Integration" -method "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_R01_FailedInitializationCleansUpAndRecovers_Integration" -method "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.The_published_sample_image_is_ready_over_HTTP" -method "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.The_published_sample_image_serves_its_sign_in_page_over_HTTP" -result-ctrf /output/composition-results.json 2>&1 | long_running || status=$?
+timeout --kill-after=30s "${bound}" docker run --rm --pull=never --platform=linux/amd64 --name=g02-composition --network="container:${POSTGRES_CONTAINER}" --read-only --tmpfs=/tmp --cap-drop=ALL --security-opt=no-new-privileges --group-add="${group}" --volume="${output}:/output" --env=MODULARYN_TEST_POSTGRESQL --env=MODULARYN_SAMPLE_BASE_URL --env=MODULARYN_SOURCE_COMMIT --env=MODULARYN_EVIDENCE_RUN_ID --env=MODULARYN_CONTAINER_IMAGE_DIGEST="${digest}" --env=MODULARYN_EVIDENCE_DIR=/output/evidence "${COMPOSITION_IMAGE}" -noLogo -noColor -longRunning 60 -preEnumerateTheories -trait "Deployment=single-host-container" -method "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_B01_CompatibilityEdgesHonorTheDeclaredRange_Integration" -method "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_N01_InvalidGraphsRefuseActivationWithDiagnostics_Integration" -method "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_P01_DependenciesInitializeOnceAndStopInReverseOrder_Integration" -method "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_R01_FailedInitializationCleansUpAndRecovers_Integration" -method "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.The_published_sample_image_is_ready_over_HTTP" -method "Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.The_published_sample_image_serves_its_sign_in_page_over_HTTP" -result-ctrf /output/composition-results.json 2>&1 | awk -f .github/scripts/g02-project-output.awk || status=$?
 if [ "${status}" -eq 124 ] || [ "${status}" -eq 137 ]; then
   docker kill g02-composition > /dev/null 2>&1 || true
   fail "The G-02 container run g02-composition did not finish within ${bound} seconds."
@@ -89,6 +87,7 @@ fi
 
 check_composition_results() {
 [ -f "${report}" ] || fail "The composition fixture image wrote no report."
+jq -r '.results.tests[] | "\(.status) \(.name)"' "${report}"
 expected="$(printf '%s\n' \
   'Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_B01_CompatibilityEdgesHonorTheDeclaredRange_Integration(mode: "single-host-container")' \
   'Modularyn.Tooling.Samples.TeamWorkspace.Tests.CompositionAcceptanceTests.AC_001_N01_InvalidGraphsRefuseActivationWithDiagnostics_Integration(mode: "single-host-container")' \
